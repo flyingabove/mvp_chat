@@ -1,0 +1,23 @@
+name: "Block Merge Conflicts"
+
+on:
+  pull_request:
+
+jobs:
+  no-conflicts:
+    name: "Reject PRs containing merge conflict markers"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Scan for Git merge conflict markers
+        run: |
+          echo "Scanning for merge conflict markers..."
+          if grep -R "<<<<<<< HEAD" -n . || grep -R "=======" -n . || grep -R ">>>>>>>" -n .; then
+            echo "❌ Merge conflict markers found! Resolve conflicts before merging."
+            exit 1
+          else
+            echo "✅ No merge conflicts detected."
+          fi
