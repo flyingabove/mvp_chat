@@ -117,6 +117,15 @@
       turns: 0, story: null, gender: null, playerName: null
     };
 
+    /* ------- smarter scroll: respect user scrolling -------- */
+    function scrollToBottom(force){
+      var distance = term.scrollHeight - term.scrollTop - term.clientHeight;
+      var nearBottom = distance < 80;
+      if (force || nearBottom){
+        term.scrollTop = term.scrollHeight;
+      }
+    }
+
     function escapeHTML(s){
       return String(s)
         .replace(/&/g,'&amp;')
@@ -151,14 +160,14 @@
       if (cls) d.className = cls + ' line';
       d.innerHTML = toRichHTML(text);
       term.appendChild(d);
-      term.scrollTop = term.scrollHeight;
+      scrollToBottom(true);
     }
 
     function newPrompt(){
       var l = document.createElement('div'); l.id = 'inputline';
       l.innerHTML = '<span class="sys">&gt; </span><span id="buffer"></span><span id="cursor">&nbsp;</span>';
       term.appendChild(l);
-      term.scrollTop = term.scrollHeight;
+      scrollToBottom(true);
     }
 
     function removeInputLine(){ var el=document.getElementById('inputline'); if (el) el.remove(); }
@@ -166,9 +175,36 @@
     function getBufferEl(){ return document.getElementById('buffer'); }
     function renderBuffer(){ var b=getBufferEl(); if (b) b.textContent=ime.value; setGhost(ime.value); }
 
-    function typewrite(text, cls){ return new Promise(r=>{ writeLine(text,cls); r(); }); }
+    /* -------- Smooth typewriter / streaming effect -------- */
+    function typewrite(text, cls){
+      return new Promise(function(resolve){
+        var d = document.createElement('div');
+        if (cls) d.className = cls + ' line';
+        term.appendChild(d);
 
-    /* -------- FIXED send() WITH CALLBACK SUPPORT -------- */
+        var full = String(text || '');
+        var len = full.length;
+        var idx = 0;
+
+        function step(){
+          if (idx >= len){
+            d.innerHTML = toRichHTML(full);
+            scrollToBottom(true);
+            resolve();
+            return;
+          }
+          idx += 3; // chars per tick
+          var chunk = full.slice(0, idx);
+          d.innerHTML = toRichHTML(chunk);
+          scrollToBottom(false);
+          setTimeout(step, 15);
+        }
+
+        step();
+      });
+    }
+
+    /* -------- send() WITH CALLBACK SUPPORT -------- */
     function send(msg, done){
       try {
         var xhr = new XMLHttpRequest();
@@ -221,7 +257,9 @@
         writeLine("> " + line, "user"); handleGenderInput(line); return;
       }
       if (state.mode==='chat'){
-        writeLine("> " + line, "user"); handleChatInput(line); return;
+        writeLine("> " + line, "user");
+        handleChatInput(line);
+        return;
       }
     }
 
@@ -256,7 +294,6 @@
       newPrompt();
     }
 
-    /* -------- FIXED handleGenderInput() -------- */
     function handleGenderInput(line){
       var g=line.trim().toUpperCase();
       if (g!=='F' && g!=='M'){ writeLine("Type **F** or **M**.", "sys"); newPrompt(); return; }
@@ -272,7 +309,6 @@
       });
     }
 
-    /* -------- FIXED handleChatInput() -------- */
     function handleChatInput(line){
       state.turns++;
       send(line, function(){
@@ -281,9 +317,22 @@
       });
     }
 
-    // iOS IME
+    // iOS IME & swipe-to-scroll improvements
     ime.addEventListener('input', renderBuffer);
-    term.addEventListener('click', ()=> ime.focus());
+
+    term.addEventListener('click', function(){
+      ime.focus();
+    });
+
+    term.addEventListener('touchstart', function(){
+      ime.focus();
+    }, {passive:true});
+
+    document.addEventListener('touchstart', function(){
+      // First user touch: hint to iOS we want focus
+      ime.focus();
+    }, {passive:true});
+
     document.addEventListener('keydown', function(e){
       if (e.key==='Enter' || e.keyCode===13){
         e.preventDefault();
