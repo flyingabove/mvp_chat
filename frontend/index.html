@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>storieschat.ai — Terminal (Beta v3)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="robots" content="noindex, nofollow" />
+  <base href="/beta/">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    html, body {
+      margin:0; padding:0; height:100%;
+      background:#0c0c0c; color:#e6e6e6;
+      font:16px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #term {
+      height:100vh; overflow:auto; padding:16px;
+      -webkit-overflow-scrolling:touch;
+      padding-bottom:88px; /* space for toolbar */
+    }
+    /* formatted output */
+    .line { margin:0 0 8px 0; }
+    .rich p { margin: 0 0 10px 0; }
+    .rich p + p { margin-top: 6px; }
+    .rich strong { font-weight: 700; }
+    .rich em { font-style: italic; }
+    .dialogue { display:inline; font-style: italic; }
+    .sys{color:#77dd77;} .user{color:#8ab4f8;} .bot{color:#ffd466;} .err{color:#ff6b6b;}
+    #inputline { position:relative; }
+    #cursor { display:inline-block; width:8px; background:#e6e6e6; margin-left:2px; animation:blink 1s step-start infinite; }
+    @keyframes blink { 50% { background:transparent; } }
+
+    /* Hidden IME to summon iOS keyboard */
+    #ime { position:fixed; left:-9999px; top:-9999px; opacity:0; width:1px; height:1px; }
+
+    /* Bottom toolbar */
+    #toolbar {
+      position:fixed; left:0; right:0; bottom:0; z-index:3;
+      display:flex; gap:8px; align-items:center;
+      background:#0f0f0f; border-top:1px solid #222;
+      padding:10px 12px;
+      padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    }
+    #ghostInput {
+      flex:1; min-height:40px;
+      background:#121212; color:#e6e6e6;
+      border:1px solid #333; border-radius:8px;
+      padding:10px 12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+    }
+    .btn {
+      min-width:64px; height:40px; border-radius:8px; border:1px solid #2a2a2a;
+      background:#1a1a1a; color:#e6e6e6; font-weight:600;
+    }
+    #errbox {
+      position:fixed; left:8px; right:8px; bottom:96px; background:#330; color:#ffd;
+      border:1px solid #662; padding:8px 10px; border-radius:6px;
+      display:none; z-index:4; white-space:pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="term" aria-label="terminal" role="region"></div>
+
+  <!-- Hidden input to trigger iOS keyboard -->
+  <input id="ime" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" />
+
+  <!-- Mobile toolbar -->
+  <div id="toolbar">
+    <div id="ghostInput" aria-live="polite"></div>
+    <button class="btn" id="enterBtn">Enter</button>
+    <button class="btn" id="bkspBtn">⌫</button>
+  </div>
+
+  <div id="errbox"></div>
+
+  <script>
+  (function(){
+    function showErr(msg){
+      var box = document.getElementById('errbox');
+      box.style.display = 'block';
+      box.textContent = String(msg);
+    }
+    window.onerror = function(msg, src, line, col){ showErr("JS Error: " + msg + " @ " + src + ":" + line + ":" + col); };
+    window.onunhandledrejection = function(e){ showErr("Promise rejection: " + (e && e.reason ? e.reason : e)); };
+
+    var term = document.getElementById('term');
+    var ime  = document.getElementById('ime');
+    var ghost= document.getElementById('ghostInput');
+    var enterBtn = document.getElementById('enterBtn');
+    var bkspBtn  = document.getElementById('bkspBtn');
+
+    var ORIGIN = (window.location.origin) ? window.location.origin
+                 : (window.location.protocol + '//' + window.location.host);
+    var endpoint = ORIGIN + "/beta/api/chat.php";
+
+    var state = {
+      mode: "menu", // menu -> name -> gender -> chat
+      sid: (typeof crypto !== 'undefined' && crypto && crypto.randomUUID) ? crypto.randomUUID() : (new Date().getTime() + ":" + Math.random()),
+      turns: 0, story: null, gender: null, playerName: null
+    };
+
+    /* ---------- Formatting (escape → markdown → paragraphs) ---------- */
+    function escapeHTML(s){
+      return String(s)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+    }
+
+    function formatInline(md){
+      // **bold**
+      md = md.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // *italic* (avoid **bold** conflicts)
+      md = md.replace(/(^|[^*])\*(.+?)\*(?!\*)/g, function(_, pre, inner){ return pre + '<em>' + inner + '</em>'; });
+      // "quoted" and “quoted”
+      md = md.replace(/"([^"]+)"/g, '<span class="dialogue">“$1”</span>');
+      md = md.replace(/“([^”]+)”/g, '<span class="dialogue">“$1”</span>');
+      return md;
+    }
+
+    // NEW: robust newline handling with safe fallback; everything else unchanged
+    function toRichHTML(text){
+      try {
+        var s = String(text || '');
+
+        // Convert literal backslash-escaped newlines to actual newlines
+        // Handles: "\r\n", "\n", and stray "\r"
+        s = s.replace(/\\r\\n|\\n|\\r/g, '\n');
+
+        // Escape HTML, normalize any CRLF
+        var safe = escapeHTML(s).replace(/\r\n/g, '\n');
+
+        // Split into paragraphs on 2+ consecutive newlines
+        var paras = safe.split(/\n{2,}/);
+
+        // Inside a paragraph, single newlines become <br>
+        for (var i = 0; i < paras.length; i++) {
+          var lines = paras[i].split('\n').join('<br>');
+          paras[i] = '<p>' + formatInline(lines) + '</p>';
+        }
+
+        return '<div class="rich">' + paras.join('') + '</div>';
+      } catch (e) {
+        try { console.warn('toRichHTML fallback:', e); } catch(_){}
+        return '<div class="rich"><p>' + escapeHTML(String(text)) + '</p></div>';
+      }
+    }
+
+    /* ---------- Terminal output helpers ---------- */
+    function scrollToBottom(){ term.scrollTop = term.scrollHeight; window.scrollTo(0, document.body.scrollHeight); }
+
+    function writeLine(text, cls){
+      var d = document.createElement('div');
+      if (cls) d.className = cls + ' line';
+      d.innerHTML = toRichHTML(text);
+      term.appendChild(d);
+      scrollToBottom();
+    }
+
+    function newPrompt(){
+      var l = document.createElement('div'); l.id = 'inputline';
+      l.innerHTML = '<span class="sys">&gt; </span><span id="buffer"></span><span id="cursor">&nbsp;</span>';
+      term.appendChild(l); scrollToBottom();
+    }
+    function removeInputLine(){ var el = document.getElementById('inputline'); if (el) el.parentNode.removeChild(el); }
+    function setGhost(text){ ghost.textContent = text || ""; }
+    function getBufferEl(){ return document.getElementById('buffer'); }
+    function renderBuffer(){ var b = getBufferEl(); if (b) b.textContent = ime.value; setGhost(ime.value); scrollToBottom(); }
+    function focusIME(){ try { ime.focus(); setTimeout(function(){ ime.focus(); }, 0); } catch(e){} }
+
+    function typewrite(text, cls){
+      // For rich HTML, just render whole block (typewriter + HTML parsing is messy)
+      return new Promise(function(r){ writeLine(text, cls); r(); });
+    }
+
+    /* ---------- Flow ---------- */
+    function showMenu(){
+      writeLine("terminal v0.8-es5 — storieschat.ai (beta) • v3", "sys");
+      writeLine("Welcome to storieschat.ai (beta v3)", "sys");
+      writeLine("Choose a story (type the number and press Enter):", "sys");
+      writeLine("1) IU Murder Mystery — Echoes near Cheongdam", "sys");
+      newPrompt(); focusIME();
+    }
+
+    function handleMenuInput(line){
+      var choice = line.replace(/[^0-9]/g,'');
+      if (choice === '1') {
+        state.story = 'iu_murder_mystery';
+        state.mode  = 'name';
+        writeLine("You chose: **IU Murder Mystery**", "sys");
+        writeLine("Enter your name:", "sys");
+      } else {
+        writeLine("**Invalid choice.** Please type *1*.", "sys");
+      }
+      newPrompt(); focusIME();
+    }
+
+    function handleNameInput(line){
+      var raw  = String(line || '').trim();
+      var name = raw.replace(/[^A-Za-z\s\-']/g,'').slice(0,40);
+      if (!name) { writeLine("Please enter a valid name *(letters/spaces)*.", "sys"); newPrompt(); focusIME(); return; }
+      state.playerName = name;
+      state.mode = 'gender';
+      writeLine("Name set: **" + name + "**", "sys");
+      writeLine("Are you a girl (F) or boy (M)?", "sys");
+      newPrompt(); focusIME();
+    }
+
+    function handleGenderInput(line){
+      var g = String(line || '').trim().toUpperCase();
+      if (g !== 'F' && g !== 'M') { writeLine("Please type **F** or **M**.", "sys"); newPrompt(); focusIME(); return; }
+      state.gender = g; state.mode = 'chat'; state.turns = 0;
+      writeLine("Gender set: **" + g + "**", "sys");
+      var safeName = (state.playerName || '').replace(/\|/g,' ');
+      var init = "__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
+      send(init); newPrompt(); focusIME();
+    }
+
+    function handleChatInput(line){
+      state.turns++; writeLine("> " + line, "user"); send(line); newPrompt(); focusIME();
+    }
+
+    /* ---------- Networking (XHR for iOS) ---------- */
+    function send(msg){
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', endpoint, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = function(){
+          if (xhr.readyState === 4) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              var data;
+              try { data = JSON.parse(xhr.responseText); } catch(e){ writeLine("Bad JSON: " + e, "err"); return; }
+              if (data && data.error) { writeLine("error: " + data.error, "err"); return; }
+              var reply = (data && data.reply) ? data.reply : '';
+              typewrite(reply, 'bot');
+            } else {
+              writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
+            }
+          }
+        };
+        xhr.send(JSON.stringify({message: msg, session_id: state.sid}));
+      } catch (e) { writeLine("Failed to send: " + e, "err"); }
+    }
+
+    function commitLine(){
+      var line = String(ime.value || '').trim();
+      ime.value = ""; renderBuffer(); removeInputLine();
+      if (!line) { newPrompt(); focusIME(); return; }
+      if (state.mode === 'menu')   { writeLine("> " + line, "user"); handleMenuInput(line); return; }
+      if (state.mode === 'name')   { writeLine("> " + line, "user"); handleNameInput(line); return; }
+      if (state.mode === 'gender') { writeLine("> " + line, "user"); handleGenderInput(line); return; }
+      if (state.mode === 'chat')   { handleChatInput(line); return; }
+    }
+
+    // iOS typing mirrors from hidden input
+    ime.addEventListener('input', renderBuffer, false);
+    ime.addEventListener('focus', function(){ renderBuffer(); }, false);
+
+    // Toolbar
+    enterBtn.addEventListener('click', function(){ commitLine(); }, false);
+    bkspBtn .addEventListener('click', function(){ ime.value = ime.value.slice(0,-1); renderBuffer(); }, false);
+
+    // Tap to open keyboard
+    document.addEventListener('touchend', function(){ focusIME(); }, false);
+    term    .addEventListener('click',    function(){ focusIME(); }, false);
+
+    // Hardware keyboard support: ONLY handle Enter (avoid double-typing)
+    document.addEventListener('keydown', function(e){
+      e = e || window.event;
+      var key = e.key || e.keyCode;
+      if (key === 'Enter' || key === 13) {
+        if (e.preventDefault) e.preventDefault();
+        commitLine();
+      }
+    }, false);
+
+    // Boot
+    showMenu(); focusIME();
+  })();
+  </script>
+</body>
+</html>
