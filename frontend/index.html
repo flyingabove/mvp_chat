@@ -96,7 +96,6 @@
         document.title = "storieschat.ai — Terminal (" + VERSION + ")";
       });
 
-    /* ---------------- EXISTING CODE (UNCHANGED) ---------------- */
     function showErr(msg){
       var box = document.getElementById('errbox');
       box.style.display = 'block';
@@ -169,28 +168,41 @@
 
     function typewrite(text, cls){ return new Promise(r=>{ writeLine(text,cls); r(); }); }
 
-    function send(msg){
+    /* -------- FIXED send() WITH CALLBACK SUPPORT -------- */
+    function send(msg, done){
       try {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', endpoint, true);
         xhr.setRequestHeader('Content-Type','application/json');
+
         xhr.onreadystatechange = function(){
           if (xhr.readyState === 4){
             if (xhr.status >= 200 && xhr.status < 300){
               var data;
               try { data = JSON.parse(xhr.responseText); }
-              catch(e){ writeLine("Bad JSON: " + e, "err"); return; }
+              catch(e){ writeLine("Bad JSON: " + e, "err"); if(done) done(); return; }
 
-              if (data?.error){ writeLine("error: " + data.error, "err"); return; }
-              typewrite(data?.reply || '', 'bot');
+              if (data?.error){
+                writeLine("error: " + data.error, "err");
+                if(done) done();
+                return;
+              }
+
+              typewrite(data?.reply || '', 'bot').then(()=>{
+                if(done) done();
+              });
+
             } else {
               writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
+              if(done) done();
             }
           }
         };
+
         xhr.send(JSON.stringify({message: msg, session_id: state.sid}));
       } catch(e){
         writeLine("Failed to send: " + e, "err");
+        if(done) done();
       }
     }
 
@@ -244,6 +256,7 @@
       newPrompt();
     }
 
+    /* -------- FIXED handleGenderInput() -------- */
     function handleGenderInput(line){
       var g=line.trim().toUpperCase();
       if (g!=='F' && g!=='M'){ writeLine("Type **F** or **M**.", "sys"); newPrompt(); return; }
@@ -252,13 +265,20 @@
       state.mode='chat';
       var safeName=(state.playerName||'').replace(/\|/g,' ');
       var init="__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
-      send(init);
-      newPrompt();
+
+      send(init, function(){
+        newPrompt();
+        ime.focus();
+      });
     }
 
+    /* -------- FIXED handleChatInput() -------- */
     function handleChatInput(line){
       state.turns++;
-      send(line); newPrompt();
+      send(line, function(){
+        newPrompt();
+        ime.focus();
+      });
     }
 
     // iOS IME
