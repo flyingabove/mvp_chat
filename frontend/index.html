@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>storieschat.ai — Terminal (Universal)</title>
+  <title>storieschat.ai — Terminal (loading…)</title>
+
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="robots" content="noindex, nofollow" />
 
@@ -75,11 +76,27 @@
 
   <script>
   (function(){
-    // Universal endpoint detection (Beta or Prod)
+    /* ---------------- ENVIRONMENT DETECTION ------------------- */
     var PATH = window.location.pathname;
     var BASE = PATH.startsWith("/beta/") ? "/beta" : "";
-    var endpoint = BASE + "/backend/api/chat.php";
 
+    /* ---------------- BACKEND ROUTER ENDPOINT ------------------ */
+    var endpoint = BASE + "/backend/router.php?path=api/chat.php";
+
+    /* ---------------- VERSION LOADING --------------------------- */
+    var VERSION = "loading…";
+    fetch(BASE + "/version.json", {cache:"no-store"})
+      .then(res => res.json())
+      .then(j => {
+        VERSION = j.version || "unknown";
+        document.title = "storieschat.ai — Terminal (" + VERSION + ")";
+      })
+      .catch(() => {
+        VERSION = "unknown";
+        document.title = "storieschat.ai — Terminal (" + VERSION + ")";
+      });
+
+    /* ---------------- EXISTING CODE (UNCHANGED) ---------------- */
     function showErr(msg){
       var box = document.getElementById('errbox');
       box.style.display = 'block';
@@ -150,9 +167,7 @@
     function getBufferEl(){ return document.getElementById('buffer'); }
     function renderBuffer(){ var b=getBufferEl(); if (b) b.textContent=ime.value; setGhost(ime.value); }
 
-    function typewrite(text, cls){
-      return new Promise(r=>{ writeLine(text,cls); r(); });
-    }
+    function typewrite(text, cls){ return new Promise(r=>{ writeLine(text,cls); r(); }); }
 
     function send(msg){
       try {
@@ -199,7 +214,7 @@
     }
 
     function showMenu(){
-      writeLine("terminal — storieschat.ai (universal)", "sys");
+      writeLine("terminal — storieschat.ai (" + VERSION + ")", "sys");
       writeLine("Choose a story (type the number and press Enter):", "sys");
       writeLine("1) IU Murder Mystery — Echoes near Cheongdam", "sys");
       newPrompt(); ime.focus();
@@ -259,7 +274,6 @@
     enterBtn.addEventListener('click', ()=> commitLine());
     bkspBtn.addEventListener('click', ()=>{ ime.value=ime.value.slice(0,-1); renderBuffer(); });
 
-    // Start UI
     showMenu();
     ime.focus();
   })();
