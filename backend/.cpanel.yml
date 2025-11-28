@@ -1,0 +1,8 @@
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/storvrfx/beta_backend
+    - echo "Installing Python dependencies..."
+    - /home/storvrfx/virtualenv/beta_backend/3.10/bin/pip install -r $DEPLOYPATH/requirements.txt
+    - echo "Restarting Passenger..."
+    - mkdir -p $DEPLOYPATH/tmp
+    - touch $DEPLOYPATH/tmp/restart.txt
