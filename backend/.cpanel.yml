@@ -2,18 +2,17 @@ deployment:
   tasks:
     - echo "===== Starting StoriesChat Beta Deployment ====="
 
-    # Set paths
     - export REPO_BACKEND=/home/storvrfx/repositories/mvp_chat_beta/backend
     - export LIVE_BACKEND=/home/storvrfx/beta_backend
     - export VENV_PIP=/home/storvrfx/virtualenv/beta_backend/3.10/bin/pip
 
-    - echo "Copying backend files to live directory..."
+    - echo "Copying backend files..."
     - /bin/cp -R $REPO_BACKEND/* $LIVE_BACKEND/
 
-    - echo "Installing Python dependencies into Passenger virtualenv..."
+    - echo "Installing Python dependencies..."
     - $VENV_PIP install -r $LIVE_BACKEND/requirements.txt
 
-    - echo "Restarting Passenger app..."
+    - echo "Restarting Passenger..."
     - mkdir -p $LIVE_BACKEND/tmp
     - touch $LIVE_BACKEND/tmp/restart.txt
 
