@@ -1,24 +1,29 @@
 import sys
 import os
+import threading
+import uvicorn
 
+# Ensure backend directory is in python path
 sys.path.insert(0, "/home/storvrfx/beta_backend")
 
-# Activate Passenger virtualenv
+# Activate virtualenv
 activate_this = "/home/storvrfx/virtualenv/beta_backend/3.10/bin/activate_this.py"
 exec(open(activate_this).read(), {"__file__": activate_this})
 
-import threading
-import uvicorn
+# Import your FastAPI app
 from fastapi import FastAPI
 
-# FastAPI app
 app = FastAPI()
 
 @app.get("/")
 def root():
     return {"ok": True}
 
-# Start uvicorn server INSIDE Passenger
+@app.get("/version")
+def version():
+    return {"version": "beta-4"}
+
+# Start Uvicorn server inside Passenger only once
 def run_server():
     uvicorn.run(
         "passenger_wsgi:app",
@@ -26,17 +31,16 @@ def run_server():
         port=8003,
         workers=1,
         loop="asyncio",
-        http="h11",
+        http="h11"
     )
 
-# Start only once
 if "uvicorn_started" not in globals():
     uvicorn_started = True
     thread = threading.Thread(target=run_server)
     thread.daemon = True
     thread.start()
 
-# Dummy WSGI callable (Passenger only needs this)
+# Minimal WSGI fallback – prevents overriding API responses
 def application(environ, start_response):
-    start_response("200 OK", [("Content-Type", "text/plain")])
-    return [b"Uvicorn server running"]
+    start_response("503 Service Unavailable", [('Content-Type', 'text/plain')])
+    return [b"Uvicorn starting..."]
