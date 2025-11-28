@@ -1,28 +1,22 @@
-# /home/storvrfx/beta_backend/passenger_wsgi.py
-
 import sys
 import os
 
-# Ensure this directory is on the Python path
+# Ensure correct path
 sys.path.insert(0, '/home/storvrfx/beta_backend')
 
-# Activate virtualenv
+# Activate venv
 activate_this = '/home/storvrfx/virtualenv/beta_backend/3.10/bin/activate_this.py'
-if os.path.exists(activate_this):
-    exec(open(activate_this).read(), {'__file__': activate_this})
+exec(open(activate_this).read(), {'__file__': activate_this})
 
-# Import FastAPI application
+# Import FastAPI and ASGI->WSGI wrapper
 from fastapi import FastAPI
-from mangum import Mangum
+from asgi_wsgi import ASGItoWSGI
 
 app = FastAPI()
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    return {"ok": True}
 
-# Wrap FastAPI ASGI as WSGI for Passenger
-handler = Mangum(app)
-
-def application(environ, start_response):
-    return handler(environ, start_response)
+# Convert ASGI FastAPI app to WSGI for Passenger
+application = ASGItoWSGI(app)
