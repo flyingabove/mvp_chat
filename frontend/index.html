@@ -81,12 +81,16 @@
     var BASE = PATH.startsWith("/beta/") ? "/beta" : "";
 
     /* ---------------- BACKEND ROUTER ENDPOINT ------------------ */
-    var endpoint = BASE + "/api/chat";
+
+    var isBeta = window.location.pathname.startsWith("/beta/");
+    var endpoint = isBeta
+      ? "https://beta-api.storieschat.ai/api/chat"
+      : "/api/chat";
 
 
     /* ---------------- VERSION LOADING --------------------------- */
     var VERSION = "loading…";
-    fetch(BASE + "/version.json", {cache:"no-store"})
+    fetch("/beta/version.json", {cache:"no-store"})
       .then(res => res.json())
       .then(j => {
         VERSION = j.version || "unknown";
