@@ -4,15 +4,24 @@ router = APIRouter()
 
 @router.post("/echo")
 async def echo(request: Request):
-    raw = await request.body()
+    """
+    Python equivalent of backend/api/echo.php
+
+    Returns:
+      {
+        "method": "<HTTP method>",
+        "raw": "<raw body as string>",
+        "json": <parsed JSON or null>
+      }
+    """
+    raw_bytes = await request.body()
     try:
         json_data = await request.json()
-    except:
+    except Exception:
         json_data = None
 
     return {
-        "ok": True,
         "method": request.method,
-        "raw": raw.decode(),
-        "json": json_data
+        "raw": raw_bytes.decode("utf-8", errors="replace"),
+        "json": json_data,
     }

@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+
+  <!-- Title updates dynamically based on beta/prod -->
   <title>storieschat.ai — Terminal (loading…)</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
@@ -64,293 +66,312 @@
     }
   </style>
 </head>
+
 <body>
-  <div id="term" aria-label="terminal" role="region"></div>
-  <input id="ime" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" />
-  <div id="toolbar">
-    <div id="ghostInput" aria-live="polite"></div>
-    <button class="btn" id="enterBtn">Enter</button>
-    <button class="btn" id="bkspBtn">⌫</button>
-  </div>
-  <div id="errbox"></div>
+<div id="term" aria-label="terminal" role="region"></div>
+<input id="ime" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" />
+<div id="toolbar">
+  <div id="ghostInput" aria-live="polite"></div>
+  <button class="btn" id="enterBtn">Enter</button>
+  <button class="btn" id="bkspBtn">⌫</button>
+</div>
+<div id="errbox"></div>
 
-  <script>
-  (function(){
-    /* ---------------- ENVIRONMENT DETECTION ------------------- */
-    var PATH = window.location.pathname;
-    var BASE = PATH.startsWith("/beta/") ? "/beta" : "";
+<script>
+(function(){
 
-    /* ---------------- BACKEND ROUTER ENDPOINT ------------------ */
+  /* ---------------- ENV DETECTION (BETA/PROD) ---------------- */
+  var isBeta = window.location.pathname.startsWith("/beta/");
+  var BASE = isBeta ? "/beta" : "";
 
-    var isBeta = window.location.pathname.startsWith("/beta/");
-    var endpoint = isBeta
-      ? "https://beta-api.storieschat.ai/api/chat"
-      : "/api/chat";
+  /* ----------- BACKEND ENDPOINT (Railway Python) ------------- */
+  var endpoint = isBeta
+    ? "https://beta-api.storieschat.ai/api/chat"
+    : "https://api.storieschat.ai/api/chat";
 
+  /* ------------------ VERSION LOADING ------------------------- */
+  var VERSION = "loading…";
+  var VERSION_PATH = isBeta ? "/beta/version.json" : "/version.json";
 
-    /* ---------------- VERSION LOADING --------------------------- */
-    var VERSION = "loading…";
-    fetch("/beta/version.json", {cache:"no-store"})
-      .then(res => res.json())
-      .then(j => {
-        VERSION = j.version || "unknown";
-        document.title = "storieschat.ai — Terminal (" + VERSION + ")";
-      })
-      .catch(() => {
-        VERSION = "unknown";
-        document.title = "storieschat.ai — Terminal (" + VERSION + ")";
-      });
+  fetch(VERSION_PATH, {cache:"no-store"})
+    .then(res => res.json())
+    .then(j => {
+      VERSION = j.version || "unknown";
+      document.title = "storieschat.ai — Terminal (" + (isBeta ? "beta " : "prod ") + VERSION + ")";
+    })
+    .catch(() => {
+      VERSION = "unknown";
+      document.title = "storieschat.ai — Terminal (" + (isBeta ? "beta" : "prod") + ")";
+    });
 
-    function showErr(msg){
-      var box = document.getElementById('errbox');
-      box.style.display = 'block';
-      box.textContent = String(msg);
+  /* ---------------- ERROR BOX HELPERS ---------------- */
+  function showErr(msg){
+    var box = document.getElementById('errbox');
+    box.style.display = 'block';
+    box.textContent = String(msg);
+  }
+
+  window.onerror = function(msg, src, line, col){
+    showErr("JS Error: " + msg + " @ " + src + ":" + line + ":" + col);
+  };
+  window.onunhandledrejection = function(e){
+    showErr("Promise rejection: " + (e?.reason||e));
+  };
+
+  var term = document.getElementById('term');
+  var ime  = document.getElementById('ime');
+  var ghost= document.getElementById('ghostInput');
+  var enterBtn = document.getElementById('enterBtn');
+  var bkspBtn  = document.getElementById('bkspBtn');
+
+  var state = {
+    mode: "menu",
+    sid: crypto.randomUUID ? crypto.randomUUID() : (Date.now() + ":" + Math.random()),
+    turns: 0, story: null, gender: null, playerName: null
+  };
+
+  /* ------- smarter scroll: respect user scrolling -------- */
+  function scrollToBottom(force){
+    var distance = term.scrollHeight - term.scrollTop - term.clientHeight;
+    var nearBottom = distance < 80;
+    if (force || nearBottom){
+      term.scrollTop = term.scrollHeight;
     }
+  }
 
-    window.onerror = function(msg, src, line, col){ showErr("JS Error: " + msg + " @ " + src + ":" + line + ":" + col); };
-    window.onunhandledrejection = function(e){ showErr("Promise rejection: " + (e?.reason||e)); };
+  function escapeHTML(s){
+    return String(s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
 
-    var term = document.getElementById('term');
-    var ime  = document.getElementById('ime');
-    var ghost= document.getElementById('ghostInput');
-    var enterBtn = document.getElementById('enterBtn');
-    var bkspBtn  = document.getElementById('bkspBtn');
+  function formatInline(md){
+    md = md.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    md = md.replace(/(^|[^*])\*(.+?)\*(?!\*)/g, (_, pre, inner)=> pre + '<em>' + inner + '</em>');
+    md = md.replace(/"([^"]+)"/g, '<span class="dialogue">“$1”</span>');
+    md = md.replace(/“([^”]+)”/g, '<span class="dialogue">“$1”</span>');
+    return md;
+  }
 
-    var state = {
-      mode: "menu",
-      sid: crypto.randomUUID ? crypto.randomUUID() : (Date.now() + ":" + Math.random()),
-      turns: 0, story: null, gender: null, playerName: null
-    };
-
-    /* ------- smarter scroll: respect user scrolling -------- */
-    function scrollToBottom(force){
-      var distance = term.scrollHeight - term.scrollTop - term.clientHeight;
-      var nearBottom = distance < 80;
-      if (force || nearBottom){
-        term.scrollTop = term.scrollHeight;
-      }
+  function toRichHTML(text){
+    try {
+      var s = String(text||'').replace(/\\r\\n|\\n|\\r/g, '\n');
+      var safe = escapeHTML(s).replace(/\r\n/g, '\n');
+      var paras = safe.split(/\n{2,}/);
+      paras = paras.map(p=> '<p>' + formatInline(p.split('\n').join('<br>')) + '</p>');
+      return '<div class="rich">' + paras.join('') + '</div>';
+    } catch(e){
+      return '<div class="rich"><p>' + escapeHTML(String(text)) + '</p></div>';
     }
+  }
 
-    function escapeHTML(s){
-      return String(s)
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;')
-        .replace(/'/g,'&#39;');
-    }
+  function writeLine(text, cls){
+    var d = document.createElement('div');
+    if (cls) d.className = cls + ' line';
+    d.innerHTML = toRichHTML(text);
+    term.appendChild(d);
+    scrollToBottom(true);
+  }
 
-    function formatInline(md){
-      md = md.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      md = md.replace(/(^|[^*])\*(.+?)\*(?!\*)/g, (_, pre, inner)=> pre + '<em>' + inner + '</em>');
-      md = md.replace(/"([^"]+)"/g, '<span class="dialogue">“$1”</span>');
-      md = md.replace(/“([^”]+)”/g, '<span class="dialogue">“$1”</span>');
-      return md;
-    }
+  function newPrompt(){
+    var l = document.createElement('div'); l.id = 'inputline';
+    l.innerHTML = '<span class="sys">&gt; </span><span id="buffer"></span><span id="cursor">&nbsp;</span>';
+    term.appendChild(l);
+    scrollToBottom(true);
+  }
 
-    function toRichHTML(text){
-      try {
-        var s = String(text||'').replace(/\\r\\n|\\n|\\r/g, '\n');
-        var safe = escapeHTML(s).replace(/\r\n/g, '\n');
-        var paras = safe.split(/\n{2,}/);
-        paras = paras.map(p=> '<p>' + formatInline(p.split('\n').join('<br>')) + '</p>');
-        return '<div class="rich">' + paras.join('') + '</div>';
-      } catch(e){
-        return '<div class="rich"><p>' + escapeHTML(String(text)) + '</p></div>';
-      }
-    }
+  function removeInputLine(){ 
+    var el=document.getElementById('inputline'); 
+    if (el) el.remove(); 
+  }
+  function setGhost(t){ ghost.textContent=t||""; }
+  function getBufferEl(){ return document.getElementById('buffer'); }
+  function renderBuffer(){ 
+    var b=getBufferEl(); 
+    if (b) b.textContent=ime.value; 
+    setGhost(ime.value); 
+  }
 
-    function writeLine(text, cls){
+  /* -------- Smooth typewriter / streaming effect -------- */
+  function typewrite(text, cls){
+    return new Promise(function(resolve){
       var d = document.createElement('div');
       if (cls) d.className = cls + ' line';
-      d.innerHTML = toRichHTML(text);
       term.appendChild(d);
-      scrollToBottom(true);
-    }
 
-    function newPrompt(){
-      var l = document.createElement('div'); l.id = 'inputline';
-      l.innerHTML = '<span class="sys">&gt; </span><span id="buffer"></span><span id="cursor">&nbsp;</span>';
-      term.appendChild(l);
-      scrollToBottom(true);
-    }
+      var full = String(text || '');
+      var len = full.length;
+      var idx = 0;
 
-    function removeInputLine(){ var el=document.getElementById('inputline'); if (el) el.remove(); }
-    function setGhost(t){ ghost.textContent=t||""; }
-    function getBufferEl(){ return document.getElementById('buffer'); }
-    function renderBuffer(){ var b=getBufferEl(); if (b) b.textContent=ime.value; setGhost(ime.value); }
-
-    /* -------- Smooth typewriter / streaming effect -------- */
-    function typewrite(text, cls){
-      return new Promise(function(resolve){
-        var d = document.createElement('div');
-        if (cls) d.className = cls + ' line';
-        term.appendChild(d);
-
-        var full = String(text || '');
-        var len = full.length;
-        var idx = 0;
-
-        function step(){
-          if (idx >= len){
-            d.innerHTML = toRichHTML(full);
-            scrollToBottom(true);
-            resolve();
-            return;
-          }
-          idx += 3; // chars per tick
-          var chunk = full.slice(0, idx);
-          d.innerHTML = toRichHTML(chunk);
-          scrollToBottom(false);
-          setTimeout(step, 15);
+      function step(){
+        if (idx >= len){
+          d.innerHTML = toRichHTML(full);
+          scrollToBottom(true);
+          resolve();
+          return;
         }
+        idx += 3; // chars per tick
+        var chunk = full.slice(0, idx);
+        d.innerHTML = toRichHTML(chunk);
+        scrollToBottom(false);
+        setTimeout(step, 15);
+      }
 
-        step();
-      });
-    }
+      step();
+    });
+  }
 
-    /* -------- send() WITH CALLBACK SUPPORT -------- */
-    function send(msg, done){
-      try {
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', endpoint, true);
-        xhr.setRequestHeader('Content-Type','application/json');
+  /* -------- send() WITH CALLBACK SUPPORT -------- */
+  function send(msg, done){
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', endpoint, true);
+      xhr.setRequestHeader('Content-Type','application/json');
 
-        xhr.onreadystatechange = function(){
-          if (xhr.readyState === 4){
-            if (xhr.status >= 200 && xhr.status < 300){
-              var data;
-              try { data = JSON.parse(xhr.responseText); }
-              catch(e){ writeLine("Bad JSON: " + e, "err"); if(done) done(); return; }
+      xhr.onreadystatechange = function(){
+        if (xhr.readyState === 4){
+          if (xhr.status >= 200 && xhr.status < 300){
+            var data;
+            try { data = JSON.parse(xhr.responseText); }
+            catch(e){ writeLine("Bad JSON: " + e, "err"); if(done) done(); return; }
 
-              if (data?.error){
-                writeLine("error: " + data.error, "err");
-                if(done) done();
-                return;
-              }
-
-              typewrite(data?.reply || '', 'bot').then(()=>{
-                if(done) done();
-              });
-
-            } else {
-              writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
+            if (data?.error){
+              writeLine("error: " + data.error, "err");
               if(done) done();
+              return;
             }
+
+            typewrite(data?.reply || '', 'bot').then(()=>{
+              if(done) done();
+            });
+
+          } else {
+            writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
+            if(done) done();
           }
-        };
+        }
+      };
 
-        xhr.send(JSON.stringify({message: msg, session_id: state.sid}));
-      } catch(e){
-        writeLine("Failed to send: " + e, "err");
-        if(done) done();
-      }
+      xhr.send(JSON.stringify({message: msg, session_id: state.sid}));
+    } catch(e){
+      writeLine("Failed to send: " + e, "err");
+      if(done) done();
     }
+  }
 
-    function commitLine(){
-      var line = String(ime.value||'').trim();
-      ime.value=""; renderBuffer(); removeInputLine();
-      if (!line){ newPrompt(); ime.focus(); return; }
+  function commitLine(){
+    var line = String(ime.value||'').trim();
+    ime.value=""; renderBuffer(); removeInputLine();
+    if (!line){ newPrompt(); ime.focus(); return; }
 
-      if (state.mode==='menu'){
-        writeLine("> " + line, "user"); handleMenuInput(line); return;
-      }
-      if (state.mode==='name'){
-        writeLine("> " + line, "user"); handleNameInput(line); return;
-      }
-      if (state.mode==='gender'){
-        writeLine("> " + line, "user"); handleGenderInput(line); return;
-      }
-      if (state.mode==='chat'){
-        writeLine("> " + line, "user");
-        handleChatInput(line);
-        return;
-      }
+    if (state.mode==='menu'){
+      writeLine("> " + line, "user"); handleMenuInput(line); return;
     }
-
-    function showMenu(){
-      writeLine("terminal — storieschat.ai (" + VERSION + ")", "sys");
-      writeLine("Choose a story (type the number and press Enter):", "sys");
-      writeLine("1) IU Murder Mystery — Echoes near Cheongdam", "sys");
-      newPrompt(); ime.focus();
+    if (state.mode==='name'){
+      writeLine("> " + line, "user"); handleNameInput(line); return;
     }
-
-    function handleMenuInput(line){
-      var choice = line.replace(/[^0-9]/g,'');
-      if (choice==='1'){
-        state.story='iu_murder_mystery';
-        state.mode='name';
-        writeLine("You chose: **IU Murder Mystery**", "sys");
-        writeLine("Enter your name:", "sys");
-        newPrompt(); return;
-      }
-      writeLine("Invalid choice. Type **1**.", "sys"); newPrompt();
+    if (state.mode==='gender'){
+      writeLine("> " + line, "user"); handleGenderInput(line); return;
     }
+    if (state.mode==='chat'){
+      writeLine("> " + line, "user");
+      handleChatInput(line);
+      return;
+    }
+  }
 
-    function handleNameInput(line){
-      var raw=line.trim();
-      var name=raw.replace(/[^A-Za-z\s\-']/g,'').slice(0,40);
-      if (!name){ writeLine("Please enter a valid name.", "sys"); newPrompt(); return; }
+  function showMenu(){
+    writeLine("terminal — storieschat.ai (" + VERSION + ")", "sys");
+    writeLine("Choose a story (type the number and press Enter):", "sys");
+    writeLine("1) IU Murder Mystery — Echoes near Cheongdam", "sys");
+    newPrompt(); ime.focus();
+  }
 
-      state.playerName=name;
-      state.mode='gender';
-      writeLine("Name set: **" + name + "**", "sys");
-      writeLine("Are you a girl (F) or boy (M)?", "sys");
+  function handleMenuInput(line){
+    var choice = line.replace(/[^0-9]/g,'');
+    if (choice==='1'){
+      state.story='iu_murder_mystery';
+      state.mode='name';
+      writeLine("You chose: **IU Murder Mystery**", "sys");
+      writeLine("Enter your name:", "sys");
+      newPrompt(); return;
+    }
+    writeLine("Invalid choice. Type **1**.", "sys"); newPrompt();
+  }
+
+  function handleNameInput(line){
+    var raw=line.trim();
+    var name=raw.replace(/[^A-Za-z\s\-']/g,'').slice(0,40);
+    if (!name){ writeLine("Please enter a valid name.", "sys"); newPrompt(); return; }
+
+    state.playerName=name;
+    state.mode='gender';
+    writeLine("Name set: **" + name + "**", "sys");
+    writeLine("Are you a girl (F) or boy (M)?", "sys");
+    newPrompt();
+  }
+
+  function handleGenderInput(line){
+    var g=line.trim().toUpperCase();
+    if (g!=='F' && g!=='M'){ writeLine("Type **F** or **M**.", "sys"); newPrompt(); return; }
+
+    state.gender=g;
+    state.mode='chat';
+    var safeName=(state.playerName||'').replace(/\|/g,' ');
+    var init="__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
+
+    send(init, function(){
       newPrompt();
-    }
-
-    function handleGenderInput(line){
-      var g=line.trim().toUpperCase();
-      if (g!=='F' && g!=='M'){ writeLine("Type **F** or **M**.", "sys"); newPrompt(); return; }
-
-      state.gender=g;
-      state.mode='chat';
-      var safeName=(state.playerName||'').replace(/\|/g,' ');
-      var init="__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
-
-      send(init, function(){
-        newPrompt();
-        ime.focus();
-      });
-    }
-
-    function handleChatInput(line){
-      state.turns++;
-      send(line, function(){
-        newPrompt();
-        ime.focus();
-      });
-    }
-
-    // iOS IME & swipe-to-scroll improvements
-    ime.addEventListener('input', renderBuffer);
-
-    term.addEventListener('click', function(){
       ime.focus();
     });
+  }
 
-    term.addEventListener('touchstart', function(){
+  function handleChatInput(line){
+    state.turns++;
+    send(line, function(){
+      newPrompt();
       ime.focus();
-    }, {passive:true});
-
-    document.addEventListener('touchstart', function(){
-      // First user touch: hint to iOS we want focus
-      ime.focus();
-    }, {passive:true});
-
-    document.addEventListener('keydown', function(e){
-      if (e.key==='Enter' || e.keyCode===13){
-        e.preventDefault();
-        commitLine();
-      }
     });
+  }
 
-    enterBtn.addEventListener('click', ()=> commitLine());
-    bkspBtn.addEventListener('click', ()=>{ ime.value=ime.value.slice(0,-1); renderBuffer(); });
+  // iOS IME & swipe-to-scroll improvements
+  ime.addEventListener('input', renderBuffer);
 
-    showMenu();
+  term.addEventListener('click', function(){
     ime.focus();
-  })();
-  </script>
+  });
+
+  term.addEventListener('touchstart', function(){
+    ime.focus();
+  }, {passive:true});
+
+  document.addEventListener('touchstart', function(){
+    ime.focus();
+  }, {passive:true});
+
+  document.addEventListener('keydown', function(e){
+    if (e.key==='Enter' || e.keyCode===13){
+      e.preventDefault();
+      commitLine();
+    }
+  });
+
+  enterBtn.addEventListener('click', ()=> commitLine());
+  bkspBtn.addEventListener('click', ()=>{ 
+    ime.value=ime.value.slice(0,-1); 
+    renderBuffer(); 
+  });
+
+  showMenu();
+  ime.focus();
+
+})();
+</script>
+
 </body>
 </html>
+
+

@@ -1,19 +1,19 @@
+---
 deployment:
   tasks:
-    - echo "===== Starting StoriesChat Beta Deployment ====="
+    - export DEPLOYPATH=/home/storvrfx/public_html
+    - export BETAPATH=/home/storvrfx/public_html/beta
 
-    - export REPO_BACKEND=/home/storvrfx/repositories/mvp_chat_beta/backend
-    - export LIVE_BACKEND=/home/storvrfx/beta_backend
-    - export VENV_PIP=/home/storvrfx/virtualenv/beta_backend/3.10/bin/pip
+    # Clean old frontend (optional but recommended)
+    - /bin/rm -rf $DEPLOYPATH/*
+    - /bin/rm -rf $BETAPATH/*
 
-    - echo "Copying backend files..."
-    - /bin/cp -R $REPO_BACKEND/* $LIVE_BACKEND/
+    # Copy frontend to PROD
+    - /bin/cp -R frontend/* $DEPLOYPATH/
 
-    - echo "Installing Python dependencies..."
-    - $VENV_PIP install -r $LIVE_BACKEND/requirements.txt
+    # Copy frontend to BETA
+    - mkdir -p $BETAPATH
+    - /bin/cp -R frontend/* $BETAPATH/
 
-    - echo "Restarting Passenger..."
-    - mkdir -p $LIVE_BACKEND/tmp
-    - touch $LIVE_BACKEND/tmp/restart.txt
-
-    - echo "===== Deployment Complete ====="
+    # Log for debugging
+    - echo "Deployment completed at $(date)"
