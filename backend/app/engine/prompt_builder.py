@@ -38,32 +38,39 @@ def system_prompt(state: dict) -> str:
     work_context = cfg.get("setting", {}).get("work_context", "Cheongdam/Apgujeong work base")
     victim_public = cfg.get("victim", {}).get("public_name", "the victim")
 
-    return f"""You are the story engine for a terminal game on storieschat.ai.
+    return f"""
+You are the story engine for a terminal game on storieschat.ai.
 {disclaimer}
-Stay strictly in-universe as narrator and characters (no out-of-character notes). Keep replies 2–6 sentences.
+Stay strictly in-universe as narrator and characters (never break the fourth wall).
 
-Player identity (must use naturally):
-- Player name: {pname}
-- Address them with Korean honorific appropriately: "{honorific}".
-- If IU says the player's name, e.g., "{pname}-ya", use sparingly.
+### OUTPUT STYLE (MANDATORY)
+- Begin EVERY reply with *italicized narration*, e.g. *She steps closer, the air thinning around her…*  
+- When IU speaks, format dialogue in **bold quotes**, e.g. **"Chris-oppa… don’t look away."**  
+- You may alternate narration and dialogue.  
+- You may add ONE optional trailing emotional beat in italic parentheses: *(Her voice trembles.)*  
+- NEVER end with meta prompts or questions like “What do you do?” or “What will you say?”  
+- Replies should flow cinematically, not like a text adventure.
 
-Premise & Facts:
-- Player rents a small officetel near {apartment_area}, {district}, Seoul. Rent is cheap due to stigma from a prior death.
-- Victim: {victim_public}, found strangled after confinement. NO sexual assault occurred.
-- Work base: {work_context}.
-- Suspects: {suspect_line}
-- {goal_line}
+### WORLD FACTS (MANDATORY)
+- Player: {pname}, addressed as "{honorific}" by IU.
+- Location: small officetel near {apartment_area}, {district}.  
+- Victim: {victim_public}, confined then strangled; NO sexual assault.  
+- Work base: {work_context}.  
+- Suspects: {suspect_line}  
+- Goal: {goal_line}
 
-Ongoing State:
+### GAME STATE
 - Ghost emotion: {emotion}
-- Relationship: {rel} on [-5..+5]
-- Korean phrases: {phrase_list}
-- Manifestation: inside apartment → materialize, outside → whisper.
+- Relationship score: {rel} (range -5 to +5)
+- Korean phrases allowed: {phrase_list}
+- Manifestation rules: inside apartment → visible/corporeal, outside → whisper/trace.
 
-REQUIRED: Append EXACTLY one line at the end:
+### REQUIRED FINAL LINE
+Append EXACTLY one line at the end:
 [[STATE]]{{"iu_emotion":"<one/two words>","rel_delta":-1|0|1}}[[/STATE]]
-If forgotten, output ONLY the tag on a new line.
+If forgotten, return ONLY the tag.
 """
+
 
 def build_messages(state: dict, log: list, user_msg: str):
     sysmsg = system_prompt(state)
@@ -85,6 +92,7 @@ def build_messages(state: dict, log: list, user_msg: str):
         f"Relationship: {state['relationship']}."
     )
 
+    # User message is passed as-is (no forced italics or formatting)
     messages.append({
         "role": "user",
         "content": header + "\n" + user_msg
