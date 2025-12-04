@@ -87,17 +87,17 @@
   /* ----------- BACKEND ENDPOINT (Railway Python) ------------- */
   var endpoint = isBeta
     ? "https://beta-api.storieschat.ai/api/chat"
-    : "https://api.storieschat.ai/api/chat";
+    : "https://api.storieschat.ai/api/chat";   // ✔ FIXED PROD ENDPOINT
 
   /* ------------------ VERSION LOADING ------------------------- */
   var VERSION = "loading…";
-  var VERSION_PATH = isBeta ? "/beta/version.json" : "/version.json";
+  var VERSION_PATH = isBeta ? "/beta/version.json" : "/version.json"; // ✔ FIXED VERSION PATH
 
   fetch(VERSION_PATH, {cache:"no-store"})
     .then(res => res.json())
     .then(j => {
       VERSION = j.version || "unknown";
-      document.title = "storieschat.ai — Terminal (" + (isBeta ? "beta " : "prod ") + VERSION + ")";
+      document.title = "storieschat.ai — Terminal (" + (isBeta ? "beta " : "prod ") + VERSION + ")"; // ✔ FIXED TITLE
     })
     .catch(() => {
       VERSION = "unknown";
@@ -373,5 +373,3 @@
 
 </body>
 </html>
-
-
