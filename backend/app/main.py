@@ -1,4 +1,3 @@
-# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,33 +10,32 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# -------------------------
-# CORS FIX (critical)
-# -------------------------
+# --------------------------------------------------
+# CORS FIX — REQUIRED for browser POST to work
+# --------------------------------------------------
 origins = [
     "https://storieschat.ai",
     "https://www.storieschat.ai",
     "https://storieschat.ai/beta",
     "https://beta.storieschat.ai",
     "https://beta-api.storieschat.ai",
-    "https://prod-api.storieschat.ai",
-    "*",   # ← optional during development, remove later
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],           # allow POST, OPTIONS, etc.
+    allow_headers=["*"],           # allow Content-Type, etc.
 )
 
-# -------------------------
+# --------------------------------------------------
 # Routers
-# -------------------------
+# --------------------------------------------------
 app.include_router(chat_router, prefix="/api")
 app.include_router(echo_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
+
 
 @app.get("/api/version")
 async def version():
