@@ -81,7 +81,7 @@
 (function(){
 
   /* ---------------- ENV DETECTION (BETA/PROD) ---------------- */
-  var isBeta = window.location.pathname.startsWith("/beta/");
+  var isBeta = window.location.pathname.startsWith("/beta");
   var BASE = isBeta ? "/beta" : "";
 
   /* ----------- BACKEND ENDPOINT (Railway Python) ------------- */
