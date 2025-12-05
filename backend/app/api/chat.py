@@ -132,9 +132,12 @@ async def chat_handler(data: dict):
         }
 
     advance_time(state, msg)
-    state["turns"] += 1
 
+    # DO NOT increment turn until AFTER prompt creation (so first-turn logic works)
     messages = build_messages(state, log, msg)
+
+    # Now increment turn AFTER generating assistant response
+    state["turns"] += 1
 
     # OpenAI request
     payload = {
