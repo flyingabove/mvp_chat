@@ -12,8 +12,16 @@
   <!-- Automatically set base href based on environment -->
   <script>
     (function(){
-      var isBeta = window.location.pathname.startsWith("/beta/");
-      document.write('<base href="' + (isBeta ? "/beta/" : "/") + '">');
+      var host = window.location.hostname.toLowerCase();
+      var path = window.location.pathname.toLowerCase();
+
+      var isBeta =
+        host.startsWith("beta.") ||
+        path.includes("/beta/") ||
+        path.endsWith("/beta");
+
+      var baseHref = isBeta ? "/beta/" : "/";
+      document.write('<base href="' + baseHref + '">');
     })();
   </script>
 
@@ -81,27 +89,36 @@
 (function(){
 
   /* ---------------- ENV DETECTION (BETA/PROD) ---------------- */
-  var isBeta = window.location.pathname.startsWith("/beta");
+  var host = window.location.hostname.toLowerCase();
+  var path = window.location.pathname.toLowerCase();
+
+  var isBeta =
+    host.startsWith("beta.") ||
+    path.includes("/beta/") ||
+    path.endsWith("/beta");
+
   var BASE = isBeta ? "/beta" : "";
 
   /* ----------- BACKEND ENDPOINT (Railway Python) ------------- */
   var endpoint = isBeta
     ? "https://beta-api.storieschat.ai/api/chat"
-    : "https://api.storieschat.ai/api/chat";   // ✔ FIXED PROD ENDPOINT
+    : "https://prod-api.storieschat.ai/api/chat";
 
   /* ------------------ VERSION LOADING ------------------------- */
   var VERSION = "loading…";
-  var VERSION_PATH = isBeta ? "/beta/version.json" : "/version.json"; // ✔ FIXED VERSION PATH
+  var VERSION_PATH = BASE + "/version.json";
 
   fetch(VERSION_PATH, {cache:"no-store"})
     .then(res => res.json())
     .then(j => {
       VERSION = j.version || "unknown";
-      document.title = "storieschat.ai — Terminal (" + (isBeta ? "beta " : "prod ") + VERSION + ")"; // ✔ FIXED TITLE
+      document.title = "storieschat.ai — Terminal (" +
+        (isBeta ? "beta " : "prod ") + VERSION + ")";
     })
     .catch(() => {
       VERSION = "unknown";
-      document.title = "storieschat.ai — Terminal (" + (isBeta ? "beta" : "prod") + ")";
+      document.title = "storieschat.ai — Terminal (" +
+        (isBeta ? "beta" : "prod") + ")";
     });
 
   /* ---------------- ERROR BOX HELPERS ---------------- */
