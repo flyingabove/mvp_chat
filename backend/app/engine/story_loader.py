@@ -1,13 +1,22 @@
+# app/engine/story_loader.py
 import json
 import os
 
+
 def load_story(story_id: str) -> dict:
+    """
+    Load a story JSON file by id from app/stories/<story_id>.json,
+    handling BOM and logging basic debug info.
+    """
     base = os.path.dirname(os.path.dirname(__file__))  # app/
     story_path = os.path.join(base, "stories", f"{story_id}.json")
 
     print("DEBUG story_path:", story_path)
     print("DEBUG exists:", os.path.isfile(story_path))
-    print("DEBUG listdir stories:", os.listdir(os.path.join(base, "stories")))
+    try:
+        print("DEBUG listdir stories:", os.listdir(os.path.join(base, "stories")))
+    except Exception as e:
+        print("ERROR listing stories directory:", e)
 
     if not os.path.isfile(story_path):
         print("ERROR: Story file does not exist:", story_path)
