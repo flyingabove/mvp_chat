@@ -3,13 +3,12 @@
 <head>
   <meta charset="utf-8" />
 
-  <!-- Title updates dynamically based on beta/prod -->
   <title>storieschat.ai — Terminal (loading…)</title>
 
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="robots" content="noindex, nofollow" />
 
-  <!-- Automatically set base href based on environment -->
+  <!-- AUTO BASE HREF -->
   <script>
     (function(){
       var host = window.location.hostname.toLowerCase();
@@ -88,7 +87,7 @@
 <script>
 (function(){
 
-  /* ---------------- ENV DETECTION (BETA/PROD) ---------------- */
+  /* ---------------- ENV DETECTION ---------------- */
   var host = window.location.hostname.toLowerCase();
   var path = window.location.pathname.toLowerCase();
 
@@ -99,12 +98,12 @@
 
   var BASE = isBeta ? "/beta" : "";
 
-  /* ----------- BACKEND ENDPOINT (Railway Python) ------------- */
+  /* ----------- BACKEND ENDPOINT ----------- */
   var endpoint = isBeta
     ? "https://beta-api.storieschat.ai/api/chat"
     : "https://prod-api.storieschat.ai/api/chat";
 
-  /* ------------------ VERSION LOADING ------------------------- */
+  /* ---------------- VERSION LOADING ---------------- */
   var VERSION = "loading…";
   var VERSION_PATH = BASE + "/version.json";
 
@@ -121,25 +120,18 @@
         (isBeta ? "beta" : "prod") + ")";
     });
 
-  /* ---------------- ERROR BOX HELPERS ---------------- */
+  /* ---------------- ERROR HANDLING ---------------- */
   function showErr(msg){
     var box = document.getElementById('errbox');
     box.style.display = 'block';
     box.textContent = String(msg);
   }
-
-  window.onerror = function(msg, src, line, col){
-    showErr("JS Error: " + msg + " @ " + src + ":" + line + ":" + col);
-  };
-  window.onunhandledrejection = function(e){
-    showErr("Promise rejection: " + (e?.reason||e));
-  };
+  window.onerror = (m,src,l,c)=> showErr("JS Error: " + m);
+  window.onunhandledrejection = e=> showErr("Promise rejection: " + (e?.reason||e));
 
   var term = document.getElementById('term');
   var ime  = document.getElementById('ime');
   var ghost= document.getElementById('ghostInput');
-  var enterBtn = document.getElementById('enterBtn');
-  var bkspBtn  = document.getElementById('bkspBtn');
 
   var state = {
     mode: "menu",
@@ -147,11 +139,10 @@
     turns: 0, story: null, gender: null, playerName: null
   };
 
-  /* ------- smarter scroll: respect user scrolling -------- */
+  /* ---------------- UTILITIES ---------------- */
   function scrollToBottom(force){
-    var distance = term.scrollHeight - term.scrollTop - term.clientHeight;
-    var nearBottom = distance < 80;
-    if (force || nearBottom){
+    var dist = term.scrollHeight - term.scrollTop - term.clientHeight;
+    if (force || dist < 80){
       term.scrollTop = term.scrollHeight;
     }
   }
@@ -194,54 +185,65 @@
   }
 
   function newPrompt(){
-    var l = document.createElement('div'); l.id = 'inputline';
+    var l = document.createElement('div');
+    l.id = 'inputline';
     l.innerHTML = '<span class="sys">&gt; </span><span id="buffer"></span><span id="cursor">&nbsp;</span>';
     term.appendChild(l);
     scrollToBottom(true);
   }
 
-  function removeInputLine(){ 
-    var el=document.getElementById('inputline'); 
-    if (el) el.remove(); 
-  }
-  function setGhost(t){ ghost.textContent=t||""; }
-  function getBufferEl(){ return document.getElementById('buffer'); }
-  function renderBuffer(){ 
-    var b=getBufferEl(); 
-    if (b) b.textContent=ime.value; 
-    setGhost(ime.value); 
+  function removeInputLine(){
+    var el=document.getElementById('inputline');
+    if (el) el.remove();
   }
 
-  /* -------- Smooth typewriter / streaming effect -------- */
-  function typewrite(text, cls){
+  function renderBuffer(){
+    var b=document.getElementById('buffer');
+    if (b) b.textContent=ime.value;
+    ghost.textContent=ime.value;
+  }
+
+  /* ---------------- TYPEWRITER (PATCHED) ---------------- */
+
+  const TYPE_SPEED_NORMAL = 15;
+  const TYPE_SPEED_OPENING = 0;     // ★★ ADDED — instant opening narration
+
+  function typewrite(text, cls, speed){
+    speed = (speed === undefined ? TYPE_SPEED_NORMAL : speed); // ★★ MODIFIED
+
     return new Promise(function(resolve){
       var d = document.createElement('div');
       if (cls) d.className = cls + ' line';
       term.appendChild(d);
 
       var full = String(text || '');
-      var len = full.length;
-      var idx = 0;
 
+      // ★★ NEW: instantly print opening narration
+      if (speed === 0){
+        d.innerHTML = toRichHTML(full);
+        scrollToBottom(true);
+        resolve();
+        return;
+      }
+
+      var idx = 0;
       function step(){
-        if (idx >= len){
+        if (idx >= full.length){
           d.innerHTML = toRichHTML(full);
           scrollToBottom(true);
           resolve();
           return;
         }
-        idx += 3; // chars per tick
-        var chunk = full.slice(0, idx);
-        d.innerHTML = toRichHTML(chunk);
+        idx += 3;
+        d.innerHTML = toRichHTML(full.slice(0, idx));
         scrollToBottom(false);
-        setTimeout(step, 15);
+        setTimeout(step, speed);
       }
-
       step();
     });
   }
 
-  /* -------- send() WITH CALLBACK SUPPORT -------- */
+  /* ---------------- SEND ---------------- */
   function send(msg, done){
     try {
       var xhr = new XMLHttpRequest();
@@ -261,7 +263,11 @@
               return;
             }
 
-            typewrite(data?.reply || '', 'bot').then(()=>{
+            // ★★ NEW: detect opening narration
+            var isOpening = msg.startsWith("__cmd_newgame__:");
+            var speed = isOpening ? TYPE_SPEED_OPENING : TYPE_SPEED_NORMAL;
+
+            typewrite(data.reply || '', 'bot', speed).then(()=>{
               if(done) done();
             });
 
@@ -273,12 +279,14 @@
       };
 
       xhr.send(JSON.stringify({message: msg, session_id: state.sid}));
+
     } catch(e){
       writeLine("Failed to send: " + e, "err");
       if(done) done();
     }
   }
 
+  /* ---------------- USER INPUT FLOW ---------------- */
   function commitLine(){
     var line = String(ime.value||'').trim();
     ime.value=""; renderBuffer(); removeInputLine();
@@ -337,6 +345,7 @@
 
     state.gender=g;
     state.mode='chat';
+
     var safeName=(state.playerName||'').replace(/\|/g,' ');
     var init="__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
 
@@ -354,20 +363,11 @@
     });
   }
 
-  // iOS IME & swipe-to-scroll improvements
+  /* ---------------- IME FIXES ---------------- */
   ime.addEventListener('input', renderBuffer);
-
-  term.addEventListener('click', function(){
-    ime.focus();
-  });
-
-  term.addEventListener('touchstart', function(){
-    ime.focus();
-  }, {passive:true});
-
-  document.addEventListener('touchstart', function(){
-    ime.focus();
-  }, {passive:true});
+  term.addEventListener('click', ()=> ime.focus());
+  term.addEventListener('touchstart', ()=> ime.focus(), {passive:true});
+  document.addEventListener('touchstart', ()=> ime.focus(), {passive:true});
 
   document.addEventListener('keydown', function(e){
     if (e.key==='Enter' || e.keyCode===13){
@@ -376,10 +376,10 @@
     }
   });
 
-  enterBtn.addEventListener('click', ()=> commitLine());
-  bkspBtn.addEventListener('click', ()=>{ 
-    ime.value=ime.value.slice(0,-1); 
-    renderBuffer(); 
+  document.getElementById('enterBtn').addEventListener('click', ()=> commitLine());
+  document.getElementById('bkspBtn').addEventListener('click', ()=>{
+    ime.value = ime.value.slice(0,-1);
+    renderBuffer();
   });
 
   showMenu();
@@ -387,6 +387,5 @@
 
 })();
 </script>
-
 </body>
 </html>
