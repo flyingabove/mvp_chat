@@ -214,41 +214,32 @@
 
   /* -------- Smooth typewriter / streaming effect -------- */
   function typewrite(text, cls){
-  return new Promise(function(resolve){
-    var d = document.createElement('div');
-    if (cls) d.className = cls + ' line';
-    term.appendChild(d);
+    return new Promise(function(resolve){
+      var d = document.createElement('div');
+      if (cls) d.className = cls + ' line';
+      term.appendChild(d);
 
-    var full = String(text || '');
-    var len = full.length;
-    var idx = 0;
+      var full = String(text || '');
+      var len = full.length;
+      var idx = 0;
 
-    // FAST MODE for opening narration
-    var isOpening = full.includes("The room is quiet") ||
-                    full.includes("Tonight, the cold hit") ||
-                    full.includes("A story begins.");
-
-    var speed = isOpening ? 12 : 3;     // chars per tick
-    var delay = isOpening ? 8 : 15;     // ms per tick
-
-    function step(){
-      if (idx >= len){
-        d.innerHTML = toRichHTML(full);
-        scrollToBottom(true);
-        resolve();
-        return;
+      function step(){
+        if (idx >= len){
+          d.innerHTML = toRichHTML(full);
+          scrollToBottom(true);
+          resolve();
+          return;
+        }
+        idx += 3; // chars per tick
+        var chunk = full.slice(0, idx);
+        d.innerHTML = toRichHTML(chunk);
+        scrollToBottom(false);
+        setTimeout(step, 15);
       }
-      idx += speed;
-      var chunk = full.slice(0, idx);
-      d.innerHTML = toRichHTML(chunk);
-      scrollToBottom(false);
-      setTimeout(step, delay);
-    }
 
-    step();
-  });
-}
-
+      step();
+    });
+  }
 
   /* -------- send() WITH CALLBACK SUPPORT -------- */
   function send(msg, done){
