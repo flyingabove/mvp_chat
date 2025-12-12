@@ -129,21 +129,26 @@
     ? "https://beta-api.storieschat.ai/api/chat"
     : "https://api.storieschat.ai/api/chat";
 
-  /* ---------------- VERSION ---------------- */
+  /* ---------------- VERSION ----------------
+     IMPORTANT: version.json sits next to index.html in frontend folder.
+     Because <base href="..."> is set above, the correct path is always "version.json".
+  */
   var VERSION = "loading…";
-  fetch(BASE + "/version.json", {cache:"no-store"})
-    .then(r => r.json())
-    .then(j => {
-      VERSION = j.version || "unknown";
-      document.title =
-        "storieschat.ai — Terminal (" +
-        (isBeta ? "beta " : "prod ") + VERSION + ")";
-    })
-    .catch(() => {
-      document.title =
-        "storieschat.ai — Terminal (" +
-        (isBeta ? "beta" : "prod") + ")";
-    });
+  (function loadVersion(){
+    fetch("version.json", {cache:"no-store"})
+      .then(function(r){
+        if (!r.ok) throw new Error("version.json not found");
+        return r.json();
+      })
+      .then(function(j){
+        VERSION = (j && j.version) ? j.version : "unknown";
+        document.title = "terminal — storieschat.ai (version: " + VERSION + ")";
+      })
+      .catch(function(){
+        VERSION = "unknown";
+        document.title = "terminal — storieschat.ai (version: unknown)";
+      });
+  })();
 
   /* ---------------- ERROR HANDLING ---------------- */
   function showErr(msg){
