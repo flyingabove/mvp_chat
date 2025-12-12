@@ -147,6 +147,15 @@
     turns: 0, story: null, gender: null, playerName: null
   };
 
+  // Prevent multiple prompts / multiple sends while awaiting bot response
+  var awaitingResponse = false;
+
+  function unlockInputAndPrompt(){
+    awaitingResponse = false;
+    newPrompt();
+    ime.focus();
+  }
+
   /* ------- smarter scroll: respect user scrolling -------- */
   function scrollToBottom(force){
     var distance = term.scrollHeight - term.scrollTop - term.clientHeight;
@@ -200,16 +209,16 @@
     scrollToBottom(true);
   }
 
-  function removeInputLine(){ 
-    var el=document.getElementById('inputline'); 
-    if (el) el.remove(); 
+  function removeInputLine(){
+    var el=document.getElementById('inputline');
+    if (el) el.remove();
   }
   function setGhost(t){ ghost.textContent=t||""; }
   function getBufferEl(){ return document.getElementById('buffer'); }
-  function renderBuffer(){ 
-    var b=getBufferEl(); 
-    if (b) b.textContent=ime.value; 
-    setGhost(ime.value); 
+  function renderBuffer(){
+    var b=getBufferEl();
+    if (b) b.textContent=ime.value;
+    setGhost(ime.value);
   }
 
   /* -------- Smooth typewriter / streaming effect -------- */
@@ -261,8 +270,8 @@
               return;
             }
 
-            typewrite(data?.reply || '', 'bot').then(()=>{
-              if(done) done();
+            typewrite(data?.reply || '', 'bot').then(function(){
+              if (done) done();
             });
 
           } else {
@@ -280,6 +289,8 @@
   }
 
   function commitLine(){
+    if (awaitingResponse) return;
+
     var line = String(ime.value||'').trim();
     ime.value=""; renderBuffer(); removeInputLine();
     if (!line){ newPrompt(); ime.focus(); return; }
@@ -331,7 +342,6 @@
     newPrompt();
   }
 
-  /* ---------------- PATCHED FUNCTION (NO OTHER CHANGES) ---------------- */
   function handleGenderInput(line){
     var g=line.trim().toUpperCase();
     if (g!=='F' && g!=='M'){ writeLine("Type **F** or **M**.", "sys"); newPrompt(); return; }
@@ -341,19 +351,21 @@
     var safeName=(state.playerName||'').replace(/\|/g,' ');
     var init="__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
 
+    awaitingResponse = true;
+
     // DO NOT switch to chat mode until /newgame finishes
     send(init, function(){
-      state.mode='chat';       // ⬅️ FIXED HERE
-      newPrompt();
-      ime.focus();
+      state.mode='chat';
+      unlockInputAndPrompt();
     });
   }
 
   function handleChatInput(line){
     state.turns++;
+    awaitingResponse = true;
+
     send(line, function(){
-      newPrompt();
-      ime.focus();
+      unlockInputAndPrompt();
     });
   }
 
@@ -379,10 +391,10 @@
     }
   });
 
-  enterBtn.addEventListener('click', ()=> commitLine());
-  bkspBtn.addEventListener('click', ()=>{ 
-    ime.value=ime.value.slice(0,-1); 
-    renderBuffer(); 
+  enterBtn.addEventListener('click', function(){ commitLine(); });
+  bkspBtn.addEventListener('click', function(){
+    ime.value=ime.value.slice(0,-1);
+    renderBuffer();
   });
 
   showMenu();
