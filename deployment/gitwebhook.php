@@ -3,18 +3,18 @@
  * GitHub Webhook Deployment — SAFE & CORRECT
  * - Pulls repo for beta/prod
  * - Deploys ONLY frontend
- * - PRESERVES /api and /_hooks
+ * - PRESERVES /api and /webhook
  * - Does NOT delete backend
  */
 
-$SECRET = "AAAAB3NzaC1yc2EAAAADAQABAAABAQDFvtJ43JLqcKXsrC3u6ZQjVnBX878Qcmnfo2BmYd7xpkdu14h/PPrxZ6L9UESfrxqaWlo+dabbCe8JNtfburg4pGIWjemb+VllZC62iZ2//twMuDBJ1GjmZCKVP77Iy41dSEPg18y7jhrD9KZ50NtDL5xTfcL9GgxwBBV7J7zk9sKjT/CIkl9jd9gEUGy+zqc92wGcWTZ/znU0QR5zu3tc0FxApKcgvIwcDTuO5bXkbr1LRB6Jcfu+eCW9uRhfJmJiJ4TX3hMZQIBxZZVX+3c1g2KVMRKEmDwbEgkyr5cF2uPxEsL4D1WCaiUEiOZGIhsPB8hpsAeHb8YEWrwSNLqj";   // <-- Replace in GitHub webhook settings
+$SECRET = "vtJ43JLqcKXsrC3u6ZQjVnBX878Qcmnfo2BmYd7xpkdu14h/PPrxZ6L9UESfrxqaWlo+dabbCe8JNtfburg4pGIWjemb+VllZC62iZ2//twMuDBJ1GjmZCKVP77Iy41dSEPg18y7jhrD9KZ50NtDL5xTfcL9GgxwBBV7J7zk9sKjT/CIkl9jd9gEUGy+zqc92wGcWTZ/znU0QR5zu3tc0FxApKcgvIwcDTuO5bXkbr1LRB6Jcfu+eCW9uRhfJmJiJ4TX3hMZQIBxZZVX+3c1g2KVMRKEmDwbEgkyr5cF2uPxEsL4D1WCaiUEiOZGIhsPB8hpsAeHb8YEWrwSNLqj";
 
 /* -----------------------------
    Validate GitHub signature
 ----------------------------- */
-$payload = file_get_contents("php://input");
+$payload   = file_get_contents("php://input");
 $signature = $_SERVER["HTTP_X_HUB_SIGNATURE_256"] ?? "";
-$expected  = "sha256=" . hash_hmac("sha256", $payload, $secret);
+$expected  = "sha256=" . hash_hmac("sha256", $payload, $SECRET);
 
 if (!hash_equals($expected, $signature)) {
     http_response_code(403);
@@ -23,7 +23,7 @@ if (!hash_equals($expected, $signature)) {
 }
 
 $event = json_decode($payload, true);
-$ref = $event["ref"] ?? "";
+$ref   = $event["ref"] ?? "";
 
 /* -----------------------------
    Determine branch → repo + target
@@ -40,39 +40,33 @@ if ($ref === "refs/heads/beta") {
 }
 
 /* -----------------------------
-   1. Full repo pull (backend is ignored for deploy)
+   1. Pull repo
 ----------------------------- */
 exec("cd $repoDir && git reset --hard HEAD && git pull 2>&1", $gitOutput);
 
 /* -----------------------------
-   2. Clean target directory except:
-      - api/
-      - _hooks/
+   2. Clean target directory (safe)
 ----------------------------- */
-$cleanCmd = "
-    find $publicDir -mindepth 1 -maxdepth 1 \
-        ! -name 'api' \
-        ! -name '_hooks' \
-        -exec rm -rf {} +
-";
-
-exec($cleanCmd, $cleanOutput);
+exec(
+    "find $publicDir -mindepth 1 -maxdepth 1 \
+     ! -name 'api' \
+     ! -name 'webhook' \
+     -exec rm -rf {} +",
+    $cleanOutput
+);
 
 /* -----------------------------
-   3. Copy ONLY frontend → target
+   3. Copy frontend only
 ----------------------------- */
-$frontend = "$repoDir/frontend";
-
-$rsyncCmd = "
-    rsync -av --delete \
-        --exclude='.git/' \
-        --exclude='.github/' \
-        --exclude='Dockerfile' \
-        --exclude='Railway.toml' \
-        $frontend/ $publicDir/
-";
-
-exec($rsyncCmd, $rsyncOutput);
+exec(
+    "rsync -av --delete \
+     --exclude='.git/' \
+     --exclude='.github/' \
+     --exclude='Dockerfile' \
+     --exclude='Railway.toml' \
+     $repoDir/frontend/ $publicDir/",
+    $rsyncOutput
+);
 
 /* -----------------------------
    Logging
