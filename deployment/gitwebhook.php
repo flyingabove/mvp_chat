@@ -1,10 +1,9 @@
 <?php
 /**
- * GitHub Webhook Deployment — SAFE & CORRECT
- * - Pulls repo for beta/prod
- * - Deploys ONLY frontend
- * - PRESERVES /api and /webhook
- * - Does NOT delete backend
+ * GitHub Webhook Deployment — HARD-SAFE
+ * - NEVER deletes anything
+ * - NEVER touches /webhook or /api
+ * - Copies ONLY frontend-owned files
  */
 
 $SECRET = "vtJ43JLqcKXsrC3u6ZQjVnBX878Qcmnfo2BmYd7xpkdu14h/PPrxZ6L9UESfrxqaWlo+dabbCe8JNtfburg4pGIWjemb+VllZC62iZ2//twMuDBJ1GjmZCKVP77Iy41dSEPg18y7jhrD9KZ50NtDL5xTfcL9GgxwBBV7J7zk9sKjT/CIkl9jd9gEUGy+zqc92wGcWTZ/znU0QR5zu3tc0FxApKcgvIwcDTuO5bXkbr1LRB6Jcfu+eCW9uRhfJmJiJ4TX3hMZQIBxZZVX+3c1g2KVMRKEmDwbEgkyr5cF2uPxEsL4D1WCaiUEiOZGIhsPB8hpsAeHb8YEWrwSNLqj";
@@ -26,57 +25,61 @@ $event = json_decode($payload, true);
 $ref   = $event["ref"] ?? "";
 
 /* -----------------------------
-   Determine branch → repo + target
+   Branch → paths
 ----------------------------- */
 if ($ref === "refs/heads/beta") {
     $repoDir   = "/home/storvrfx/repositories/mvp_chat_beta";
-    $publicDir = "/home/storvrfx/public_html/beta";
+    $targetDir = "/home/storvrfx/public_html/beta";
 } elseif ($ref === "refs/heads/prod") {
     $repoDir   = "/home/storvrfx/repositories/mvp_chat_prod";
-    $publicDir = "/home/storvrfx/public_html";
+    $targetDir = "/home/storvrfx/public_html";
 } else {
     echo "Ignored branch: $ref";
     exit;
 }
 
 /* -----------------------------
-   1. Pull repo
+   Ensure target exists
 ----------------------------- */
-exec("cd $repoDir && git reset --hard HEAD && git pull 2>&1", $gitOutput);
+if (!is_dir($targetDir)) {
+    mkdir($targetDir, 0755, true);
+}
 
 /* -----------------------------
-   2. Clean target directory (safe)
+   Pull repo
 ----------------------------- */
 exec(
-    "find $publicDir -mindepth 1 -maxdepth 1 \
-     ! -name 'api' \
-     ! -name 'webhook' \
-     -exec rm -rf {} +",
-    $cleanOutput
+    "cd $repoDir && git fetch origin && git reset --hard HEAD && git pull 2>&1",
+    $gitOutput
 );
 
 /* -----------------------------
-   3. Copy frontend only
+   Copy frontend files (WHITELIST)
 ----------------------------- */
-exec(
-    "rsync -av --delete \
-     --exclude='.git/' \
-     --exclude='.github/' \
-     --exclude='Dockerfile' \
-     --exclude='Railway.toml' \
-     $repoDir/frontend/ $publicDir/",
-    $rsyncOutput
-);
+$frontend = $repoDir . "/frontend";
+
+$files = [
+    "index.html",
+    "version.json"
+];
+
+foreach ($files as $file) {
+    $src = "$frontend/$file";
+    $dst = "$targetDir/$file";
+
+    if (file_exists($src)) {
+        copy($src, $dst);
+    }
+}
 
 /* -----------------------------
    Logging
 ----------------------------- */
 file_put_contents(
     "/home/storvrfx/deploy.log",
-    "===== Deployment: $ref =====\n".
-    "GIT:\n".implode("\n",$gitOutput)."\n\n".
-    "CLEAN:\n".implode("\n",$cleanOutput)."\n\n".
-    "RSYNC:\n".implode("\n",$rsyncOutput)."\n\n",
+    "===== DEPLOY $ref =====\n".
+    "FILES COPIED: ".implode(", ", $files)."\n".
+    "GIT:\n".implode("\n", $gitOutput)."\n\n",
     FILE_APPEND
 );
 

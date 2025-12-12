@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
 
-  <title>storieschat.ai — Terminal (loading…)</title>
+  <!-- No "loading…" in title anymore -->
+  <title>terminal — storieschat.ai (version: unknown)</title>
 
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="robots" content="noindex, nofollow" />
 
   <!-- Automatically set base href based on environment -->
@@ -20,7 +20,8 @@
         path.includes("/beta/") ||
         path.endsWith("/beta");
 
-      document.write('<base href="' + (isBeta ? "/beta/" : "/") + '">');
+      var baseHref = isBeta ? "/beta/" : "/";
+      document.write('<base href="' + baseHref + '">');
     })();
   </script>
 
@@ -44,27 +45,11 @@
     .rich strong { font-weight: 700; }
     .rich em { font-style: italic; }
     .dialogue { display:inline; font-style: italic; }
-    .sys{color:#77dd77;}
-    .user{color:#8ab4f8;}
-    .bot{color:#ffd466;}
-    .err{color:#ff6b6b;}
-
+    .sys{color:#77dd77;} .user{color:#8ab4f8;} .bot{color:#ffd466;} .err{color:#ff6b6b;}
     #inputline { position:relative; }
-    #cursor {
-      display:inline-block;
-      width:8px;
-      background:#e6e6e6;
-      margin-left:2px;
-      animation:blink 1s step-start infinite;
-    }
+    #cursor { display:inline-block; width:8px; background:#e6e6e6; margin-left:2px; animation:blink 1s step-start infinite; }
     @keyframes blink { 50% { background:transparent; } }
-
-    #ime {
-      position:fixed;
-      left:-9999px; top:-9999px;
-      opacity:0; width:1px; height:1px;
-    }
-
+    #ime { position:fixed; left:-9999px; top:-9999px; opacity:0; width:1px; height:1px; }
     #toolbar {
       position:fixed; left:0; right:0; bottom:0; z-index:3;
       display:flex; gap:8px; align-items:center;
@@ -76,64 +61,370 @@
       flex:1; min-height:40px;
       background:#121212; color:#e6e6e6;
       border:1px solid #333; border-radius:8px;
-      padding:10px 12px; overflow:hidden;
-      white-space:nowrap; text-overflow:ellipsis;
+      padding:10px 12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
     }
     .btn {
-      min-width:64px; height:40px;
-      border-radius:8px;
-      border:1px solid #2a2a2a;
-      background:#1a1a1a;
-      color:#e6e6e6;
-      font-weight:600;
+      min-width:64px; height:40px; border-radius:8px; border:1px solid #2a2a2a;
+      background:#1a1a1a; color:#e6e6e6; font-weight:600;
     }
     #errbox {
-      position:fixed; left:8px; right:8px; bottom:96px;
-      background:#330; color:#ffd;
-      border:1px solid #662;
-      padding:8px 10px;
-      border-radius:6px;
-      display:none; z-index:4;
-      white-space:pre-wrap;
+      position:fixed; left:8px; right:8px; bottom:96px; background:#330; color:#ffd;
+      border:1px solid #662; padding:8px 10px; border-radius:6px;
+      display:none; z-index:4; white-space:pre-wrap;
     }
   </style>
 </head>
 
 <body>
 <div id="term" aria-label="terminal" role="region"></div>
-<input id="ime" type="text" inputmode="text"
-       autocapitalize="off" autocorrect="off" spellcheck="false" />
-
+<input id="ime" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" />
 <div id="toolbar">
   <div id="ghostInput" aria-live="polite"></div>
   <button class="btn" id="enterBtn">Enter</button>
   <button class="btn" id="bkspBtn">⌫</button>
 </div>
-
 <div id="errbox"></div>
 
 <script>
 (function(){
-
-  /* ---------------- ENV DETECTION ---------------- */
+  /* ---------------- ENV DETECTION (BETA/PROD) ---------------- */
   var host = window.location.hostname.toLowerCase();
   var path = window.location.pathname.toLowerCase();
+
   var isBeta =
     host.startsWith("beta.") ||
     path.includes("/beta/") ||
     path.endsWith("/beta");
 
-  var BASE = isBeta ? "/beta" : "";
-
+  /* ----------- BACKEND ENDPOINT (Railway Python) ------------- */
   var endpoint = isBeta
     ? "https://beta-api.storieschat.ai/api/chat"
     : "https://api.storieschat.ai/api/chat";
 
-  /* ---------------- VERSION ----------------
-     IMPORTANT: version.json sits next to index.html in frontend folder.
-     Because <base href="..."> is set above, the correct path is always "version.json".
+  /* ---------------- ERROR BOX HELPERS ---------------- */
+  function showErr(msg){
+    var box = document.getElementById('errbox');
+    box.style.display = 'block';
+    box.textContent = String(msg);
+  }
+  window.onerror = function(msg, src, line, col){
+    showErr("JS Error: " + msg + " @ " + src + ":" + line + ":" + col);
+  };
+  window.onunhandledrejection = function(e){
+    showErr("Promise rejection: " + (e && e.reason ? e.reason : e));
+  };
+
+  var term = document.getElementById('term');
+  var ime  = document.getElementById('ime');
+  var ghost= document.getElementById('ghostInput');
+  var enterBtn = document.getElementById('enterBtn');
+  var bkspBtn  = document.getElementById('bkspBtn');
+
+  var state = {
+    mode: "menu",
+    sid: (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + ":" + Math.random()),
+    turns: 0, story: null, gender: null, playerName: null
+  };
+
+  /* -------- INPUT LOCKING / PROMPT GUARD -------- */
+  var awaitingResponse = false;
+  var hasPrompt = false;
+
+  function setInputLocked(locked){
+    awaitingResponse = !!locked;
+    enterBtn.disabled = awaitingResponse;
+    bkspBtn.disabled = awaitingResponse;
+    ghost.style.opacity = awaitingResponse ? "0.6" : "1";
+  }
+
+  function newPrompt(){
+    if (hasPrompt) return;
+    hasPrompt = true;
+
+    var l = document.createElement('div');
+    l.id = 'inputline';
+    l.innerHTML = '<span class="sys">&gt; </span><span id="buffer"></span><span id="cursor">&nbsp;</span>';
+    term.appendChild(l);
+    scrollToBottom(true);
+  }
+
+  function removeInputLine(){
+    var el = document.getElementById('inputline');
+    if (el) el.remove();
+    hasPrompt = false;
+  }
+
+  function unlockAndPrompt(){
+    setInputLocked(false);
+    newPrompt();
+    ime.focus();
+  }
+
+  /* ------- smarter scroll: respect user scrolling -------- */
+  function scrollToBottom(force){
+    var distance = term.scrollHeight - term.scrollTop - term.clientHeight;
+    var nearBottom = distance < 80;
+    if (force || nearBottom){
+      term.scrollTop = term.scrollHeight;
+    }
+  }
+
+  function escapeHTML(s){
+    return String(s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
+  function formatInline(md){
+    md = md.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    md = md.replace(/(^|[^*])\*(.+?)\*(?!\*)/g, function(_, pre, inner){
+      return pre + '<em>' + inner + '</em>';
+    });
+    md = md.replace(/"([^"]+)"/g, '<span class="dialogue">“$1”</span>');
+    md = md.replace(/“([^”]+)”/g, '<span class="dialogue">“$1”</span>');
+    return md;
+  }
+
+  // IMPORTANT: restore support for literal "\n" sequences coming from backend
+  function normalizeNewlines(text){
+    var s = String(text || '');
+    // convert escaped sequences like "\n" and "\r\n" into real newlines
+    s = s.replace(/\\r\\n|\\n|\\r/g, '\n');
+    // normalize real CRLF too
+    s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return s;
+  }
+
+  function toRichHTML(text){
+    try {
+      var s = normalizeNewlines(text);
+      var safe = escapeHTML(s);
+      var paras = safe.split(/\n{2,}/);
+      paras = paras.map(function(p){
+        return '<p>' + formatInline(p.split('\n').join('<br>')) + '</p>';
+      });
+      return '<div class="rich">' + paras.join('') + '</div>';
+    } catch(e){
+      return '<div class="rich"><p>' + escapeHTML(String(text)) + '</p></div>';
+    }
+  }
+
+  function writeLine(text, cls, id){
+    var d = document.createElement('div');
+    if (cls) d.className = cls + ' line';
+    if (id) d.id = id;
+    d.innerHTML = toRichHTML(text);
+    term.appendChild(d);
+    scrollToBottom(true);
+  }
+
+  function updateHeaderLine(version){
+    var header = document.getElementById('headerline');
+    var v = (version == null ? "unknown" : String(version));
+    var line = "terminal — storieschat.ai (version: " + v + ")";
+    document.title = line;
+
+    if (header){
+      header.innerHTML = toRichHTML(line);
+    }
+  }
+
+  function setGhost(t){ ghost.textContent = t || ""; }
+  function renderBuffer(){
+    var b = document.getElementById('buffer');
+    if (b) b.textContent = ime.value;
+    setGhost(ime.value);
+  }
+
+  /* -------- Smooth typewriter / streaming effect -------- */
+  function typewrite(text, cls){
+    return new Promise(function(resolve){
+      var d = document.createElement('div');
+      if (cls) d.className = cls + ' line';
+      term.appendChild(d);
+
+      var full = normalizeNewlines(text);
+      var len = full.length;
+      var idx = 0;
+
+      function step(){
+        if (idx >= len){
+          d.innerHTML = toRichHTML(full);
+          scrollToBottom(true);
+          resolve();
+          return;
+        }
+        idx += 3;
+        d.innerHTML = toRichHTML(full.slice(0, idx));
+        scrollToBottom(false);
+        setTimeout(step, 15);
+      }
+
+      step();
+    });
+  }
+
+  /* -------- send() WITH CALLBACK SUPPORT -------- */
+  function send(msg, done){
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', endpoint, true);
+      xhr.setRequestHeader('Content-Type','application/json');
+
+      xhr.onreadystatechange = function(){
+        if (xhr.readyState !== 4) return;
+
+        if (xhr.status >= 200 && xhr.status < 300){
+          var data;
+          try { data = JSON.parse(xhr.responseText); }
+          catch(e){
+            writeLine("Bad JSON: " + e, "err");
+            done && done();
+            return;
+          }
+
+          if (data && data.error){
+            writeLine("error: " + data.error, "err");
+            done && done();
+            return;
+          }
+
+          typewrite((data && data.reply) ? data.reply : "", 'bot').then(function(){
+            done && done();
+          });
+
+        } else {
+          writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
+          done && done();
+        }
+      };
+
+      xhr.send(JSON.stringify({message: msg, session_id: state.sid}));
+    } catch(e){
+      writeLine("Failed to send: " + e, "err");
+      done && done();
+    }
+  }
+
+  function showMenu(){
+    // headerline exists immediately (version updates later)
+    writeLine("terminal — storieschat.ai (version: unknown)", "sys", "headerline");
+    writeLine("Choose a story (type the number and press Enter):", "sys");
+    writeLine("1) IU Murder Mystery — Echoes near Cheongdam", "sys");
+    newPrompt();
+    ime.focus();
+  }
+
+  function handleMenuInput(line){
+    var choice = line.replace(/[^0-9]/g,'');
+    if (choice === '1'){
+      state.story = 'iu_murder_mystery';
+      state.mode = 'name';
+      writeLine("You chose: **IU Murder Mystery**", "sys");
+      writeLine("Enter your name:", "sys");
+      newPrompt();
+      return;
+    }
+    writeLine("Invalid choice. Type **1**.", "sys");
+    newPrompt();
+  }
+
+  function handleNameInput(line){
+    var raw = String(line || "").trim();
+    var name = raw.replace(/[^A-Za-z\s\-']/g,'').slice(0,40);
+    if (!name){
+      writeLine("Please enter a valid name.", "sys");
+      newPrompt();
+      return;
+    }
+    state.playerName = name;
+    state.mode = 'gender';
+    writeLine("Name set: **" + name + "**", "sys");
+    writeLine("Are you a girl (F) or boy (M)?", "sys");
+    newPrompt();
+  }
+
+  function handleGenderInput(line){
+    var g = String(line || "").trim().toUpperCase();
+    if (g !== 'F' && g !== 'M'){
+      writeLine("Type **F** or **M**.", "sys");
+      newPrompt();
+      return;
+    }
+
+    state.gender = g;
+
+    var safeName = (state.playerName || '').replace(/\|/g,' ');
+    var init = "__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
+
+    setInputLocked(true);
+    send(init, function(){
+      state.mode = 'chat';
+      unlockAndPrompt();
+    });
+  }
+
+  function handleChatInput(line){
+    state.turns++;
+    setInputLocked(true);
+    send(line, function(){
+      unlockAndPrompt();
+    });
+  }
+
+  function commitLine(){
+    // HARD LOCK: no commits while awaiting response
+    if (awaitingResponse) return;
+
+    var line = String(ime.value || '').trim();
+
+    ime.value = "";
+    renderBuffer();
+
+    // If empty, do NOT remove/re-add prompt; just ignore.
+    if (!line) {
+      ime.focus();
+      return;
+    }
+
+    // Commit current prompt once
+    removeInputLine();
+
+    if (state.mode === 'menu'){
+      writeLine("> " + line, "user");
+      handleMenuInput(line);
+      return;
+    }
+    if (state.mode === 'name'){
+      writeLine("> " + line, "user");
+      handleNameInput(line);
+      return;
+    }
+    if (state.mode === 'gender'){
+      writeLine("> " + line, "user");
+      handleGenderInput(line);
+      return;
+    }
+    if (state.mode === 'chat'){
+      writeLine("> " + line, "user");
+      handleChatInput(line);
+      return;
+    }
+
+    // fallback
+    newPrompt();
+    ime.focus();
+  }
+
+  /* ---------------- VERSION LOADING ----------------
+     version.json is next to index.html inside frontend/.
+     Because <base href="..."> is set above, relative "version.json" works for both:
+     - prod:  /version.json
+     - beta:  /beta/version.json
   */
-  var VERSION = "loading…";
   (function loadVersion(){
     fetch("version.json", {cache:"no-store"})
       .then(function(r){
@@ -141,229 +432,42 @@
         return r.json();
       })
       .then(function(j){
-        VERSION = (j && j.version) ? j.version : "unknown";
-        document.title = "terminal — storieschat.ai (version: " + VERSION + ")";
+        var v = (j && j.version != null) ? j.version : "unknown";
+        updateHeaderLine(v);
       })
       .catch(function(){
-        VERSION = "unknown";
-        document.title = "terminal — storieschat.ai (version: unknown)";
+        updateHeaderLine("unknown");
       });
   })();
 
-  /* ---------------- ERROR HANDLING ---------------- */
-  function showErr(msg){
-    var box = document.getElementById("errbox");
-    box.style.display = "block";
-    box.textContent = String(msg);
-  }
-  window.onerror = (m,s,l,c)=>showErr("JS Error: "+m+" @ "+s+":"+l+":"+c);
-  window.onunhandledrejection = e=>showErr("Promise rejection: "+(e?.reason||e));
+  // iOS IME & swipe-to-scroll improvements
+  ime.addEventListener('input', renderBuffer);
 
-  var term = document.getElementById("term");
-  var ime  = document.getElementById("ime");
-  var ghost= document.getElementById("ghostInput");
-  var enterBtn = document.getElementById("enterBtn");
-  var bkspBtn  = document.getElementById("bkspBtn");
+  term.addEventListener('click', function(){ ime.focus(); });
+  term.addEventListener('touchstart', function(){ ime.focus(); }, {passive:true});
+  document.addEventListener('touchstart', function(){ ime.focus(); }, {passive:true});
 
-  var state = {
-    mode:"menu",
-    sid: crypto.randomUUID ? crypto.randomUUID() : Date.now()+":"+Math.random(),
-    turns:0, story:null, gender:null, playerName:null
-  };
-
-  /* -------- PROMPT / INPUT LOCKING -------- */
-  var awaitingResponse = false;
-  var hasPrompt = false;
-
-  function newPrompt(){
-    if (hasPrompt) return;
-    hasPrompt = true;
-
-    var l = document.createElement("div");
-    l.id = "inputline";
-    l.innerHTML =
-      '<span class="sys">&gt; </span>' +
-      '<span id="buffer"></span>' +
-      '<span id="cursor">&nbsp;</span>';
-
-    term.appendChild(l);
-    scrollToBottom(true);
-  }
-
-  function removeInputLine(){
-    var el = document.getElementById("inputline");
-    if (el) el.remove();
-    hasPrompt = false;
-  }
-
-  function unlockInput(){
-    awaitingResponse = false;
-    newPrompt();
-    ime.focus();
-  }
-
-  /* -------- UI HELPERS -------- */
-  function scrollToBottom(force){
-    var d = term.scrollHeight - term.scrollTop - term.clientHeight;
-    if (force || d < 80) term.scrollTop = term.scrollHeight;
-  }
-
-  function escapeHTML(s){
-    return String(s)
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;")
-      .replace(/'/g,"&#39;");
-  }
-
-  function formatInline(md){
-    return md
-      .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
-      .replace(/(^|[^*])\*(.+?)\*(?!\*)/g,
-        (_,p,i)=>p+"<em>"+i+"</em>")
-      .replace(/"([^"]+)"/g,'<span class="dialogue">“$1”</span>')
-      .replace(/“([^”]+)”/g,'<span class="dialogue">“$1”</span>');
-  }
-
-  function toRichHTML(text){
-    var safe = escapeHTML(text||"").replace(/\r\n/g,"\n");
-    return '<div class="rich">' +
-      safe.split(/\n{2,}/).map(p =>
-        "<p>"+formatInline(p.replace(/\n/g,"<br>"))+"</p>"
-      ).join("") +
-      "</div>";
-  }
-
-  function writeLine(text, cls){
-    var d = document.createElement("div");
-    if (cls) d.className = cls+" line";
-    d.innerHTML = toRichHTML(text);
-    term.appendChild(d);
-    scrollToBottom(true);
-  }
-
-  function renderBuffer(){
-    var b = document.getElementById("buffer");
-    if (b) b.textContent = ime.value;
-    ghost.textContent = ime.value || "";
-  }
-
-  /* -------- TYPEWRITER -------- */
-  function typewrite(text, cls){
-    return new Promise(resolve=>{
-      var d = document.createElement("div");
-      if (cls) d.className = cls+" line";
-      term.appendChild(d);
-
-      var i=0, s=String(text||"");
-      (function step(){
-        if (i >= s.length){
-          d.innerHTML = toRichHTML(s);
-          scrollToBottom(true);
-          resolve();
-          return;
-        }
-        i+=3;
-        d.innerHTML = toRichHTML(s.slice(0,i));
-        setTimeout(step,15);
-      })();
-    });
-  }
-
-  /* -------- SEND -------- */
-  function send(msg, done){
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", endpoint, true);
-    xhr.setRequestHeader("Content-Type","application/json");
-    xhr.onreadystatechange = function(){
-      if (xhr.readyState !== 4) return;
-
-      if (xhr.status>=200 && xhr.status<300){
-        var data;
-        try { data = JSON.parse(xhr.responseText); }
-        catch(e){ writeLine("Bad JSON","err"); done&&done(); return; }
-
-        typewrite(data.reply||"", "bot").then(()=>done&&done());
-      } else {
-        writeLine("HTTP "+xhr.status+" — "+xhr.responseText,"err");
-        done&&done();
-      }
-    };
-    xhr.send(JSON.stringify({message:msg, session_id:state.sid}));
-  }
-
-  /* -------- INPUT FLOW -------- */
-  function commitLine(){
-    if (awaitingResponse) return;
-
-    var line = ime.value.trim();
-    ime.value="";
-    renderBuffer();
-    removeInputLine();
-
-    if (!line){ newPrompt(); ime.focus(); return; }
-
-    writeLine("> "+line,"user");
-
-    if (state.mode==="menu") return handleMenu(line);
-    if (state.mode==="name") return handleName(line);
-    if (state.mode==="gender") return handleGender(line);
-
-    awaitingResponse = true;
-    send(line, unlockInput);
-  }
-
-  function handleMenu(line){
-    if (line==="1"){
-      state.mode="name";
-      writeLine("Enter your name:","sys");
-      newPrompt();
-    } else {
-      writeLine("Invalid choice.","sys");
-      newPrompt();
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.keyCode === 13){
+      e.preventDefault();
+      commitLine();
     }
-  }
-
-  function handleName(line){
-    state.playerName = line.replace(/[^A-Za-z\s\-']/g,"").slice(0,40);
-    state.mode="gender";
-    writeLine("Are you a girl (F) or boy (M)?","sys");
-    newPrompt();
-  }
-
-  function handleGender(line){
-    if (!/^[FM]$/i.test(line)){
-      writeLine("Type F or M.","sys");
-      newPrompt();
-      return;
-    }
-    state.gender = line.toUpperCase();
-    awaitingResponse = true;
-    send("__cmd_newgame__:iu_murder_mystery|"+state.gender+"|"+state.playerName,
-      function(){
-        state.mode="chat";
-        unlockInput();
-      }
-    );
-  }
-
-  /* -------- EVENTS -------- */
-  ime.addEventListener("input", renderBuffer);
-  document.addEventListener("keydown", e=>{
-    if (e.key==="Enter"){ e.preventDefault(); commitLine(); }
   });
-  enterBtn.onclick = commitLine;
-  bkspBtn.onclick = ()=>{ ime.value=ime.value.slice(0,-1); renderBuffer(); };
-  term.onclick = ()=>ime.focus();
-  term.ontouchstart = ()=>ime.focus();
 
-  writeLine("Choose a story (type the number and press Enter):","sys");
-  writeLine("1) IU Murder Mystery — Echoes near Cheongdam","sys");
-  newPrompt();
+  enterBtn.addEventListener('click', function(){ commitLine(); });
+  bkspBtn.addEventListener('click', function(){
+    if (awaitingResponse) return;
+    ime.value = ime.value.slice(0,-1);
+    renderBuffer();
+  });
+
+  // initial
+  showMenu();
+  renderBuffer();
   ime.focus();
 
 })();
 </script>
+
 </body>
 </html>
