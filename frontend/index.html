@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
 
-  <!-- Title updates dynamically based on beta/prod -->
   <title>storieschat.ai — Terminal (loading…)</title>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="robots" content="noindex, nofollow" />
 
   <!-- Automatically set base href based on environment -->
@@ -20,8 +20,7 @@
         path.includes("/beta/") ||
         path.endsWith("/beta");
 
-      var baseHref = isBeta ? "/beta/" : "/";
-      document.write('<base href="' + baseHref + '">');
+      document.write('<base href="' + (isBeta ? "/beta/" : "/") + '">');
     })();
   </script>
 
@@ -45,11 +44,27 @@
     .rich strong { font-weight: 700; }
     .rich em { font-style: italic; }
     .dialogue { display:inline; font-style: italic; }
-    .sys{color:#77dd77;} .user{color:#8ab4f8;} .bot{color:#ffd466;} .err{color:#ff6b6b;}
+    .sys{color:#77dd77;}
+    .user{color:#8ab4f8;}
+    .bot{color:#ffd466;}
+    .err{color:#ff6b6b;}
+
     #inputline { position:relative; }
-    #cursor { display:inline-block; width:8px; background:#e6e6e6; margin-left:2px; animation:blink 1s step-start infinite; }
+    #cursor {
+      display:inline-block;
+      width:8px;
+      background:#e6e6e6;
+      margin-left:2px;
+      animation:blink 1s step-start infinite;
+    }
     @keyframes blink { 50% { background:transparent; } }
-    #ime { position:fixed; left:-9999px; top:-9999px; opacity:0; width:1px; height:1px; }
+
+    #ime {
+      position:fixed;
+      left:-9999px; top:-9999px;
+      opacity:0; width:1px; height:1px;
+    }
+
     #toolbar {
       position:fixed; left:0; right:0; bottom:0; z-index:3;
       display:flex; gap:8px; align-items:center;
@@ -61,37 +76,48 @@
       flex:1; min-height:40px;
       background:#121212; color:#e6e6e6;
       border:1px solid #333; border-radius:8px;
-      padding:10px 12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+      padding:10px 12px; overflow:hidden;
+      white-space:nowrap; text-overflow:ellipsis;
     }
     .btn {
-      min-width:64px; height:40px; border-radius:8px; border:1px solid #2a2a2a;
-      background:#1a1a1a; color:#e6e6e6; font-weight:600;
+      min-width:64px; height:40px;
+      border-radius:8px;
+      border:1px solid #2a2a2a;
+      background:#1a1a1a;
+      color:#e6e6e6;
+      font-weight:600;
     }
     #errbox {
-      position:fixed; left:8px; right:8px; bottom:96px; background:#330; color:#ffd;
-      border:1px solid #662; padding:8px 10px; border-radius:6px;
-      display:none; z-index:4; white-space:pre-wrap;
+      position:fixed; left:8px; right:8px; bottom:96px;
+      background:#330; color:#ffd;
+      border:1px solid #662;
+      padding:8px 10px;
+      border-radius:6px;
+      display:none; z-index:4;
+      white-space:pre-wrap;
     }
   </style>
 </head>
 
 <body>
 <div id="term" aria-label="terminal" role="region"></div>
-<input id="ime" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" />
+<input id="ime" type="text" inputmode="text"
+       autocapitalize="off" autocorrect="off" spellcheck="false" />
+
 <div id="toolbar">
   <div id="ghostInput" aria-live="polite"></div>
   <button class="btn" id="enterBtn">Enter</button>
   <button class="btn" id="bkspBtn">⌫</button>
 </div>
+
 <div id="errbox"></div>
 
 <script>
 (function(){
 
-  /* ---------------- ENV DETECTION (BETA/PROD) ---------------- */
+  /* ---------------- ENV DETECTION ---------------- */
   var host = window.location.hostname.toLowerCase();
   var path = window.location.pathname.toLowerCase();
-
   var isBeta =
     host.startsWith("beta.") ||
     path.includes("/beta/") ||
@@ -99,309 +125,240 @@
 
   var BASE = isBeta ? "/beta" : "";
 
-  /* ----------- BACKEND ENDPOINT (Railway Python) ------------- */
   var endpoint = isBeta
     ? "https://beta-api.storieschat.ai/api/chat"
     : "https://api.storieschat.ai/api/chat";
 
-  /* ------------------ VERSION LOADING ------------------------- */
+  /* ---------------- VERSION ---------------- */
   var VERSION = "loading…";
-  var VERSION_PATH = BASE + "/version.json";
-
-  fetch(VERSION_PATH, {cache:"no-store"})
-    .then(res => res.json())
+  fetch(BASE + "/version.json", {cache:"no-store"})
+    .then(r => r.json())
     .then(j => {
       VERSION = j.version || "unknown";
-      document.title = "storieschat.ai — Terminal (" +
+      document.title =
+        "storieschat.ai — Terminal (" +
         (isBeta ? "beta " : "prod ") + VERSION + ")";
     })
     .catch(() => {
-      VERSION = "unknown";
-      document.title = "storieschat.ai — Terminal (" +
+      document.title =
+        "storieschat.ai — Terminal (" +
         (isBeta ? "beta" : "prod") + ")";
     });
 
-  /* ---------------- ERROR BOX HELPERS ---------------- */
+  /* ---------------- ERROR HANDLING ---------------- */
   function showErr(msg){
-    var box = document.getElementById('errbox');
-    box.style.display = 'block';
+    var box = document.getElementById("errbox");
+    box.style.display = "block";
     box.textContent = String(msg);
   }
+  window.onerror = (m,s,l,c)=>showErr("JS Error: "+m+" @ "+s+":"+l+":"+c);
+  window.onunhandledrejection = e=>showErr("Promise rejection: "+(e?.reason||e));
 
-  window.onerror = function(msg, src, line, col){
-    showErr("JS Error: " + msg + " @ " + src + ":" + line + ":" + col);
-  };
-  window.onunhandledrejection = function(e){
-    showErr("Promise rejection: " + (e?.reason||e));
-  };
-
-  var term = document.getElementById('term');
-  var ime  = document.getElementById('ime');
-  var ghost= document.getElementById('ghostInput');
-  var enterBtn = document.getElementById('enterBtn');
-  var bkspBtn  = document.getElementById('bkspBtn');
+  var term = document.getElementById("term");
+  var ime  = document.getElementById("ime");
+  var ghost= document.getElementById("ghostInput");
+  var enterBtn = document.getElementById("enterBtn");
+  var bkspBtn  = document.getElementById("bkspBtn");
 
   var state = {
-    mode: "menu",
-    sid: crypto.randomUUID ? crypto.randomUUID() : (Date.now() + ":" + Math.random()),
-    turns: 0, story: null, gender: null, playerName: null
+    mode:"menu",
+    sid: crypto.randomUUID ? crypto.randomUUID() : Date.now()+":"+Math.random(),
+    turns:0, story:null, gender:null, playerName:null
   };
 
-  // Prevent multiple prompts / multiple sends while awaiting bot response
+  /* -------- PROMPT / INPUT LOCKING -------- */
   var awaitingResponse = false;
-
-  function unlockInputAndPrompt(){
-    awaitingResponse = false;
-    newPrompt();
-    ime.focus();
-  }
-
-  /* ------- smarter scroll: respect user scrolling -------- */
-  function scrollToBottom(force){
-    var distance = term.scrollHeight - term.scrollTop - term.clientHeight;
-    var nearBottom = distance < 80;
-    if (force || nearBottom){
-      term.scrollTop = term.scrollHeight;
-    }
-  }
-
-  function escapeHTML(s){
-    return String(s)
-      .replace(/&/g,'&amp;')
-      .replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;')
-      .replace(/'/g,'&#39;');
-  }
-
-  function formatInline(md){
-    md = md.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    md = md.replace(/(^|[^*])\*(.+?)\*(?!\*)/g, (_, pre, inner)=> pre + '<em>' + inner + '</em>');
-    md = md.replace(/"([^"]+)"/g, '<span class="dialogue">“$1”</span>');
-    md = md.replace(/“([^”]+)”/g, '<span class="dialogue">“$1”</span>');
-    return md;
-  }
-
-  function toRichHTML(text){
-    try {
-      var s = String(text||'').replace(/\\r\\n|\\n|\\r/g, '\n');
-      var safe = escapeHTML(s).replace(/\r\n/g, '\n');
-      var paras = safe.split(/\n{2,}/);
-      paras = paras.map(p=> '<p>' + formatInline(p.split('\n').join('<br>')) + '</p>');
-      return '<div class="rich">' + paras.join('') + '</div>';
-    } catch(e){
-      return '<div class="rich"><p>' + escapeHTML(String(text)) + '</p></div>';
-    }
-  }
-
-  function writeLine(text, cls){
-    var d = document.createElement('div');
-    if (cls) d.className = cls + ' line';
-    d.innerHTML = toRichHTML(text);
-    term.appendChild(d);
-    scrollToBottom(true);
-  }
+  var hasPrompt = false;
 
   function newPrompt(){
-    var l = document.createElement('div'); l.id = 'inputline';
-    l.innerHTML = '<span class="sys">&gt; </span><span id="buffer"></span><span id="cursor">&nbsp;</span>';
+    if (hasPrompt) return;
+    hasPrompt = true;
+
+    var l = document.createElement("div");
+    l.id = "inputline";
+    l.innerHTML =
+      '<span class="sys">&gt; </span>' +
+      '<span id="buffer"></span>' +
+      '<span id="cursor">&nbsp;</span>';
+
     term.appendChild(l);
     scrollToBottom(true);
   }
 
   function removeInputLine(){
-    var el=document.getElementById('inputline');
+    var el = document.getElementById("inputline");
     if (el) el.remove();
-  }
-  function setGhost(t){ ghost.textContent=t||""; }
-  function getBufferEl(){ return document.getElementById('buffer'); }
-  function renderBuffer(){
-    var b=getBufferEl();
-    if (b) b.textContent=ime.value;
-    setGhost(ime.value);
+    hasPrompt = false;
   }
 
-  /* -------- Smooth typewriter / streaming effect -------- */
+  function unlockInput(){
+    awaitingResponse = false;
+    newPrompt();
+    ime.focus();
+  }
+
+  /* -------- UI HELPERS -------- */
+  function scrollToBottom(force){
+    var d = term.scrollHeight - term.scrollTop - term.clientHeight;
+    if (force || d < 80) term.scrollTop = term.scrollHeight;
+  }
+
+  function escapeHTML(s){
+    return String(s)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#39;");
+  }
+
+  function formatInline(md){
+    return md
+      .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+      .replace(/(^|[^*])\*(.+?)\*(?!\*)/g,
+        (_,p,i)=>p+"<em>"+i+"</em>")
+      .replace(/"([^"]+)"/g,'<span class="dialogue">“$1”</span>')
+      .replace(/“([^”]+)”/g,'<span class="dialogue">“$1”</span>');
+  }
+
+  function toRichHTML(text){
+    var safe = escapeHTML(text||"").replace(/\r\n/g,"\n");
+    return '<div class="rich">' +
+      safe.split(/\n{2,}/).map(p =>
+        "<p>"+formatInline(p.replace(/\n/g,"<br>"))+"</p>"
+      ).join("") +
+      "</div>";
+  }
+
+  function writeLine(text, cls){
+    var d = document.createElement("div");
+    if (cls) d.className = cls+" line";
+    d.innerHTML = toRichHTML(text);
+    term.appendChild(d);
+    scrollToBottom(true);
+  }
+
+  function renderBuffer(){
+    var b = document.getElementById("buffer");
+    if (b) b.textContent = ime.value;
+    ghost.textContent = ime.value || "";
+  }
+
+  /* -------- TYPEWRITER -------- */
   function typewrite(text, cls){
-    return new Promise(function(resolve){
-      var d = document.createElement('div');
-      if (cls) d.className = cls + ' line';
+    return new Promise(resolve=>{
+      var d = document.createElement("div");
+      if (cls) d.className = cls+" line";
       term.appendChild(d);
 
-      var full = String(text || '');
-      var len = full.length;
-      var idx = 0;
-
-      function step(){
-        if (idx >= len){
-          d.innerHTML = toRichHTML(full);
+      var i=0, s=String(text||"");
+      (function step(){
+        if (i >= s.length){
+          d.innerHTML = toRichHTML(s);
           scrollToBottom(true);
           resolve();
           return;
         }
-        idx += 3; // chars per tick
-        var chunk = full.slice(0, idx);
-        d.innerHTML = toRichHTML(chunk);
-        scrollToBottom(false);
-        setTimeout(step, 15);
-      }
-
-      step();
+        i+=3;
+        d.innerHTML = toRichHTML(s.slice(0,i));
+        setTimeout(step,15);
+      })();
     });
   }
 
-  /* -------- send() WITH CALLBACK SUPPORT -------- */
+  /* -------- SEND -------- */
   function send(msg, done){
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', endpoint, true);
-      xhr.setRequestHeader('Content-Type','application/json');
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", endpoint, true);
+    xhr.setRequestHeader("Content-Type","application/json");
+    xhr.onreadystatechange = function(){
+      if (xhr.readyState !== 4) return;
 
-      xhr.onreadystatechange = function(){
-        if (xhr.readyState === 4){
-          if (xhr.status >= 200 && xhr.status < 300){
-            var data;
-            try { data = JSON.parse(xhr.responseText); }
-            catch(e){ writeLine("Bad JSON: " + e, "err"); if(done) done(); return; }
+      if (xhr.status>=200 && xhr.status<300){
+        var data;
+        try { data = JSON.parse(xhr.responseText); }
+        catch(e){ writeLine("Bad JSON","err"); done&&done(); return; }
 
-            if (data?.error){
-              writeLine("error: " + data.error, "err");
-              if(done) done();
-              return;
-            }
-
-            typewrite(data?.reply || '', 'bot').then(function(){
-              if (done) done();
-            });
-
-          } else {
-            writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
-            if(done) done();
-          }
-        }
-      };
-
-      xhr.send(JSON.stringify({message: msg, session_id: state.sid}));
-    } catch(e){
-      writeLine("Failed to send: " + e, "err");
-      if(done) done();
-    }
+        typewrite(data.reply||"", "bot").then(()=>done&&done());
+      } else {
+        writeLine("HTTP "+xhr.status+" — "+xhr.responseText,"err");
+        done&&done();
+      }
+    };
+    xhr.send(JSON.stringify({message:msg, session_id:state.sid}));
   }
 
+  /* -------- INPUT FLOW -------- */
   function commitLine(){
     if (awaitingResponse) return;
 
-    var line = String(ime.value||'').trim();
-    ime.value=""; renderBuffer(); removeInputLine();
+    var line = ime.value.trim();
+    ime.value="";
+    renderBuffer();
+    removeInputLine();
+
     if (!line){ newPrompt(); ime.focus(); return; }
 
-    if (state.mode==='menu'){
-      writeLine("> " + line, "user"); handleMenuInput(line); return;
-    }
-    if (state.mode==='name'){
-      writeLine("> " + line, "user"); handleNameInput(line); return;
-    }
-    if (state.mode==='gender'){
-      writeLine("> " + line, "user"); handleGenderInput(line); return;
-    }
-    if (state.mode==='chat'){
-      writeLine("> " + line, "user");
-      handleChatInput(line);
-      return;
+    writeLine("> "+line,"user");
+
+    if (state.mode==="menu") return handleMenu(line);
+    if (state.mode==="name") return handleName(line);
+    if (state.mode==="gender") return handleGender(line);
+
+    awaitingResponse = true;
+    send(line, unlockInput);
+  }
+
+  function handleMenu(line){
+    if (line==="1"){
+      state.mode="name";
+      writeLine("Enter your name:","sys");
+      newPrompt();
+    } else {
+      writeLine("Invalid choice.","sys");
+      newPrompt();
     }
   }
 
-  function showMenu(){
-    writeLine("terminal — storieschat.ai (" + VERSION + ")", "sys");
-    writeLine("Choose a story (type the number and press Enter):", "sys");
-    writeLine("1) IU Murder Mystery — Echoes near Cheongdam", "sys");
-    newPrompt(); ime.focus();
-  }
-
-  function handleMenuInput(line){
-    var choice = line.replace(/[^0-9]/g,'');
-    if (choice==='1'){
-      state.story='iu_murder_mystery';
-      state.mode='name';
-      writeLine("You chose: **IU Murder Mystery**", "sys");
-      writeLine("Enter your name:", "sys");
-      newPrompt(); return;
-    }
-    writeLine("Invalid choice. Type **1**.", "sys"); newPrompt();
-  }
-
-  function handleNameInput(line){
-    var raw=line.trim();
-    var name=raw.replace(/[^A-Za-z\s\-']/g,'').slice(0,40);
-    if (!name){ writeLine("Please enter a valid name.", "sys"); newPrompt(); return; }
-
-    state.playerName=name;
-    state.mode='gender';
-    writeLine("Name set: **" + name + "**", "sys");
-    writeLine("Are you a girl (F) or boy (M)?", "sys");
+  function handleName(line){
+    state.playerName = line.replace(/[^A-Za-z\s\-']/g,"").slice(0,40);
+    state.mode="gender";
+    writeLine("Are you a girl (F) or boy (M)?","sys");
     newPrompt();
   }
 
-  function handleGenderInput(line){
-    var g=line.trim().toUpperCase();
-    if (g!=='F' && g!=='M'){ writeLine("Type **F** or **M**.", "sys"); newPrompt(); return; }
-
-    state.gender=g;
-
-    var safeName=(state.playerName||'').replace(/\|/g,' ');
-    var init="__cmd_newgame__:iu_murder_mystery|" + g + "|" + safeName;
-
-    awaitingResponse = true;
-
-    // DO NOT switch to chat mode until /newgame finishes
-    send(init, function(){
-      state.mode='chat';
-      unlockInputAndPrompt();
-    });
-  }
-
-  function handleChatInput(line){
-    state.turns++;
-    awaitingResponse = true;
-
-    send(line, function(){
-      unlockInputAndPrompt();
-    });
-  }
-
-  // iOS IME & swipe-to-scroll improvements
-  ime.addEventListener('input', renderBuffer);
-
-  term.addEventListener('click', function(){
-    ime.focus();
-  });
-
-  term.addEventListener('touchstart', function(){
-    ime.focus();
-  }, {passive:true});
-
-  document.addEventListener('touchstart', function(){
-    ime.focus();
-  }, {passive:true});
-
-  document.addEventListener('keydown', function(e){
-    if (e.key==='Enter' || e.keyCode===13){
-      e.preventDefault();
-      commitLine();
+  function handleGender(line){
+    if (!/^[FM]$/i.test(line)){
+      writeLine("Type F or M.","sys");
+      newPrompt();
+      return;
     }
-  });
+    state.gender = line.toUpperCase();
+    awaitingResponse = true;
+    send("__cmd_newgame__:iu_murder_mystery|"+state.gender+"|"+state.playerName,
+      function(){
+        state.mode="chat";
+        unlockInput();
+      }
+    );
+  }
 
-  enterBtn.addEventListener('click', function(){ commitLine(); });
-  bkspBtn.addEventListener('click', function(){
-    ime.value=ime.value.slice(0,-1);
-    renderBuffer();
+  /* -------- EVENTS -------- */
+  ime.addEventListener("input", renderBuffer);
+  document.addEventListener("keydown", e=>{
+    if (e.key==="Enter"){ e.preventDefault(); commitLine(); }
   });
+  enterBtn.onclick = commitLine;
+  bkspBtn.onclick = ()=>{ ime.value=ime.value.slice(0,-1); renderBuffer(); };
+  term.onclick = ()=>ime.focus();
+  term.ontouchstart = ()=>ime.focus();
 
-  showMenu();
+  writeLine("Choose a story (type the number and press Enter):","sys");
+  writeLine("1) IU Murder Mystery — Echoes near Cheongdam","sys");
+  newPrompt();
   ime.focus();
 
 })();
 </script>
-
 </body>
 </html>
