@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.chat import router as chat_router
 from app.api.echo import router as echo_router
 from app.api.health import router as health_router
+from app.api.story import router as story_router
 
 app = FastAPI(
     title="StoriesChat Backend (Python)",
@@ -35,6 +36,7 @@ app.add_middleware(
 app.include_router(chat_router, prefix="/api")
 app.include_router(echo_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
+app.include_router(story_router, prefix="/api")
 
 
 @app.get("/api/version")
