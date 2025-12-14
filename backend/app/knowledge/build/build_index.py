@@ -8,7 +8,9 @@ from faiss_utils import build_faiss_index
 from bm25_utils import build_bm25_index, load_chunks_jsonl
 from tests import run_hybrid_retrieval_tests
 
-CHAR_DIR = Path("../characters/1_iu").resolve()
+# ✅ FIX: resolve character directory relative to THIS file
+BASE_DIR = Path(__file__).resolve().parent            # /app/backend/app/knowledge/build
+CHAR_DIR = BASE_DIR.parent / "characters" / "1_iu"   # /app/backend/app/knowledge/characters/1_iu
 
 REQUIRED_FIELDS = {"chunk_id", "character_id", "type", "text", "confidence"}
 
@@ -52,7 +54,7 @@ def main():
     for k, v in metrics.items():
         print(f"{k}: {v:.3f}")
 
-    # Gate on recall (you said recall > precision)
+    # Gate on recall (recall > precision)
     if metrics["recall"] < 0.95:
         raise RuntimeError("❌ Hybrid recall below threshold")
 
