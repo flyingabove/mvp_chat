@@ -41,10 +41,12 @@ def run_hybrid_retrieval_tests(
     bm25,
     faiss_index,
     embed_query_fn,
-    k_bm25: int = 8,
-    k_faiss: int = 8,
-    k_final: int = 8,
+    k_bm25: int = 3,
+    k_faiss: int = 3,
+    k_final: int = 3,
+
 ):
+    print("Running Test with k_bm25:{k_bm25}, k_bm25:{k_faiss}, k_bm25:{k_final}")
     chunk_ids = [c.get("chunk_id") for c in chunks]
 
     if any(cid is None for cid in chunk_ids):
