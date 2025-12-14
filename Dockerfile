@@ -1,23 +1,21 @@
 FROM python:3.10-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy backend folder into container
-COPY backend/ /app/
+# Copy backend into /app/backend
+COPY backend/ /app/backend/
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
-
-# Log exact versions into Railway deploy logs
+# Log exact versions
 RUN python backend/app/knowledge/build/print_env_versions.py
 
-# Install Faiss
+# Build FAISS + BM25 indexes
 RUN python backend/app/knowledge/build/build_index.py
 
 # Expose port (Railway maps this automatically)
 EXPOSE 8000
 
 # Start FastAPI using uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
