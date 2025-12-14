@@ -17,5 +17,7 @@ RUN python -m backend.app.knowledge.build.build_index
 # Expose port (Railway maps this automatically)
 EXPOSE 8000
 
-# Start FastAPI using uvicorn
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENV PYTHONPATH=/app/backend
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
