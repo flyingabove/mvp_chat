@@ -1,13 +1,18 @@
 # backend/app/knowledge/build/faiss_utils.py
-from pathlib import Path
 import faiss
 import numpy as np
+from pathlib import Path
 
-def build_faiss_index(embeddings: np.ndarray, out_path: Path):
+
+def build_faiss_index(embeddings: np.ndarray, output_path: Path):
+    if embeddings.ndim != 2:
+        raise ValueError("Embeddings must be 2D array")
+
     dim = embeddings.shape[1]
-    index = faiss.IndexFlatIP(dim)  # cosine if vectors normalized
-    index.add(embeddings)
-    faiss.write_index(index, str(out_path))
+    index = faiss.IndexFlatIP(dim)
+    index.add(embeddings.astype("float32"))
+
+    faiss.write_index(index, str(output_path))
     return index
 
 def faiss_search(index, query_vec: np.ndarray, k: int):

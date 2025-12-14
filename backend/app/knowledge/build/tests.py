@@ -1,7 +1,11 @@
 # backend/app/knowledge/build/tests.py
-from faiss_utils import faiss_search
-from bm25_utils import bm25_search
-from hybrid import hybrid_retrieve
+
+from typing import List, Dict
+
+from .faiss_utils import faiss_search
+from .bm25_utils import bm25_search
+from .hybrid import hybrid_retrieve
+
 
 # One per subsection (identity, physical, fashion, public image, financials, career timeline,
 # music albums, eps, remake series, signature songs, song summaries, acting dramas, films,
@@ -31,18 +35,30 @@ TEST_CASES = [
     {"section":"narrative memory","q":"Which narrative mentions KBS Music Bank and Lost and Found?","ans":"iu_49_narrative_music_bank"},
 ]
 
-def run_hybrid_retrieval_tests(chunks, bm25, faiss_index, embed_query_fn, k_bm25=8, k_faiss=8, k_final=8):
-    chunk_ids = [c["chunk_id"] for c in chunks]
+
+def run_hybrid_retrieval_tests(
+    chunks: List[Dict],
+    bm25,
+    faiss_index,
+    embed_query_fn,
+    k_bm25: int = 8,
+    k_faiss: int = 8,
+    k_final: int = 8,
+):
+    chunk_ids = [c.get("chunk_id") for c in chunks]
+
+    if any(cid is None for cid in chunk_ids):
+        raise ValueError("All chunks must contain 'chunk_id' for testing")
 
     tp = fp = fn = 0
-    # For “accuracy” in your simplified single-label world:
-    correct_at_1 = 0
+    correct_at_1 = 0  # simplified single-label accuracy
 
     for case in TEST_CASES:
         q = case["q"]
         gold = case["ans"]
 
         bm25_idxs, _ = bm25_search(bm25, chunks, q, k=k_bm25)
+
         qv = embed_query_fn(q)
         faiss_idxs, _ = faiss_search(faiss_index, qv, k=k_faiss)
 
@@ -54,15 +70,21 @@ def run_hybrid_retrieval_tests(chunks, bm25, faiss_index, embed_query_fn, k_bm25
         else:
             fn += 1
 
-        # precision bookkeeping: count all retrieved as predicted positives, 1 gold
-        fp += len(retrieved_ids) - (1 if gold in retrieved_ids else 0)
+        # Precision bookkeeping: every retrieved is a predicted positive; only one gold
+        fp += max(len(retrieved_ids) - (1 if gold in retrieved_ids else 0), 0)
 
-        if len(retrieved_ids) > 0 and retrieved_ids[0] == gold:
+        if retrieved_ids and retrieved_ids[0] == gold:
             correct_at_1 += 1
 
     precision = tp / max(tp + fp, 1)
     recall = tp / max(tp + fn, 1)
-    f1 = 2 * precision * recall / max(precision + recall, 1e-6)
-    accuracy = correct_at_1 / len(TEST_CASES)
+    f1 = (2 * precision * recall) / max(precision + recall, 1e-6)
+    accuracy = correct_at_1 / max(len(TEST_CASES), 1)
 
-    return {"precision": precision, "recall": recall, "f1": f1, "accuracy": accuracy}
+    # Recall is the gating metric by design
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "accuracy": accuracy,
+    }

@@ -8,11 +8,13 @@ from faiss_utils import build_faiss_index
 from bm25_utils import build_bm25_index, load_chunks_jsonl
 from tests import run_hybrid_retrieval_tests
 
-# ✅ FIX: resolve character directory relative to THIS file
-BASE_DIR = Path(__file__).resolve().parent            # /app/backend/app/knowledge/build
-CHAR_DIR = BASE_DIR.parent / "characters" / "1_iu"   # /app/backend/app/knowledge/characters/1_iu
+BASE_DIR = Path(__file__).resolve().parent
+KNOWLEDGE_DIR = BASE_DIR.parent
+CHARACTER_ID = "1_iu"
+CHAR_DIR = KNOWLEDGE_DIR / "characters" / CHARACTER_ID
 
 REQUIRED_FIELDS = {"chunk_id", "character_id", "type", "text", "confidence"}
+
 
 def validate_chunks(chunks):
     for i, c in enumerate(chunks, start=1):
@@ -20,15 +22,25 @@ def validate_chunks(chunks):
         if missing:
             raise ValueError(f"chunks.jsonl line {i} missing fields: {sorted(missing)}")
 
+
 def main():
+    print("=== Knowledge Build ===")
+    print("CHAR_DIR:", CHAR_DIR)
+
+    if not CHAR_DIR.exists():
+        raise RuntimeError(f"Character directory missing: {CHAR_DIR}")
+
     chunks_path = CHAR_DIR / "chunks.jsonl"
+    if not chunks_path.exists():
+        raise RuntimeError(f"chunks.jsonl missing at {chunks_path}")
+
     chunks = load_chunks_jsonl(chunks_path)
     validate_chunks(chunks)
 
     texts = [c["text"] for c in chunks]
 
     # Dense embeddings → FAISS
-    embeddings = embed_texts(texts)  # (N, D)
+    embeddings = embed_texts(texts)
     emb_path = CHAR_DIR / "embeddings.npy"
     np.save(emb_path, embeddings)
 
@@ -39,7 +51,7 @@ def main():
     bm25_path = CHAR_DIR / "bm25.json"
     bm25 = build_bm25_index(chunks, bm25_path)
 
-    # Deploy-time tests (hybrid)
+    # Deploy-time tests
     metrics = run_hybrid_retrieval_tests(
         chunks=chunks,
         bm25=bm25,
@@ -54,21 +66,22 @@ def main():
     for k, v in metrics.items():
         print(f"{k}: {v:.3f}")
 
-    # Gate on recall (recall > precision)
     if metrics["recall"] < 0.95:
         raise RuntimeError("❌ Hybrid recall below threshold")
 
     build_info = {
-        "character_id": "iu",
+        "character_id": CHARACTER_ID,
         "num_chunks": len(chunks),
         "build_time_unix": time.time(),
         "embedder": get_embedder_info(),
         "metrics": metrics,
     }
+
     with open(CHAR_DIR / "build_info.json", "w", encoding="utf-8") as f:
         json.dump(build_info, f, indent=2)
 
     print("✅ Hybrid build completed successfully")
+
 
 if __name__ == "__main__":
     main()

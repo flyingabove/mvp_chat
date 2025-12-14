@@ -1,16 +1,24 @@
-import torch
-import faiss
-import transformers
-import sentence_transformers
-import numpy
-import scipy
+# backend/app/knowledge/build/print_env_versions.py
+import sys
 
 print("=== Runtime Environment Versions ===")
-print(f"python: (runtime)")
-print(f"torch: {torch.__version__}")
-print(f"faiss: {faiss.__version__}")
-print(f"transformers: {transformers.__version__}")
-print(f"sentence-transformers: {sentence_transformers.__version__}")
-print(f"numpy: {numpy.__version__}")
-print(f"scipy: {scipy.__version__}")
+
+# Python
+print(f"python: {sys.version.split()[0]}")
+
+def safe_print(pkg_name, import_name=None, attr="__version__"):
+    try:
+        module = __import__(import_name or pkg_name)
+        version = getattr(module, attr, "unknown")
+        print(f"{pkg_name}: {version}")
+    except Exception as e:
+        print(f"{pkg_name}: not available ({e.__class__.__name__})")
+
+safe_print("torch")
+safe_print("faiss")
+safe_print("transformers")
+safe_print("sentence-transformers", import_name="sentence_transformers")
+safe_print("numpy")
+safe_print("scipy")
+
 print("====================================")
