@@ -3,10 +3,10 @@ from pathlib import Path
 import json, time
 import numpy as np
 
-from embedder import embed_texts, embed_query, get_embedder_info
-from faiss_utils import build_faiss_index
-from bm25_utils import build_bm25_index, load_chunks_jsonl
-from tests import run_hybrid_retrieval_tests
+from .embedder import embed_texts, embed_query, get_embedder_info
+from .faiss_utils import build_faiss_index
+from .bm25_utils import build_bm25_index, load_chunks_jsonl
+from .tests import run_hybrid_retrieval_tests
 
 BASE_DIR = Path(__file__).resolve().parent
 KNOWLEDGE_DIR = BASE_DIR.parent
