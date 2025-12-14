@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 RUN python backend/app/knowledge/build/print_env_versions.py
 
 # Build FAISS + BM25 indexes
-RUN python backend/app/knowledge/build/build_index.py
+RUN python -m backend.app.knowledge.build.build_index
 
 # Expose port (Railway maps this automatically)
 EXPOSE 8000
