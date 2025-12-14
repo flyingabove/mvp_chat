@@ -4,6 +4,10 @@ import httpx
 import json
 import re
 import time
+from backend.app.knowledge.runtime.load_indexes import load_character_indexes
+
+INDEXES = load_character_indexes()
+
 
 from app.config.settings import (
     OPENAI_API_KEY, OPENAI_MODEL,

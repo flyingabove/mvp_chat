@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# Local envs
+.venv/
+env/
+.env
+
+# OS junk
+.DS_Store
