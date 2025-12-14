@@ -9,6 +9,12 @@ backend/.DS_Store/*
 .DS_Store
 keys.txt
 
+backend/app/knowledge/characters/*/bm25.json
+backend/app/knowledge/characters/*/embeddings.npy
+backend/app/knowledge/characters/*/faiss.index
+backend/app/knowledge/characters/*/build_info.json
+
+
 # C extensions
 *.so
 

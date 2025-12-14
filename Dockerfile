@@ -9,6 +9,13 @@ COPY backend/ /app/
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+
+# Log exact versions into Railway deploy logs
+RUN python backend/app/knowledge/build/print_env_versions.py
+
+# Install Faiss
+RUN python backend/app/knowledge/build/build_index.py
+
 # Expose port (Railway maps this automatically)
 EXPOSE 8000
 
