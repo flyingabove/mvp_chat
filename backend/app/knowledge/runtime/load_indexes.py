@@ -1,19 +1,33 @@
 from pathlib import Path
-import numpy as np
 import faiss
+import numpy as np
+from .bm25_utils import load_bm25
 
-from backend.app.knowledge.build.bm25_utils import load_bm25
-
-BASE = Path(__file__).resolve().parents[2]
-CHAR_DIR = BASE / "knowledge" / "characters" / "1_iu"
+# --------------------
+# Persistent paths
+# --------------------
+PERSIST_ROOT = Path("/data/knowledge")
+CHARACTER_ID = "1_iu"
+CHAR_DIR = PERSIST_ROOT / "characters" / CHARACTER_ID
 
 def load_character_indexes():
-    faiss_index = faiss.read_index(str(CHAR_DIR / "faiss.index"))
-    embeddings = np.load(CHAR_DIR / "embeddings.npy")
-    bm25 = load_bm25(CHAR_DIR / "bm25.json")
+    if not CHAR_DIR.exists():
+        raise RuntimeError(f"Persistent character dir missing: {CHAR_DIR}")
+
+    faiss_path = CHAR_DIR / "faiss.index"
+    emb_path = CHAR_DIR / "embeddings.npy"
+    bm25_path = CHAR_DIR / "bm25.json"
+
+    for p in [faiss_path, emb_path, bm25_path]:
+        if not p.exists():
+            raise RuntimeError(f"Missing index artifact: {p}")
+
+    faiss_index = faiss.read_index(str(faiss_path))
+    embeddings = np.load(emb_path)
+    bm25 = load_bm25(bm25_path)
 
     return {
         "faiss": faiss_index,
-        "bm25": bm25,
         "embeddings": embeddings,
+        "bm25": bm25,
     }
