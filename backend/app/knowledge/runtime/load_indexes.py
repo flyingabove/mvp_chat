@@ -6,9 +6,11 @@ from backend.app.knowledge.common.bm25_runtime import load_bm25
 # --------------------
 # Persistent paths
 # --------------------
-PERSIST_ROOT = Path("/data/knowledge")
+
 CHARACTER_ID = "1_iu"
-CHAR_DIR = PERSIST_ROOT / "characters" / CHARACTER_ID
+
+PERSIST_ROOT = Path("/data/knowledge_cache")
+CHAR_DIR = PERSIST_ROOT / "characters" / "1_iu"
 
 def load_character_indexes():
     if not CHAR_DIR.exists():
