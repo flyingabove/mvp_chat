@@ -1,7 +1,7 @@
 from pathlib import Path
 import faiss
 import numpy as np
-from .bm25_utils import load_bm25
+from backend.app.knowledge.common.bm25_runtime import load_bm25
 
 # --------------------
 # Persistent paths
