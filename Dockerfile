@@ -16,4 +16,4 @@ RUN python backend/app/knowledge/build/print_env_versions.py
 EXPOSE 8000
 
 # Ensure indexes at startup, then run uvicorn
-CMD ["sh", "-c", "python -m backend.app.knowledge.build.ensure_indexes && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python -m backend.app.knowledge.runtime.ensure_cache && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
