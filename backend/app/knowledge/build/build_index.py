@@ -13,6 +13,9 @@ from .faiss_utils import build_faiss_index
 from .bm25_utils import build_bm25_index, load_chunks_jsonl
 from .tests import run_hybrid_retrieval_tests
 from .fingerprint import FaissConfig, Bm25Config, compute_build_fingerprint
+import shutil
+
+print("Free disk:", shutil.disk_usage("/data"))
 
 REQUIRED_FIELDS = {"chunk_id", "character_id", "type", "text", "confidence"}
 
