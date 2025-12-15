@@ -11,6 +11,7 @@ COPY backend/ /app/backend/
 # Install dependencies (includes torch CPU via find-links)
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
+
 # Log exact versions into Railway logs
 RUN python backend/app/knowledge/build/print_env_versions.py
 
