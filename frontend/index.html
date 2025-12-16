@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <script>
-  /* iOS / Safari safety stub
+    /* iOS / Safari safety stub
     Prevent crashes from Firefox-only globals */
   (function () {
-    if (typeof window !== "undefined" && !window.__firefox__) {
-      window.__firefox__ = {};
+    if (!window.__firefox__) window.__firefox__ = {};
+    if (!window.__firefox__.playlistLongPress) {
+      window.__firefox__.playlistLongPress = function () {};
     }
   })();
   </script>
+
 
   <title>terminal — storieschat.ai</title>
 
