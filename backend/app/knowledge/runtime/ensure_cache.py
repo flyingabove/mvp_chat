@@ -2,7 +2,6 @@ from pathlib import Path
 import os
 import shutil
 
-print("Files:", [p.name for p in CACHE_CHAR_DIR.iterdir()])
 
 CHARACTER_ID = "1_iu"
 
@@ -13,6 +12,7 @@ REPO_CHAR_DIR = REPO_DIR / "characters" / CHARACTER_ID
 # Cache root on volume
 CACHE_ROOT = Path(os.getenv("KNOWLEDGE_CACHE_DIR", str(REPO_DIR))).resolve()
 CACHE_CHAR_DIR = CACHE_ROOT / "characters" / CHARACTER_ID
+print("Files:", [p.name for p in CACHE_CHAR_DIR.iterdir()])
 
 ARTIFACT_FILES = ["faiss.index", "embeddings.npy", "bm25.json", "build_info.json"]
 
