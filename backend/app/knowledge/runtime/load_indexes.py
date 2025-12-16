@@ -4,7 +4,7 @@ import os
 import shutil
 import faiss
 
-from backend.app.knowledge.common.bm25_runtime import load_bm25, search_bm25
+from backend.app.knowledge.runtime.bm25_runtime import load_bm25, search_bm25
 
 
 def _load_chunks_jsonl(path: Path):
