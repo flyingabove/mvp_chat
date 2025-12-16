@@ -6,10 +6,18 @@ from app.api.echo import router as echo_router
 from app.api.health import router as health_router
 from app.api.story import router as story_router
 
+from app.middleware.request_id import request_id_middleware
+
+
 app = FastAPI(
     title="StoriesChat Backend (Python)",
     version="1.0.0"
 )
+
+# --------------------------------------------------
+# Request ID middleware (for logging & traceability)
+# --------------------------------------------------
+app.middleware("http")(request_id_middleware)
 
 # --------------------------------------------------
 # CORS FIX — REQUIRED for browser POST to work

@@ -4,10 +4,25 @@ import httpx
 import json
 import re
 import time
+import uuid
+
 from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 
-INDEXES = load_character_indexes()
+# ---------------------------------------------------------------------------
+# SAFE INDEX LOADING (no boot crash)
+# ---------------------------------------------------------------------------
+try:
+    INDEXES = load_character_indexes()
+except Exception as e:
+    INDEXES = None
+    print(json.dumps({
+        "kind": "index_load_failed",
+        "error": str(e)
+    }))
 
+from backend.app.knowledge.build.embedder import embed_query
+from backend.app.knowledge.build.faiss_utils import faiss_search
+from backend.app.knowledge.build.hybrid import hybrid_retrieve
 
 from app.config.settings import (
     OPENAI_API_KEY, OPENAI_MODEL,
@@ -37,6 +52,65 @@ SESSIONS = {}  # session_id → { state: MurderGameState, log: list }
 
 
 # ---------------------------------------------------------------------------
+# SIMPLE JSON LOGGING (Railway Deploy Logs)
+# ---------------------------------------------------------------------------
+def _log(event: dict):
+    try:
+        print(json.dumps(event, ensure_ascii=False))
+    except Exception:
+        pass
+
+
+def _truncate(s: str, n: int = 6000) -> str:
+    s = s or ""
+    return s if len(s) <= n else s[:n] + f"...(truncated {len(s)-n} chars)"
+
+
+# ---------------------------------------------------------------------------
+# KNOWLEDGE RETRIEVAL (LOGGING ONLY — PROMPT BUILDER IS AUTHORITY)
+# ---------------------------------------------------------------------------
+def retrieve_knowledge(query: str, k_bm25: int = 8, k_faiss: int = 8, k_final: int = 8):
+    if not INDEXES:
+        return [], {"error": "indexes not loaded"}
+
+    try:
+        chunks = INDEXES["chunks"]
+        chunk_ids = INDEXES["chunk_ids"]
+        bm25 = INDEXES["bm25"]
+        faiss_index = INDEXES["faiss"]
+        search_bm25_fn = INDEXES["search_bm25"]
+
+        bm25_idxs, bm25_scores = search_bm25_fn(bm25, query, k=k_bm25)
+
+        qv = embed_query(query)
+        faiss_idxs, faiss_scores = faiss_search(faiss_index, qv, k=k_faiss)
+
+        fused = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=k_final)
+
+        out = []
+        for i in fused:
+            if 0 <= i < len(chunks):
+                out.append({
+                    "i": i,
+                    "chunk_id": chunk_ids[i],
+                    "type": chunks[i].get("type", ""),
+                    "text": chunks[i].get("text", ""),
+                    "confidence": chunks[i].get("confidence", ""),
+                })
+
+        return out, {
+            "bm25_idxs": bm25_idxs,
+            "bm25_scores": bm25_scores,
+            "faiss_idxs": faiss_idxs,
+            "faiss_scores": faiss_scores,
+            "fused_idxs": fused,
+        }
+
+    except Exception as e:
+        return [], {"error": str(e)}
+
+
+# ---------------------------------------------------------------------------
 # SESSION RETRIEVAL
 # ---------------------------------------------------------------------------
 def get_session(session_id: str):
@@ -52,10 +126,6 @@ def get_session(session_id: str):
 # PLACEHOLDERS FOR OPENING TEXT ONLY
 # ---------------------------------------------------------------------------
 def apply_placeholders(text: str, state: MurderGameState) -> str:
-    """
-    For narrator-only opening text. Uses meta player_name only.
-    IU herself does NOT know the name yet.
-    """
     name = state.player_name or "Player"
     honorific = "unnie" if (state.gender == "F") else "oppa"
     return (
@@ -68,11 +138,6 @@ def apply_placeholders(text: str, state: MurderGameState) -> str:
 # KOREAN HONORIFIC SANITIZER
 # ---------------------------------------------------------------------------
 def sanitize_korean_terms(text: str, state: MurderGameState) -> str:
-    """
-    Removes intimacy honorifics ("oppa", "unnie", etc.) unless relationship >= 2.
-    If display_name is available → replace.
-    If not → remove entirely.
-    """
     rel = state.relationship or 0
     display_name = (state.user.display_name or "").strip()
 
@@ -88,7 +153,7 @@ def sanitize_korean_terms(text: str, state: MurderGameState) -> str:
 
 
 # ---------------------------------------------------------------------------
-# NAME EXTRACTION — USER TELLS THEIR NAME
+# NAME EXTRACTION
 # ---------------------------------------------------------------------------
 NAME_PATTERNS = [
     r"\bmy name is ([A-Za-z][A-Za-z\s'\-]{0,40})",
@@ -110,13 +175,11 @@ def clean_name(raw: str) -> str:
 def extract_user_name_from_text(user_msg: str) -> str:
     txt = user_msg.lower()
 
-    # Try structured name patterns
     for pat in NAME_PATTERNS:
         m = re.search(pat, txt, re.IGNORECASE)
         if m:
             return clean_name(m.group(1))
 
-    # Standalone single-word guess
     solo = re.fullmatch(r"[A-Za-z][A-Za-z\s'\-]{0,40}", user_msg.strip())
     if solo:
         return clean_name(solo.group(0))
@@ -125,7 +188,7 @@ def extract_user_name_from_text(user_msg: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# NAME CONFIRMATION — USER CONFIRMS IU'S GUESS
+# NAME CONFIRMATION
 # ---------------------------------------------------------------------------
 CONFIRM_WORDS = [
     "yes", "yeah", "yea", "yup", "correct",
@@ -139,12 +202,11 @@ def handle_name_confirmation(user_msg: str, state: MurderGameState):
         return
 
     low = user_msg.lower()
-
     if any(w in low for w in CONFIRM_WORDS):
         state.user.formal_name = guess
         if not state.user.display_name:
             state.user.display_name = guess
-        state.last_assistant_guess_name = ""  # consume guess
+        state.last_assistant_guess_name = ""
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +214,7 @@ def handle_name_confirmation(user_msg: str, state: MurderGameState):
 # ---------------------------------------------------------------------------
 @router.post("/chat")
 async def chat_handler(data: dict):
+    req_id = str(uuid.uuid4())[:8]
     session_id = data.get("session_id") or "default"
 
     msg = str(data.get("message", "")).strip()
@@ -159,9 +222,9 @@ async def chat_handler(data: dict):
     state: MurderGameState = sess["state"]
     log = sess["log"]
 
-    # -------------------------------------------------------------------
+    t0 = time.time()
+
     # RESET
-    # -------------------------------------------------------------------
     if msg == "__cmd_reset__":
         SESSIONS[session_id] = {
             "state": init_state(),
@@ -169,9 +232,7 @@ async def chat_handler(data: dict):
         }
         return {"reply": "[memory cleared]", "usage": {"total_tokens": 0}, "character": "default"}
 
-    # -------------------------------------------------------------------
-    # NEWGAME
-    # -------------------------------------------------------------------
+    # NEW GAME
     if msg.startswith("__cmd_newgame__:"):
         payload = msg[len("__cmd_newgame__:"):]
         parts = payload.split("|", 2)
@@ -180,29 +241,22 @@ async def chat_handler(data: dict):
         gender = parts[1].strip().upper() if len(parts) > 1 else "M"
         player_name = parts[2].strip() if len(parts) > 2 else ""
 
-        # sanitize raw player name (narration only!)
         player_name = re.sub(r"[^A-Za-z\s\-'\"]", "", player_name)[:40] or "Player"
 
         cfg = load_story(story_id)
         if not cfg:
             return {"error": f"story not found: {story_id}"}
 
-        # ---- Initialize state object ----
         new_state: MurderGameState = init_state()
         new_state.story = story_id
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
         new_state.story_cfg = cfg
 
-        # user object
         new_state.user.gender = new_state.gender
-        # formal_name & display_name intentionally remain blank.
-
-        # starting location & emotion
         new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
         new_state.iu_emotion = cfg.get("emotion", {}).get("start", new_state.iu_emotion)
 
-        # create IU character
         victim_name = cfg.get("victim", {}).get("public_name", "IU")
         victim_short = victim_name.split(",")[0].strip()
 
@@ -217,7 +271,6 @@ async def chat_handler(data: dict):
         new_state.characters["IU"] = iu_char
         new_state.main_character_id = "IU"
 
-        # opening narration
         opening = cfg.get("opening", {}).get("text", "The room is quiet. A story begins.")
         opening = apply_placeholders(opening, new_state)
 
@@ -229,41 +282,50 @@ async def chat_handler(data: dict):
 
         return {"reply": opening, "usage": {"total_tokens": 0}, "character": "default"}
 
-    # -------------------------------------------------------------------
     # REGULAR TURN
-    # -------------------------------------------------------------------
     if not state.story or not state.story_cfg:
         return {"reply": "No active game. Use /newgame to begin.", "character": "default"}
 
     if state.over:
         return {"reply": "Game already finished. Type /reset to play again.", "character": "default"}
 
-    # TIME PROGRESSION
     advance_time(state, msg)
-
-    # NAME CONFIRMATION (IU guessed last turn)
     handle_name_confirmation(msg, state)
 
-    # USER EXPLICITLY GIVES NAME
     extracted = extract_user_name_from_text(msg)
     if extracted:
         state.user.formal_name = extracted
         if not state.user.display_name:
             state.user.display_name = extracted
 
-    # Build messages BEFORE incrementing turns
-    messages = build_messages(state, log, msg)
+    # Retrieval for logging / observability ONLY
+    retrieved, debug = retrieve_knowledge(msg)
 
-    # Increment turn after prompt building
+    messages = build_messages(state, log, msg)
     state.turns += 1
 
-    # ----- OpenAI request -----
     payload = {
         "model": OPENAI_MODEL,
         "messages": messages,
         "temperature": TEMPERATURE,
         "max_tokens": MAX_TOKENS,
     }
+
+    _log({
+        "kind": "chat_request",
+        "req_id": req_id,
+        "session_id": session_id,
+        "turn": state.turns,
+        "user_msg": msg,
+        "retrieval_debug": debug,
+        "retrieved_chunk_ids": [c["chunk_id"] for c in retrieved],
+        "openai_payload": {
+            "model": payload["model"],
+            "temperature": payload["temperature"],
+            "max_tokens": payload["max_tokens"],
+            "messages": [{"role": m["role"], "content": _truncate(m["content"], 2000)} for m in payload["messages"]],
+        }
+    })
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(
@@ -273,12 +335,17 @@ async def chat_handler(data: dict):
         )
 
     if r.status_code < 200 or r.status_code >= 300:
+        _log({
+            "kind": "chat_upstream_error",
+            "req_id": req_id,
+            "status": r.status_code,
+            "body": _truncate(r.text, 4000),
+        })
         return {"error": f"upstream HTTP {r.status_code}: {r.text}", "character": "default"}
 
     data = r.json()
     reply = str(data["choices"][0]["message"]["content"])
 
-    # Detect IU guessing: "Is your name Chris?"
     guess_match = re.search(
         r"\bis your name\s+([A-Za-z][A-Za-z\s'\-]{0,40})\??",
         reply,
@@ -287,9 +354,7 @@ async def chat_handler(data: dict):
     if guess_match:
         state.last_assistant_guess_name = clean_name(guess_match.group(1))
 
-    # Strip state tag
     clean, tag = extract_state_tag(reply)
-
     clean = sanitize_korean_terms(clean, state)
 
     if not isinstance(tag, dict):
@@ -297,14 +362,21 @@ async def chat_handler(data: dict):
 
     apply_state_tag(state, tag)
 
-    # Update logs
     log.append({"role": "user", "content": msg})
     log.append({"role": "assistant", "content": clean})
     sess["log"] = log[-MEMORY_TURNS:]
 
-    # Win detection
     if confession_detected(clean, state):
         state.over = True
         clean += f"\n\nEND GAME YOU WIN — turns: {state.turns}"
+
+    _log({
+        "kind": "chat_response",
+        "req_id": req_id,
+        "session_id": session_id,
+        "latency_ms": int((time.time() - t0) * 1000),
+        "usage": data.get("usage", {}),
+        "assistant_reply_preview": _truncate(clean, 1200),
+    })
 
     return {"reply": clean, "usage": data.get("usage"), "character": "default"}

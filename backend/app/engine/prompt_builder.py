@@ -7,8 +7,149 @@ from app.config.settings import (
     MEMORY_TURNS,
 )
 
+# ---------------------------------------------------------------------------
+# Optional Knowledge Retrieval (runtime) + Logging
+# ---------------------------------------------------------------------------
+import json as _json
+import time as _time
 
-def system_prompt(state: MurderGameState, is_first_turn: bool = False) -> str:
+_KNOWLEDGE_INDEXES = None
+
+
+def _jlog(obj: dict):
+    """
+    JSON-line logging to stdout. Shows up in Railway Deploy Logs.
+    Keep it compact + searchable.
+    """
+    try:
+        obj = dict(obj)
+        obj.setdefault("ts", _time.time())
+        print(_json.dumps(obj, ensure_ascii=False))
+    except Exception:
+        # Never crash prompt building due to logging.
+        pass
+
+
+def _truncate(s: str, n: int = 500) -> str:
+    if s is None:
+        return ""
+    s = str(s)
+    return s if len(s) <= n else (s[: n - 3] + "...")
+
+
+def _get_indexes():
+    """
+    Avoid importing/initializing knowledge at module import time.
+    Chat.py already loads indexes, but prompt_builder doesn't receive them,
+    so we maintain a small local cache here.
+    """
+    global _KNOWLEDGE_INDEXES
+    if _KNOWLEDGE_INDEXES is not None:
+        return _KNOWLEDGE_INDEXES
+
+    try:
+        # Your runtime loader
+        from backend.app.knowledge.runtime.load_indexes import load_character_indexes
+
+        _KNOWLEDGE_INDEXES = load_character_indexes()
+        return _KNOWLEDGE_INDEXES
+    except Exception as e:
+        _jlog({"kind": "knowledge_load_failed", "error": repr(e)})
+        _KNOWLEDGE_INDEXES = None
+        return None
+
+
+def _retrieve_memory(query: str, state: MurderGameState, k_bm25: int = 8, k_faiss: int = 8, k_final: int = 8):
+    """
+    Retrieve top chunks via hybrid BM25+FAISS.
+    This assumes your runtime has access to:
+      - bm25_search, faiss_search, hybrid_retrieve, embed_query
+    """
+    indexes = _get_indexes()
+    if not indexes:
+        return {"chunks": [], "bm25_idxs": [], "faiss_idxs": [], "fused_idxs": []}
+
+    try:
+        bm25 = indexes["bm25"]
+        faiss_index = indexes["faiss"]
+        chunks = indexes["chunks"]
+
+        # Reuse build utilities for identical scoring behavior
+        from backend.app.knowledge.build.bm25_utils import bm25_search
+        from backend.app.knowledge.build.faiss_utils import faiss_search
+        from backend.app.knowledge.build.hybrid import hybrid_retrieve
+        from backend.app.knowledge.build.embedder import embed_query
+
+        bm25_idxs, bm25_scores = bm25_search(bm25, chunks, query, k=k_bm25)
+        qv = embed_query(query)
+        faiss_idxs, faiss_scores = faiss_search(faiss_index, qv, k=k_faiss)
+
+        fused_idxs = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=k_final)
+        retrieved_chunks = [chunks[i] for i in fused_idxs]
+
+        # Deploy-log visibility
+        _jlog(
+            {
+                "kind": "retrieval",
+                "story": getattr(state, "story", None),
+                "turn": getattr(state, "turns", None),
+                "query": _truncate(query, 300),
+                "bm25_top": [
+                    {"idx": int(i), "chunk_id": chunks[int(i)]["chunk_id"], "score": float(bm25_scores[j])}
+                    for j, i in enumerate(bm25_idxs[: min(len(bm25_idxs), 8)])
+                ],
+                "faiss_top": [
+                    {"idx": int(i), "chunk_id": chunks[int(i)]["chunk_id"], "score": float(faiss_scores[j])}
+                    for j, i in enumerate(faiss_idxs[: min(len(faiss_idxs), 8)])
+                ],
+                "fused": [
+                    {"idx": int(i), "chunk_id": chunks[int(i)]["chunk_id"]}
+                    for i in fused_idxs[: min(len(fused_idxs), 12)]
+                ],
+            }
+        )
+
+        return {
+            "chunks": retrieved_chunks,
+            "bm25_idxs": bm25_idxs,
+            "faiss_idxs": faiss_idxs,
+            "fused_idxs": fused_idxs,
+        }
+
+    except Exception as e:
+        _jlog({"kind": "retrieval_failed", "error": repr(e), "query": _truncate(query, 300)})
+        return {"chunks": [], "bm25_idxs": [], "faiss_idxs": [], "fused_idxs": []}
+
+
+def _format_memory_block(retrieved_chunks: list) -> str:
+    """
+    Inject a concise, high-signal memory section.
+    Must be treated as canon by the model.
+    """
+    if not retrieved_chunks:
+        return ""
+
+    lines = []
+    for c in retrieved_chunks:
+        # Keep stable + readable; include type + chunk_id for debugging
+        ctype = c.get("type", "")
+        cid = c.get("chunk_id", "")
+        text = c.get("text", "")
+        lines.append(f"- ({ctype}) [{cid}] {text}")
+
+    return (
+        "\n────────────────────────────────────────\n"
+        "### CANONICAL CHARACTER MEMORY (MUST USE)\n"
+        "────────────────────────────────────────\n"
+        "Everything in this section is authoritative for this story session.\n"
+        "If the user asks about IU's identity, songs, albums, dramas, films, dates, agency, etc.,\n"
+        "you MUST answer using ONLY this memory. If it isn't here, say you don't know.\n\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
+def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "") -> str:
     cfg = state.story_cfg or {}
 
     disclaimer = (
@@ -173,7 +314,8 @@ Append EXACTLY one line at the end of every response:
 If forgotten, reply ONLY with that tag.
 """
 
-    return base_prompt + first_turn_hint + required_tail
+    # Inject canonical memory BEFORE the required tail so the model always sees it.
+    return base_prompt + (memory_block or "") + first_turn_hint + required_tail
 
 
 def build_messages(state: MurderGameState, log: list, user_msg: str):
@@ -187,7 +329,13 @@ def build_messages(state: MurderGameState, log: list, user_msg: str):
     state.casual_korean_used = used
     state.allow_casual_korean = bool(used)
 
-    sysmsg = system_prompt(state, is_first_turn=is_first_turn)
+    # ---------------------------
+    # Knowledge retrieval (hybrid)
+    # ---------------------------
+    retrieval = _retrieve_memory(user_msg, state, k_bm25=8, k_faiss=8, k_final=8)
+    memory_block = _format_memory_block(retrieval.get("chunks", []))
+
+    sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block)
     messages = [{"role": "system", "content": sysmsg}]
 
     # keep last MEMORY_TURNS - 2 non-system turns
@@ -209,5 +357,16 @@ def build_messages(state: MurderGameState, log: list, user_msg: str):
         "role": "user",
         "content": header + "\n" + user_msg
     })
+
+    # Log the final system prompt + last user message (deploy logs)
+    _jlog(
+        {
+            "kind": "final_prompt_built",
+            "story": getattr(state, "story", None),
+            "turn": getattr(state, "turns", None),
+            "system_prompt_preview": _truncate(sysmsg, 2000),
+            "user_msg_preview": _truncate(user_msg, 400),
+        }
+    )
 
     return messages
