@@ -67,7 +67,7 @@ def _truncate(s: str, n: int = 6000) -> str:
 
 
 # ---------------------------------------------------------------------------
-# KNOWLEDGE RETRIEVAL (LOGGING ONLY — PROMPT BUILDER IS AUTHORITY)
+# KNOWLEDGE RETRIEVAL (AUTHORITATIVE — PROMPT BUILDER FORMATS ONLY)
 # ---------------------------------------------------------------------------
 def retrieve_knowledge(query: str, k_bm25: int = 8, k_faiss: int = 8, k_final: int = 8):
     if not INDEXES:
@@ -276,7 +276,8 @@ async def chat_handler(data: dict):
 
         sess["state"] = new_state
         sess["log"] = [
-            {"role": "system", "content": build_messages(new_state, [], "")[0]["content"]},
+            # build_messages now requires knowledge_chunks; for opening system prompt use [].
+            {"role": "system", "content": build_messages(new_state, [], "", [])[0]["content"]},
             {"role": "assistant", "content": opening}
         ]
 
@@ -298,10 +299,10 @@ async def chat_handler(data: dict):
         if not state.user.display_name:
             state.user.display_name = extracted
 
-    # Retrieval for logging / observability ONLY
+    # Authoritative retrieval happens once here; prompt_builder only formats it.
     retrieved, debug = retrieve_knowledge(msg)
 
-    messages = build_messages(state, log, msg)
+    messages = build_messages(state, log, msg, retrieved)
     state.turns += 1
 
     payload = {

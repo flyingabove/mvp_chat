@@ -8,12 +8,10 @@ from app.config.settings import (
 )
 
 # ---------------------------------------------------------------------------
-# Optional Knowledge Retrieval (runtime) + Logging
+# Logging helpers (NO retrieval here; retrieval is done in api/chat.py)
 # ---------------------------------------------------------------------------
 import json as _json
 import time as _time
-
-_KNOWLEDGE_INDEXES = None
 
 
 def _jlog(obj: dict):
@@ -37,94 +35,14 @@ def _truncate(s: str, n: int = 500) -> str:
     return s if len(s) <= n else (s[: n - 3] + "...")
 
 
-def _get_indexes():
-    """
-    Avoid importing/initializing knowledge at module import time.
-    Chat.py already loads indexes, but prompt_builder doesn't receive them,
-    so we maintain a small local cache here.
-    """
-    global _KNOWLEDGE_INDEXES
-    if _KNOWLEDGE_INDEXES is not None:
-        return _KNOWLEDGE_INDEXES
-
-    try:
-        # Your runtime loader
-        from backend.app.knowledge.runtime.load_indexes import load_character_indexes
-
-        _KNOWLEDGE_INDEXES = load_character_indexes()
-        return _KNOWLEDGE_INDEXES
-    except Exception as e:
-        _jlog({"kind": "knowledge_load_failed", "error": repr(e)})
-        _KNOWLEDGE_INDEXES = None
-        return None
-
-
-def _retrieve_memory(query: str, state: MurderGameState, k_bm25: int = 8, k_faiss: int = 8, k_final: int = 8):
-    """
-    Retrieve top chunks via hybrid BM25+FAISS.
-    This assumes your runtime has access to:
-      - bm25_search, faiss_search, hybrid_retrieve, embed_query
-    """
-    indexes = _get_indexes()
-    if not indexes:
-        return {"chunks": [], "bm25_idxs": [], "faiss_idxs": [], "fused_idxs": []}
-
-    try:
-        bm25 = indexes["bm25"]
-        faiss_index = indexes["faiss"]
-        chunks = indexes["chunks"]
-
-        # Reuse build utilities for identical scoring behavior
-        from backend.app.knowledge.build.bm25_utils import bm25_search
-        from backend.app.knowledge.build.faiss_utils import faiss_search
-        from backend.app.knowledge.build.hybrid import hybrid_retrieve
-        from backend.app.knowledge.build.embedder import embed_query
-
-        bm25_idxs, bm25_scores = bm25_search(bm25, chunks, query, k=k_bm25)
-        qv = embed_query(query)
-        faiss_idxs, faiss_scores = faiss_search(faiss_index, qv, k=k_faiss)
-
-        fused_idxs = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=k_final)
-        retrieved_chunks = [chunks[i] for i in fused_idxs]
-
-        # Deploy-log visibility
-        _jlog(
-            {
-                "kind": "retrieval",
-                "story": getattr(state, "story", None),
-                "turn": getattr(state, "turns", None),
-                "query": _truncate(query, 300),
-                "bm25_top": [
-                    {"idx": int(i), "chunk_id": chunks[int(i)]["chunk_id"], "score": float(bm25_scores[j])}
-                    for j, i in enumerate(bm25_idxs[: min(len(bm25_idxs), 8)])
-                ],
-                "faiss_top": [
-                    {"idx": int(i), "chunk_id": chunks[int(i)]["chunk_id"], "score": float(faiss_scores[j])}
-                    for j, i in enumerate(faiss_idxs[: min(len(faiss_idxs), 8)])
-                ],
-                "fused": [
-                    {"idx": int(i), "chunk_id": chunks[int(i)]["chunk_id"]}
-                    for i in fused_idxs[: min(len(fused_idxs), 12)]
-                ],
-            }
-        )
-
-        return {
-            "chunks": retrieved_chunks,
-            "bm25_idxs": bm25_idxs,
-            "faiss_idxs": faiss_idxs,
-            "fused_idxs": fused_idxs,
-        }
-
-    except Exception as e:
-        _jlog({"kind": "retrieval_failed", "error": repr(e), "query": _truncate(query, 300)})
-        return {"chunks": [], "bm25_idxs": [], "faiss_idxs": [], "fused_idxs": []}
-
-
 def _format_memory_block(retrieved_chunks: list) -> str:
     """
     Inject a concise, high-signal memory section.
     Must be treated as canon by the model.
+
+    NOTE:
+    - Retrieval happens upstream in api/chat.py (single source of truth).
+    - This function only formats what it is given.
     """
     if not retrieved_chunks:
         return ""
@@ -318,7 +236,24 @@ If forgotten, reply ONLY with that tag.
     return base_prompt + (memory_block or "") + first_turn_hint + required_tail
 
 
-def build_messages(state: MurderGameState, log: list, user_msg: str):
+def build_messages(
+    state: MurderGameState,
+    log: list,
+    user_msg: str,
+    knowledge_chunks: list,
+):
+    """
+    Build the chat completion messages for the model.
+
+    IMPORTANT:
+    - Knowledge retrieval is performed upstream in api/chat.py.
+    - This function MUST NOT load indexes or perform retrieval.
+    - Pass knowledge_chunks=[] explicitly when nothing is retrieved.
+    """
+    if knowledge_chunks is None:
+        # Guardrail: make failures obvious rather than silently retrieving.
+        raise ValueError("build_messages requires knowledge_chunks (pass [] if none).")
+
     # First actual user turn (after opening text)
     is_first_turn = state.turns == 0
 
@@ -330,10 +265,9 @@ def build_messages(state: MurderGameState, log: list, user_msg: str):
     state.allow_casual_korean = bool(used)
 
     # ---------------------------
-    # Knowledge retrieval (hybrid)
+    # Knowledge formatting ONLY
     # ---------------------------
-    retrieval = _retrieve_memory(user_msg, state, k_bm25=8, k_faiss=8, k_final=8)
-    memory_block = _format_memory_block(retrieval.get("chunks", []))
+    memory_block = _format_memory_block(knowledge_chunks)
 
     sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block)
     messages = [{"role": "system", "content": sysmsg}]
@@ -364,6 +298,7 @@ def build_messages(state: MurderGameState, log: list, user_msg: str):
             "kind": "final_prompt_built",
             "story": getattr(state, "story", None),
             "turn": getattr(state, "turns", None),
+            "knowledge_chunks": len(knowledge_chunks),
             "system_prompt_preview": _truncate(sysmsg, 2000),
             "user_msg_preview": _truncate(user_msg, 400),
         }
