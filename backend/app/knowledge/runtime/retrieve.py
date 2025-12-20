@@ -70,13 +70,8 @@ def retrieve_knowledge(
         out = []
         for i in fused:
             if 0 <= i < len(chunks):
-                out.append({
-                    "i": i,
-                    "chunk_id": chunk_ids[i],
-                    "type": chunks[i].get("type", ""),
-                    "text": chunks[i].get("text", ""),
-                    "confidence": chunks[i].get("confidence", ""),
-                })
+                out.append(chunks[i])
+
 
         return out, {
             "bm25_idxs": bm25_idxs,
