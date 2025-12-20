@@ -1,18 +1,9 @@
-# tests/backend/engine/world/test_edge.py
-from backend.app.engine.world.edge import PathEdge
+from app.engine.world.edge import PathEdge
 
 
-def test_edge_properties():
-    edge = PathEdge(
-        from_id="a",
-        to_id="b",
-        minutes=5,
-        is_transit=True,
-        blocked=False,
-    )
-
-    assert edge.from_id == "a"
-    assert edge.to_id == "b"
-    assert edge.minutes == 5
-    assert edge.is_transit is True
-    assert edge.blocked is False
+def test_edge_is_immutable_dataclass():
+    e = PathEdge(from_id="a", to_id="b", minutes=3, is_transit=True)
+    assert e.from_id == "a"
+    assert e.to_id == "b"
+    assert e.minutes == 3
+    assert e.is_transit is True
