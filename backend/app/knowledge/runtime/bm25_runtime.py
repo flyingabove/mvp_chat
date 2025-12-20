@@ -1,4 +1,4 @@
-# backend/app/knowledge/common/bm25_runtime.py
+# backend/app/knowledge/runtime/bm25_runtime.py
 
 from pathlib import Path
 import json
