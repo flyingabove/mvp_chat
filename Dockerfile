@@ -33,11 +33,13 @@ EXPOSE 8000
 # Startup command
 # ------------------------------------------------------------
 CMD ["sh", "-c", "\
+  set -e; \
   if [ \"$RUN_TESTS\" != \"0\" ]; then \
-    echo \"🧪 RUN_TESTS=$RUN_TESTS → running tests\" && \
+    echo \"🧪 RUN_TESTS=$RUN_TESTS → running tests\"; \
     python -m pytest /app/tests; \
+    echo \"✅ Tests passed\"; \
   else \
     echo \"⚠️ RUN_TESTS=0 → skipping tests\"; \
-  fi && \
-  uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+  fi; \
+  exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
 "]

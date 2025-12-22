@@ -32,7 +32,7 @@ def test_build_messages_trims_history_and_adds_header(monkeypatch):
     from app.engine import prompt_builder as pb
 
     # Avoid runtime knowledge retrieval in tests.
-    monkeypatch.setattr(pb, "_retrieve_memory", lambda *args, **kwargs: {"chunks": []})
+    monkeypatch.setattr(pb, "retrieve_knowledge", lambda *a, **k: ([], {}), raising=False)
 
     st = init_state()
     st.story_cfg = {"rules": {"manifestation": {"apartment_location_contains": ["officetel"]}}}
