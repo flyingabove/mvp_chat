@@ -45,7 +45,7 @@ def test_build_messages_trims_history_and_adds_header(monkeypatch):
         log.append({"role": "user", "content": f"u{i}"})
         log.append({"role": "assistant", "content": f"a{i}"})
 
-    messages = pb.build_messages(st, log, "hello there")
+    messages = pb.build_messages(st, log, "hello there", [])
     assert messages[0]["role"] == "system"
     assert messages[-1]["role"] == "user"
     assert "Time:" in messages[-1]["content"]

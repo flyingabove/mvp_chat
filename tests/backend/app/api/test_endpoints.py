@@ -8,13 +8,12 @@ from fastapi.testclient import TestClient
 def client(monkeypatch):
     """Create a FastAPI TestClient with network calls mocked."""
     # Import inside fixture so our monkeypatches apply before first use.
-    from app.engine import prompt_builder as pb
+    from app.api import chat as chat_mod
 
-    # Prevent prompt_builder from performing any retrieval during tests.
-    monkeypatch.setattr(pb, "_retrieve_memory", lambda *args, **kwargs: {"chunks": []}, raising=False)
+    # Prevent retrieval from doing any IO during tests.
+    monkeypatch.setattr(chat_mod, "retrieve_knowledge", lambda *args, **kwargs: ([], {}), raising=False)
 
     # Mock httpx.AsyncClient so /api/chat never hits OpenAI.
-    import app.api.chat as chat_mod
 
     class _FakeResp:
         status_code = 200
