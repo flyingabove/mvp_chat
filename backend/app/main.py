@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
+import threading
 
 from app.api.chat import router as chat_router
 from app.api.echo import router as echo_router
@@ -9,18 +11,23 @@ from app.api.story import router as story_router
 from app.middleware.request_id import request_id_middleware
 
 
+# --------------------------------------------------
+# FastAPI app
+# --------------------------------------------------
 app = FastAPI(
     title="StoriesChat Backend (Python)",
     version="1.0.0"
 )
 
+
 # --------------------------------------------------
-# Request ID middleware (for logging & traceability)
+# Request ID middleware (logging & traceability)
 # --------------------------------------------------
 app.middleware("http")(request_id_middleware)
 
+
 # --------------------------------------------------
-# CORS FIX — REQUIRED for browser POST to work
+# CORS — REQUIRED for browser POST to work
 # --------------------------------------------------
 origins = [
     "https://storieschat.ai",
@@ -34,9 +41,42 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],           # allow POST, OPTIONS, etc.
-    allow_headers=["*"],           # allow Content-Type, etc.
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+
+# --------------------------------------------------
+# Index warm-up (lazy, non-blocking, runtime-only)
+# --------------------------------------------------
+def warm_indexes() -> None:
+    """
+    Warm retrieval indexes in the background so the first user message
+    doesn't pay the load cost.
+
+    - Never runs at import time
+    - Safe to disable during tests
+    - Does not block app startup
+    """
+    if os.getenv("DISABLE_INDEX_WARMUP") == "1":
+        return
+
+    def _warm():
+        try:
+            from app.knowledge.runtime.index_store import get_indexes
+            get_indexes()
+            print({"kind": "index_warmup_ok"})
+        except Exception as e:
+            # Loud logging, but do not crash the app
+            print({"kind": "index_warmup_failed", "error": repr(e)})
+
+    threading.Thread(target=_warm, daemon=True).start()
+
+
+@app.on_event("startup")
+def _startup_event():
+    warm_indexes()
+
 
 # --------------------------------------------------
 # Routers
@@ -47,6 +87,9 @@ app.include_router(health_router, prefix="/api")
 app.include_router(story_router, prefix="/api")
 
 
+# --------------------------------------------------
+# Version endpoint
+# --------------------------------------------------
 @app.get("/api/version")
 async def version():
     return {

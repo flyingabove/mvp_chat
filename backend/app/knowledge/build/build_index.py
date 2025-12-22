@@ -94,6 +94,11 @@ def main():
         raise RuntimeError(f"chunks.jsonl missing at {CHUNKS_PATH}")
 
     CHAR_DIR.mkdir(parents=True, exist_ok=True)
+    # Ensure runtime can read chunks.jsonl from the same dir as artifacts
+    dst_chunks = CHAR_DIR / "chunks.jsonl"
+    if not dst_chunks.exists():
+        shutil.copy2(CHUNKS_PATH, dst_chunks)
+
 
     chunks = load_chunks_jsonl(CHUNKS_PATH)
     validate_chunks(chunks)
