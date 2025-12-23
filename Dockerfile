@@ -33,14 +33,17 @@ EXPOSE 8000
 # Startup command
 # ------------------------------------------------------------
 CMD ["sh", "-e", "-c", "\
-  if [ \"$RUN_TESTS\" != \"0\" ]; then \
-    echo \"🧪 RUN_TESTS=$RUN_TESTS → running tests\"; \
-    pytest tests/backend; \
+  if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
+    echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
+    python -m pytest /app/tests; \
+    echo \"✅ Tests passed\"; \
   else \
     echo \"⚠️ RUN_TESTS=0 → skipping tests\"; \
   fi; \
   \
-  python -m backend.app.knowledge.runtime.ensure_cache; \
+  echo \"🧠 Ensuring knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
+  python -m backend.app.knowledge.build.ensure_indexes; \
   \
   exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
 "]
+

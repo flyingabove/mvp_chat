@@ -4,7 +4,7 @@ import os
 import shutil
 import faiss
 
-from backend.app.knowledge.runtime.bm25_runtime import load_bm25, search_bm25
+from app.knowledge.runtime.bm25_runtime import load_bm25, search_bm25
 
 
 def _load_chunks_jsonl(path: Path):
@@ -107,10 +107,10 @@ def retrieve(
     faiss_index = indexes["faiss"]
     chunks = indexes["chunks"]
 
-    from backend.app.knowledge.build.bm25_utils import bm25_search
-    from backend.app.knowledge.build.faiss_utils import faiss_search
-    from backend.app.knowledge.build.hybrid import hybrid_retrieve
-    from backend.app.knowledge.build.embedder import embed_query
+    from app.knowledge.build.bm25_utils import bm25_search
+    from app.knowledge.build.faiss_utils import faiss_search
+    from app.knowledge.build.hybrid import hybrid_retrieve
+    from app.knowledge.build.embedder import embed_query
 
     bm25_idxs, _ = bm25_search(bm25, chunks, query, k=k_bm25)
     qv = embed_query(query)

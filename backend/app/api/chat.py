@@ -6,7 +6,7 @@ import re
 import time
 import uuid
 
-from backend.app.knowledge.runtime.load_indexes import load_character_indexes
+from app.knowledge.runtime.load_indexes import load_character_indexes
 from app.knowledge.runtime.retrieve import retrieve_knowledge
 
 # ---------------------------------------------------------------------------

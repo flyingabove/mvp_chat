@@ -1,7 +1,9 @@
 import json
 import pytest
 from pathlib import Path
-
+import importlib
+import sys
+from pathlib import Path
 from app.knowledge.runtime.load_indexes import load_character_indexes
 
 
@@ -52,3 +54,22 @@ def test_runtime_loads_complete_index_cache(tmp_path, monkeypatch):
 
     indexes = load_character_indexes()
     assert "chunks" in indexes
+
+
+def test_build_index_has_no_import_time_side_effects(tmp_path, monkeypatch):
+    # Point cache to an empty temp directory
+    monkeypatch.setenv("KNOWLEDGE_CACHE_DIR", str(tmp_path / "knowledge_cache"))
+    monkeypatch.setenv("FORCE_REBUILD_INDEX", "0")
+
+    # Ensure fresh import
+    modname = "backend.app.knowledge.build.build_index"
+    if modname in sys.modules:
+        del sys.modules[modname]
+
+    import backend.app.knowledge.build.build_index as bi
+    importlib.reload(bi)
+
+    # Importing the module must NOT create artifact directories or files
+    char_dir = Path(monkeypatch.getenv("KNOWLEDGE_CACHE_DIR")) / "characters" / "1_iu"
+    assert not char_dir.exists(), "build_index created cache dirs at import time"
+

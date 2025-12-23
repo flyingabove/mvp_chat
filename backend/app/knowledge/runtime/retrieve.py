@@ -50,9 +50,9 @@ def retrieve_knowledge(
         search_bm25_fn = indexes["search_bm25"]
 
         # Build-time utilities imported lazily
-        from backend.app.knowledge.build.embedder import embed_query
-        from backend.app.knowledge.build.faiss_utils import faiss_search
-        from backend.app.knowledge.build.hybrid import hybrid_retrieve
+        from app.knowledge.build.embedder import embed_query
+        from app.knowledge.build.faiss_utils import faiss_search
+        from app.knowledge.build.hybrid import hybrid_retrieve
 
         bm25_idxs, bm25_scores = search_bm25_fn(bm25, query, k=k_bm25)
 
