@@ -73,8 +73,20 @@ def warm_indexes() -> None:
     threading.Thread(target=_warm, daemon=True).start()
 
 
+# --------------------------------------------------
+# Startup logic
+# --------------------------------------------------
 @app.on_event("startup")
 def _startup_event():
+    # HARD FAIL MODE (deploy safety)
+    if os.getenv("REQUIRE_INDEXES") == "1":
+        from app.knowledge.runtime.index_store import get_indexes
+        # This MUST raise if artifacts are missing
+        get_indexes()
+        print({"kind": "index_startup_check_ok"})
+        return
+
+    # Default behavior (unchanged)
     warm_indexes()
 
 
