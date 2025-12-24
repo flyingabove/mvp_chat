@@ -62,11 +62,11 @@ def test_build_index_has_no_import_time_side_effects(tmp_path, monkeypatch):
     monkeypatch.setenv("FORCE_REBUILD_INDEX", "0")
 
     # Ensure fresh import
-    modname = "backend.app.knowledge.build.build_index"
+    modname = "app.knowledge.build.build_index"
     if modname in sys.modules:
         del sys.modules[modname]
 
-    import backend.app.knowledge.build.build_index as bi
+    import app.knowledge.build.build_index as bi
     importlib.reload(bi)
 
     # Importing the module must NOT create artifact directories or files
