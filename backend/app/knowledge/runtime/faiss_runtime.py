@@ -1,43 +1,33 @@
 # backend/app/knowledge/runtime/faiss_runtime.py
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Any
 import json
-import faiss
+
+import faiss  # type: ignore
 import numpy as np
 
 
-def load_faiss_index(
-    index_path: Path,
-    meta_path: Path,
-) -> Tuple[faiss.Index, list]:
-    """
-    Load FAISS index and aligned metadata.
+def load_faiss_index(index_path: Path, meta_path: Path) -> Tuple[faiss.Index, list]:
+    if not index_path.exists():
+        raise RuntimeError(f"FAISS index file not found: {index_path}")
+    if not meta_path.exists():
+        raise RuntimeError(f"FAISS meta file not found: {meta_path}")
 
-    Returns:
-        index: FAISS index
-        metadata: list aligned with FAISS vectors
-    """
     index = faiss.read_index(str(index_path))
 
-    with open(meta_path, "r", encoding="utf-8") as f:
-        metadata = json.load(f)
+    with meta_path.open("r", encoding="utf-8") as f:
+        meta = json.load(f)
 
-    return index, metadata
+    if not isinstance(meta, list):
+        raise RuntimeError(f"Invalid FAISS meta schema at {meta_path}: expected list")
+
+    return index, meta
 
 
-def search_faiss(
-    index: faiss.Index,
-    metadata: list,
-    query_embedding: List[float],
-    k: int = 5,
-) -> List[dict]:
-    """
-    Run FAISS similarity search.
-
-    Returns:
-        Top-k metadata entries aligned to FAISS vectors.
-    """
+def search_faiss(index: faiss.Index, metadata: list, query_embedding: Any, k: int = 5) -> List[dict]:
     if not isinstance(query_embedding, np.ndarray):
         query_embedding = np.array(query_embedding, dtype="float32")
 
@@ -46,10 +36,11 @@ def search_faiss(
 
     scores, indices = index.search(query_embedding, k)
 
-    results = []
+    results: List[dict] = []
     for idx in indices[0]:
         if idx == -1:
             continue
-        results.append(metadata[idx])
+        if 0 <= int(idx) < len(metadata):
+            results.append(metadata[int(idx)])
 
     return results

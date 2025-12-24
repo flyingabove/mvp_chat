@@ -1,23 +1,12 @@
-# app/knowledge/runtime/retrieve.py
+# backend/app/knowledge/runtime/retrieve.py
 
-"""
-Runtime knowledge retrieval wrapper.
-
-This module is the ONLY runtime-facing entrypoint for knowledge retrieval.
-
-Design goals:
-- Zero heavy work at import time
-- Lazy, thread-safe index loading
-- Compatible with hash-based rebuild logic
-- Safe for tests and deploys
-"""
+from __future__ import annotations
 
 from typing import Tuple, List, Dict, Any
 
+from app.knowledge.runtime.index_store import get_indexes
 
-# ---------------------------------------------------------------------------
-# RUNTIME RETRIEVAL API
-# ---------------------------------------------------------------------------
+
 def retrieve_knowledge(
     query: str,
     k_bm25: int = 8,
@@ -25,54 +14,45 @@ def retrieve_knowledge(
     k_final: int = 8,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    Perform hybrid BM25 + FAISS retrieval.
+    Hybrid BM25 + FAISS retrieval.
 
     Returns:
-        retrieved_chunks: List[chunk dicts]
-        debug_info: metadata useful for logging/inspection
+      retrieved_chunks: List[chunk dict]
+      debug_info: dict of indices/scores
     """
-    # Lazy load indexes (no import-time work)
-    from app.knowledge.runtime.index_store import get_indexes
+    if not query:
+        return [], {"error": "empty_query"}
 
-    try:
-        indexes = get_indexes()
-    except Exception as e:
-        # Loud failure — better than silent hallucination
-        return [], {"error": f"index_load_failed: {e}"}
+    indexes = get_indexes()
+    chunks = indexes["chunks"]
+    bm25 = indexes["bm25"]
+    faiss_index = indexes["faiss"]
 
-    if not indexes:
-        return [], {"error": "indexes_empty"}
+    # Lazy imports (avoid heavy import at module load / tests)
+    from app.knowledge.build.embedder import embed_query
+    from app.knowledge.build.faiss_utils import faiss_search
+    from app.knowledge.build.hybrid import hybrid_retrieve
 
-    try:
-        chunks = indexes["chunks"]
-        bm25 = indexes["bm25"]
-        faiss_index = indexes["faiss"]
-        search_bm25_fn = indexes["search_bm25"]
+    # --- BM25 scores / top-k indices ---
+    q_tokens = query.lower().split()
+    scores = bm25.get_scores(q_tokens)
 
-        # Build-time utilities imported lazily
-        from app.knowledge.build.embedder import embed_query
-        from app.knowledge.build.faiss_utils import faiss_search
-        from app.knowledge.build.hybrid import hybrid_retrieve
+    bm25_idxs = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k_bm25]
+    bm25_scores = [float(scores[i]) for i in bm25_idxs]
 
-        bm25_idxs, bm25_scores = search_bm25_fn(bm25, query, k=k_bm25)
+    # --- FAISS top-k indices ---
+    qv = embed_query(query)
+    faiss_idxs, faiss_scores = faiss_search(faiss_index, qv, k=k_faiss)
 
-        qv = embed_query(query)
-        faiss_idxs, faiss_scores = faiss_search(faiss_index, qv, k=k_faiss)
+    # --- Fuse ---
+    fused_idxs = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=k_final)
 
-        fused_idxs = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=k_final)
+    retrieved_chunks = [chunks[i] for i in fused_idxs if 0 <= i < len(chunks)]
 
-        # IMPORTANT: pass through ORIGINAL chunk objects
-        retrieved_chunks = [
-            chunks[i] for i in fused_idxs if 0 <= i < len(chunks)
-        ]
-
-        return retrieved_chunks, {
-            "bm25_idxs": bm25_idxs,
-            "bm25_scores": bm25_scores,
-            "faiss_idxs": faiss_idxs,
-            "faiss_scores": faiss_scores,
-            "fused_idxs": fused_idxs,
-        }
-
-    except Exception as e:
-        return [], {"error": f"retrieval_failed: {e}"}
+    return retrieved_chunks, {
+        "bm25_idxs": bm25_idxs,
+        "bm25_scores": bm25_scores,
+        "faiss_idxs": faiss_idxs,
+        "faiss_scores": faiss_scores,
+        "fused_idxs": fused_idxs,
+    }
