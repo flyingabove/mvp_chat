@@ -49,6 +49,16 @@ BUILD_INFO_PATH = CHAR_DIR / "build_info.json"
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _purge_existing_cache(char_dir: Path) -> None:
+    """
+    Remove existing cached artifacts to guarantee a clean rebuild.
+    ONLY used when FORCE_REBUILD_INDEX=1.
+    """
+    if char_dir.exists():
+        print(f"🧹 Purging existing cache at {char_dir}")
+        shutil.rmtree(char_dir)
+
+
 def validate_chunks(chunks: list[dict]) -> None:
     for i, c in enumerate(chunks, start=1):
         missing = REQUIRED_FIELDS - set(c.keys())
@@ -131,6 +141,9 @@ def main() -> None:
     print("Source chunks:", CHUNKS_PATH)
     print("Cache dir:", CHAR_DIR)
     print("FORCE_REBUILD_INDEX:", "1" if FORCE_REBUILD else "0")
+
+    if FORCE_REBUILD:
+        _purge_existing_cache(CHAR_DIR)
 
     if not CHUNKS_PATH.exists():
         raise RuntimeError(f"Missing chunks.jsonl at {CHUNKS_PATH}")
