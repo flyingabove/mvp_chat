@@ -9,15 +9,16 @@ def test_bm25_runtime_load_and_search(tmp_path):
     pytest.importorskip("rank_bm25")
     from app.knowledge.runtime.bm25_runtime import load_bm25, search_bm25
 
+    # Schema is now chunk-based (canonical)
     payload = {
         "corpus_tokens": [["iu", "love"], ["random"]],
-        "docs": [{"chunk_id": "a"}, {"chunk_id": "b"}],
+        "chunks": [{"chunk_id": "a"}, {"chunk_id": "b"}],
     }
     p = tmp_path / "bm25.json"
     p.write_text(json.dumps(payload), encoding="utf-8")
 
-    bm25, docs = load_bm25(p)
-    results = search_bm25(bm25, docs, "iu love", k=1)
+    bm25, chunks = load_bm25(p)
+    results = search_bm25(bm25, chunks, "iu love", k=1)
     assert results[0]["chunk_id"] == "a"
 
 
@@ -46,16 +47,20 @@ def test_faiss_runtime_load_and_search(tmp_path):
 
 
 def test_load_character_indexes_raises_when_artifacts_missing(monkeypatch, tmp_path):
-    """The repo zip doesn't ship built artifacts; ensure the error is explicit."""
+    """Repo ships source chunks but not built artifacts; error should be explicit."""
     import faiss
     if not hasattr(faiss, "IndexFlatIP"):
         pytest.skip("faiss not available")
     from app.knowledge.runtime import load_indexes as li
 
-    # Point persistent root to an empty temp dir and pretend /data doesn't exist.
-    monkeypatch.setenv("KNOWLEDGE_PERSIST_ROOT", str(tmp_path / "persist"))
-    # Ensure /data check doesn't trigger copying
-    monkeypatch.setattr(li, "Path", li.Path)  # no-op to keep mypy quiet
+    # Point both possible cache roots to empty temp dirs so runtime can't find artifacts.
+    persist = tmp_path / "persist"
+    cache = tmp_path / "knowledge_cache"
+    monkeypatch.setenv("KNOWLEDGE_PERSIST_ROOT", str(persist))
+    monkeypatch.setenv("KNOWLEDGE_CACHE_DIR", str(cache))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError) as exc:
         li.load_character_indexes("1_iu")
+
+    msg = str(exc.value)
+    assert "Could not locate required knowledge artifacts" in msg
