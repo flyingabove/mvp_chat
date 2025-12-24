@@ -29,25 +29,32 @@ def tokenize(text: str) -> List[str]:
 
 # ---------- Build ----------
 
-def build_bm25_index(chunks: List[Dict[str, Any]], out_path: Path):
+def build_bm25_index(chunks: list[dict], out_path: Path):
     """
-    Builds BM25 index AND persists corpus tokens for deterministic reload.
-    """
-    from rank_bm25 import BM25Okapi
+    Build and persist BM25 index payload for runtime use.
 
-    corpus_tokens = [tokenize(c["text"]) for c in chunks]
-    bm25 = BM25Okapi(corpus_tokens)
+    Payload schema (STRICT):
+    {
+        "corpus_tokens": List[List[str]],
+        "chunks": List[dict]
+    }
+    """
+    corpus_tokens = [
+        chunk["text"].lower().split()
+        for chunk in chunks
+    ]
 
     payload = {
-        "schema": "bm25_v1",
         "corpus_tokens": corpus_tokens,
+        "chunks": chunks,
     }
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
+    with out_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f)
 
-    return bm25
+    return payload
+
 
 
 # ---------- Load ----------
