@@ -42,8 +42,9 @@ CMD ["sh", "-e", "-c", "\
   fi; \
   \
   echo \"🧠 Ensuring knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
-  python -m backend.app.knowledge.build.ensure_indexes; \
+  python -m app.knowledge.build.ensure_indexes; \
   \
   exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
 "]
+
 

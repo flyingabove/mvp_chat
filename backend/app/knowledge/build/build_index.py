@@ -35,7 +35,9 @@ CACHE_ROOT = Path(os.getenv("KNOWLEDGE_CACHE_DIR", str(KNOWLEDGE_DIR))).resolve(
 
 CHAR_DIR = (CACHE_ROOT / "characters" / CHARACTER_DIRNAME).resolve()
 
-CHUNKS_PATH = (KNOWLEDGE_DIR / "characters" / CHARACTER_DIRNAME / "chunks.jsonl").resolve()
+CHUNKS_PATH = (
+    KNOWLEDGE_DIR / "characters" / CHARACTER_DIRNAME / "chunks.jsonl"
+).resolve()
 
 # Cached artifacts (runtime requires all of these)
 CACHED_CHUNKS_PATH = CHAR_DIR / "chunks.jsonl"
@@ -55,15 +57,18 @@ def _purge_existing_cache(char_dir: Path) -> None:
     ONLY used when FORCE_REBUILD_INDEX=1.
     """
     if char_dir.exists():
-        print(f"🧹 Purging existing cache at {char_dir}")
+        print(f"🧹 FORCE_REBUILD_INDEX=1 → purging cache at {char_dir}")
         shutil.rmtree(char_dir)
+        print(f"🧹 purge_complete exists={char_dir.exists()}")
 
 
 def validate_chunks(chunks: list[dict]) -> None:
     for i, c in enumerate(chunks, start=1):
         missing = REQUIRED_FIELDS - set(c.keys())
         if missing:
-            raise RuntimeError(f"chunks.jsonl line {i} missing fields: {sorted(missing)}")
+            raise RuntimeError(
+                f"chunks.jsonl line {i} missing fields: {sorted(missing)}"
+            )
 
 
 def load_previous_build() -> Optional[Dict[str, Any]]:
@@ -74,7 +79,6 @@ def load_previous_build() -> Optional[Dict[str, Any]]:
 
 
 def artifacts_exist() -> bool:
-    # Runtime requires chunks.jsonl to live alongside artifacts.
     return (
         EMB_PATH.exists()
         and FAISS_PATH.exists()
@@ -85,7 +89,6 @@ def artifacts_exist() -> bool:
 
 def should_skip(prev: Optional[Dict[str, Any]], new_fingerprint: str) -> bool:
     if FORCE_REBUILD:
-        print("⚠️ FORCE_REBUILD_INDEX=1 → forcing rebuild")
         return False
 
     if not prev:
@@ -106,10 +109,6 @@ def should_skip(prev: Optional[Dict[str, Any]], new_fingerprint: str) -> bool:
 
 
 def _ensure_cached_chunks() -> None:
-    """
-    Ensure runtime can read chunks.jsonl from the same directory as artifacts.
-    This must be true even on cache hits (skip rebuild).
-    """
     if not CHUNKS_PATH.exists():
         raise RuntimeError(f"Missing chunks.jsonl at {CHUNKS_PATH}")
 
@@ -127,7 +126,6 @@ def _atomic_write_json(path: Path, obj: dict) -> None:
 def _atomic_save_npy(path: Path, arr: np.ndarray) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     np.save(tmp, arr)
-    # np.save adds ".npy" if missing; ensure we replace the intended file
     tmp_actual = tmp if tmp.suffix == ".npy" else Path(str(tmp) + ".npy")
     tmp_actual.replace(path)
 
@@ -150,23 +148,30 @@ def main() -> None:
 
     CHAR_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Always ensure cached chunks exist (even if we later skip rebuild)
+    # Always ensure cached chunks exist
     _ensure_cached_chunks()
 
-    # Load + validate chunks from SOURCE (not cached), so fingerprint aligns with repo source
+    # Load + validate source chunks
     chunks = load_chunks_jsonl(CHUNKS_PATH)
     validate_chunks(chunks)
 
     for c in chunks:
         if c.get("character_id") not in EXPECTED_CHUNK_CHARACTER_IDS:
-            raise RuntimeError(f"Character ID mismatch in chunk {c.get('chunk_id')}")
+            raise RuntimeError(
+                f"Character ID mismatch in chunk {c.get('chunk_id')}"
+            )
 
     texts = [c["text"] for c in chunks]
 
     embedder_info = get_embedder_info()
 
     faiss_cfg = FaissConfig(index_type="FlatIP", normalized=True)
-    bm25_cfg = Bm25Config(schema="bm25_v1", tokenizer="regex_v1", k1=1.5, b=0.75)
+    bm25_cfg = Bm25Config(
+        schema="bm25_v1",
+        tokenizer="regex_v1",
+        k1=1.5,
+        b=0.75,
+    )
 
     fp_info = compute_build_fingerprint(
         chunks_path=CHUNKS_PATH,
@@ -178,7 +183,6 @@ def main() -> None:
     prev = load_previous_build()
 
     if should_skip(prev, fp_info["fingerprint"]):
-        # Still verify completeness (catches partial cache corruption)
         if not artifacts_exist():
             raise RuntimeError("Cache claimed valid but artifacts are incomplete.")
         print("ℹ️ Using existing cached artifacts")
@@ -187,21 +191,30 @@ def main() -> None:
     print("🔨 Rebuilding indexes")
     start = time.time()
 
-    # --- Build dense embeddings / FAISS ---
+    # --- Embeddings + FAISS ---
     embeddings = embed_texts(texts)
     _atomic_save_npy(EMB_PATH, embeddings)
 
-    # Build FAISS into a temp file then replace to avoid partial writes
     faiss_tmp = FAISS_PATH.with_suffix(".index.tmp")
     faiss_index = build_faiss_index(embeddings, faiss_tmp)
     faiss_tmp.replace(FAISS_PATH)
 
-    # --- Build BM25 ---
+    # --- BM25 ---
     bm25_tmp = BM25_PATH.with_suffix(".json.tmp")
     bm25 = build_bm25_index(chunks, bm25_tmp)
     bm25_tmp.replace(BM25_PATH)
 
-    # Ensure runtime artifacts are complete
+    # --- Verify BM25 payload schema (CRITICAL) ---
+    try:
+        with BM25_PATH.open("r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if "chunks" not in payload:
+            raise RuntimeError(
+                f"BM25 payload missing 'chunks' (keys={sorted(payload.keys())})"
+            )
+    except Exception as e:
+        raise RuntimeError(f"BM25 payload verification failed: {e}") from e
+
     _ensure_cached_chunks()
 
     # --- Hybrid validation ---
@@ -232,16 +245,23 @@ def main() -> None:
         "build_seconds": round(time.time() - start, 3),
         **fp_info,
         "embedder": embedder_info,
-        "faiss": {"index_type": faiss_cfg.index_type, "normalized": faiss_cfg.normalized},
-        "bm25": {"schema": bm25_cfg.schema, "tokenizer": bm25_cfg.tokenizer, "k1": bm25_cfg.k1, "b": bm25_cfg.b},
+        "faiss": {
+            "index_type": faiss_cfg.index_type,
+            "normalized": faiss_cfg.normalized,
+        },
+        "bm25": {
+            "schema": bm25_cfg.schema,
+            "tokenizer": bm25_cfg.tokenizer,
+            "k1": bm25_cfg.k1,
+            "b": bm25_cfg.b,
+        },
         "metrics": metrics,
     }
 
     _atomic_write_json(BUILD_INFO_PATH, build_info)
 
-    # Final completeness check (very cheap, saves you from silent failures)
     if not artifacts_exist():
-        raise RuntimeError("Build completed but required artifacts are missing/incomplete.")
+        raise RuntimeError("Build completed but required artifacts are missing.")
 
     print("✅ Knowledge index build completed successfully")
 
