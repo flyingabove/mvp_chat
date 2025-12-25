@@ -2,9 +2,9 @@
 
 from typing import List, Dict
 
-from .faiss_utils import faiss_search
-from .bm25_utils import bm25_search
-from .hybrid import hybrid_retrieve
+from app.knowledge.build.faiss_utils import faiss_search
+from app.knowledge.build.bm25_utils import bm25_search
+from app.knowledge.build.hybrid import hybrid_retrieve
 
 
 # One per subsection (identity, physical, fashion, public image, financials, career timeline,
