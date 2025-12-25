@@ -67,6 +67,8 @@ def build_bm25_index(chunks: list, out_path: Path) -> BM25Okapi:
         "chunks": chunks,  # ✅ REQUIRED by runtime
     }
 
+    print(f"Writing payload: {payload}")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # --- ATOMIC WRITE (prevents partial/corrupt files) ---
