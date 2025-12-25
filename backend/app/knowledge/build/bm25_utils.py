@@ -29,36 +29,55 @@ def tokenize(text: str) -> List[str]:
     return [t.lower() for t in _TOKEN_RE.findall(text)]
 
 
-# ---------- Build ----------
+# ---------- Build ----------# backend/app/knowledge/build/bm25_utils.py
 
-def build_bm25_index(chunks: list, out_path: Path):
+import json
+from pathlib import Path
+from rank_bm25 import BM25Okapi
+
+
+def build_bm25_index(chunks: list, out_path: Path) -> BM25Okapi:
     """
     Build and persist a BM25 index payload.
 
-    Runtime schema invariant:
+    Runtime schema invariant (STRICT):
     {
         "corpus_tokens": List[List[str]],
         "chunks": List[dict]
     }
+
+    Returns:
+        BM25Okapi instance (build-time only)
     """
-    corpus_tokens = [
-        c["text"].lower().split()
-        for c in chunks
-    ]
+
+    if not chunks:
+        raise RuntimeError("BM25 build failed: no chunks provided")
+
+    corpus_tokens = []
+    for c in chunks:
+        text = c.get("text")
+        if not isinstance(text, str):
+            raise RuntimeError(
+                f"BM25 build failed: chunk {c.get('chunk_id')} has invalid text"
+            )
+        corpus_tokens.append(text.lower().split())
 
     payload = {
         "corpus_tokens": corpus_tokens,
-        "chunks": chunks,   # ✅ MUST be 'chunks', not 'docs'
+        "chunks": chunks,  # ✅ REQUIRED by runtime
     }
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with out_path.open("w", encoding="utf-8") as f:
+    # --- ATOMIC WRITE (prevents partial/corrupt files) ---
+    tmp = out_path.with_suffix(out_path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
         json.dump(payload, f)
 
-    # Return BM25 instance for build-time tests
-    return BM25Okapi(corpus_tokens)
+    tmp.replace(out_path)
 
+    # Build-time BM25 object (DO NOT serialize this)
+    return BM25Okapi(corpus_tokens)
 
 
 # ---------- Load ----------
