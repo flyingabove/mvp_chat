@@ -1,5 +1,3 @@
-# backend/app/knowledge/runtime/bm25_runtime.py
-
 from pathlib import Path
 import json
 from typing import List, Tuple
@@ -19,11 +17,17 @@ def load_bm25(path: Path) -> Tuple[BM25Okapi, list]:
         bm25_index: BM25Okapi instance
         chunks: list of chunk dicts (canonical unit)
     """
+    if not isinstance(path, Path):
+        raise RuntimeError(f"BM25 path must be Path, got {type(path)}")
+
     if not path.exists():
         raise RuntimeError(f"BM25 index file not found: {path}")
 
-    with open(path, "r", encoding="utf-8") as f:
+    with path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
+
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Invalid BM25 payload at {path}: not a JSON object")
 
     if "corpus_tokens" not in payload:
         raise RuntimeError(f"Invalid BM25 payload at {path}: missing 'corpus_tokens'")
@@ -45,6 +49,9 @@ def load_bm25(path: Path) -> Tuple[BM25Okapi, list]:
 
     bm25 = BM25Okapi(corpus_tokens)
 
+    if not isinstance(bm25, BM25Okapi):
+        raise RuntimeError("Failed to initialize BM25Okapi")
+
     return bm25, chunks
 
 
@@ -56,16 +63,15 @@ def search_bm25(
 ) -> List[dict]:
     """
     Run a BM25 search over loaded index.
-
-    Args:
-        bm25: BM25Okapi instance
-        chunks: list of chunk dicts (aligned with corpus_tokens)
-        query: user query
-        k: number of results
-
-    Returns:
-        Top-k chunk dicts ranked by BM25 score
     """
+    if not isinstance(bm25, BM25Okapi):
+        raise RuntimeError(
+            f"BM25 runtime invariant violated: expected BM25Okapi, got {type(bm25)}"
+        )
+
+    if not isinstance(chunks, list):
+        raise RuntimeError("BM25 runtime invariant violated: chunks must be list")
+
     if not query:
         return []
 
