@@ -20,6 +20,8 @@ from .fingerprint import FaissConfig, Bm25Config, compute_build_fingerprint
 # Configuration
 # ---------------------------------------------------------------------------
 
+print("🔥 USING NEW build_index.py 🔥", __file__)
+
 REQUIRED_FIELDS = {"chunk_id", "character_id", "type", "text", "confidence"}
 
 FORCE_REBUILD = os.getenv("FORCE_REBUILD_INDEX", "0") == "1"

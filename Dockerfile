@@ -30,7 +30,7 @@ RUN python backend/app/knowledge/build/print_env_versions.py
 EXPOSE 8000
 
 # ------------------------------------------------------------
-# Startup command
+# Startup command (FAIL-FAST, EXPLICIT BUILD)
 # ------------------------------------------------------------
 CMD ["sh", "-e", "-c", "\
   if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
@@ -41,10 +41,8 @@ CMD ["sh", "-e", "-c", "\
     echo \"⚠️ RUN_TESTS=0 → skipping tests\"; \
   fi; \
   \
-  echo \"🧠 Ensuring knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
-  python -m app.knowledge.build.ensure_indexes; \
+  echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
+  python -m app.knowledge.build.build_index; \
   \
-  exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
-"]
-
-
+  echo \"🚀 Starting server\"; \
+  exec uvicorn app.main:app --host 0.0.0.0 --port 8000 "]
