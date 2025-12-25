@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 import re
 from typing import List, Dict, Any
+from rank_bm25 import BM25Okapi
+
 
 # ---------- IO ----------
 
@@ -29,31 +31,33 @@ def tokenize(text: str) -> List[str]:
 
 # ---------- Build ----------
 
-def build_bm25_index(chunks: list[dict], out_path: Path):
+def build_bm25_index(chunks: list, out_path: Path):
     """
-    Build and persist BM25 index payload for runtime use.
+    Build and persist a BM25 index payload.
 
-    Payload schema (STRICT):
+    Runtime schema invariant:
     {
         "corpus_tokens": List[List[str]],
         "chunks": List[dict]
     }
     """
     corpus_tokens = [
-        chunk["text"].lower().split()
-        for chunk in chunks
+        c["text"].lower().split()
+        for c in chunks
     ]
 
     payload = {
         "corpus_tokens": corpus_tokens,
-        "chunks": chunks,
+        "chunks": chunks,   # ✅ MUST be 'chunks', not 'docs'
     }
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f)
 
-    return payload
+    # Return BM25 instance for build-time tests
+    return BM25Okapi(corpus_tokens)
 
 
 
