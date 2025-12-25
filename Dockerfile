@@ -11,10 +11,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # ------------------------------------------------------------
-# Copy code
+# Copy code (HARD RESET EVERY BUILD)
 # ------------------------------------------------------------
-RUN echo "🔥 Removing /App"
-RUN rm -rf /app
+RUN echo "🔥 Removing /app"
+RUN rm -rf /app/*
 COPY backend/ /app/backend/
 COPY tests/ /app/tests/
 
@@ -34,10 +34,19 @@ EXPOSE 8000
 # ------------------------------------------------------------
 # Startup command (FAIL-FAST, EXPLICIT BUILD)
 # ------------------------------------------------------------
-
 RUN echo "🔥 DOCKERFILE REBUILT AT $(date)"
 
 CMD ["sh", "-e", "-c", "\
+  echo \"🚦 Container startup\"; \
+  \
+  if [ \"${FORCE_REBUILD_INDEX:-0}\" = \"1\" ]; then \
+    echo \"🔥 FORCE_REBUILD_INDEX=1 → wiping /data\"; \
+    rm -rf /data/* || true; \
+    echo \"🧹 /data wiped\"; \
+  else \
+    echo \"ℹ️ FORCE_REBUILD_INDEX=0 → preserving /data\"; \
+  fi; \
+  \
   if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
     echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
     python -m pytest /app/tests; \
@@ -50,4 +59,5 @@ CMD ["sh", "-e", "-c", "\
   python -m knowledge.build.build_index; \
   \
   echo \"🚀 Starting server\"; \
-  exec uvicorn app.main:app --host 0.0.0.0 --port 8000 "]
+  exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+"]
