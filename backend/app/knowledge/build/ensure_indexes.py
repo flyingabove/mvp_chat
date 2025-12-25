@@ -4,6 +4,9 @@ from __future__ import annotations
 import sys
 from .build_index import main as build_main
 
+print("🧠 ensure_indexes → invoking build_index.main()")
+
+
 def main():
     try:
         build_main()

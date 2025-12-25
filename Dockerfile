@@ -42,7 +42,7 @@ CMD ["sh", "-e", "-c", "\
   fi; \
   \
   echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
-  python -m app.knowledge.build.build_index; \
+  python -m knowledge.build.build_index; \
   \
   echo \"🚀 Starting server\"; \
   exec uvicorn app.main:app --host 0.0.0.0 --port 8000 "]
