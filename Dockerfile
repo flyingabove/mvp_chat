@@ -32,6 +32,9 @@ EXPOSE 8000
 # ------------------------------------------------------------
 # Startup command (FAIL-FAST, EXPLICIT BUILD)
 # ------------------------------------------------------------
+
+RUN echo "🔥 DOCKERFILE REBUILT AT $(date)"
+
 CMD ["sh", "-e", "-c", "\
   if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
     echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
