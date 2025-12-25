@@ -11,10 +11,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # ------------------------------------------------------------
-# Copy code (HARD RESET EVERY BUILD)
+# Copy code (clean, deterministic)
 # ------------------------------------------------------------
-RUN echo "🔥 Removing /app"
-RUN rm -rf /app/*
+RUN echo "🔥 Cleaning /app before copy"
+RUN rm -rf /app
+
 COPY backend/ /app/backend/
 COPY tests/ /app/tests/
 
@@ -32,7 +33,7 @@ RUN python backend/app/knowledge/build/print_env_versions.py
 EXPOSE 8000
 
 # ------------------------------------------------------------
-# Startup command (FAIL-FAST, EXPLICIT BUILD)
+# Startup command (correct order, correct module)
 # ------------------------------------------------------------
 RUN echo "🔥 DOCKERFILE REBUILT AT $(date)"
 
@@ -47,6 +48,9 @@ CMD ["sh", "-e", "-c", "\
     echo \"ℹ️ FORCE_REBUILD_INDEX=0 → preserving /data\"; \
   fi; \
   \
+  echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
+  python -m app.knowledge.build.build_index; \
+  \
   if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
     echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
     python -m pytest /app/tests; \
@@ -54,9 +58,6 @@ CMD ["sh", "-e", "-c", "\
   else \
     echo \"⚠️ RUN_TESTS=0 → skipping tests\"; \
   fi; \
-  \
-  echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
-  python -m knowledge.build.build_index; \
   \
   echo \"🚀 Starting server\"; \
   exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
