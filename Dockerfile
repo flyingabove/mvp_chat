@@ -13,6 +13,8 @@ ENV PYTHONUNBUFFERED=1
 # ------------------------------------------------------------
 # Copy code
 # ------------------------------------------------------------
+RUN echo "🔥 Removing /App"
+RUN rm -rf /app
 COPY backend/ /app/backend/
 COPY tests/ /app/tests/
 
