@@ -26,6 +26,12 @@ def load_bm25(path: Path) -> Tuple[BM25Okapi, list]:
     with path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
 
+    if payload.get("schema") != "bm25_v2":
+        raise RuntimeError(
+            f"Invalid BM25 payload at {path}: expected schema 'bm25_v2', "
+            f"got {payload.get('schema')!r}"
+    )
+
     if not isinstance(payload, dict):
         raise RuntimeError(f"Invalid BM25 payload at {path}: not a JSON object")
 

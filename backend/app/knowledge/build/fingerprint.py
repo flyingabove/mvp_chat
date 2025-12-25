@@ -36,7 +36,7 @@ class FaissConfig:
 
 @dataclass(frozen=True)
 class Bm25Config:
-    schema: str = "bm25_v1"
+    schema: str = "bm25_v2"
     tokenizer: str = "regex_v1"
     # If you later tune these, put them here and they’ll auto-invalidate caches.
     k1: float = 1.5

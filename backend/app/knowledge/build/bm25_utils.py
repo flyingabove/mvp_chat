@@ -63,11 +63,13 @@ def build_bm25_index(chunks: list, out_path: Path) -> BM25Okapi:
         corpus_tokens.append(text.lower().split())
 
     payload = {
-        "corpus_tokens": corpus_tokens,
-        "chunks": chunks,  # ✅ REQUIRED by runtime
+    "schema": "bm25_v2",
+    "corpus_tokens": corpus_tokens,
+    "chunks": chunks,
     }
 
-    print(f"Writing payload: {payload}")
+
+    print(f"✅ Writing BM25 payload schema=bm25_v2 to {out_path}")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -80,23 +82,6 @@ def build_bm25_index(chunks: list, out_path: Path) -> BM25Okapi:
 
     # Build-time BM25 object (DO NOT serialize this)
     return BM25Okapi(corpus_tokens)
-
-
-# ---------- Load ----------
-
-def load_bm25(path: Path):
-    from rank_bm25 import BM25Okapi
-
-    if not path.exists():
-        raise FileNotFoundError(f"bm25.json not found: {path}")
-
-    with open(path, "r", encoding="utf-8") as f:
-        payload = json.load(f)
-
-    if payload.get("schema") != "bm25_v1":
-        raise ValueError("Unsupported BM25 schema")
-
-    return BM25Okapi(payload["corpus_tokens"])
 
 
 # ---------- Search ----------

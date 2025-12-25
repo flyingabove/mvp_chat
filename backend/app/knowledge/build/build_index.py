@@ -12,7 +12,7 @@ import numpy as np
 from .embedder import embed_texts, embed_query, get_embedder_info
 from .faiss_utils import build_faiss_index
 from .bm25_utils import build_bm25_index, load_chunks_jsonl
-from .tests import run_hybrid_retrieval_tests
+from .....tests.backend.app.knowledge.test_hybrid_retrieval import run_hybrid_retrieval_tests
 from .fingerprint import FaissConfig, Bm25Config, compute_build_fingerprint
 
 
@@ -169,7 +169,7 @@ def main() -> None:
 
     faiss_cfg = FaissConfig(index_type="FlatIP", normalized=True)
     bm25_cfg = Bm25Config(
-        schema="bm25_v1",
+        schema="bm25_v2",
         tokenizer="regex_v1",
         k1=1.5,
         b=0.75,
@@ -210,6 +210,10 @@ def main() -> None:
     try:
         with BM25_PATH.open("r", encoding="utf-8") as f:
             payload = json.load(f)
+        if payload.get("schema") != "bm25_v2":
+            raise RuntimeError(
+                f"BM25 payload schema mismatch: expected 'bm25_v2', got {payload.get('schema')!r}"
+            )
         if "chunks" not in payload:
             raise RuntimeError(
                 f"BM25 payload missing 'chunks' (keys={sorted(payload.keys())})"
