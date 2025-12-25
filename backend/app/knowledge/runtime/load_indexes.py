@@ -103,6 +103,7 @@ def load_character_indexes(character_id: str = "1_iu") -> Dict[str, Any]:
     chunks = _load_chunks_jsonl(chunks_path)
 
     try:
+        print("DEBUG bm25.json contents:", bm25_path.read_text()[:500])
         bm25, _ = load_bm25(bm25_path)      # <-- Path preserved
     except Exception as e:
         # Normalize failure mode so tests & runtime get RuntimeError
