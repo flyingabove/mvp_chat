@@ -13,8 +13,8 @@ ENV PYTHONUNBUFFERED=1
 # ------------------------------------------------------------
 # Copy code (clean, deterministic)
 # ------------------------------------------------------------
-RUN echo "🔥 Cleaning /srv before copy"
-RUN rm -rf /srv
+RUN echo "🔥 Cleaning /srv /tmp before copy"
+RUN rm -rf /srv /tmp
 
 COPY backend/ /srv/backend/
 COPY tests/ /srv/tests/

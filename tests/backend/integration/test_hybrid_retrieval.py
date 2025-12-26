@@ -1,7 +1,6 @@
 # tests/backend/integration/test_iu_hybrid_retrieval.py
 
-from typing import List, Dict
-
+import os
 import pytest
 
 from backend.app.knowledge.runtime.load_indexes import load_character_indexes
@@ -41,22 +40,25 @@ TEST_CASES = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Integration test
-# ---------------------------------------------------------------------------
-
 @pytest.mark.integration
 def test_iu_hybrid_retrieval_recall_threshold():
     """
     End-to-end retrieval quality test.
 
-    Guarantees:
-    - indexes load correctly
-    - BM25 + FAISS + hybrid fusion works
-    - recall stays above product-quality threshold
+    HARD INVARIANTS:
+    - Must load from persistent cache (/data), never /tmp
+    - Must use real built artifacts
+    - Must meet recall threshold
     """
 
-    chunks, bm25, faiss_index = load_character_indexes("1_iu")
+    cache_dir = os.environ.get("KNOWLEDGE_CACHE_DIR")
+    assert cache_dir is not None, "KNOWLEDGE_CACHE_DIR must be set for integration tests"
+    assert cache_dir.startswith("/data"), (
+        f"Integration test must use persistent cache, got {cache_dir}"
+    )
+
+    # Ignore extra metadata if loader returns more than 3 values
+    chunks, bm25, faiss_index, *_ = load_character_indexes("1_iu")
 
     chunk_ids = [c.get("chunk_id") for c in chunks]
     assert all(chunk_ids), "All chunks must have chunk_id"
@@ -87,10 +89,8 @@ def test_iu_hybrid_retrieval_recall_threshold():
 
     precision = tp / max(tp + fp, 1)
     recall = tp / max(tp + fn, 1)
-    f1 = (2 * precision * recall) / max(precision + recall, 1e-6)
     accuracy = correct_at_1 / len(TEST_CASES)
 
-    # --- Hard quality gates ---
     assert recall >= 0.95, f"Hybrid recall too low: {recall:.3f}"
     assert precision >= 0.80, f"Hybrid precision too low: {precision:.3f}"
     assert accuracy >= 0.70, f"Top-1 accuracy too low: {accuracy:.3f}"
