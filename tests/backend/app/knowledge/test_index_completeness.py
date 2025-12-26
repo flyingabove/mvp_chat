@@ -75,7 +75,7 @@ def test_build_index_has_no_import_time_side_effects(tmp_path, monkeypatch):
         del sys.modules[modname]
 
     # Import only
-    import app.knowledge.build.build_index as bi
+    import backend.app.knowledge.build.build_index as bi
     importlib.reload(bi)
 
     # Ensure NOTHING was created
