@@ -8,7 +8,7 @@ from app.knowledge.runtime.load_indexes import load_character_indexes
 from app.knowledge.build.faiss_utils import faiss_search
 from app.knowledge.build.bm25_utils import bm25_search
 from app.knowledge.build.hybrid import hybrid_retrieve
-from app.knowledge.embedder import embed_query
+from app.knowledge.build.embedder import embed_query
 
 
 # ---------------------------------------------------------------------------
