@@ -44,7 +44,7 @@ def client(monkeypatch):
 
     monkeypatch.setattr(chat_mod.httpx, "AsyncClient", _FakeAsyncClient)
 
-    from app import main
+    from backend.app import main
     return TestClient(main.app)
 
 

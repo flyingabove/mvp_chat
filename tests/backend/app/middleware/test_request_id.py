@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 
 def test_request_id_middleware_passthrough_and_generation(monkeypatch):
-    from app import main
+    from backend.app import main
 
     client = TestClient(main.app)
 
