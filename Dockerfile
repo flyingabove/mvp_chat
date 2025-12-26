@@ -49,7 +49,7 @@ CMD ["sh", "-e", "-c", "\
   fi; \
   \
   echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
-  python -m app.knowledge.build.build_index; \
+  python -m backend.app.knowledge.build.build_index; \
   \
   if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
     echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
