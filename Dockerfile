@@ -3,8 +3,6 @@ FROM python:3.10-slim
 # ------------------------------------------------------------
 # App setup
 # ------------------------------------------------------------
-WORKDIR /srv
-
 ENV PYTHONPATH=/srv
 ENV KNOWLEDGE_CACHE_DIR=/data/knowledge_cache
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -20,13 +18,15 @@ RUN echo "🔥 Resetting /srv and /tmp" \
     && mkdir -p /tmp \
     && chmod 1777 /tmp
 
+WORKDIR /srv
+
 COPY backend/ /srv/backend/
 COPY tests/ /srv/tests/
 
 # ------------------------------------------------------------
 # Install dependencies
 # ------------------------------------------------------------
-RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN pip install --no-cache-dir -r /srv/backend/requirements.txt
 
 # Optional: log environment versions (safe, fast)
 RUN python backend/app/knowledge/build/print_env_versions.py
@@ -57,7 +57,7 @@ CMD ["sh", "-e", "-c", "\
   \
   if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
     echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
-    python -m pytest /srv/tests || { \
+    python -m pytest -x -q --disable-warnings /srv/tests || { \
       echo \"❌ Tests failed — aborting startup\"; \
       exit 1; \
     }; \
@@ -69,5 +69,3 @@ CMD ["sh", "-e", "-c", "\
   echo \"🚀 Starting server\"; \
   exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 \
 "]
-
-
