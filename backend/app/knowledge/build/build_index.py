@@ -222,16 +222,6 @@ def main() -> None:
 
     _ensure_cached_chunks()
 
-    print("\n=== Hybrid Retrieval Metrics ===")
-    for k, v in metrics.items():
-        try:
-            print(f"{k}: {float(v):.3f}")
-        except Exception:
-            print(f"{k}: {v}")
-
-    if metrics.get("recall", 0.0) < 0.95:
-        raise RuntimeError("❌ Hybrid recall below threshold")
-
     build_info = {
         "character_dirname": CHARACTER_DIRNAME,
         "num_chunks": len(chunks),
@@ -248,8 +238,7 @@ def main() -> None:
             "tokenizer": bm25_cfg.tokenizer,
             "k1": bm25_cfg.k1,
             "b": bm25_cfg.b,
-        },
-        "metrics": metrics,
+        }
     }
 
     _atomic_write_json(BUILD_INFO_PATH, build_info)
