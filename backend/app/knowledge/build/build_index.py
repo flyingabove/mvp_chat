@@ -12,7 +12,6 @@ import numpy as np
 from .embedder import embed_texts, embed_query, get_embedder_info
 from .faiss_utils import build_faiss_index
 from .bm25_utils import build_bm25_index, load_chunks_jsonl
-from .....tests.backend.app.knowledge.test_hybrid_retrieval import run_hybrid_retrieval_tests
 from .fingerprint import FaissConfig, Bm25Config, compute_build_fingerprint
 
 
