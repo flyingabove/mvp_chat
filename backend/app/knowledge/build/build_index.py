@@ -222,17 +222,6 @@ def main() -> None:
 
     _ensure_cached_chunks()
 
-    # --- Hybrid validation ---
-    metrics = run_hybrid_retrieval_tests(
-        chunks=chunks,
-        bm25=bm25,
-        faiss_index=faiss_index,
-        embed_query_fn=embed_query,
-        k_bm25=8,
-        k_faiss=8,
-        k_final=8,
-    )
-
     print("\n=== Hybrid Retrieval Metrics ===")
     for k, v in metrics.items():
         try:
