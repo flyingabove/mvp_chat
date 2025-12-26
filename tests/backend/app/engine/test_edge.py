@@ -1,4 +1,4 @@
-from app.engine.world.edge import PathEdge
+from backend.app.engine.world.edge import PathEdge
 
 
 def test_edge_is_immutable_dataclass():

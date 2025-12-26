@@ -1,7 +1,7 @@
 import pytest
 
-from app.engine.world.edge import PathEdge
-from app.engine.world.travel_rules import TravelRules
+from backend.app.engine.world.edge import PathEdge
+from backend.app.engine.world.travel_rules import TravelRules
 
 
 def test_choose_edge_filters_blocked_and_is_deterministic():

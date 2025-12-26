@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from app.config.settings import (
+from backend.app.config.settings import (
     START_LOCATION,
     START_MINUTE,
     REL_START,

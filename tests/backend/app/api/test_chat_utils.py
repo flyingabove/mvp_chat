@@ -1,8 +1,8 @@
-from app.engine.state import init_state
+from backend.app.engine.state import init_state
 
 
 def test_apply_placeholders_and_sanitize_korean_terms():
-    import app.api.chat as chat_mod
+    import backend.app.api.chat as chat_mod
 
     st = init_state()
     st.player_name = "Chris"
@@ -20,7 +20,7 @@ def test_apply_placeholders_and_sanitize_korean_terms():
 
 
 def test_name_extraction_and_confirmation():
-    import app.api.chat as chat_mod
+    import backend.app.api.chat as chat_mod
 
     st = init_state()
     name = chat_mod.extract_user_name_from_text("my name is alice")

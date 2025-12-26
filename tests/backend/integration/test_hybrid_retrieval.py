@@ -4,11 +4,11 @@ from typing import List, Dict
 
 import pytest
 
-from app.knowledge.runtime.load_indexes import load_character_indexes
-from app.knowledge.build.faiss_utils import faiss_search
-from app.knowledge.build.bm25_utils import bm25_search
-from app.knowledge.build.hybrid import hybrid_retrieve
-from app.knowledge.build.embedder import embed_query
+from backend.app.knowledge.runtime.load_indexes import load_character_indexes
+from backend.app.knowledge.build.faiss_utils import faiss_search
+from backend.app.knowledge.build.bm25_utils import bm25_search
+from backend.app.knowledge.build.hybrid import hybrid_retrieve
+from backend.app.knowledge.build.embedder import embed_query
 
 
 # ---------------------------------------------------------------------------

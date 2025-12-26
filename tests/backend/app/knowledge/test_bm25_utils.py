@@ -5,7 +5,7 @@ import pytest
 
 def test_tokenize_and_bm25_search(tmp_path):
     pytest.importorskip("rank_bm25")
-    from app.knowledge.build.bm25_utils import build_bm25_index, bm25_search
+    from backend.app.knowledge.build.bm25_utils import build_bm25_index, bm25_search
 
     chunks = [
         {"chunk_id": "a", "text": "IU love poem"},
@@ -23,7 +23,7 @@ def test_tokenize_and_bm25_search(tmp_path):
 
 
 def test_load_chunks_jsonl_round_trip(tmp_path):
-    from app.knowledge.build.bm25_utils import load_chunks_jsonl
+    from backend.app.knowledge.build.bm25_utils import load_chunks_jsonl
 
     p = tmp_path / "chunks.jsonl"
     p.write_text('{"chunk_id":"a","text":"x"}\n{"chunk_id":"b","text":"y"}\n', encoding="utf-8")

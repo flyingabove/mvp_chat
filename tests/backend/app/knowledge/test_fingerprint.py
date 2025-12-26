@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_stable_json_hash_is_order_independent():
-    from app.knowledge.build.fingerprint import stable_json_hash
+    from backend.app.knowledge.build.fingerprint import stable_json_hash
 
     a = {"b": 2, "a": 1}
     b = {"a": 1, "b": 2}
@@ -10,7 +10,7 @@ def test_stable_json_hash_is_order_independent():
 
 
 def test_compute_build_fingerprint(tmp_path):
-    from app.knowledge.build.fingerprint import (
+    from backend.app.knowledge.build.fingerprint import (
         compute_build_fingerprint,
         FaissConfig,
         Bm25Config,

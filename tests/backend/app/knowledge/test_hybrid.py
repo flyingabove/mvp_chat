@@ -1,6 +1,6 @@
 
 def test_hybrid_retrieve_dedup_and_order():
-    from app.knowledge.build.hybrid import hybrid_retrieve
+    from backend.app.knowledge.build.hybrid import hybrid_retrieve
 
     bm25 = [1, 2, 3]
     faiss = [3, 4, 2, 5]

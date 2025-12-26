@@ -6,7 +6,7 @@ def test_build_faiss_index_and_search(tmp_path):
     import faiss
     if not hasattr(faiss, "IndexFlatIP"):
         pytest.skip("faiss not available")
-    from app.knowledge.build.faiss_utils import build_faiss_index, faiss_search
+    from backend.app.knowledge.build.faiss_utils import build_faiss_index, faiss_search
 
     embs = np.array([
         [1.0, 0.0],

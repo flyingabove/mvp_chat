@@ -3,12 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import threading
 
-from app.api.chat import router as chat_router
-from app.api.echo import router as echo_router
-from app.api.health import router as health_router
-from app.api.story import router as story_router
+from backend.app.api.chat import router as chat_router
+from backend.app.api.echo import router as echo_router
+from backend.app.api.health import router as health_router
+from backend.app.api.story import router as story_router
 
-from app.middleware.request_id import request_id_middleware
+from backend.app.middleware.request_id import request_id_middleware
 
 
 # --------------------------------------------------
@@ -63,7 +63,7 @@ def warm_indexes() -> None:
 
     def _warm():
         try:
-            from app.knowledge.runtime.index_store import get_indexes
+            from backend.app.knowledge.runtime.index_store import get_indexes
             get_indexes()
             print({"kind": "index_warmup_ok"})
         except Exception as e:
@@ -80,7 +80,7 @@ def warm_indexes() -> None:
 def _startup_event():
     # HARD FAIL MODE (deploy safety)
     if os.getenv("REQUIRE_INDEXES") == "1":
-        from app.knowledge.runtime.index_store import get_indexes
+        from backend.app.knowledge.runtime.index_store import get_indexes
         # This MUST raise if artifacts are missing
         get_indexes()
         print({"kind": "index_startup_check_ok"})

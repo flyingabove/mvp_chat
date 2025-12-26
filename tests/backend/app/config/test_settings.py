@@ -1,4 +1,4 @@
-from app.config import settings
+from backend.app.config import settings
 
 
 def test_settings_have_expected_defaults():

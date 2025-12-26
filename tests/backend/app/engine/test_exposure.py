@@ -1,4 +1,4 @@
-from app.engine.world.exposure import ExposureResolver
+from backend.app.engine.world.exposure import ExposureResolver
 
 
 def test_exposure_resolver_prob_extremes():

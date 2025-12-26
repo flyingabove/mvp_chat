@@ -1,8 +1,8 @@
 import pytest
 
-from app.engine.world.graph import WorldGraph
-from app.engine.world.location import Location
-from app.engine.world.edge import PathEdge
+from backend.app.engine.world.graph import WorldGraph
+from backend.app.engine.world.location import Location
+from backend.app.engine.world.edge import PathEdge
 
 
 def test_graph_add_location_and_edge_and_neighbors():

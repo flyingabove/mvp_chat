@@ -1,4 +1,4 @@
-from app.engine.story_loader import load_story
+from backend.app.engine.story_loader import load_story
 
 
 def test_load_story_returns_dict_for_existing_story():

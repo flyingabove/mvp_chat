@@ -6,8 +6,8 @@ import re
 import time
 import uuid
 
-from app.knowledge.runtime.load_indexes import load_character_indexes
-from app.knowledge.runtime.retrieve import retrieve_knowledge
+from backend.app.knowledge.runtime.load_indexes import load_character_indexes
+from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
 
 # ---------------------------------------------------------------------------
 # SAFE INDEX LOADING (no boot crash)
@@ -21,24 +21,24 @@ except Exception as e:
         "error": str(e)
     }))
 
-from app.config.settings import (
+from backend.app.config.settings import (
     OPENAI_API_KEY, OPENAI_MODEL,
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS
 )
 
-from app.engine.state import (
+from backend.app.engine.state import (
     init_state,
     apply_state_tag,
     extract_state_tag,
     MurderGameState,
     CharacterState,
 )
-from app.engine.story_loader import load_story
-from app.engine.gameplay import (
+from backend.app.engine.story_loader import load_story
+from backend.app.engine.gameplay import (
     advance_time,
     confession_detected
 )
-from app.engine.prompt_builder import (
+from backend.app.engine.prompt_builder import (
     build_messages
 )
 

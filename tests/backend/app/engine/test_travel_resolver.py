@@ -1,12 +1,12 @@
 import pytest
 
-from app.engine.world.clock import WorldClock
-from app.engine.world.edge import PathEdge
-from app.engine.world.exposure import TravelExposure
-from app.engine.world.graph import WorldGraph
-from app.engine.world.location import Location
-from app.engine.world.travel_resolver import TravelResolver
-from app.engine.world.travel_rules import TravelRules
+from backend.app.engine.world.clock import WorldClock
+from backend.app.engine.world.edge import PathEdge
+from backend.app.engine.world.exposure import TravelExposure
+from backend.app.engine.world.graph import WorldGraph
+from backend.app.engine.world.location import Location
+from backend.app.engine.world.travel_resolver import TravelResolver
+from backend.app.engine.world.travel_rules import TravelRules
 
 
 class _StubExposureResolver:

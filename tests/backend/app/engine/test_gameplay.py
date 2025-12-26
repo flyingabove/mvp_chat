@@ -1,11 +1,11 @@
-from app.engine.gameplay import (
+from backend.app.engine.gameplay import (
     word_count,
     sanitize_location,
     manifest_mode,
     advance_time,
     confession_detected,
 )
-from app.engine.state import init_state
+from backend.app.engine.state import init_state
 
 
 def test_word_count_and_sanitize_location():

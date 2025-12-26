@@ -1,7 +1,7 @@
 # app/engine/prompt_builder.py
-from app.engine.gameplay import manifest_mode
-from app.engine.state import MurderGameState
-from app.config.settings import (
+from backend.app.engine.gameplay import manifest_mode
+from backend.app.engine.state import MurderGameState
+from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
     MEMORY_TURNS,

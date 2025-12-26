@@ -3,9 +3,9 @@ FROM python:3.10-slim
 # ------------------------------------------------------------
 # App setup
 # ------------------------------------------------------------
-WORKDIR /app
+WORKDIR /srv
 
-ENV PYTHONPATH=/app/backend
+ENV PYTHONPATH=/srv
 ENV KNOWLEDGE_CACHE_DIR=/data/knowledge_cache
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -13,11 +13,11 @@ ENV PYTHONUNBUFFERED=1
 # ------------------------------------------------------------
 # Copy code (clean, deterministic)
 # ------------------------------------------------------------
-RUN echo "🔥 Cleaning /app before copy"
-RUN rm -rf /app
+RUN echo "🔥 Cleaning /srv before copy"
+RUN rm -rf /srv
 
-COPY backend/ /app/backend/
-COPY tests/ /app/tests/
+COPY backend/ /srv/backend/
+COPY tests/ /srv/tests/
 
 # ------------------------------------------------------------
 # Install dependencies

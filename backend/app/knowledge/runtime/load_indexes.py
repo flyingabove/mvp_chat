@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Tuple
 
 import faiss  # type: ignore
 
-from app.knowledge.runtime.bm25_runtime import load_bm25
+from backend.app.knowledge.runtime.bm25_runtime import load_bm25
 
 
 REQUIRED_FILES = ("faiss.index", "bm25.json", "chunks.jsonl")

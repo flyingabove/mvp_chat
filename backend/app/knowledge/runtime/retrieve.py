@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Tuple, List, Dict, Any
 
-from app.knowledge.runtime.index_store import get_indexes
+from backend.app.knowledge.runtime.index_store import get_indexes
 
 
 def retrieve_knowledge(
@@ -29,9 +29,9 @@ def retrieve_knowledge(
     faiss_index = indexes["faiss"]
 
     # Lazy imports (avoid heavy import at module load / tests)
-    from app.knowledge.build.embedder import embed_query
-    from app.knowledge.build.faiss_utils import faiss_search
-    from app.knowledge.build.hybrid import hybrid_retrieve
+    from backend.app.knowledge.build.embedder import embed_query
+    from backend.app.knowledge.build.faiss_utils import faiss_search
+    from backend.app.knowledge.build.hybrid import hybrid_retrieve
 
     # --- BM25 scores / top-k indices ---
     q_tokens = query.lower().split()

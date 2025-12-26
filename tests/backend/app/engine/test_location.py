@@ -1,4 +1,4 @@
-from app.engine.world.location import Location
+from backend.app.engine.world.location import Location
 
 
 def test_location_dataclass_fields():

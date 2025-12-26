@@ -1,4 +1,4 @@
-from app.engine.world.clock import WorldClock
+from backend.app.engine.world.clock import WorldClock
 
 
 def test_world_clock_advances_and_reports_minute():

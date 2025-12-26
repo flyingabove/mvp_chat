@@ -2,11 +2,11 @@ import re
 
 import pytest
 
-from app.engine.state import init_state, CharacterState
+from backend.app.engine.state import init_state, CharacterState
 
 
 def test_system_prompt_includes_required_tail_and_memory_block(monkeypatch):
-    from app.engine import prompt_builder as pb
+    from backend.app.engine import prompt_builder as pb
 
     st = init_state()
     st.story_cfg = {
@@ -29,7 +29,7 @@ def test_system_prompt_includes_required_tail_and_memory_block(monkeypatch):
 
 
 def test_build_messages_trims_history_and_adds_header(monkeypatch):
-    from app.engine import prompt_builder as pb
+    from backend.app.engine import prompt_builder as pb
 
     # Avoid runtime knowledge retrieval in tests.
     monkeypatch.setattr(pb, "retrieve_knowledge", lambda *a, **k: ([], {}), raising=False)
@@ -57,5 +57,5 @@ def test_build_messages_trims_history_and_adds_header(monkeypatch):
 
 
 def test_format_memory_block_empty_is_blank():
-    from app.engine import prompt_builder as pb
+    from backend.app.engine import prompt_builder as pb
     assert pb._format_memory_block([]) == ""

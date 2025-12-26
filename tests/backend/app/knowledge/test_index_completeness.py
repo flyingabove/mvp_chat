@@ -11,7 +11,7 @@ def test_runtime_fails_on_incomplete_index_cache(tmp_path, monkeypatch):
     Runtime must FAIL LOUDLY if any required knowledge artifact is missing.
     """
 
-    from app.knowledge.runtime.load_indexes import load_character_indexes
+    from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 
     # Simulate Railway volume
     cache_root = tmp_path / "knowledge_cache"
@@ -43,7 +43,7 @@ def test_runtime_rejects_invalid_complete_index_cache(tmp_path, monkeypatch):
     Presence-only is not enough.
     """
 
-    from app.knowledge.runtime.load_indexes import load_character_indexes
+    from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 
     cache_root = tmp_path / "knowledge_cache"
     char_dir = cache_root / "characters" / "1_iu"

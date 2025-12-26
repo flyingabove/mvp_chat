@@ -1,7 +1,7 @@
 # app/engine/gameplay.py
 import re
 import math
-from app.config.settings import (
+from backend.app.config.settings import (
     MINS_PER_WORD,
     BASE_TURN_MINS,
     TRAVEL_MINS,

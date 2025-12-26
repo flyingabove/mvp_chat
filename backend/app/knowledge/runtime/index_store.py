@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Dict, Any, Optional
 
-from app.knowledge.runtime.load_indexes import load_character_indexes
+from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 
 _INDEXES: Optional[Dict[str, Any]] = None
 _LOCK = threading.Lock()

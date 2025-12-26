@@ -15,8 +15,8 @@ def test_iu_retrieval_returns_real_songs():
     - We do not silently hallucinate generic answers
     """
 
-    from app.knowledge.runtime.load_indexes import load_character_indexes
-    from app.knowledge.runtime.retrieve import retrieve_knowledge
+    from backend.app.knowledge.runtime.load_indexes import load_character_indexes
+    from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
 
     # Load real indexes (must exist or test fails)
     indexes = load_character_indexes("1_iu")

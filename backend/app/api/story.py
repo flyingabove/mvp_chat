@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.engine.story_loader import load_story
+from backend.app.engine.story_loader import load_story
 
 router = APIRouter()
 
