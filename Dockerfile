@@ -13,8 +13,12 @@ ENV PYTHONUNBUFFERED=1
 # ------------------------------------------------------------
 # Copy code (clean, deterministic)
 # ------------------------------------------------------------
-RUN echo "🔥 Cleaning /srv /tmp before copy"
-RUN rm -rf /srv /tmp
+RUN echo "🔥 Resetting /srv and /tmp" \
+    && rm -rf /srv \
+    && rm -rf /tmp \
+    && mkdir -p /srv \
+    && mkdir -p /tmp \
+    && chmod 1777 /tmp
 
 COPY backend/ /srv/backend/
 COPY tests/ /srv/tests/
@@ -53,7 +57,7 @@ CMD ["sh", "-e", "-c", "\
   \
   if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
     echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
-    python -m pytest /app/tests || { \
+    python -m pytest /srv/tests || { \
       echo \"❌ Tests failed — aborting startup\"; \
       exit 1; \
     }; \
@@ -63,7 +67,7 @@ CMD ["sh", "-e", "-c", "\
   fi; \
   \
   echo \"🚀 Starting server\"; \
-  exec uvicorn app.main:app --host 0.0.0.0 --port 8000 \
+  exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 \
 "]
 
 
