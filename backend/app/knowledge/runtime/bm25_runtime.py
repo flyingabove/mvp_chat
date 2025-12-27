@@ -1,21 +1,23 @@
+from __future__ import annotations
+
 from pathlib import Path
 import json
-from typing import List, Tuple
-from rank_bm25 import BM25Okapi
+from typing import Any, List, Tuple
+
+try:
+    from backend.app.knowledge.build.bm25_utils import BM25_SCHEMA
+except Exception:  # pragma: no cover
+    BM25_SCHEMA = "bm25_v2"
 
 
-def load_bm25(path: Path) -> Tuple[BM25Okapi, list]:
+def load_bm25(path: Path) -> Tuple[Any, list]:
     """
     Load a prebuilt BM25 payload.
 
-    Runtime schema invariant:
-    - The payload MUST contain:
-        - corpus_tokens: List[List[str]]
-        - chunks: List[dict]
-
-    Returns:
-        bm25_index: BM25Okapi instance
-        chunks: list of chunk dicts (canonical unit)
+    Required payload keys:
+      - schema == BM25_SCHEMA
+      - corpus_tokens: List[List[str]]
+      - chunks: List[dict]
     """
     if not isinstance(path, Path):
         raise RuntimeError(f"BM25 path must be Path, got {type(path)}")
@@ -26,14 +28,13 @@ def load_bm25(path: Path) -> Tuple[BM25Okapi, list]:
     with path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
 
-    if payload.get("schema") != "bm25_v2":
-        raise RuntimeError(
-            f"Invalid BM25 payload at {path}: expected schema 'bm25_v2', "
-            f"got {payload.get('schema')!r}"
-    )
-
     if not isinstance(payload, dict):
         raise RuntimeError(f"Invalid BM25 payload at {path}: not a JSON object")
+
+    if payload.get("schema") != BM25_SCHEMA:
+        raise RuntimeError(
+            f"Invalid BM25 payload at {path}: expected schema {BM25_SCHEMA!r}, got {payload.get('schema')!r}"
+        )
 
     if "corpus_tokens" not in payload:
         raise RuntimeError(f"Invalid BM25 payload at {path}: missing 'corpus_tokens'")
@@ -53,31 +54,16 @@ def load_bm25(path: Path) -> Tuple[BM25Okapi, list]:
             f"{len(corpus_tokens)} corpus entries vs {len(chunks)} chunks"
         )
 
+    try:
+        from rank_bm25 import BM25Okapi
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError(f"rank_bm25 not available: {e}") from e
+
     bm25 = BM25Okapi(corpus_tokens)
-
-    if not isinstance(bm25, BM25Okapi):
-        raise RuntimeError("Failed to initialize BM25Okapi")
-
     return bm25, chunks
 
 
-def search_bm25(
-    bm25: BM25Okapi,
-    chunks: list,
-    query: str,
-    k: int = 5,
-) -> List[dict]:
-    """
-    Run a BM25 search over loaded index.
-    """
-    if not isinstance(bm25, BM25Okapi):
-        raise RuntimeError(
-            f"BM25 runtime invariant violated: expected BM25Okapi, got {type(bm25)}"
-        )
-
-    if not isinstance(chunks, list):
-        raise RuntimeError("BM25 runtime invariant violated: chunks must be list")
-
+def search_bm25(bm25: Any, chunks: list, query: str, k: int = 5) -> List[dict]:
     if not query:
         return []
 
@@ -85,15 +71,7 @@ def search_bm25(
     scores = bm25.get_scores(query_tokens)
 
     if len(scores) != len(chunks):
-        raise RuntimeError(
-            f"BM25 runtime invariant violated: "
-            f"{len(scores)} scores vs {len(chunks)} chunks"
-        )
+        raise RuntimeError(f"BM25 runtime invariant violated: {len(scores)} scores vs {len(chunks)} chunks")
 
-    top_indices = sorted(
-        range(len(scores)),
-        key=lambda i: scores[i],
-        reverse=True,
-    )[:k]
-
+    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
     return [chunks[i] for i in top_indices]

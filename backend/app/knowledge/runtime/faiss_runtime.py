@@ -1,46 +1,45 @@
-# backend/app/knowledge/runtime/faiss_runtime.py
-
 from __future__ import annotations
 
-from pathlib import Path
-from typing import List, Tuple, Any
 import json
+from pathlib import Path
+from typing import Any, List, Tuple
 
-import faiss  # type: ignore
 import numpy as np
 
 
-def load_faiss_index(index_path: Path, meta_path: Path) -> Tuple[faiss.Index, list]:
+def load_faiss_index(index_path: Path, meta_path: Path) -> Tuple[Any, list]:
     if not index_path.exists():
-        raise RuntimeError(f"FAISS index file not found: {index_path}")
+        raise FileNotFoundError(f"faiss.index not found: {index_path}")
     if not meta_path.exists():
-        raise RuntimeError(f"FAISS meta file not found: {meta_path}")
+        raise FileNotFoundError(f"meta.json not found: {meta_path}")
+
+    try:
+        import faiss  # type: ignore
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError(f"faiss not available: {e}") from e
 
     index = faiss.read_index(str(index_path))
-
-    with meta_path.open("r", encoding="utf-8") as f:
-        meta = json.load(f)
-
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
     if not isinstance(meta, list):
-        raise RuntimeError(f"Invalid FAISS meta schema at {meta_path}: expected list")
-
+        raise RuntimeError("meta.json must be a list")
     return index, meta
 
 
-def search_faiss(index: faiss.Index, metadata: list, query_embedding: Any, k: int = 5) -> List[dict]:
-    if not isinstance(query_embedding, np.ndarray):
-        query_embedding = np.array(query_embedding, dtype="float32")
+def search_faiss(index: Any, metadata: list, query_embedding: Any, k: int = 5) -> List[dict]:
+    try:
+        import faiss  # type: ignore
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError(f"faiss not available: {e}") from e
 
-    if query_embedding.ndim == 1:
-        query_embedding = query_embedding.reshape(1, -1)
+    q = np.array(query_embedding, dtype="float32").reshape(1, -1)
+    faiss.normalize_L2(q)
+    scores, idxs = index.search(q, k)
 
-    scores, indices = index.search(query_embedding, k)
-
-    results: List[dict] = []
-    for idx in indices[0]:
-        if idx == -1:
+    out: List[dict] = []
+    for score, idx in zip(scores[0], idxs[0]):
+        if idx < 0 or idx >= len(metadata):
             continue
-        if 0 <= int(idx) < len(metadata):
-            results.append(metadata[int(idx)])
-
-    return results
+        item = dict(metadata[idx])
+        item["score"] = float(score)
+        out.append(item)
+    return out

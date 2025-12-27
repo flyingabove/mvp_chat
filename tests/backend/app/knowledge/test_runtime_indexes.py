@@ -8,30 +8,28 @@ import pytest
 def test_bm25_runtime_load_and_search(tmp_path):
     pytest.importorskip("rank_bm25")
     from backend.app.knowledge.runtime.bm25_runtime import load_bm25, search_bm25
+    from backend.app.knowledge.build.bm25_utils import BM25_SCHEMA
 
-    # Schema is now chunk-based (canonical, v2)
     payload = {
-        "schema": "bm25_v2",  # ✅ REQUIRED by runtime invariant
+        "schema": BM25_SCHEMA,
         "corpus_tokens": [["iu", "love"], ["random"]],
         "chunks": [{"chunk_id": "a"}, {"chunk_id": "b"}],
     }
-
     p = tmp_path / "bm25.json"
     p.write_text(json.dumps(payload), encoding="utf-8")
 
     bm25, chunks = load_bm25(p)
     results = search_bm25(bm25, chunks, "iu love", k=1)
-
     assert results[0]["chunk_id"] == "a"
 
 
 def test_faiss_runtime_load_and_search(tmp_path):
-    import faiss
+    faiss = pytest.importorskip("faiss")
     if not hasattr(faiss, "IndexFlatIP"):
         pytest.skip("faiss not available")
+
     from backend.app.knowledge.runtime.faiss_runtime import load_faiss_index, search_faiss
 
-    # Build a tiny FlatIP index
     dim = 2
     index = faiss.IndexFlatIP(dim)
     vecs = np.array([[1.0, 0.0], [0.0, 1.0]], dtype="float32")
@@ -46,18 +44,17 @@ def test_faiss_runtime_load_and_search(tmp_path):
 
     loaded, loaded_meta = load_faiss_index(idx_path, meta_path)
     res = search_faiss(loaded, loaded_meta, [1.0, 0.0], k=1)
-
     assert res[0]["chunk_id"] == "x"
 
 
 def test_load_character_indexes_raises_when_artifacts_missing(monkeypatch, tmp_path):
-    """Repo ships source chunks but not built artifacts; error should be explicit."""
-    import faiss
-    if not hasattr(faiss, "IndexFlatIP"):
-        pytest.skip("faiss not available")
+    """
+    Error should be explicit when neither persistent cache nor image artifacts exist.
+    """
+    pytest.importorskip("faiss")
+
     from backend.app.knowledge.runtime import load_indexes as li
 
-    # Point both possible cache roots to empty temp dirs so runtime can't find artifacts.
     persist = tmp_path / "persist"
     cache = tmp_path / "knowledge_cache"
     monkeypatch.setenv("KNOWLEDGE_PERSIST_ROOT", str(persist))

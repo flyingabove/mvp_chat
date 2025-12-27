@@ -1,7 +1,8 @@
-# tests/backend/integration/test_iu_hybrid_retrieval.py
-
 import os
 import pytest
+
+pytest.importorskip("faiss")
+pytest.importorskip("rank_bm25")
 
 from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 from backend.app.knowledge.build.faiss_utils import faiss_search
@@ -9,10 +10,6 @@ from backend.app.knowledge.build.bm25_utils import bm25_search
 from backend.app.knowledge.build.hybrid import hybrid_retrieve
 from backend.app.knowledge.build.embedder import embed_query
 
-
-# ---------------------------------------------------------------------------
-# Test cases (gold-label, single-answer retrieval)
-# ---------------------------------------------------------------------------
 
 TEST_CASES = [
     {"section": "identity", "q": "What is IU's legal name?", "ans": "iu_1_identity_basic"},
@@ -50,17 +47,18 @@ def test_iu_hybrid_retrieval_recall_threshold():
     - Must use real built artifacts
     - Must meet recall threshold
     """
-
     cache_dir = os.environ.get("KNOWLEDGE_CACHE_DIR")
     assert cache_dir is not None, "KNOWLEDGE_CACHE_DIR must be set for integration tests"
-    assert cache_dir.startswith("/data"), (
-        f"Integration test must use persistent cache, got {cache_dir}"
-    )
+    assert cache_dir.startswith("/data"), f"Integration test must use persistent cache, got {cache_dir}"
 
-    # Ignore extra metadata if loader returns more than 3 values
-    chunks, bm25, faiss_index, *_ = load_character_indexes("1_iu")
+    bundle = load_character_indexes("1_iu")
+    chunks = bundle.chunks
+    chunk_ids = bundle.chunk_ids
+    bm25 = bundle.bm25
+    faiss_index = bundle.faiss_index
 
-    chunk_ids = [c.get("chunk_id") for c in chunks]
+    assert chunks and isinstance(chunks, list), "chunks must be a non-empty list"
+    assert all(isinstance(c, dict) for c in chunks), "each chunk must be a dict"
     assert all(chunk_ids), "All chunks must have chunk_id"
 
     tp = fp = fn = 0

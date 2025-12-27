@@ -6,11 +6,8 @@ import os
 import shutil
 from typing import List, Tuple
 
-import faiss  # type: ignore
-
-from backend.app.knowledge.runtime.bm25_runtime import load_bm25
 from backend.app.knowledge.contracts.index_bundle import CharacterIndexBundle
-
+from backend.app.knowledge.runtime.bm25_runtime import load_bm25
 
 REQUIRED_FILES = ("faiss.index", "bm25.json", "chunks.jsonl")
 
@@ -42,17 +39,16 @@ def _copy_tree(src: Path, dst: Path, filenames: Tuple[str, ...]) -> None:
 
 def load_character_indexes(character_id: str = "1_iu") -> CharacterIndexBundle:
     """
-    Load retrieval artifacts for a character and return
-    a strongly-typed CharacterIndexBundle.
+    Load retrieval artifacts for a character and return a strongly-typed bundle.
 
     Resolution order:
-    1) Persistent cache directory (Railway volume)
-    2) Image-bundled artifacts inside container
+      1) Persistent cache directory (Railway volume)
+      2) Image-bundled artifacts inside container
 
     Fails loudly if artifacts are missing or invalid.
     """
 
-    # Image-bundled knowledge dir
+    # Image-bundled knowledge dir: backend/app/knowledge
     image_knowledge_dir = Path(__file__).resolve().parents[1]
     image_char_dir = image_knowledge_dir / "characters" / character_id
 
@@ -94,25 +90,32 @@ def load_character_indexes(character_id: str = "1_iu") -> CharacterIndexBundle:
             f"Missing at least: {', '.join(missing)}"
         )
 
-    assert use_dir is not None  # for type checkers
+    assert use_dir is not None
 
-    # --- Load artifacts ---
-    chunks = _load_chunks_jsonl(use_dir / "chunks.jsonl")
+    chunks_path = use_dir / "chunks.jsonl"
+    bm25_path = use_dir / "bm25.json"
+    faiss_path = use_dir / "faiss.index"
+
+    chunks = _load_chunks_jsonl(chunks_path)
 
     try:
-        bm25, _ = load_bm25(use_dir / "bm25.json")
+        bm25, _ = load_bm25(bm25_path)
     except Exception as e:
-        raise RuntimeError(
-            f"Failed to load BM25 index at {use_dir / 'bm25.json'}: {e}"
-        ) from e
+        raise RuntimeError(f"Failed to load BM25 index at {bm25_path}: {e}") from e
 
-    faiss_index = faiss.read_index(str(use_dir / "faiss.index"))
+    try:
+        import faiss  # type: ignore
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError(f"FAISS not available: {e}") from e
 
-    # --- Return typed contract ---
+    faiss_index = faiss.read_index(str(faiss_path))
+    chunk_ids = [c.get("chunk_id", "") for c in chunks]
+
     return CharacterIndexBundle(
         character_id=character_id,
-        artifact_dir=str(use_dir),
+        artifact_dir=use_dir,
         chunks=chunks,
+        chunk_ids=chunk_ids,
         bm25=bm25,
-        faiss=faiss_index,
+        faiss_index=faiss_index,
     )
