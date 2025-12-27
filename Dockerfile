@@ -29,7 +29,17 @@ COPY tests/ /srv/tests/
 RUN pip install --no-cache-dir -r /srv/backend/requirements.txt
 
 # Optional: log environment versions (safe, fast)
-RUN python backend/app/knowledge/build/print_env_versions.py
+RUN python /srv/backend/app/knowledge/build/print_env_versions.py
+
+# ------------------------------------------------------------
+# BUILD-TIME TEST GATE (fail build => Railway cannot deploy)
+# ------------------------------------------------------------
+RUN if [ "${RUN_TESTS}" != "0" ]; then \
+      echo "🧪 Running tests at build time (fail stops deploy)"; \
+      python -m pytest -x -q --disable-warnings /srv/tests; \
+    else \
+      echo "⚠️ RUN_TESTS=0 → skipping build-time tests"; \
+    fi
 
 # ------------------------------------------------------------
 # Expose port
@@ -37,7 +47,7 @@ RUN python backend/app/knowledge/build/print_env_versions.py
 EXPOSE 8000
 
 # ------------------------------------------------------------
-# Startup command (correct order, correct module)
+# Startup command (no crash-loop testing)
 # ------------------------------------------------------------
 RUN echo "🔥 DOCKERFILE REBUILT AT $(date)"
 
@@ -54,17 +64,6 @@ CMD ["sh", "-e", "-c", "\
   \
   echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
   python -m backend.app.knowledge.build.build_index; \
-  \
-  if [ \"${RUN_TESTS:-1}\" != \"0\" ]; then \
-    echo \"🧪 RUN_TESTS=${RUN_TESTS:-1} → running tests\"; \
-    python -m pytest -x -q --disable-warnings /srv/tests || { \
-      echo \"❌ Tests failed — aborting startup\"; \
-      exit 1; \
-    }; \
-    echo \"✅ Tests passed\"; \
-  else \
-    echo \"⚠️ RUN_TESTS=0 → skipping tests\"; \
-  fi; \
   \
   echo \"🚀 Starting server\"; \
   exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 \

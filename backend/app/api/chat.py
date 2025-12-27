@@ -6,20 +6,7 @@ import re
 import time
 import uuid
 
-from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
-
-# ---------------------------------------------------------------------------
-# SAFE INDEX LOADING (no boot crash)
-# ---------------------------------------------------------------------------
-try:
-    INDEXES = load_character_indexes()
-except Exception as e:
-    INDEXES = None
-    print(json.dumps({
-        "kind": "index_load_failed",
-        "error": str(e)
-    }))
 
 from backend.app.config.settings import (
     OPENAI_API_KEY, OPENAI_MODEL,
@@ -229,7 +216,6 @@ async def chat_handler(data: dict):
 
         sess["state"] = new_state
         sess["log"] = [
-            # build_messages now requires knowledge_chunks; for opening system prompt use [].
             {"role": "system", "content": build_messages(new_state, [], "", [])[0]["content"]},
             {"role": "assistant", "content": opening}
         ]
@@ -252,8 +238,12 @@ async def chat_handler(data: dict):
         if not state.user.display_name:
             state.user.display_name = extracted
 
-    # Authoritative retrieval happens once here; prompt_builder only formats it.
-    retrieved, debug = retrieve_knowledge(msg)
+    # --- Authoritative retrieval ---
+    try:
+        retrieved, debug = retrieve_knowledge(msg)
+    except Exception as e:
+        _log({"kind": "retrieval_error", "error": str(e)})
+        return {"error": "knowledge retrieval failed", "character": "default"}
 
     messages = build_messages(state, log, msg, retrieved)
     state.turns += 1
@@ -272,13 +262,7 @@ async def chat_handler(data: dict):
         "turn": state.turns,
         "user_msg": msg,
         "retrieval_debug": debug,
-        "retrieved_chunk_ids": [c["chunk_id"] for c in retrieved],
-        "openai_payload": {
-            "model": payload["model"],
-            "temperature": payload["temperature"],
-            "max_tokens": payload["max_tokens"],
-            "messages": [{"role": m["role"], "content": _truncate(m["content"], 2000)} for m in payload["messages"]],
-        }
+        "retrieved_chunk_ids": [c.get("chunk_id") for c in retrieved],
     })
 
     async with httpx.AsyncClient(timeout=30.0) as client:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Tuple, List, Dict, Any
 
-from backend.app.knowledge.runtime.index_store import get_indexes
+from backend.app.knowledge.runtime.index_service import IndexService
 
 
 def retrieve_knowledge(
@@ -23,10 +23,11 @@ def retrieve_knowledge(
     if not query:
         return [], {"error": "empty_query"}
 
-    indexes = get_indexes()
-    chunks = indexes["chunks"]
-    bm25 = indexes["bm25"]
-    faiss_index = indexes["faiss"]
+    # --- Load indexes exactly once via IndexService ---
+    bundle = IndexService.get()
+    chunks = bundle.chunks
+    bm25 = bundle.bm25
+    faiss_index = bundle.faiss
 
     # Lazy imports (avoid heavy import at module load / tests)
     from backend.app.knowledge.build.embedder import embed_query
@@ -37,7 +38,11 @@ def retrieve_knowledge(
     q_tokens = query.lower().split()
     scores = bm25.get_scores(q_tokens)
 
-    bm25_idxs = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k_bm25]
+    bm25_idxs = sorted(
+        range(len(scores)),
+        key=lambda i: scores[i],
+        reverse=True,
+    )[:k_bm25]
     bm25_scores = [float(scores[i]) for i in bm25_idxs]
 
     # --- FAISS top-k indices ---
@@ -47,7 +52,11 @@ def retrieve_knowledge(
     # --- Fuse ---
     fused_idxs = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=k_final)
 
-    retrieved_chunks = [chunks[i] for i in fused_idxs if 0 <= i < len(chunks)]
+    retrieved_chunks = [
+        chunks[i]
+        for i in fused_idxs
+        if 0 <= i < len(chunks)
+    ]
 
     return retrieved_chunks, {
         "bm25_idxs": bm25_idxs,
