@@ -21,8 +21,9 @@ def test_iu_retrieval_returns_real_songs():
     # Load real indexes (must exist or test fails)
     indexes = load_character_indexes("1_iu")
 
-    assert "chunks" in indexes
-    assert len(indexes["chunks"]) > 0, "No knowledge chunks loaded"
+    # CharacterIndexBundle contract (not dict)
+    assert indexes.chunks, "No knowledge chunks loaded"
+    assert len(indexes.chunks) > 0
 
     # Query something factual and easy
     query = "what are some songs you sang"
@@ -34,7 +35,7 @@ def test_iu_retrieval_returns_real_songs():
     assert isinstance(chunks, list)
 
     # Look for real IU song titles we KNOW exist in the KB
-    joined_text = " ".join(c.get("text", "").lower() for c in chunks)
+    joined_text = " ".join((c.get("text", "") or "").lower() for c in chunks)
 
     expected_any = [
         "good day",
