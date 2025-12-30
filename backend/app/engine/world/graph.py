@@ -1,29 +1,52 @@
-# backend/app/engine/world/graph.py
-from typing import Dict, List
-from .location import Location
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Dict, Tuple
+
 from .edge import PathEdge
+from .ids import LocationId
+from .location import Location
+
+
+@dataclass(frozen=True)
+class EdgeList:
+    """Immutable container for edges."""
+
+    edges: Tuple[PathEdge, ...]
+
+    def to_tuple(self) -> Tuple[PathEdge, ...]:
+        return self.edges
 
 
 class WorldGraph:
-    def __init__(self):
-        self.locations: Dict[str, Location] = {}
-        self.edges_from: Dict[str, List[PathEdge]] = {}
+    """Authoritative topological world graph."""
+
+    def __init__(self) -> None:
+        self._locations: Dict[str, Location] = {}
+        self._outgoing: Dict[str, Tuple[PathEdge, ...]] = {}
 
     def add_location(self, location: Location) -> None:
-        if location.id in self.locations:
+        key = location.id.value
+        if key in self._locations:
             raise ValueError(f"Duplicate location id: {location.id}")
-        self.locations[location.id] = location
-        self.edges_from.setdefault(location.id, [])
+        self._locations[key] = location
+        self._outgoing.setdefault(key, tuple())
 
     def add_edge(self, edge: PathEdge) -> None:
-        if edge.from_id not in self.locations:
-            raise KeyError(f"Unknown location: {edge.from_id}")
-        if edge.to_id not in self.locations:
-            raise KeyError(f"Unknown location: {edge.to_id}")
-        self.edges_from[edge.from_id].append(edge)
+        if edge.from_id.value not in self._locations:
+            raise KeyError(f"Unknown from_id: {edge.from_id}")
+        if edge.to_id.value not in self._locations:
+            raise KeyError(f"Unknown to_id: {edge.to_id}")
 
-    def get_neighbors(self, location_id: str) -> List[PathEdge]:
-        return self.edges_from.get(location_id, [])
+        key = edge.from_id.value
+        self._outgoing[key] = self._outgoing.get(key, tuple()) + (edge,)
 
-    def get_location(self, location_id: str) -> Location:
-        return self.locations[location_id]
+    def get_location(self, location_id: LocationId) -> Location:
+        return self._locations[location_id.value]
+
+    def get_outgoing(self, from_id: LocationId) -> EdgeList:
+        return EdgeList(edges=self._outgoing.get(from_id.value, tuple()))
+
+    def get_direct_edges(self, from_id: LocationId, to_id: LocationId) -> EdgeList:
+        edges = tuple(e for e in self._outgoing.get(from_id.value, tuple()) if e.to_id == to_id)
+        return EdgeList(edges=edges)

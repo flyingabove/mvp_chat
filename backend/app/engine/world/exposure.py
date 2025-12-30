@@ -1,40 +1,81 @@
-# backend/app/engine/world/exposure.py
-import random
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Optional
 
+from .ids import LocationId
 
-@dataclass
-class TravelExposure:
-    exit_event: bool
-    pass_intermediate: bool
-    event_at_intermediate: bool
-    enter_event: bool
-    describe_destination: bool
-    intermediate_id: Optional[str] = None
+
+@dataclass(frozen=True)
+class ExposureConfig:
+    p_exit_A: float
+    p_pass_C: float
+    p_event_at_C: float
+    p_enter_B: float
+    p_describe_B: float
+
+    def validate(self) -> None:
+        for name, value in (
+            ("p_exit_A", self.p_exit_A),
+            ("p_pass_C", self.p_pass_C),
+            ("p_event_at_C", self.p_event_at_C),
+            ("p_enter_B", self.p_enter_B),
+            ("p_describe_B", self.p_describe_B),
+        ):
+            if not (0.0 <= float(value) <= 1.0):
+                raise ValueError(f"{name} must be in [0,1]")
+
+
+@dataclass(frozen=True)
+class ExposurePacket:
+    """What the AI is allowed to know about travel for this turn."""
+
+    exit_event_at_A: bool
+    pass_intermediate_C: bool
+    event_at_C: bool
+    enter_event_at_B: bool
+    describe_B: bool
+
+    intermediate_id: Optional[LocationId] = None
 
 
 class ExposureResolver:
-    def __init__(self, seed: int, probs: dict):
-        self.random = random.Random(seed)
-        self.probs = probs
+    """Produces exposure packets according to the agreed p-slot rules."""
 
-    def roll(self, intermediate_id: Optional[str]) -> TravelExposure:
-        pass_c = (
-            intermediate_id is not None
-            and self.random.random() < self.probs["p_pass_C"]
-        )
+    def __init__(self, config: ExposureConfig, seed: int):
+        config.validate()
+        self._config = config
+        self._seed = seed
 
-        event_c = (
-            pass_c
-            and self.random.random() < self.probs["p_event_at_C"]
-        )
+    def _rng(self):
+        import random
 
-        return TravelExposure(
-            exit_event=self.random.random() < self.probs["p_exit_A"],
-            pass_intermediate=pass_c,
-            event_at_intermediate=event_c,
-            enter_event=self.random.random() < self.probs["p_enter_B"],
-            describe_destination=self.random.random() < self.probs["p_describe_B"],
-            intermediate_id=intermediate_id if pass_c else None,
+        return random.Random(self._seed)
+
+    def roll(self, intermediate_id: Optional[LocationId]) -> ExposurePacket:
+        r = self._rng()
+
+        exit_event = r.random() < self._config.p_exit_A
+
+        # If there is no intermediate in the chosen route, C cannot be exposed.
+        if intermediate_id is None:
+            return ExposurePacket(
+                exit_event_at_A=exit_event,
+                pass_intermediate_C=False,
+                event_at_C=False,
+                enter_event_at_B=(r.random() < self._config.p_enter_B),
+                describe_B=(r.random() < self._config.p_describe_B),
+                intermediate_id=None,
+            )
+
+        pass_c = r.random() < self._config.p_pass_C
+        event_c = pass_c and (r.random() < self._config.p_event_at_C)
+
+        return ExposurePacket(
+            exit_event_at_A=exit_event,
+            pass_intermediate_C=pass_c,
+            event_at_C=event_c,
+            enter_event_at_B=(r.random() < self._config.p_enter_B),
+            describe_B=(r.random() < self._config.p_describe_B),
+            intermediate_id=(intermediate_id if pass_c else None),
         )
