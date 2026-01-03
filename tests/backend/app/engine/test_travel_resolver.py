@@ -25,7 +25,6 @@ class _StubExposureResolver:
         )
 
 
-@pytest.mark.xfail(reason="Known bug: resolver passes all edges due to `or True` in filter")
 def test_travel_resolver_should_only_consider_edges_to_destination():
     g = WorldGraph()
     g.add_location(Location(id="A", name="A", description="", tags=[]))
