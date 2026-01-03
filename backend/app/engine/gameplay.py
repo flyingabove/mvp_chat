@@ -1,6 +1,7 @@
 # app/engine/gameplay.py
 import re
 import math
+from typing import Optional
 from backend.app.config.settings import (
     MINS_PER_WORD,
     BASE_TURN_MINS,
@@ -61,16 +62,68 @@ def advance_time(state, player_text: str):
     # Basic time progression
     delta = base + math.ceil(word_count(player_text) * per_word)
 
+    # If a world clock is active, keep it in sync with dialog time.
+    runtime = getattr(state, "world_runtime", None)
+    if runtime is not None:
+        try:
+            runtime.world_clock.advance(int(delta))
+        except Exception:
+            pass
+
     # Movement detection
     m = re.search(r"\b(go|move)\s+to\s+(.{3,})", player_text, re.I)
     if m:
         place = sanitize_location(m.group(2))
-        # state["location"] is invalid for dataclasses → use setattr
+
+        # Prefer authoritative world graph travel when available.
+        if runtime is not None and getattr(state, "location_id", ""):
+            dest_id = _resolve_destination_id(runtime.world_graph, place)
+            if dest_id:
+                exposure = runtime.travel_resolver.resolve(state.location_id, dest_id)
+                state.last_travel_from_id = state.location_id
+                state.last_travel_to_id = dest_id
+                state.last_travel_exposure = exposure
+
+                state.location_id = dest_id
+                # Human-readable location string for UI + manifestation heuristics.
+                try:
+                    state.location = runtime.world_graph.get_location(dest_id).name
+                except Exception:
+                    state.location = place
+
+                # Sync state.minute from world clock (authoritative)
+                state.minute = runtime.world_clock.minute
+                return
+
+        # Fallback: legacy free-text location
         setattr(state, "location", place)
         delta += travel
 
-    # Update minute
+    # Update minute (legacy path)
     setattr(state, "minute", getattr(state, "minute", 0) + delta)
+
+
+def _normalize_token(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _resolve_destination_id(world_graph, place: str) -> Optional[str]:
+    """Resolve a user-provided place string to a known location id."""
+    want = _normalize_token(place)
+    if not want:
+        return None
+
+    # Exact id match (normalized)
+    for loc_id in getattr(world_graph, "locations", {}).keys():
+        if _normalize_token(loc_id) == want:
+            return loc_id
+
+    # Name match
+    for loc_id, loc in getattr(world_graph, "locations", {}).items():
+        if _normalize_token(getattr(loc, "name", "")) == want:
+            return loc_id
+
+    return None
 
 
 def confession_detected(text: str, state) -> bool:

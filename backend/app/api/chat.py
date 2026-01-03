@@ -25,6 +25,8 @@ from backend.app.engine.gameplay import (
     advance_time,
     confession_detected
 )
+from backend.app.engine.time_utils import WorldTimeFormatter
+from backend.app.engine.world.world_loader import WorldLoader
 from backend.app.engine.prompt_builder import (
     build_messages
 )
@@ -193,7 +195,28 @@ async def chat_handler(data: dict):
         new_state.player_name = player_name
         new_state.story_cfg = cfg
 
+        # Optional world graph runtime (does not change gameplay unless movement occurs)
+        world_cfg = cfg.get("world", {}) or {}
+        seed = int(world_cfg.get("seed", 0))
+        world_file = str(world_cfg.get("file", "")).strip()
+        if world_file:
+            loaded = WorldLoader.load_from_file(f"backend/app/stories/{world_file}", seed=seed)
+        else:
+            loaded = WorldLoader.try_load_story_world(story_id, stories_dir="backend/app/stories", seed=seed)
+        if loaded is not None:
+            new_state.world_runtime = loaded
+            start_id = str(world_cfg.get("start_location_id", "")).strip()
+            if start_id and start_id in loaded.world_graph.locations:
+                new_state.location_id = start_id
+            else:
+                # Fallback: keep empty if unknown
+                new_state.location_id = ""
+
+            # Timestamp start
+            new_state.world_start_datetime = str(world_cfg.get("start_datetime", "")).strip()
+
         new_state.user.gender = new_state.gender
+        # Keep the legacy human-readable start location string (used by manifestation heuristics)
         new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
         new_state.iu_emotion = cfg.get("emotion", {}).get("start", new_state.iu_emotion)
 
@@ -317,4 +340,7 @@ async def chat_handler(data: dict):
         "assistant_reply_preview": _truncate(clean, 1200),
     })
 
-    return {"reply": clean, "usage": data.get("usage"), "character": "default"}
+    # Prepend a readable timestamp to the returned reply for the UI.
+    ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
+    stamped = f"[{ts}]\n{clean}"
+    return {"reply": stamped, "usage": data.get("usage"), "character": "default"}
