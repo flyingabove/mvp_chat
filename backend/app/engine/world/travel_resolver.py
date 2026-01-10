@@ -57,8 +57,10 @@ class TravelResolver:
         clock: WorldClock,
         rules: TravelRules,
         exposure_resolver: ExposureResolver,
-        timing: TravelTiming,
+        timing: TravelTiming | None = None,
     ) -> None:
+        if timing is None:
+            timing = TravelTiming()
         timing.validate()
         self._graph = graph
         self._clock = clock
@@ -91,6 +93,23 @@ class TravelResolver:
             start_minute=start_minute,
             end_minute=end_minute,
         )
+
+    def resolve(self, from_id: str, to_id: str):
+        """Compatibility API for unit tests.
+
+        Executes travel from `from_id` to `to_id` and returns a TravelExposure
+        (older naming). New code should prefer `execute(TravelRequest(...))`.
+        """
+        result = self.execute(TravelRequest(LocationId(from_id), LocationId(to_id)))
+        # If the exposure is already a TravelExposure (e.g., stubbed in tests),
+        # just return it. Otherwise convert from the canonical ExposurePacket.
+        try:
+            from .exposure import TravelExposure  # local import to avoid cycles
+            if isinstance(result.exposure, TravelExposure):
+                return result.exposure
+            return TravelExposure.from_packet(result.exposure)
+        except Exception:
+            return result.exposure
 
     def current_minute(self) -> int:
         return self._clock.now_minute()

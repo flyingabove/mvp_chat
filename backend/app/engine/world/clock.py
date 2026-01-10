@@ -9,6 +9,8 @@ class WorldClock:
 
     Stores minutes since world start. The rest of the system must advance time
     only through this class.
+
+    Compatibility: older tests expect `clock.minute` and `clock.advance(...)`.
     """
 
     _minute: int = 0
@@ -20,8 +22,15 @@ class WorldClock:
             raise ValueError("start_minute must be >= 0")
         self._minute = start_minute
 
+    @property
+    def minute(self) -> int:
+        return self._minute
+
     def now_minute(self) -> int:
         return self._minute
+
+    def advance(self, minutes: int) -> None:
+        self.advance_minutes(minutes)
 
     def advance_minutes(self, minutes: int) -> None:
         if not isinstance(minutes, int):

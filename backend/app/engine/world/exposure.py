@@ -38,6 +38,57 @@ class ExposurePacket:
 
     intermediate_id: Optional[LocationId] = None
 
+# ---------------------------------------------------------------------------
+# Backwards-compatible alias used by unit tests and older code paths.
+# New code should prefer ExposurePacket.
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class TravelExposure:
+    """Compatibility wrapper for older naming used in tests.
+
+    The engine's canonical packet is ExposurePacket with fields:
+      - exit_event_at_A
+      - pass_intermediate_C
+      - event_at_C
+      - enter_event_at_B
+      - describe_B
+
+    This class mirrors the older field names expected by existing tests:
+      - exit_event
+      - pass_intermediate
+      - event_at_intermediate
+      - enter_event
+      - describe_destination
+    """
+
+    exit_event: bool
+    pass_intermediate: bool
+    event_at_intermediate: bool
+    enter_event: bool
+    describe_destination: bool
+    intermediate_id: Optional[LocationId] = None
+
+    @classmethod
+    def from_packet(cls, packet: ExposurePacket) -> "TravelExposure":
+        return cls(
+            exit_event=packet.exit_event_at_A,
+            pass_intermediate=packet.pass_intermediate_C,
+            event_at_intermediate=packet.event_at_C,
+            enter_event=packet.enter_event_at_B,
+            describe_destination=packet.describe_B,
+            intermediate_id=packet.intermediate_id,
+        )
+
+    def to_packet(self) -> ExposurePacket:
+        return ExposurePacket(
+            exit_event_at_A=self.exit_event,
+            pass_intermediate_C=self.pass_intermediate,
+            event_at_C=self.event_at_intermediate,
+            enter_event_at_B=self.enter_event,
+            describe_B=self.describe_destination,
+            intermediate_id=self.intermediate_id,
+        )
+
 
 class ExposureResolver:
     """Produces exposure packets according to the agreed p-slot rules."""
