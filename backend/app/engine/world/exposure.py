@@ -38,66 +38,32 @@ class ExposurePacket:
 
     intermediate_id: Optional[LocationId] = None
 
-# ---------------------------------------------------------------------------
-# Backwards-compatible alias used by unit tests and older code paths.
-# New code should prefer ExposurePacket.
-# ---------------------------------------------------------------------------
-@dataclass(frozen=True)
-class TravelExposure:
-    """Compatibility wrapper for older naming used in tests.
-
-    The engine's canonical packet is ExposurePacket with fields:
-      - exit_event_at_A
-      - pass_intermediate_C
-      - event_at_C
-      - enter_event_at_B
-      - describe_B
-
-    This class mirrors the older field names expected by existing tests:
-      - exit_event
-      - pass_intermediate
-      - event_at_intermediate
-      - enter_event
-      - describe_destination
-    """
-
-    exit_event: bool
-    pass_intermediate: bool
-    event_at_intermediate: bool
-    enter_event: bool
-    describe_destination: bool
-    intermediate_id: Optional[LocationId] = None
-
-    @classmethod
-    def from_packet(cls, packet: ExposurePacket) -> "TravelExposure":
-        return cls(
-            exit_event=packet.exit_event_at_A,
-            pass_intermediate=packet.pass_intermediate_C,
-            event_at_intermediate=packet.event_at_C,
-            enter_event=packet.enter_event_at_B,
-            describe_destination=packet.describe_B,
-            intermediate_id=packet.intermediate_id,
-        )
-
-    def to_packet(self) -> ExposurePacket:
-        return ExposurePacket(
-            exit_event_at_A=self.exit_event,
-            pass_intermediate_C=self.pass_intermediate,
-            event_at_C=self.event_at_intermediate,
-            enter_event_at_B=self.enter_event,
-            describe_B=self.describe_destination,
-            intermediate_id=self.intermediate_id,
-        )
-
 
 class ExposureResolver:
     """Produces exposure packets according to the agreed p-slot rules."""
 
-    def __init__(self, config: ExposureConfig, seed: int):
-        config.validate()
-        self._config = config
-        self._seed = seed
+def __init__(self, config: ExposureConfig | None = None, seed: int = 0, *, probs: dict | None = None):
+    """Create an exposure resolver.
 
+    New-style usage:
+        ExposureResolver(config=ExposureConfig(...), seed=seed)
+
+    Back-compat usage (older tests / callers):
+        ExposureResolver(seed=seed, probs={...})
+    """
+    if config is None:
+        if probs is None:
+            raise TypeError("ExposureResolver requires `config` or `probs`")
+        config = ExposureConfig(
+            p_exit_A=float(probs.get("p_exit_A", 0.2)),
+            p_pass_C=float(probs.get("p_pass_C", 0.5)),
+            p_event_at_C=float(probs.get("p_event_at_C", 0.25)),
+            p_enter_B=float(probs.get("p_enter_B", 0.2)),
+            p_describe_B=float(probs.get("p_describe_B", 0.6)),
+        )
+    config.validate()
+    self._config = config
+    self._seed = int(seed)
     def _rng(self):
         import random
 
