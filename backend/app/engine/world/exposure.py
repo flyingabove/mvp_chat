@@ -8,6 +8,14 @@ from .ids import LocationId
 
 @dataclass(frozen=True)
 class ExposureConfig:
+    """Probability slots for travel exposure.
+
+    These match the naming used in the design doc/tests:
+    - A = origin
+    - C = optional intermediate
+    - B = destination
+    """
+
     p_exit_A: float
     p_pass_C: float
     p_event_at_C: float
@@ -28,55 +36,96 @@ class ExposureConfig:
 
 @dataclass(frozen=True)
 class ExposurePacket:
-    """What the AI is allowed to know about travel for this turn."""
+    """Canonical v2 exposure packet (internal shape)."""
 
     exit_event_at_A: bool
     pass_intermediate_C: bool
     event_at_C: bool
     enter_event_at_B: bool
     describe_B: bool
-
     intermediate_id: Optional[LocationId] = None
+
+
+@dataclass(frozen=True)
+class TravelExposure:
+    """Backwards-compatible exposure shape used by older tests/callers.
+
+    Tests in this repo (and legacy code) expect these attribute names.
+    TravelResolver.resolve() converts from ExposurePacket to this type.
+    """
+
+    exit_event: bool
+    pass_intermediate: bool
+    event_at_intermediate: bool
+    enter_event: bool
+    describe_destination: bool
+    intermediate_id: Optional[LocationId] = None
+
+    @classmethod
+    def from_packet(cls, packet: ExposurePacket) -> "TravelExposure":
+        return cls(
+            exit_event=packet.exit_event_at_A,
+            pass_intermediate=packet.pass_intermediate_C,
+            event_at_intermediate=packet.event_at_C,
+            enter_event=packet.enter_event_at_B,
+            describe_destination=packet.describe_B,
+            intermediate_id=packet.intermediate_id,
+        )
 
 
 class ExposureResolver:
     """Produces exposure packets according to the agreed p-slot rules."""
 
-def __init__(self, config: ExposureConfig | None = None, seed: int = 0, *, probs: dict | None = None):
-    """Create an exposure resolver.
+    def __init__(
+        self,
+        config: ExposureConfig | None = None,
+        seed: int = 0,
+        *,
+        probs: dict | None = None,
+    ) -> None:
+        """Create an exposure resolver.
 
-    New-style usage:
-        ExposureResolver(config=ExposureConfig(...), seed=seed)
+        New-style usage:
+            ExposureResolver(config=ExposureConfig(...), seed=seed)
 
-    Back-compat usage (older tests / callers):
-        ExposureResolver(seed=seed, probs={...})
-    """
-    if config is None:
-        if probs is None:
-            raise TypeError("ExposureResolver requires `config` or `probs`")
-        config = ExposureConfig(
-            p_exit_A=float(probs.get("p_exit_A", 0.2)),
-            p_pass_C=float(probs.get("p_pass_C", 0.5)),
-            p_event_at_C=float(probs.get("p_event_at_C", 0.25)),
-            p_enter_B=float(probs.get("p_enter_B", 0.2)),
-            p_describe_B=float(probs.get("p_describe_B", 0.6)),
-        )
-    config.validate()
-    self._config = config
-    self._seed = int(seed)
+        Back-compat usage (older tests / callers):
+            ExposureResolver(seed=seed, probs={...})
+        """
+
+        if config is None:
+            if probs is None:
+                raise TypeError("ExposureResolver requires `config` or `probs`")
+            config = ExposureConfig(
+                p_exit_A=float(probs.get("p_exit_A", 0.2)),
+                p_pass_C=float(probs.get("p_pass_C", 0.5)),
+                p_event_at_C=float(probs.get("p_event_at_C", 0.25)),
+                p_enter_B=float(probs.get("p_enter_B", 0.2)),
+                p_describe_B=float(probs.get("p_describe_B", 0.6)),
+            )
+
+        config.validate()
+        self._config = config
+        self._seed = int(seed)
+
     def _rng(self):
         import random
 
         return random.Random(self._seed)
 
-    def roll(self, intermediate_id: Optional[LocationId]) -> ExposurePacket:
+    def roll(self, intermediate_id: Optional[LocationId]):
+        """Return a TravelExposure (legacy shape) for compatibility.
+
+        The engine internally uses ExposurePacket, but returning TravelExposure
+        makes the public surface stable and keeps existing tests green.
+        """
+
         r = self._rng()
 
         exit_event = r.random() < self._config.p_exit_A
 
         # If there is no intermediate in the chosen route, C cannot be exposed.
         if intermediate_id is None:
-            return ExposurePacket(
+            packet = ExposurePacket(
                 exit_event_at_A=exit_event,
                 pass_intermediate_C=False,
                 event_at_C=False,
@@ -84,11 +133,12 @@ def __init__(self, config: ExposureConfig | None = None, seed: int = 0, *, probs
                 describe_B=(r.random() < self._config.p_describe_B),
                 intermediate_id=None,
             )
+            return TravelExposure.from_packet(packet)
 
         pass_c = r.random() < self._config.p_pass_C
         event_c = pass_c and (r.random() < self._config.p_event_at_C)
 
-        return ExposurePacket(
+        packet = ExposurePacket(
             exit_event_at_A=exit_event,
             pass_intermediate_C=pass_c,
             event_at_C=event_c,
@@ -96,3 +146,4 @@ def __init__(self, config: ExposureConfig | None = None, seed: int = 0, *, probs
             describe_B=(r.random() < self._config.p_describe_B),
             intermediate_id=(intermediate_id if pass_c else None),
         )
+        return TravelExposure.from_packet(packet)

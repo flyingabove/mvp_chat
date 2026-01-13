@@ -17,7 +17,7 @@ from .clock import WorldClock
 from .location import Location
 from .edge import PathEdge
 from .graph import WorldGraph
-from .exposure import ExposureConfig, ExposurePacket, ExposureResolver
+from .exposure import ExposureConfig, ExposurePacket, ExposureResolver, TravelExposure
 from .travel_rules import TravelRules
 from .travel_resolver import TravelRequest, TravelResult, TravelResolver
 from .world_json import WorldDefinition, WorldDefinitionLoader
@@ -31,6 +31,7 @@ __all__ = [
     "ExposureConfig",
     "ExposurePacket",
     "ExposureResolver",
+    "TravelExposure",
     "TravelRules",
     "TravelRequest",
     "TravelResult",
