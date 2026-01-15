@@ -7,6 +7,7 @@ import time
 import uuid
 
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
+from backend.app.knowledge.runtime.index_service import IndexService
 
 from backend.app.config.settings import (
     OPENAI_API_KEY, OPENAI_MODEL,
@@ -206,33 +207,56 @@ async def chat_handler(data: dict):
         if loaded is not None:
             new_state.world_runtime = loaded
             start_id = str(world_cfg.get("start_location_id", "")).strip()
+
+            # If no explicit start id, choose the first loaded node (JSON order is stable).
+            if not start_id:
+                try:
+                    start_id = next(iter(loaded.world_graph.locations.keys()), "")
+                except Exception:
+                    start_id = ""
+
             if start_id and start_id in loaded.world_graph.locations:
                 new_state.location_id = start_id
+                # Keep a human-readable location string in sync for UI/heuristics.
+                try:
+                    new_state.location = loaded.world_graph.locations[start_id].name
+                except Exception:
+                    pass
             else:
-                # Fallback: keep empty if unknown
                 new_state.location_id = ""
 
             # Timestamp start
             new_state.world_start_datetime = str(world_cfg.get("start_datetime", "")).strip()
 
         new_state.user.gender = new_state.gender
-        # Keep the legacy human-readable start location string (used by manifestation heuristics)
-        new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
+        # Keep a human-readable location. If the world graph is active we prefer
+        # the graph's display name; otherwise fall back to the story's setting string.
+        if not getattr(new_state, "location_id", ""):
+            new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
         new_state.iu_emotion = cfg.get("emotion", {}).get("start", new_state.iu_emotion)
 
-        victim_name = cfg.get("victim", {}).get("public_name", "IU")
-        victim_short = victim_name.split(",")[0].strip()
+        # Main character identity is story-driven (no hardcoded persona).
+        main_cfg = (cfg.get("main_character", {}) or {})
+        # Fallback naming comes from victim/public label in the story file.
+        public_label = str((cfg.get("victim", {}) or {}).get("public_name", "")).strip()
+        fallback_name = public_label.split(",")[0].strip() if public_label else "the character"
 
-        iu_char = CharacterState(
-            key="IU",
-            name=victim_short,
-            role="ghost",
+        main_key = str(main_cfg.get("key") or "MAIN").strip() or "MAIN"
+        main_name = str(main_cfg.get("name") or fallback_name).strip() or fallback_name
+        main_role = str(main_cfg.get("role") or "npc").strip() or "npc"
+
+        new_state.knowledge_character_id = str(main_cfg.get("knowledge_character_id") or "").strip()
+
+        main_char = CharacterState(
+            key=main_key,
+            name=main_name,
+            role=main_role,
             emotion=new_state.iu_emotion,
             relationship=new_state.relationship,
         )
 
-        new_state.characters["IU"] = iu_char
-        new_state.main_character_id = "IU"
+        new_state.characters[main_key] = main_char
+        new_state.main_character_id = main_key
 
         opening = cfg.get("opening", {}).get("text", "The room is quiet. A story begins.")
         opening = apply_placeholders(opening, new_state)
@@ -263,6 +287,9 @@ async def chat_handler(data: dict):
 
     # --- Authoritative retrieval ---
     try:
+        # Route retrieval to the correct character bundle for this story.
+        if getattr(state, "knowledge_character_id", ""):
+            IndexService.set_active_character(state.knowledge_character_id)
         retrieved, debug = retrieve_knowledge(msg)
     except Exception as e:
         _log({"kind": "retrieval_error", "error": str(e)})

@@ -9,7 +9,7 @@ from typing import List, Tuple
 from backend.app.knowledge.contracts.index_bundle import CharacterIndexBundle
 from backend.app.knowledge.runtime.bm25_runtime import load_bm25
 
-REQUIRED_FILES = ("faiss.index", "bm25.json", "chunks.jsonl")
+REQUIRED_FILES = ("chunks.jsonl",)
 
 
 def _load_chunks_jsonl(path: Path) -> List[dict]:
@@ -37,7 +37,7 @@ def _copy_tree(src: Path, dst: Path, filenames: Tuple[str, ...]) -> None:
             shutil.copy2(s, t)
 
 
-def load_character_indexes(character_id: str = "1_iu") -> CharacterIndexBundle:
+def load_character_indexes(character_id: str) -> CharacterIndexBundle:
     """
     Load retrieval artifacts for a character and return a strongly-typed bundle.
 
@@ -98,17 +98,22 @@ def load_character_indexes(character_id: str = "1_iu") -> CharacterIndexBundle:
 
     chunks = _load_chunks_jsonl(chunks_path)
 
-    try:
-        bm25, _ = load_bm25(bm25_path)
-    except Exception as e:
-        raise RuntimeError(f"Failed to load BM25 index at {bm25_path}: {e}") from e
+    bm25 = None
+    faiss_index = None
 
-    try:
-        import faiss  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise RuntimeError(f"FAISS not available: {e}") from e
+    if bm25_path.exists():
+        try:
+            bm25, _ = load_bm25(bm25_path)
+        except Exception as e:
+            # Leave bm25 None; retrieval will fallback to simple search.
+            bm25 = None
 
-    faiss_index = faiss.read_index(str(faiss_path))
+    if faiss_path.exists():
+        try:
+            import faiss  # type: ignore
+            faiss_index = faiss.read_index(str(faiss_path))
+        except Exception:
+            faiss_index = None
     chunk_ids = [c.get("chunk_id", "") for c in chunks]
 
     return CharacterIndexBundle(
