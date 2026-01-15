@@ -47,6 +47,13 @@ class WorldGraph:
     def get_outgoing(self, from_id: LocationId) -> EdgeList:
         return EdgeList(edges=self._outgoing.get(from_id.value, tuple()))
 
+    def get_neighbors(self, from_id: str | LocationId) -> Tuple[PathEdge, ...]:
+        """Compatibility helper for tests: return outgoing edges from a node."""
+        lid = from_id if isinstance(from_id, LocationId) else LocationId(from_id)
+        if lid.value not in self._locations:
+            raise KeyError(f"Unknown location id: {lid}")
+        return self._outgoing.get(lid.value, tuple())
+
     def get_direct_edges(self, from_id: LocationId, to_id: LocationId) -> EdgeList:
         edges = tuple(e for e in self._outgoing.get(from_id.value, tuple()) if e.to_id == to_id)
         return EdgeList(edges=edges)
