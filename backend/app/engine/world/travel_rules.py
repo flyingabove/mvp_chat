@@ -34,18 +34,6 @@ class TravelRoute:
 
 
 class TravelRules:
-
-    def choose_edge(self, edges):
-        """Choose an unblocked edge deterministically.
-
-        The unit tests expect this helper to exist. We filter out blocked
-        edges, then use the instance's seeded RNG for a stable choice.
-        Returns None if there are no available edges.
-        """
-        candidates = [e for e in edges if not getattr(e, "blocked", False)]
-        if not candidates:
-            return None
-        return self.random.choice(candidates)
     """Rule-driven, seeded route selection.
 
     This encodes the agreed behavior:
@@ -58,6 +46,22 @@ class TravelRules:
 
     def __init__(self, seed: int):
         import random
+
+    def choose_edge(self, edges):
+        """Choose an unblocked edge deterministically.
+
+        The unit tests expect this helper to exist. We filter out blocked
+        edges, then use the instance's seeded RNG (self._rng) for a stable choice.
+        Returns None if there are no available edges.
+        """
+        candidates = [e for e in edges if not getattr(e, "blocked", False)]
+        if not candidates:
+            return None
+        rng = getattr(self, "_rng", None)
+        if rng is None:
+            import random
+            rng = random.Random(0)
+        return rng.choice(candidates)
 
         self._rng = random.Random(seed)
 
