@@ -22,16 +22,16 @@ import re
 @dataclass
 class UserState:
     """
-    Stores all known information about the human player *as IU perceives them*.
+    Stores all known information about the human player as perceived in-story.
 
     - formal_name:
-        The user's real/full name IU believes is correct.
-        Extracted only if IU explicitly learns it (e.g., user tells her).
+        The user's real/full name the character believes is correct.
+        Extracted only if the character explicitly learns it (e.g., user tells them).
         This is NOT used automatically for addressing the user.
 
     - display_name:
-        What IU actually calls the user in dialogue.
-        Starts empty until IU *learns* or chooses something.
+        What the character actually calls the user in dialogue.
+        Starts empty until learned or chosen.
         Later, user can override this ("Call me Chris").
 
     - gender:
@@ -49,10 +49,10 @@ class UserState:
 @dataclass
 class CharacterState:
     """
-    Represents any character in the story world (IU or future NPCs).
+    Represents any character in the story world.
 
-    - key: internal ID, e.g. "IU"
-    - name: human-friendly name ("IU")
+    - key: internal ID, e.g. "main"
+    - name: human-friendly name ("Yuna")
     - role: "ghost", "victim", "suspect", etc.
     - emotion: emotional descriptor ("wary", "cold", "soft")
     - relationship: relationship metric with player
@@ -101,12 +101,15 @@ class MurderGameState:
     iu_emotion: str = EMOTION_START
     relationship: int = REL_START
 
+    # Knowledge retrieval routing (character index bundle id/dirname)
+    knowledge_character_id: str = ""
+
     # ==============================================================
     # Story metadata
     # ==============================================================
     story_cfg: Optional[dict] = None
 
-    # Meta “nametag” name — not what IU actually says in dialogue.
+    # Meta “nametag” name — not what the character necessarily says in dialogue.
     player_name: Optional[str] = None
 
     # ==============================================================
@@ -115,6 +118,16 @@ class MurderGameState:
     user: UserState = field(default_factory=UserState)
     characters: Dict[str, CharacterState] = field(default_factory=dict)
     main_character_id: Optional[str] = None
+
+    # ==============================================================
+    # Optional world runtime (graph-based movement)
+    # ==============================================================
+    world_runtime: Optional[object] = None
+    location_id: str = ""
+    world_start_datetime: str = ""
+    last_travel_from_id: str = ""
+    last_travel_to_id: str = ""
+    last_travel_exposure: Optional[object] = None
 
     # ==============================================================
     # Korean usage controls
@@ -138,7 +151,7 @@ class MurderGameState:
 
     @property
     def main_character(self) -> Optional[CharacterState]:
-        """Convenience accessor for the primary NPC (IU)."""
+        """Convenience accessor for the primary NPC."""
         if self.main_character_id and self.main_character_id in self.characters:
             return self.characters[self.main_character_id]
         return None
@@ -163,13 +176,21 @@ def apply_state_tag(state: MurderGameState, tag: dict):
     """
     Apply [[STATE]] tag returned by the model.
 
-    Format expected: {"iu_emotion":"...", "rel_delta": -1|0|1}
+    Format expected: {"emotion":"...", "rel_delta": -1|0|1}
     """
 
     # -----------------------
     # Emotion sync
     # -----------------------
-    emotion = tag.get("iu_emotion")
+    # Accept neutral key "emotion", legacy "iu_emotion", or any "<name>_emotion" key.
+    emotion = tag.get("emotion")
+    if emotion is None:
+        emotion = tag.get("iu_emotion")
+    if emotion is None:
+        for k, v in tag.items():
+            if isinstance(k, str) and k.endswith("_emotion") and isinstance(v, str):
+                emotion = v
+                break
     if isinstance(emotion, str):
         cleaned = emotion.strip() or EMOTION_START
         state.iu_emotion = cleaned

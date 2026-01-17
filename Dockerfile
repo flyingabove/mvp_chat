@@ -36,7 +36,7 @@ RUN python /srv/backend/app/knowledge/build/print_env_versions.py
 # ------------------------------------------------------------
 RUN if [ "${RUN_TESTS}" != "0" ]; then \
       echo "🧪 Running tests at build time (fail stops deploy)"; \
-      python -m pytest -x -q --disable-warnings /srv/tests; \
+      python -m pytest -q --disable-warnings --tb=short -r fE /srv/tests; \
     else \
       echo "⚠️ RUN_TESTS=0 → skipping build-time tests"; \
     fi

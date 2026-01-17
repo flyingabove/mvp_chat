@@ -235,7 +235,7 @@ The character must obey ALL of the following:
 ### REQUIRED FINAL LINE
 ────────────────────────────────────────
 Append EXACTLY one line at the end of every response:
-[[STATE]]{"iu_emotion":"<one/two words>","rel_delta":-1|0|1}[[/STATE]]
+[[STATE]]{"emotion":"<one/two words>","rel_delta":-1|0|1}[[/STATE]]
 
 If forgotten, reply ONLY with that tag.
 """
@@ -293,7 +293,7 @@ def build_messages(
         f"Time: {int(state.minute)} min since start. "
         f"Location: {state.location}. "
         f"Manifestation: {manifest_mode(state)}. "
-        f"Ghost Emotion: {state.iu_emotion}. "
+        f"Current Emotion: {state.iu_emotion}. "
         f"Relationship: {state.relationship}."
     )
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from contextvars import ContextVar
 from threading import Lock
 from typing import Dict, Optional
 
@@ -20,19 +21,21 @@ class IndexService:
 
     _lock = Lock()
     _bundles: Dict[str, CharacterIndexBundle] = {}
-    _active_character_id: str = ""
+    _active_character_id: ContextVar[str] = ContextVar('active_character_id', default='')
 
     @classmethod
     def set_active_character(cls, character_id: str) -> None:
         """Set the default character bundle used by get() when none is passed."""
-        cls._active_character_id = (character_id or "").strip()
-
+        cls._active_character_id.set((character_id or '').strip())
     @classmethod
     def get_active_character(cls) -> str:
+        # Prefer per-request context (safe under concurrency)
+        cid = (cls._active_character_id.get() or '').strip()
+        if cid:
+            return cid
+
         # Environment fallback (useful for single-character deployments)
-        if cls._active_character_id:
-            return cls._active_character_id
-        env = (os.getenv("KNOWLEDGE_CHARACTER_ID") or "").strip()
+        env = (os.getenv('KNOWLEDGE_CHARACTER_ID') or '').strip()
         if env:
             return env
 
@@ -40,13 +43,14 @@ class IndexService:
         # use it. This keeps local tests/dev ergonomic without hardcoding a persona.
         try:
             from pathlib import Path
-            knowledge_dir = Path(__file__).resolve().parents[1] / "characters"
+            knowledge_dir = Path(__file__).resolve().parents[1] / 'characters'
             dirs = [p.name for p in knowledge_dir.iterdir() if p.is_dir()]
             if len(dirs) == 1:
                 return dirs[0]
         except Exception:
             pass
-        return ""
+        return ''
+
 
     @classmethod
     def get(cls, character_id: Optional[str] = None) -> CharacterIndexBundle:

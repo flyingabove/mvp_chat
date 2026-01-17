@@ -47,6 +47,9 @@ class TravelRules:
     def __init__(self, seed: int):
         import random
 
+        self._rng = random.Random(seed)
+
+
     def choose_edge(self, edges):
         """Choose an unblocked edge deterministically.
 
@@ -57,13 +60,8 @@ class TravelRules:
         candidates = [e for e in edges if not getattr(e, "blocked", False)]
         if not candidates:
             return None
-        rng = getattr(self, "_rng", None)
-        if rng is None:
-            import random
-            rng = random.Random(0)
-        return rng.choice(candidates)
+        return self._rng.choice(candidates)
 
-        self._rng = random.Random(seed)
 
     def resolve_route(self, graph: WorldGraph, from_id: LocationId, to_id: LocationId) -> TravelRoute:
         direct: EdgeList = graph.get_direct_edges(from_id, to_id)
