@@ -49,19 +49,19 @@ class TravelRules:
 
         self._rng = random.Random(seed)
 
-
     def choose_edge(self, edges):
         """Choose an unblocked edge deterministically.
 
-        The unit tests expect this helper to exist. We filter out blocked
-        edges, then use the instance's seeded RNG (self._rng) for a stable choice.
-        Returns None if there are no available edges.
+        Tests require:
+        - blocked edges are filtered out
+        - choice is deterministic given the seed
+        - raises RuntimeError if no unblocked edges exist
         """
-        candidates = [e for e in edges if not getattr(e, "blocked", False)]
-        if not candidates:
-            return None
-        return self._rng.choice(candidates)
 
+        candidates = [e for e in (edges or []) if not getattr(e, "blocked", False)]
+        if not candidates:
+            raise RuntimeError("No unblocked edges available")
+        return self._rng.choice(candidates)
 
     def resolve_route(self, graph: WorldGraph, from_id: LocationId, to_id: LocationId) -> TravelRoute:
         direct: EdgeList = graph.get_direct_edges(from_id, to_id)

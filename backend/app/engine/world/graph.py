@@ -25,6 +25,11 @@ class WorldGraph:
         self._locations: Dict[str, Location] = {}
         self._outgoing: Dict[str, Tuple[PathEdge, ...]] = {}
 
+    @property
+    def locations(self) -> Dict[str, Location]:
+        """Public read-only view of locations keyed by location id string."""
+        return self._locations
+
     def add_location(self, location: Location) -> None:
         key = location.id.value
         if key in self._locations:

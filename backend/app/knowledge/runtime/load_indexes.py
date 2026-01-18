@@ -9,7 +9,15 @@ from typing import List, Tuple
 from backend.app.knowledge.contracts.index_bundle import CharacterIndexBundle
 from backend.app.knowledge.runtime.bm25_runtime import load_bm25
 
-REQUIRED_FILES = ("chunks.jsonl",)
+# Runtime requires built artifacts (not just source chunks).
+# These are produced by backend.app.knowledge.build.build_index into KNOWLEDGE_CACHE_DIR.
+REQUIRED_FILES = (
+    "chunks.jsonl",
+    "bm25.json",
+    "faiss.index",
+    "embeddings.npy",
+    "build_info.json",
+)
 
 
 def _load_chunks_jsonl(path: Path) -> List[dict]:
@@ -66,6 +74,7 @@ def load_character_indexes(character_id: str) -> CharacterIndexBundle:
     if _has_required(persist_char_dir):
         use_dir = persist_char_dir
     elif _has_required(image_char_dir):
+        # In-repo image artifacts are only valid if they include the built indexes.
         use_dir = image_char_dir
 
         # Best-effort copy to persistent cache
@@ -75,6 +84,22 @@ def load_character_indexes(character_id: str) -> CharacterIndexBundle:
             except Exception:
                 pass
     else:
+        # If we're running in the real deployment-style layout (/data cache),
+        # attempt to build the missing artifacts into the persistent cache.
+        # (Integration tests require the cache to live under /data.)
+        if str(persist_root).startswith("/data"):
+            try:
+                from backend.app.knowledge.build.build_index import main as build_main
+
+                build_main()
+            except Exception:
+                # Fall through to explicit error below.
+                pass
+
+            if _has_required(persist_char_dir):
+                use_dir = persist_char_dir
+
+    if use_dir is None:
         missing = sorted(
             set(
                 name
@@ -98,22 +123,18 @@ def load_character_indexes(character_id: str) -> CharacterIndexBundle:
 
     chunks = _load_chunks_jsonl(chunks_path)
 
-    bm25 = None
-    faiss_index = None
+    # These must exist (enforced by REQUIRED_FILES / _has_required). Load loudly.
+    try:
+        bm25, _ = load_bm25(bm25_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load BM25 index at {bm25_path}: {e}") from e
 
-    if bm25_path.exists():
-        try:
-            bm25, _ = load_bm25(bm25_path)
-        except Exception as e:
-            # Leave bm25 None; retrieval will fallback to simple search.
-            bm25 = None
+    try:
+        import faiss  # type: ignore
 
-    if faiss_path.exists():
-        try:
-            import faiss  # type: ignore
-            faiss_index = faiss.read_index(str(faiss_path))
-        except Exception:
-            faiss_index = None
+        faiss_index = faiss.read_index(str(faiss_path))
+    except Exception as e:
+        raise RuntimeError(f"Failed to load FAISS index at {faiss_path}: {e}") from e
     chunk_ids = [c.get("chunk_id", "") for c in chunks]
 
     return CharacterIndexBundle(
