@@ -57,15 +57,20 @@ def _copy_tree(src: Path, dst: Path, filenames: Tuple[str, ...]) -> None:
 
 
 
-def _maybe_build_indexes(character_id: str) -> None:
-    """Best-effort build of missing artifacts.
+def _maybe_build_indexes(character_id: str, persist_root: Path) -> None:
+    """Best-effort build of missing artifacts for integration tests.
 
-    Only runs when KNOWLEDGE_PERSIST_ROOT is not explicitly set.
-    This keeps strict behavior for tests that expect a RuntimeError when artifacts are missing.
+    We only auto-build when the caller did NOT explicitly set KNOWLEDGE_PERSIST_ROOT.
+    This preserves strict behavior for unit tests that expect a RuntimeError when
+    artifacts are missing.
+
+    We force the build to write into `persist_root` by temporarily setting
+    KNOWLEDGE_CACHE_DIR, so load_character_indexes can find bm25/faiss artifacts.
     """
-    if os.getenv('KNOWLEDGE_PERSIST_ROOT'):
+    if os.getenv("KNOWLEDGE_PERSIST_ROOT"):
         return
     try:
+        os.environ["KNOWLEDGE_CACHE_DIR"] = str(persist_root)
         from backend.app.knowledge.build import build_index
         build_index.main()
     except Exception:
@@ -165,3 +170,4 @@ def load_character_indexes(character_id: str = "1_iu") -> CharacterIndexBundle:
         bm25=bm25,
         faiss_index=faiss_index,
     )
+
