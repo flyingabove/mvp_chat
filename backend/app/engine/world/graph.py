@@ -25,11 +25,6 @@ class WorldGraph:
         self._locations: Dict[str, Location] = {}
         self._outgoing: Dict[str, Tuple[PathEdge, ...]] = {}
 
-    @property
-    def locations(self) -> Dict[str, Location]:
-        """Public read-only view of locations keyed by location id string."""
-        return self._locations
-
     def add_location(self, location: Location) -> None:
         key = location.id.value
         if key in self._locations:
@@ -46,18 +41,12 @@ class WorldGraph:
         key = edge.from_id.value
         self._outgoing[key] = self._outgoing.get(key, tuple()) + (edge,)
 
-    def get_location(self, location_id: LocationId) -> Location:
-        return self._locations[location_id.value]
-
+    def get_location(self, location_id: str | LocationId) -> Location:
+        lid = location_id if isinstance(location_id, LocationId) else LocationId(str(location_id))
+        return self._locations[lid.value]
+    
     def get_outgoing(self, from_id: LocationId) -> EdgeList:
         return EdgeList(edges=self._outgoing.get(from_id.value, tuple()))
-
-    def get_neighbors(self, from_id: str | LocationId) -> Tuple[PathEdge, ...]:
-        """Compatibility helper for tests: return outgoing edges from a node."""
-        lid = from_id if isinstance(from_id, LocationId) else LocationId(from_id)
-        if lid.value not in self._locations:
-            raise KeyError(f"Unknown location id: {lid}")
-        return self._outgoing.get(lid.value, tuple())
 
     def get_direct_edges(self, from_id: LocationId, to_id: LocationId) -> EdgeList:
         edges = tuple(e for e in self._outgoing.get(from_id.value, tuple()) if e.to_id == to_id)
