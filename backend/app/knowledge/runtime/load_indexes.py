@@ -55,6 +55,22 @@ def _copy_tree(src: Path, dst: Path, filenames: Tuple[str, ...]) -> None:
             shutil.copy2(s, t)
 
 
+
+
+def _maybe_build_indexes(character_id: str) -> None:
+    """Best-effort build of missing artifacts.
+
+    Only runs when KNOWLEDGE_PERSIST_ROOT is not explicitly set.
+    This keeps strict behavior for tests that expect a RuntimeError when artifacts are missing.
+    """
+    if os.getenv('KNOWLEDGE_PERSIST_ROOT'):
+        return
+    try:
+        from backend.app.knowledge.build import build_index
+        build_index.main()
+    except Exception:
+        return
+
 def load_character_indexes(character_id: str = "1_iu") -> CharacterIndexBundle:
     """
     Load retrieval artifacts for a character and return a strongly-typed bundle.
@@ -82,6 +98,8 @@ def load_character_indexes(character_id: str = "1_iu") -> CharacterIndexBundle:
 
     temp_char_dir = _find_best_cache_dir(character_id, REQUIRED_FILES)
     use_dir: Path | None = None
+
+    attempted_autobuild = False
 
     if _has_required(persist_char_dir):
         use_dir = persist_char_dir

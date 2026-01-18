@@ -25,6 +25,12 @@ class WorldGraph:
         self._locations: Dict[str, Location] = {}
         self._outgoing: Dict[str, Tuple[PathEdge, ...]] = {}
 
+    @property
+    def locations(self) -> Dict[str, Location]:
+        """Mapping of location_id -> Location (used by loaders/tests)."""
+        return self._locations
+
+
     def add_location(self, location: Location) -> None:
         key = location.id.value
         if key in self._locations:
@@ -45,9 +51,20 @@ class WorldGraph:
         lid = location_id if isinstance(location_id, LocationId) else LocationId(str(location_id))
         return self._locations[lid.value]
     
-    def get_outgoing(self, from_id: LocationId) -> EdgeList:
-        return EdgeList(edges=self._outgoing.get(from_id.value, tuple()))
 
-    def get_direct_edges(self, from_id: LocationId, to_id: LocationId) -> EdgeList:
-        edges = tuple(e for e in self._outgoing.get(from_id.value, tuple()) if e.to_id == to_id)
+    def get_neighbors(self, from_id: str | LocationId):
+        """Compatibility helper used by unit tests.
+
+        Returns outgoing edges from `from_id`.
+        """
+        lid = from_id if isinstance(from_id, LocationId) else LocationId(str(from_id))
+        return list(self._outgoing.get(lid.value, tuple()))
+    def get_outgoing(self, from_id: str | LocationId) -> EdgeList:
+        lid = from_id if isinstance(from_id, LocationId) else LocationId(str(from_id))
+        return EdgeList(edges=self._outgoing.get(lid.value, tuple()))
+
+    def get_direct_edges(self, from_id: str | LocationId, to_id: str | LocationId) -> EdgeList:
+        fid = from_id if isinstance(from_id, LocationId) else LocationId(str(from_id))
+        tid = to_id if isinstance(to_id, LocationId) else LocationId(str(to_id))
+        edges = tuple(e for e in self._outgoing.get(fid.value, tuple()) if e.to_id == tid)
         return EdgeList(edges=edges)
