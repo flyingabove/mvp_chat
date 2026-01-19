@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
 # ------------------------------------------------------------
-# App setup
+# GLOBAL ENV -- match prod as closely as possible
 # ------------------------------------------------------------
 ENV PYTHONPATH=/srv
 ENV KNOWLEDGE_CACHE_DIR=/data/knowledge_cache
@@ -9,17 +9,18 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # ------------------------------------------------------------
-# Copy code (clean, deterministic)
+# Reset filesystem to remove any doubt
 # ------------------------------------------------------------
-RUN echo "🔥 Resetting /srv and /tmp" \
-    && rm -rf /srv \
-    && rm -rf /tmp \
-    && mkdir -p /srv \
-    && mkdir -p /tmp \
-    && chmod 1777 /tmp
+RUN echo "🔥 RESETTING FILESYSTEM" \
+ && rm -rf /srv /tmp /data \
+ && mkdir -p /srv /tmp /data \
+ && chmod 1777 /tmp
 
 WORKDIR /srv
 
+# ------------------------------------------------------------
+# Copy application + tests
+# ------------------------------------------------------------
 COPY backend/ /srv/backend/
 COPY tests/ /srv/tests/
 
@@ -28,43 +29,51 @@ COPY tests/ /srv/tests/
 # ------------------------------------------------------------
 RUN pip install --no-cache-dir -r /srv/backend/requirements.txt
 
-# Optional: log environment versions (safe, fast)
-RUN python /srv/backend/app/knowledge/build/print_env_versions.py
+# ------------------------------------------------------------
+# 🔍 DEBUG: ENV + FILESYSTEM BEFORE TESTS
+# ------------------------------------------------------------
+RUN echo "================ BUILD-TIME DEBUG (BEFORE TESTS) ================" \
+ && echo "🧪 ENVIRONMENT VARIABLES" \
+ && env | sort \
+ && echo "" \
+ && echo "📂 /data tree (before tests)" \
+ && ls -R /data || true \
+ && echo "" \
+ && echo "📂 /tmp tree (before tests)" \
+ && ls -R /tmp || true \
+ && echo "" \
+ && echo "📂 /srv/backend/app/knowledge" \
+ && ls -R /srv/backend/app/knowledge || true \
+ && echo "==============================================================="
 
 # ------------------------------------------------------------
-# BUILD-TIME TEST GATE (fail build => Railway cannot deploy)
+# 🧪 RUN PYTEST -- DO NOT STOP ON FAILURE
 # ------------------------------------------------------------
-RUN if [ "${RUN_TESTS}" != "0" ]; then \
-      echo "🧪 Running tests at build time (fail stops deploy)"; \
-      python -m pytest -q --disable-warnings --tb=short -r fE /srv/tests; \
-    else \
-      echo "⚠️ RUN_TESTS=0 → skipping build-time tests"; \
-    fi
+RUN echo "================ RUNNING PYTEST (FULL DEBUG) ================" \
+ && python -m pytest -q --disable-warnings --tb=short -ra /srv/tests || true \
+ && echo "================ PYTEST FINISHED ================"
 
 # ------------------------------------------------------------
-# Expose port
+# 🔍 DEBUG: FILESYSTEM AFTER TESTS
 # ------------------------------------------------------------
-EXPOSE 8000
+RUN echo "================ POST-TEST FILESYSTEM DEBUG ================" \
+ && echo "📂 /data tree (after tests)" \
+ && ls -R /data || true \
+ && echo "" \
+ && echo "📂 /tmp tree (after tests)" \
+ && ls -R /tmp || true \
+ && echo "" \
+ && echo "🔎 FIND ALL knowledge_cache DIRECTORIES" \
+ && find / -type d -name knowledge_cache 2>/dev/null || true \
+ && echo "" \
+ && echo "🔎 FIND bm25.json" \
+ && find / -type f -name bm25.json 2>/dev/null || true \
+ && echo "" \
+ && echo "🔎 FIND faiss.index" \
+ && find / -type f -name faiss.index 2>/dev/null || true \
+ && echo "==============================================================="
 
 # ------------------------------------------------------------
-# Startup command (no crash-loop testing)
+# Keep container alive so Railway shows logs clearly
 # ------------------------------------------------------------
-RUN echo "🔥 DOCKERFILE REBUILT AT $(date)"
-
-CMD ["sh", "-e", "-c", "\
-  echo \"🚦 Container startup\"; \
-  \
-  if [ \"${FORCE_REBUILD_INDEX:-0}\" = \"1\" ]; then \
-    echo \"🔥 FORCE_REBUILD_INDEX=1 → wiping /data\"; \
-    rm -rf /data/* || true; \
-    echo \"🧹 /data wiped\"; \
-  else \
-    echo \"ℹ️ FORCE_REBUILD_INDEX=0 → preserving /data\"; \
-  fi; \
-  \
-  echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; \
-  python -m backend.app.knowledge.build.build_index; \
-  \
-  echo \"🚀 Starting server\"; \
-  exec uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 \
-"]
+CMD ["bash"]
