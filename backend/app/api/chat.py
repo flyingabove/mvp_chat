@@ -35,7 +35,42 @@ from backend.app.engine.prompt_builder import (
 router = APIRouter()
 
 # In-memory session store
-SESSIONS = {}  # session_id → { state: MurderGameState, log: list }
+SESSIONS = {}  # session_id → { state: MurderGameState, log: list, debug_mode: bool }
+
+
+# ---------------------------------------------------------------------------
+# DEBUG MODE TOGGLE
+# ---------------------------------------------------------------------------
+DEBUG_TOGGLE_TOKENS = {
+    "[DEBUG]",
+    "(DEBUG)",
+    "[D]",
+    "(D)",
+}
+
+
+def _is_debug_toggle(msg: str) -> bool:
+    return (msg or "").strip().upper() in DEBUG_TOGGLE_TOKENS
+
+
+def _box(title: str, lines: list[str]) -> str:
+    """Render a simple pretty ASCII box."""
+    title = (title or "").strip()
+    safe_lines = [str(x) for x in (lines or [])]
+    inner_width = max([len(title)] + [len(x) for x in safe_lines] + [0])
+    top = "┌" + "─" * (inner_width + 2) + "┐"
+    mid_title = "│ " + title.ljust(inner_width) + " │" if title else None
+    sep = "├" + "─" * (inner_width + 2) + "┤" if safe_lines else None
+    body = ["│ " + x.ljust(inner_width) + " │" for x in safe_lines]
+    bottom = "└" + "─" * (inner_width + 2) + "┘"
+    parts = [top]
+    if mid_title:
+        parts.append(mid_title)
+    if sep:
+        parts.append(sep)
+    parts.extend(body)
+    parts.append(bottom)
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +95,8 @@ def get_session(session_id: str):
     if session_id not in SESSIONS:
         SESSIONS[session_id] = {
             "state": init_state(),
-            "log": []
+            "log": [],
+            "debug_mode": False,
         }
     return SESSIONS[session_id]
 
@@ -169,9 +205,11 @@ async def chat_handler(data: dict):
 
     # RESET
     if msg == "__cmd_reset__":
+        # Reset session state/log, but keep debug mode off.
         SESSIONS[session_id] = {
             "state": init_state(),
-            "log": []
+            "log": [],
+            "debug_mode": False,
         }
         return {"reply": "[memory cleared]", "usage": {"total_tokens": 0}, "character": "default"}
 
@@ -269,6 +307,29 @@ async def chat_handler(data: dict):
 
         return {"reply": opening, "usage": {"total_tokens": 0}, "character": "default"}
 
+    # DEBUG TOGGLE (no LLM, no context, no time advance)
+    if _is_debug_toggle(msg):
+        currently_on = bool(sess.get("debug_mode", False))
+        sess["debug_mode"] = not currently_on
+
+        if sess["debug_mode"]:
+            notice = _box(
+                "ENTERING DEBUG MODE",
+                [
+                    "Type [D] to exit",
+                    "(Debug info will be appended after each reply)",
+                ],
+            )
+        else:
+            notice = _box(
+                "EXITING DEBUG MODE",
+                [
+                    "Type [D] to re-enter",
+                ],
+            )
+
+        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+
     # REGULAR TURN
     if not state.story or not state.story_cfg:
         return {"reply": "No active game. Use /newgame to begin.", "character": "default"}
@@ -356,7 +417,7 @@ async def chat_handler(data: dict):
 
     if confession_detected(clean, state):
         state.over = True
-        clean += f"\n\nEND GAME YOU WIN — turns: {state.turns}"
+        clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
 
     _log({
         "kind": "chat_response",
@@ -370,4 +431,29 @@ async def chat_handler(data: dict):
     # Prepend a readable timestamp to the returned reply for the UI.
     ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
     stamped = f"[{ts}]\n{clean}"
+
+    # Append debug box for UI visibility (never added to LLM context).
+    if bool(sess.get("debug_mode", False)):
+        user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
+        chars = list((getattr(state, "characters", {}) or {}).values())
+        speaker_lines: list[str] = []
+        for c in chars:
+            try:
+                name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
+            except Exception:
+                name = "(unnamed)"
+            speaker_lines.append(f"- {name}: {user_loc}")
+
+        debug_lines = [
+            f"Timestamp: {ts}",
+            f"User location: {user_loc}",
+        ]
+        if speaker_lines:
+            debug_lines.append("Speakers:")
+            debug_lines.extend(speaker_lines)
+        else:
+            debug_lines.append("Speakers: (none)")
+
+        stamped = stamped + "\n\n" + _box("DEBUG INFO", debug_lines)
+
     return {"reply": stamped, "usage": data.get("usage"), "character": "default"}
