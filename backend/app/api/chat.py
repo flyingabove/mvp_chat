@@ -312,7 +312,7 @@ async def chat_handler(data: dict):
         # the graph's display name; otherwise fall back to the story's setting string.
         if not getattr(new_state, "location_id", ""):
             new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
-        new_state.iu_emotion = cfg.get("emotion", {}).get("start", new_state.iu_emotion)
+        new_state.emotion = cfg.get("emotion", {}).get("start", new_state.emotion)
 
         # Main character identity is story-driven (no hardcoded persona).
         main_cfg = (cfg.get("main_character", {}) or {})
@@ -330,7 +330,7 @@ async def chat_handler(data: dict):
             key=main_key,
             name=main_name,
             role=main_role,
-            emotion=new_state.iu_emotion,
+            emotion=new_state.emotion,
             relationship=new_state.relationship,
         )
 
@@ -448,7 +448,7 @@ async def chat_handler(data: dict):
     clean = sanitize_korean_terms(clean, state)
 
     if not isinstance(tag, dict):
-        tag = {"iu_emotion": state.iu_emotion, "rel_delta": 0}
+        tag = {"iu_emotion": state.emotion, "rel_delta": 0}
 
     apply_state_tag(state, tag)
 

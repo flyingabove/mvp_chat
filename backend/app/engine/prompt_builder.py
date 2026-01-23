@@ -116,7 +116,7 @@ The character's first reply after the opening scene should:
 """
 
     # STATE VARS
-    emotion = state.iu_emotion or EMOTION_START
+    emotion = state.emotion or EMOTION_START
     rel = int(state.relationship if state.relationship is not None else REL_START)
 
     # Meta player name (used in story file / opening narration)
@@ -293,7 +293,7 @@ def build_messages(
         f"Time: {int(state.minute)} min since start. "
         f"Location: {state.location}. "
         f"Manifestation: {manifest_mode(state)}. "
-        f"Current Emotion: {state.iu_emotion}. "
+        f"Current Emotion: {state.emotion}. "
         f"Relationship: {state.relationship}."
     )
 

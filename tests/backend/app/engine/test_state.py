@@ -21,7 +21,7 @@ def test_apply_state_tag_clamps_relationship_and_updates_main_character():
     st.main_character_id = "IU"
 
     apply_state_tag(st, {"iu_emotion": "soft", "rel_delta": 1})
-    assert st.iu_emotion == "soft"
+    assert st.emotion == "soft"
     assert st.relationship == 1
     assert st.main_character.emotion == "soft"
     assert st.main_character.relationship == 1

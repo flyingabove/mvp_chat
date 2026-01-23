@@ -98,7 +98,7 @@ class MurderGameState:
     # ==============================================================
     # Emotion & relationship
     # ==============================================================
-    iu_emotion: str = EMOTION_START
+    emotion: str = EMOTION_START
     relationship: int = REL_START
 
     # Knowledge retrieval routing (character index bundle id/dirname)
@@ -193,7 +193,7 @@ def apply_state_tag(state: MurderGameState, tag: dict):
                 break
     if isinstance(emotion, str):
         cleaned = emotion.strip() or EMOTION_START
-        state.iu_emotion = cleaned
+        state.emotion = cleaned
         if state.main_character:
             state.main_character.emotion = cleaned
 

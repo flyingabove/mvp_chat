@@ -22,7 +22,7 @@ def _make_assistant_reply(turn: int) -> str:
     return (
         "*The air feels colder for a breath.*\n"
         f"IU: \"Turn {turn} acknowledged.\"\n"
-        "[[STATE]]{\"iu_emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"
+        "[[STATE]]{\"emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"
     )
 
 
