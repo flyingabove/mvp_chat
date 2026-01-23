@@ -1,5 +1,7 @@
 import types
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -66,6 +68,7 @@ def test_chat_newgame_and_turn(client):
     data2 = r2.json()
     assert "reply" in data2
     assert "[[STATE]]" not in data2["reply"]  # tag should be stripped
+    assert not re.match(r"^\[\d{4}-\d{2}-\d{2} ", data2["reply"])  # no leading timestamp
 
 
 def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
@@ -91,6 +94,7 @@ def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
     data3 = r3.json()
     assert "DEBUG INFO" in data3["reply"]
     assert "Timestamp:" in data3["reply"]
+    assert not re.match(r"^\[\d{4}-\d{2}-\d{2} ", data3["reply"])  # no leading timestamp
     assert spy.calls == base_calls + 1
 
     # Exit debug mode (must NOT call LLM)
@@ -144,3 +148,24 @@ def test_debug_toggle_strips_leading_gt(client):
     data4 = r4.json()
     assert "DEBUG INFO" not in data4["reply"]
     assert spy.calls == base_calls + 2
+
+
+def test_debug_box_speakers_do_not_include_location_as_name(client):
+    # Start a new game
+    r0 = client.post("/api/chat", json={"session_id": "spk1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    assert r0.status_code == 200
+
+    # Enable debug mode
+    r1 = client.post("/api/chat", json={"session_id": "spk1", "message": "[D]"})
+    assert r1.status_code == 200
+
+    # Normal turn to get debug info appended
+    r2 = client.post("/api/chat", json={"session_id": "spk1", "message": "hello"})
+    assert r2.status_code == 200
+    reply = r2.json()["reply"]
+
+    assert "DEBUG INFO" in reply
+    assert "Speakers:" in reply
+
+    # Ensure the location isn't mistakenly treated as a speaker name.
+    assert "- IU’s Apartment" not in reply

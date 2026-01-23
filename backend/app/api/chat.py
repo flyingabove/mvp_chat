@@ -80,15 +80,23 @@ def _is_debug_toggle(msg: str) -> bool:
 
 
 def _box(title: str, lines: list[str]) -> str:
-    """Render a simple pretty ASCII box."""
+    """Render a simple pretty ASCII box.
+
+    Note: Many UIs collapse trailing ASCII spaces. We pad with a Unicode blank
+    (braille blank) so the right border stays aligned.
+    """
     title = (title or "").strip()
     safe_lines = [str(x) for x in (lines or [])]
     inner_width = max([len(title)] + [len(x) for x in safe_lines] + [0])
+
+    pad = "\u2800"  # invisible but not collapsed like normal spaces in many renderers
+
     top = "┌" + "─" * (inner_width + 2) + "┐"
-    mid_title = "│ " + title.ljust(inner_width) + " │" if title else None
-    sep = "├" + "─" * (inner_width + 2) + "┤" if safe_lines else None
-    body = ["│ " + x.ljust(inner_width) + " │" for x in safe_lines]
+    mid_title = ("│ " + title.ljust(inner_width, pad) + " │") if title else None
+    sep = ("├" + "─" * (inner_width + 2) + "┤") if safe_lines else None
+    body = [("│ " + x.ljust(inner_width, pad) + " │") for x in safe_lines]
     bottom = "└" + "─" * (inner_width + 2) + "┘"
+
     parts = [top]
     if mid_title:
         parts.append(mid_title)
@@ -463,19 +471,58 @@ async def chat_handler(data: dict):
 
     # Prepend a readable timestamp to the returned reply for the UI.
     ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
-    stamped = f"[{ts}]\n{clean}"
+    stamped = clean
 
     # Append debug box for UI visibility (never added to LLM context).
     if bool(sess.get("debug_mode", False)):
         user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
-        chars = list((getattr(state, "characters", {}) or {}).values())
-        speaker_lines: list[str] = []
+
+        # Speakers: only include characters that appear to be speaking in this assistant reply.
+        # We always include the story's main character if available.
+        chars_map = (getattr(state, "characters", {}) or {})
+        chars = list(chars_map.values())
+
+        main_id = str(getattr(state, "main_character_id", "") or "").strip()
+        main_name = ""
+        if main_id and main_id in chars_map:
+            try:
+                main_name = (getattr(chars_map[main_id], "name", "") or "").strip()
+            except Exception:
+                main_name = ""
+
+        speakers: list[str] = []
+        seen = set()
+
+        def _add(name: str):
+            name = (name or "").strip()
+            if not name:
+                return
+            key = name.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            speakers.append(name)
+
+        if main_name:
+            _add(main_name)
+
+        # Heuristic: if a character's name appears in the reply text (word-boundary),
+        # treat them as a speaker in this dialogue.
         for c in chars:
             try:
-                name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
+                nm = (getattr(c, "name", "") or "").strip()
             except Exception:
-                name = "(unnamed)"
-            speaker_lines.append(f"- {name}: {user_loc}")
+                nm = ""
+            if not nm:
+                continue
+            try:
+                if re.search(rf"(?i)\b{re.escape(nm)}\b", clean):
+                    _add(nm)
+            except Exception:
+                pass
+
+        # If we still couldn't find anyone, fall back to "Speakers: (none)" rather than guessing.
+        speaker_lines: list[str] = [f"- {name}: {user_loc}" for name in speakers]
 
         debug_lines = [
             f"Timestamp: {ts}",
