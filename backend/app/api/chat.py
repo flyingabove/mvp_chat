@@ -80,21 +80,15 @@ def _is_debug_toggle(msg: str) -> bool:
 
 
 def _box(title: str, lines: list[str]) -> str:
-    """Render a simple pretty ASCII box.
-
-    Note: Many UIs collapse trailing ASCII spaces. We pad with a Unicode blank
-    (braille blank) so the right border stays aligned.
-    """
+    """Render a simple pretty ASCII box."""
     title = (title or "").strip()
     safe_lines = [str(x) for x in (lines or [])]
     inner_width = max([len(title)] + [len(x) for x in safe_lines] + [0])
 
-    pad = "\u2800"  # invisible but not collapsed like normal spaces in many renderers
-
     top = "┌" + "─" * (inner_width + 2) + "┐"
-    mid_title = ("│ " + title.ljust(inner_width, pad) + " │") if title else None
-    sep = ("├" + "─" * (inner_width + 2) + "┤") if safe_lines else None
-    body = [("│ " + x.ljust(inner_width, pad) + " │") for x in safe_lines]
+    mid_title = "│ " + title.ljust(inner_width) + " │" if title else None
+    sep = "├" + "─" * (inner_width + 2) + "┤" if safe_lines else None
+    body = ["│ " + x.ljust(inner_width) + " │" for x in safe_lines]
     bottom = "└" + "─" * (inner_width + 2) + "┘"
 
     parts = [top]
@@ -230,8 +224,7 @@ async def chat_handler(data: dict):
     req_id = str(uuid.uuid4())[:8]
     session_id = data.get("session_id") or "default"
 
-    # NOTE: Minimal change requested:
-    # Always scrub a leading '>' (markdown quote) from every message input.
+    # Scrub a leading '>' used by the terminal UI for quoting.
     raw_msg = str(data.get("message", "") or "")
     stripped = raw_msg.lstrip()
     if stripped.startswith(">"):
@@ -263,7 +256,7 @@ async def chat_handler(data: dict):
         gender = parts[1].strip().upper() if len(parts) > 1 else "M"
         player_name = parts[2].strip() if len(parts) > 2 else ""
 
-        player_name = re.sub(r"[^A-Za-z\s\-'\"]", "", player_name)[:40] or "Player"
+        player_name = re.sub(r"[^A-Za-z\s\-'"]", "", player_name)[:40] or "Player"
 
         cfg = load_story(story_id)
         if not cfg:
@@ -312,7 +305,7 @@ async def chat_handler(data: dict):
         # the graph's display name; otherwise fall back to the story's setting string.
         if not getattr(new_state, "location_id", ""):
             new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
-        new_state.emotion = cfg.get("emotion", {}).get("start", new_state.emotion)
+        new_state.iu_emotion = cfg.get("emotion", {}).get("start", new_state.iu_emotion)
 
         # Main character identity is story-driven (no hardcoded persona).
         main_cfg = (cfg.get("main_character", {}) or {})
@@ -330,7 +323,7 @@ async def chat_handler(data: dict):
             key=main_key,
             name=main_name,
             role=main_role,
-            emotion=new_state.emotion,
+            emotion=new_state.iu_emotion,
             relationship=new_state.relationship,
         )
 
@@ -448,7 +441,7 @@ async def chat_handler(data: dict):
     clean = sanitize_korean_terms(clean, state)
 
     if not isinstance(tag, dict):
-        tag = {"iu_emotion": state.emotion, "rel_delta": 0}
+        tag = {"iu_emotion": state.iu_emotion, "rel_delta": 0}
 
     apply_state_tag(state, tag)
 
@@ -469,60 +462,31 @@ async def chat_handler(data: dict):
         "assistant_reply_preview": _truncate(clean, 1200),
     })
 
-    # Prepend a readable timestamp to the returned reply for the UI.
+    # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
     ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
     stamped = clean
 
     # Append debug box for UI visibility (never added to LLM context).
     if bool(sess.get("debug_mode", False)):
         user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
+        chars = list((getattr(state, "characters", {}) or {}).values())
 
-        # Speakers: only include characters that appear to be speaking in this assistant reply.
-        # We always include the story's main character if available.
-        chars_map = (getattr(state, "characters", {}) or {})
-        chars = list(chars_map.values())
-
-        main_id = str(getattr(state, "main_character_id", "") or "").strip()
-        main_name = ""
-        if main_id and main_id in chars_map:
-            try:
-                main_name = (getattr(chars_map[main_id], "name", "") or "").strip()
-            except Exception:
-                main_name = ""
-
-        speakers: list[str] = []
-        seen = set()
-
-        def _add(name: str):
-            name = (name or "").strip()
-            if not name:
-                return
-            key = name.lower()
-            if key in seen:
-                return
-            seen.add(key)
-            speakers.append(name)
-
-        if main_name:
-            _add(main_name)
-
-        # Heuristic: if a character's name appears in the reply text (word-boundary),
-        # treat them as a speaker in this dialogue.
+        speaker_lines: list[str] = []
         for c in chars:
             try:
-                nm = (getattr(c, "name", "") or "").strip()
+                name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
             except Exception:
-                nm = ""
-            if not nm:
-                continue
-            try:
-                if re.search(rf"(?i)\b{re.escape(nm)}\b", clean):
-                    _add(nm)
-            except Exception:
-                pass
+                name = "(unnamed)"
 
-        # If we still couldn't find anyone, fall back to "Speakers: (none)" rather than guessing.
-        speaker_lines: list[str] = [f"- {name}: {user_loc}" for name in speakers]
+            # Prefer per-character location if available; otherwise fall back to user location.
+            try:
+                loc = (getattr(c, "location", "") or "").strip()
+            except Exception:
+                loc = ""
+            if not loc:
+                loc = user_loc
+
+            speaker_lines.append(f"- {name}: {loc}")
 
         debug_lines = [
             f"Timestamp: {ts}",
