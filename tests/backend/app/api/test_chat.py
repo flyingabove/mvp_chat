@@ -106,42 +106,41 @@ def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
     data5 = r5.json()
     assert "DEBUG INFO" not in data5["reply"]
     assert spy.calls == base_calls + 2
+def test_debug_toggle_strips_leading_gt(client):
+    from backend.app.api import chat as chat_mod
 
-# tests/backend/app/api/test_endpoints.py
+    # Start a new game so the "regular turn" path is active for subsequent messages.
+    r0 = client.post("/api/chat", json={"session_id": "gt1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    assert r0.status_code == 200
 
-def test_debug_toggle_strips_leading_gt(client, monkeypatch):
-    called = {"llm": False}
+    spy = getattr(chat_mod, "_TEST_OPENAI_POST_SPY")
+    base_calls = spy.calls
 
-    async def fake_llm(*args, **kwargs):
-        called["llm"] = True
-        return "LLM"
+    # Leading '>' should be scrubbed globally, so this should toggle debug mode.
+    r1 = client.post("/api/chat", json={"session_id": "gt1", "message": "> [D]"})
+    assert r1.status_code == 200
+    data1 = r1.json()
+    assert "ENTERING DEBUG MODE" in data1["reply"]
+    assert spy.calls == base_calls  # toggle must NOT call OpenAI
 
-    monkeypatch.setattr(
-        "backend.app.api.chat.run_llm_chat",
-        fake_llm,
-    )
+    # A normal message should now call the OpenAI mock and append debug box.
+    r2 = client.post("/api/chat", json={"session_id": "gt1", "message": "hello"})
+    assert r2.status_code == 200
+    data2 = r2.json()
+    assert "DEBUG INFO" in data2["reply"]
+    assert "Timestamp:" in data2["reply"]
+    assert spy.calls == base_calls + 1
 
-    # ENTER DEBUG MODE
-    r = client.post(
-        "/api/chat",
-        json={"session_id": "s1", "message": "> [D]"},
-    )
-    assert "ENTERING DEBUG MODE" in r.json()["message"]
-    assert called["llm"] is False
+    # Exit debug mode with a leading '>' as well.
+    r3 = client.post("/api/chat", json={"session_id": "gt1", "message": "> (DEBUG)"})
+    assert r3.status_code == 200
+    data3 = r3.json()
+    assert "EXITING DEBUG MODE" in data3["reply"]
+    assert spy.calls == base_calls + 1  # toggle must NOT call OpenAI
 
-    # NORMAL MESSAGE -> DEBUG BOX APPENDED
-    r = client.post(
-        "/api/chat",
-        json={"session_id": "s1", "message": "hello"},
-    )
-    msg = r.json()["message"]
-    assert "DEBUG INFO" in msg
-    assert "Timestamp" in msg
-
-    # EXIT DEBUG MODE
-    r = client.post(
-        "/api/chat",
-        json={"session_id": "s1", "message": "[D]"},
-    )
-    assert "EXITING DEBUG MODE" in r.json()["message"]
-    assert called["llm"] is False
+    # Next normal turn should not have debug info.
+    r4 = client.post("/api/chat", json={"session_id": "gt1", "message": "hello again"})
+    assert r4.status_code == 200
+    data4 = r4.json()
+    assert "DEBUG INFO" not in data4["reply"]
+    assert spy.calls == base_calls + 2
