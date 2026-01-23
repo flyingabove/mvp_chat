@@ -11,9 +11,12 @@ def test_load_character_indexes_never_attribute_errors(monkeypatch, tmp_path):
     monkeypatch.setenv("KNOWLEDGE_CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setenv("KNOWLEDGE_PERSIST_ROOT", str(tmp_path / "persist"))
 
+    # Test with any character_id (we don't care which, just checking for AttributeError)
+    test_character_id = "test_character"
+
     # We don't care what error it raises here (artifacts may be missing),
     # only that it is NOT AttributeError about .exists/.iterdir/etc.
     try:
-        li.load_character_indexes("1_iu")
+        li.load_character_indexes(test_character_id)
     except Exception as e:
         assert not isinstance(e, AttributeError), f"Unexpected AttributeError: {e!r}"

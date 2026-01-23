@@ -60,8 +60,10 @@ def test_load_character_indexes_raises_when_artifacts_missing(monkeypatch, tmp_p
     monkeypatch.setenv("KNOWLEDGE_PERSIST_ROOT", str(persist))
     monkeypatch.setenv("KNOWLEDGE_CACHE_DIR", str(cache))
 
+    test_character = "nonexistent_character"
+
     with pytest.raises(RuntimeError) as exc:
-        li.load_character_indexes("1_iu")
+        li.load_character_indexes(test_character)
 
     msg = str(exc.value)
     assert "Could not locate required knowledge artifacts" in msg

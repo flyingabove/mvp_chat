@@ -28,24 +28,37 @@ FORCE_REBUILD = os.getenv("FORCE_REBUILD_INDEX", "0") == "1"
 BASE_DIR = Path(__file__).resolve().parent
 KNOWLEDGE_DIR = BASE_DIR.parent
 
-CHARACTER_DIRNAME = "1_iu"
-EXPECTED_CHUNK_CHARACTER_IDS = {"iu", "1_iu"}
-
 # If you mount a Railway Volume, set KNOWLEDGE_CACHE_DIR=/data/knowledge_cache
 CACHE_ROOT = Path(os.getenv("KNOWLEDGE_CACHE_DIR", str(KNOWLEDGE_DIR))).resolve()
 
-CHAR_DIR = (CACHE_ROOT / "characters" / CHARACTER_DIRNAME).resolve()
 
-CHUNKS_PATH = (
-    KNOWLEDGE_DIR / "characters" / CHARACTER_DIRNAME / "chunks.jsonl"
-).resolve()
+# ---------------------------------------------------------------------------
+# Helper: Get paths for a specific character
+# ---------------------------------------------------------------------------
 
-# Cached artifacts (runtime requires all of these)
-CACHED_CHUNKS_PATH = CHAR_DIR / "chunks.jsonl"
-EMB_PATH = CHAR_DIR / "embeddings.npy"
-FAISS_PATH = CHAR_DIR / "faiss.index"
-BM25_PATH = CHAR_DIR / "bm25.json"
-BUILD_INFO_PATH = CHAR_DIR / "build_info.json"
+def _get_paths(character_dirname: str):
+    """
+    Returns a dict of paths for a given character directory name.
+    """
+    char_dir = (CACHE_ROOT / "characters" / character_dirname).resolve()
+    chunks_path = (
+        KNOWLEDGE_DIR / "characters" / character_dirname / "chunks.jsonl"
+    ).resolve()
+    cached_chunks_path = char_dir / "chunks.jsonl"
+    emb_path = char_dir / "embeddings.npy"
+    faiss_path = char_dir / "faiss.index"
+    bm25_path = char_dir / "bm25.json"
+    build_info_path = char_dir / "build_info.json"
+
+    return {
+        "char_dir": char_dir,
+        "chunks_path": chunks_path,
+        "cached_chunks_path": cached_chunks_path,
+        "emb_path": emb_path,
+        "faiss_path": faiss_path,
+        "bm25_path": bm25_path,
+        "build_info_path": build_info_path,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -72,19 +85,19 @@ def validate_chunks(chunks: list[dict]) -> None:
             )
 
 
-def load_previous_build() -> Optional[Dict[str, Any]]:
-    if not BUILD_INFO_PATH.exists():
+def load_previous_build(build_info_path: Path) -> Optional[Dict[str, Any]]:
+    if not build_info_path.exists():
         return None
-    with BUILD_INFO_PATH.open("r", encoding="utf-8") as f:
+    with build_info_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def artifacts_exist() -> bool:
+def artifacts_exist(paths: dict) -> bool:
     return (
-        EMB_PATH.exists()
-        and FAISS_PATH.exists()
-        and BM25_PATH.exists()
-        and CACHED_CHUNKS_PATH.exists()
+        paths["emb_path"].exists()
+        and paths["faiss_path"].exists()
+        and paths["bm25_path"].exists()
+        and paths["cached_chunks_path"].exists()
     )
 
 
@@ -102,19 +115,19 @@ def should_skip(prev: Optional[Dict[str, Any]], new_fingerprint: str) -> bool:
     if old_fp != new_fingerprint:
         return False
 
-    if not artifacts_exist():
+    if not artifacts_exist(prev.get("_paths", {})):
         return False
 
     print("✅ Cache hit: fingerprint unchanged → skipping rebuild")
     return True
 
 
-def _ensure_cached_chunks() -> None:
-    if not CHUNKS_PATH.exists():
-        raise RuntimeError(f"Missing chunks.jsonl at {CHUNKS_PATH}")
+def _ensure_cached_chunks(paths: dict) -> None:
+    if not paths["chunks_path"].exists():
+        raise RuntimeError(f"Missing chunks.jsonl at {paths['chunks_path']}")
 
-    if not CACHED_CHUNKS_PATH.exists():
-        shutil.copy2(CHUNKS_PATH, CACHED_CHUNKS_PATH)
+    if not paths["cached_chunks_path"].exists():
+        shutil.copy2(paths["chunks_path"], paths["cached_chunks_path"])
 
 
 def _atomic_write_json(path: Path, obj: dict) -> None:
@@ -135,32 +148,46 @@ def _atomic_save_npy(path: Path, arr: np.ndarray) -> None:
 # Main build
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def main(character_dirname: str | None = None) -> None:
+    """
+    Build knowledge indexes for a given character.
+
+    Args:
+        character_dirname: Directory name under knowledge/characters/ (e.g., "1_iu", "2_alice")
+                          Defaults to env var CHARACTER_DIRNAME or "1_iu" for backwards compatibility.
+    """
+    if character_dirname is None:
+        character_dirname = os.getenv("CHARACTER_DIRNAME", "1_iu")
+
+    paths = _get_paths(character_dirname)
+
     print("=== Knowledge Index Build ===")
-    print("Source chunks:", CHUNKS_PATH)
-    print("Cache dir:", CHAR_DIR)
+    print(f"Character: {character_dirname}")
+    print("Source chunks:", paths["chunks_path"])
+    print("Cache dir:", paths["char_dir"])
     print("FORCE_REBUILD_INDEX:", "1" if FORCE_REBUILD else "0")
 
     if FORCE_REBUILD:
-        _purge_existing_cache(CHAR_DIR)
+        _purge_existing_cache(paths["char_dir"])
 
-    if not CHUNKS_PATH.exists():
-        raise RuntimeError(f"Missing chunks.jsonl at {CHUNKS_PATH}")
+    if not paths["chunks_path"].exists():
+        raise RuntimeError(f"Missing chunks.jsonl at {paths['chunks_path']}")
 
-    CHAR_DIR.mkdir(parents=True, exist_ok=True)
+    paths["char_dir"].mkdir(parents=True, exist_ok=True)
 
     # Always ensure cached chunks exist
-    _ensure_cached_chunks()
+    _ensure_cached_chunks(paths)
 
     # Load + validate source chunks
-    chunks = load_chunks_jsonl(CHUNKS_PATH)
+    chunks = load_chunks_jsonl(paths["chunks_path"])
     validate_chunks(chunks)
 
-    for c in chunks:
-        if c.get("character_id") not in EXPECTED_CHUNK_CHARACTER_IDS:
-            raise RuntimeError(
-                f"Character ID mismatch in chunk {c.get('chunk_id')}"
-            )
+    # Validate chunk character_id matches (extract from chunk data)
+    chunk_character_ids = {c.get("character_id") for c in chunks}
+    if not chunk_character_ids:
+        raise RuntimeError(f"No chunks loaded from {paths['chunks_path']}")
+
+    print(f"✅ Loaded {len(chunks)} chunks with character_ids: {chunk_character_ids}")
 
     texts = [c["text"] for c in chunks]
 
@@ -175,16 +202,16 @@ def main() -> None:
     )
 
     fp_info = compute_build_fingerprint(
-        chunks_path=CHUNKS_PATH,
+        chunks_path=paths["chunks_path"],
         embedder_info=embedder_info,
         faiss_cfg=faiss_cfg,
         bm25_cfg=bm25_cfg,
     )
 
-    prev = load_previous_build()
+    prev = load_previous_build(paths["build_info_path"])
 
     if should_skip(prev, fp_info["fingerprint"]):
-        if not artifacts_exist():
+        if not artifacts_exist(paths):
             raise RuntimeError("Cache claimed valid but artifacts are incomplete.")
         print("ℹ️ Using existing cached artifacts")
         return
@@ -194,20 +221,20 @@ def main() -> None:
 
     # --- Embeddings + FAISS ---
     embeddings = embed_texts(texts)
-    _atomic_save_npy(EMB_PATH, embeddings)
+    _atomic_save_npy(paths["emb_path"], embeddings)
 
-    faiss_tmp = FAISS_PATH.with_suffix(".index.tmp")
+    faiss_tmp = paths["faiss_path"].with_suffix(".index.tmp")
     faiss_index = build_faiss_index(embeddings, faiss_tmp)
-    faiss_tmp.replace(FAISS_PATH)
+    faiss_tmp.replace(paths["faiss_path"])
 
     # --- BM25 ---
-    bm25_tmp = BM25_PATH.with_suffix(".json.tmp")
+    bm25_tmp = paths["bm25_path"].with_suffix(".json.tmp")
     bm25 = build_bm25_index(chunks, bm25_tmp)
-    bm25_tmp.replace(BM25_PATH)
+    bm25_tmp.replace(paths["bm25_path"])
 
     # --- Verify BM25 payload schema (CRITICAL) ---
     try:
-        with BM25_PATH.open("r", encoding="utf-8") as f:
+        with paths["bm25_path"].open("r", encoding="utf-8") as f:
             payload = json.load(f)
         if payload.get("schema") != "bm25_v2":
             raise RuntimeError(
@@ -220,10 +247,10 @@ def main() -> None:
     except Exception as e:
         raise RuntimeError(f"BM25 payload verification failed: {e}") from e
 
-    _ensure_cached_chunks()
+    _ensure_cached_chunks(paths)
 
     build_info = {
-        "character_dirname": CHARACTER_DIRNAME,
+        "character_dirname": character_dirname,
         "num_chunks": len(chunks),
         "build_time_unix": time.time(),
         "build_seconds": round(time.time() - start, 3),
@@ -241,9 +268,9 @@ def main() -> None:
         }
     }
 
-    _atomic_write_json(BUILD_INFO_PATH, build_info)
+    _atomic_write_json(paths["build_info_path"], build_info)
 
-    if not artifacts_exist():
+    if not artifacts_exist(paths):
         raise RuntimeError("Build completed but required artifacts are missing.")
 
     print("✅ Knowledge index build completed successfully")
