@@ -106,3 +106,42 @@ def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
     data5 = r5.json()
     assert "DEBUG INFO" not in data5["reply"]
     assert spy.calls == base_calls + 2
+
+# tests/backend/app/api/test_endpoints.py
+
+def test_debug_toggle_strips_leading_gt(client, monkeypatch):
+    called = {"llm": False}
+
+    async def fake_llm(*args, **kwargs):
+        called["llm"] = True
+        return "LLM"
+
+    monkeypatch.setattr(
+        "backend.app.api.chat.run_llm_chat",
+        fake_llm,
+    )
+
+    # ENTER DEBUG MODE
+    r = client.post(
+        "/api/chat",
+        json={"session_id": "s1", "message": "> [D]"},
+    )
+    assert "ENTERING DEBUG MODE" in r.json()["message"]
+    assert called["llm"] is False
+
+    # NORMAL MESSAGE -> DEBUG BOX APPENDED
+    r = client.post(
+        "/api/chat",
+        json={"session_id": "s1", "message": "hello"},
+    )
+    msg = r.json()["message"]
+    assert "DEBUG INFO" in msg
+    assert "Timestamp" in msg
+
+    # EXIT DEBUG MODE
+    r = client.post(
+        "/api/chat",
+        json={"session_id": "s1", "message": "[D]"},
+    )
+    assert "EXITING DEBUG MODE" in r.json()["message"]
+    assert called["llm"] is False

@@ -1,38 +1,64 @@
 # app/api/chat.py
+
 from fastapi import APIRouter
+
 import httpx
+
 import json
+
 import re
+
 import time
+
 import uuid
 
+
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
+
 from backend.app.knowledge.runtime.index_service import IndexService
 
+
 from backend.app.config.settings import (
+
     OPENAI_API_KEY, OPENAI_MODEL,
+
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS
+
 )
 
+
 from backend.app.engine.state import (
+
     init_state,
+
     apply_state_tag,
+
     extract_state_tag,
+
     MurderGameState,
+
     CharacterState,
+
 )
 from backend.app.engine.story_loader import load_story
 from backend.app.engine.gameplay import (
+
     advance_time,
+
     confession_detected
+
 )
 from backend.app.engine.time_utils import WorldTimeFormatter
 from backend.app.engine.world.world_loader import WorldLoader
 from backend.app.engine.prompt_builder import (
+
     build_messages
+
 )
 
+
 router = APIRouter()
+
 
 # In-memory session store
 SESSIONS = {}  # session_id → { state: MurderGameState, log: list, debug_mode: bool }
@@ -196,7 +222,14 @@ async def chat_handler(data: dict):
     req_id = str(uuid.uuid4())[:8]
     session_id = data.get("session_id") or "default"
 
-    msg = str(data.get("message", "")).strip()
+    # NOTE: Minimal change requested:
+    # Always scrub a leading '>' (markdown quote) from every message input.
+    raw_msg = str(data.get("message", "") or "")
+    stripped = raw_msg.lstrip()
+    if stripped.startswith(">"):
+        raw_msg = stripped[1:]
+    msg = str(raw_msg).strip()
+
     sess = get_session(session_id)
     state: MurderGameState = sess["state"]
     log = sess["log"]
