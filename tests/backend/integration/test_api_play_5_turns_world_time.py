@@ -18,11 +18,11 @@ class _FakeResponse:
 
 def _make_assistant_reply(turn: int) -> str:
     # Reply follows your required dialogue prefix format + state tag.
-    # The API will prepend a timestamp line.
+    # The API no longer prepends a timestamp line.
     return (
         "*The air feels colder for a breath.*\n"
         f"IU: \"Turn {turn} acknowledged.\"\n"
-        "[[STATE]]{\"emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"
+        "[[STATE]]{\"iu_emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"
     )
 
 
@@ -92,9 +92,10 @@ def test_api_end_to_end_5_turns_time_and_location(monkeypatch):
     assert st.location_id == "workplace_lobby"
     assert st.location == "EDAM Entertainment Lobby"
 
-    # Check timestamp prefix exists in reply payload
+    # Timestamp prefix was removed from normal replies (timestamp lives in DEBUG box only)
     reply_text = r.json()["reply"]
-    assert reply_text.startswith("[") and "]" in reply_text.splitlines()[0]
+    assert not reply_text.startswith("[")
+    assert reply_text.lstrip().startswith("*")
 
     # Now validate deterministic time math:
     # Dialogue cost per turn: base(1) + ceil(words*0.25)
