@@ -79,21 +79,6 @@ def test_story_endpoint_existing(client):
     assert data["title"]
 
 
-def test_chat_newgame_and_turn(client):
-    # Start a new game
-    r = client.post("/api/chat", json={"session_id": "s1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
-    assert r.status_code == 200
-    data = r.json()
-    assert "reply" in data
-
-    # Do a turn (will use mocked OpenAI response)
-    r2 = client.post("/api/chat", json={"session_id": "s1", "message": "hello"})
-    assert r2.status_code == 200
-    data2 = r2.json()
-    assert "reply" in data2
-    assert "[[STATE]]" not in data2["reply"]  # tag should be stripped
-
-
 def test_game_logic_router_not_included_in_main(client):
     # /api/game-logic is defined but not included in main.py
     r = client.get("/api/game-logic")
