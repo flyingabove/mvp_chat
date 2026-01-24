@@ -71,7 +71,11 @@ def advance_time(state, player_text: str):
             pass
 
     # Movement detection
-    m = re.search(r"\b(go|move)\s+to\s+(.{3,})", player_text, re.I)
+    # Only treat movement as an explicit command when the *entire message*
+    # is a movement instruction.
+    # This prevents natural-language questions like "Can we go to ...?" from
+    # incorrectly changing the player's location.
+    m = re.match(r"^\s*(go|move)\s+to\s+(.{3,}?)\s*$", player_text, re.I)
     if m:
         place = sanitize_location(m.group(2))
 
@@ -95,9 +99,14 @@ def advance_time(state, player_text: str):
                 state.minute = runtime.world_clock.minute
                 return
 
-        # Fallback: legacy free-text location
-        setattr(state, "location", place)
-        delta += travel
+        # If a world graph is active but we can't resolve the destination,
+        # do NOT change location from arbitrary free-text.
+        if runtime is not None:
+            pass
+        else:
+            # Fallback: legacy free-text location
+            setattr(state, "location", place)
+            delta += travel
 
     # Update minute (legacy path)
     setattr(state, "minute", getattr(state, "minute", 0) + delta)

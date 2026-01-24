@@ -27,7 +27,7 @@ def client(monkeypatch):
         def json(self):
             # Reply must include a valid [[STATE]] tag so state parsing passes.
             return {
-                "choices": [{"message": {"content": "*ok*\n\n**\"hi\"**\n[[STATE]]{\"iu_emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"}}],
+                "choices": [{"message": {"content": "*ok*\n\n**\"hi\"**\n[[STATE]]{\"emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"}}],
                 "usage": {"total_tokens": 1},
             }
 
