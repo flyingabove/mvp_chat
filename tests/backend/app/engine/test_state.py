@@ -20,19 +20,19 @@ def test_apply_state_tag_clamps_relationship_and_updates_main_character():
     st.characters["IU"] = CharacterState(key="IU", name="IU", role="ghost")
     st.main_character_id = "IU"
 
-    apply_state_tag(st, {"iu_emotion": "soft", "rel_delta": 1})
+    apply_state_tag(st, {"emotion": "soft", "rel_delta": 1})
     assert st.emotion == "soft"
     assert st.relationship == 1
     assert st.main_character.emotion == "soft"
     assert st.main_character.relationship == 1
 
     # clamp rel_delta to [-1, 1]
-    apply_state_tag(st, {"iu_emotion": "wary", "rel_delta": 999})
+    apply_state_tag(st, {"emotion": "wary", "rel_delta": 999})
     assert st.relationship == 2
 
 
 def test_extract_state_tag_round_trip_and_strip():
-    tag = {"iu_emotion": "wary", "rel_delta": 0}
+    tag = {"emotion": "wary", "rel_delta": 0}
     reply = "hello\n[[STATE]]" + json.dumps(tag) + "[[/STATE]]\n"
     clean, parsed = extract_state_tag(reply)
     assert "[[STATE]]" not in clean

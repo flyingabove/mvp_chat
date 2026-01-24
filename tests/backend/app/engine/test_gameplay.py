@@ -37,6 +37,18 @@ def test_advance_time_increments_and_moves_location():
     assert st.minute == 1 + 1 + 10
 
 
+def test_advance_time_does_not_move_on_natural_language_question():
+    st = init_state()
+    st.story_cfg = {"time": {"mins_per_word": 0.0, "base_turn_mins": 1, "travel_mins": 10}}
+    st.location = "IU’s Apartment"
+    st.minute = 0
+
+    # Should NOT be interpreted as a movement command.
+    advance_time(st, "Can we go to your old workplace?")
+    assert st.location == "IU’s Apartment"
+    assert st.minute == 1
+
+
 def test_confession_detected_with_default_patterns():
     st = init_state()
     st.story_cfg = {}
