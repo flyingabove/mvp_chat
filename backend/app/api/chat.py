@@ -1,3 +1,6 @@
+
+from backend.app.engine.extractors.location_extractor import LocationExtractor, LocationIntent
+
 # app/api/chat.py
 
 from fastapi import APIRouter
@@ -62,6 +65,10 @@ router = APIRouter()
 
 # In-memory session store
 SESSIONS = {}  # session_id → { state: MurderGameState, log: list, debug_mode: bool }
+
+
+# Shared extractor instance (stateless).
+_LOCATION_EXTRACTOR = LocationExtractor()
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +242,19 @@ async def chat_handler(data: dict):
     state: MurderGameState = sess["state"]
     log = sess["log"]
 
+    # Optional: Use extractor to disambiguate explicit movement commands against the active world graph.
+    # This is intentionally conservative: it only triggers on explicit commands like 'go to X'.
+    runtime = getattr(state, "world_runtime", None)
+    if runtime is not None and getattr(state, "location_id", ""):
+        try:
+            extraction = await _LOCATION_EXTRACTOR.extract(msg, world_graph=runtime.world_graph)
+            if extraction.intent == LocationIntent.MOVE and extraction.destination_id:
+                # Canonicalize user message to a deterministic command so downstream logic stays stable.
+                msg = f"go to {extraction.destination_id}"
+        except Exception:
+            pass
+
+
     t0 = time.time()
 
     # RESET
@@ -256,7 +276,7 @@ async def chat_handler(data: dict):
         gender = parts[1].strip().upper() if len(parts) > 1 else "M"
         player_name = parts[2].strip() if len(parts) > 2 else ""
 
-        player_name = re.sub(r"[^A-Za-z\s\-'"]", "", player_name)[:40] or "Player"
+        player_name = re.sub(r'[^A-Za-z\s\-\'"]', "", player_name)[:40] or "Player"
 
         cfg = load_story(story_id)
         if not cfg:
