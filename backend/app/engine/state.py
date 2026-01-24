@@ -182,10 +182,10 @@ def apply_state_tag(state: MurderGameState, tag: dict):
     # -----------------------
     # Emotion sync
     # -----------------------
-    # Accept neutral key "emotion", legacy "iu_emotion", or any "<name>_emotion" key.
+    # Accept neutral key "emotion", legacy "emotion", or any "<name>_emotion" key.
     emotion = tag.get("emotion")
     if emotion is None:
-        emotion = tag.get("iu_emotion")
+        emotion = tag.get("emotion")
     if emotion is None:
         for k, v in tag.items():
             if isinstance(k, str) and k.endswith("_emotion") and isinstance(v, str):
