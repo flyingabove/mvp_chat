@@ -235,7 +235,7 @@ async def chat_handler(data: dict):
     raw_msg = str(data.get("message", "") or "")
     stripped = raw_msg.lstrip()
     if stripped.startswith(">"):
-        raw_msg = stripped[1:]
+        raw_msg = stripped[1:].lstrip()
     msg = str(raw_msg).strip()
 
     sess = get_session(session_id)
@@ -276,7 +276,7 @@ async def chat_handler(data: dict):
         gender = parts[1].strip().upper() if len(parts) > 1 else "M"
         player_name = parts[2].strip() if len(parts) > 2 else ""
 
-        player_name = re.sub(r'[^A-Za-z\s\-\'"]', "", player_name)[:40] or "Player"
+        player_name = re.sub(r"[^A-Za-z\s\-']","", player_name)[:40] or "Player"
 
         cfg = load_story(story_id)
         if not cfg:
@@ -325,7 +325,7 @@ async def chat_handler(data: dict):
         # the graph's display name; otherwise fall back to the story's setting string.
         if not getattr(new_state, "location_id", ""):
             new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
-        new_state.iu_emotion = cfg.get("emotion", {}).get("start", new_state.iu_emotion)
+        new_state.emotion = cfg.get("emotion", {}).get("start", new_state.emotion)
 
         # Main character identity is story-driven (no hardcoded persona).
         main_cfg = (cfg.get("main_character", {}) or {})
@@ -343,7 +343,7 @@ async def chat_handler(data: dict):
             key=main_key,
             name=main_name,
             role=main_role,
-            emotion=new_state.iu_emotion,
+            emotion=new_state.emotion,
             relationship=new_state.relationship,
         )
 
@@ -461,7 +461,7 @@ async def chat_handler(data: dict):
     clean = sanitize_korean_terms(clean, state)
 
     if not isinstance(tag, dict):
-        tag = {"iu_emotion": state.iu_emotion, "rel_delta": 0}
+        tag = {"emotion": state.emotion, "rel_delta": 0}
 
     apply_state_tag(state, tag)
 
@@ -484,7 +484,7 @@ async def chat_handler(data: dict):
 
     # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
     ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
-    stamped = clean
+    stamped = f"[{ts}]\n{clean}"
 
     # Append debug box for UI visibility (never added to LLM context).
     if bool(sess.get("debug_mode", False)):
@@ -506,7 +506,7 @@ async def chat_handler(data: dict):
             if not loc:
                 loc = user_loc
 
-            speaker_lines.append(f"- {name}: {loc}")
+            speaker_lines.append(f"- {name}")
 
         debug_lines = [
             f"Timestamp: {ts}",
