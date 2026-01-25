@@ -484,7 +484,9 @@ async def chat_handler(data: dict):
 
     # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
     ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
-    stamped = f"[{ts}]\n{clean}"
+
+    # Start with clean reply (no timestamp prefix).
+    reply = clean
 
     # Append debug box for UI visibility (never added to LLM context).
     if bool(sess.get("debug_mode", False)):
@@ -518,6 +520,6 @@ async def chat_handler(data: dict):
         else:
             debug_lines.append("Speakers: (none)")
 
-        stamped = stamped + "\n\n" + _box("DEBUG INFO", debug_lines)
+        reply = reply + "\n\n" + _box("DEBUG INFO", debug_lines)
 
-    return {"reply": stamped, "usage": data.get("usage"), "character": "default"}
+    return {"reply": reply, "usage": data.get("usage"), "character": "default"}
