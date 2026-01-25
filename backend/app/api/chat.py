@@ -247,12 +247,49 @@ async def chat_handler(data: dict):
     runtime = getattr(state, "world_runtime", None)
     if runtime is not None and getattr(state, "location_id", ""):
         try:
+            _log({
+                "kind": "location_extraction_attempting",
+                "user_msg": msg,
+                "current_location_id": state.location_id,
+                "current_location_name": state.location,
+            })
             extraction = await _LOCATION_EXTRACTOR.extract(msg, world_graph=runtime.world_graph)
+            
+            _log({
+                "kind": "location_extraction_complete",
+                "user_msg": msg,
+                "extraction_intent": extraction.intent.value,
+                "extraction_destination_id": extraction.destination_id,
+                "extraction_confidence": extraction.confidence,
+            })
+            
             if extraction.intent == LocationIntent.MOVE and extraction.destination_id:
-                # Canonicalize user message to a deterministic command so downstream logic stays stable.
-                msg = f"go to {extraction.destination_id}"
-        except Exception:
-            pass
+                if extraction.destination_id in runtime.world_graph.locations:
+                    original_msg = msg
+                    msg = f"go to {extraction.destination_id}"
+                    _log({
+                        "kind": "location_extraction_applied",
+                        "original_msg": original_msg,
+                        "canonicalized_msg": msg,
+                        "destination_id": extraction.destination_id,
+                    })
+                else:
+                    _log({
+                        "kind": "location_extraction_invalid_destination",
+                        "user_msg": msg,
+                        "destination_id": extraction.destination_id,
+                    })
+        except Exception as e:
+            _log({
+                "kind": "location_extraction_error",
+                "error": str(e),
+                "user_msg": msg,
+            })
+    else:
+        if runtime is None:
+            _log({"kind": "location_extraction_skipped", "reason": "no_world_runtime"})
+        elif not getattr(state, "location_id", ""):
+            _log({"kind": "location_extraction_skipped", "reason": "no_location_id"})
 
 
     t0 = time.time()

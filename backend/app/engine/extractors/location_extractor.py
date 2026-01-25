@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import json
-import re
 from typing import Optional
 
 import httpx
@@ -35,18 +34,57 @@ class LocationExtractor:
     def __init__(self, model: str | None = None):
         self.model = model or OPENAI_MODEL
 
-    @staticmethod
-    def _should_attempt(user_msg: str) -> bool:
+    async def _should_attempt(self, user_msg: str) -> bool:
         """
-        To keep cost down, only call the extractor if the message likely expresses movement.
-        We intentionally do NOT treat questions like "Can we go to ...?" as movement commands
-        unless the user explicitly issues a command.
+        Use LLM to determine if the message expresses a movement intent.
+        This is more robust than regex and handles natural language variations.
         """
-        s = (user_msg or "").strip().lower()
+        s = (user_msg or "").strip()
         if not s:
             return False
-        # Strong signals for explicit commands.
-        return bool(re.match(r"^\s*(go|move)\s+to\s+\S+", s))
+        
+        system = (
+            "You are a classifier for movement intents in a text adventure game.\n"
+            "Return ONLY valid JSON and nothing else.\n"
+            "Determine if the user message is expressing an intent to move/travel to a location.\n"
+            "Only return true for explicit movement commands like 'go to X', 'move to X', 'travel to X', 'head to X', etc.\n"
+            "Return false for questions or hypotheticals like 'can we go to X?' or 'should I go to X?'.\n"
+            'JSON schema: {"is_movement_intent": true|false}\n'
+        )
+        
+        user = f"User message: {user_msg}\n"
+        
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": 0,
+            "max_tokens": 50,
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                    json=payload,
+                )
+            
+            if r.status_code < 200 or r.status_code >= 300:
+                return False
+            
+            data = r.json()
+            content = str(data["choices"][0]["message"]["content"]).strip()
+            
+            try:
+                obj = json.loads(content)
+                return bool(obj.get("is_movement_intent", False))
+            except Exception:
+                return False
+        except Exception:
+            return False
 
     @staticmethod
     def _build_locations_block(world_graph) -> str:
@@ -103,10 +141,25 @@ class LocationExtractor:
         """
         Extract movement intent and a destination_id (from the provided world graph).
         """
-        if not self._should_attempt(user_msg):
-            return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text="")
+        import json as _json
+        should_attempt = await self._should_attempt(user_msg)
+        print(_json.dumps({
+            "kind": "location_extractor_called",
+            "user_msg": user_msg,
+            "should_attempt": should_attempt,
+        }, ensure_ascii=False))
+        
+        if not should_attempt:
+            result = LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text="")
+            print(_json.dumps({
+                "kind": "location_extractor_skipped",
+                "reason": "llm_classification_negative",
+                "user_msg": user_msg,
+            }, ensure_ascii=False))
+            return result
 
         locations_block = self._build_locations_block(world_graph)
+        num_locations = len([l for l in locations_block.split("\n") if l.strip()])
 
         system = (
             "You are an information extractor for a text adventure engine.\n"
@@ -142,6 +195,12 @@ class LocationExtractor:
             "max_tokens": 120,
         }
 
+        print(_json.dumps({
+            "kind": "location_extractor_calling_llm",
+            "user_msg": user_msg,
+            "num_locations": num_locations,
+        }, ensure_ascii=False))
+
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.post(
                 "https://api.openai.com/v1/chat/completions",
@@ -149,8 +208,30 @@ class LocationExtractor:
                 json=payload,
             )
         if r.status_code < 200 or r.status_code >= 300:
+            print(_json.dumps({
+                "kind": "location_extractor_llm_error",
+                "user_msg": user_msg,
+                "status_code": r.status_code,
+            }, ensure_ascii=False))
             return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text="")
 
         data = r.json()
         content = str(data["choices"][0]["message"]["content"]).strip()
-        return self._parse_json(content)
+        
+        print(_json.dumps({
+            "kind": "location_extractor_llm_response",
+            "user_msg": user_msg,
+            "raw_response": content,
+        }, ensure_ascii=False))
+        
+        result = self._parse_json(content)
+        
+        print(_json.dumps({
+            "kind": "location_extractor_result",
+            "user_msg": user_msg,
+            "intent": result.intent.value,
+            "destination_id": result.destination_id,
+            "confidence": result.confidence,
+        }, ensure_ascii=False))
+        
+        return result
