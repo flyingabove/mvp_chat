@@ -1,4 +1,5 @@
 import os
+import platform
 import pytest
 
 pytest.importorskip("faiss")
@@ -54,6 +55,10 @@ def test_character_hybrid_retrieval_recall_threshold():
     - KNOWLEDGE_CACHE_DIR: cache location (must start with /data for integration)
     - TEST_CHARACTER_ID: character to test (default "1_iu")
     """
+    # Skip on Windows - integration tests require Linux /data paths (Railway only)
+    if platform.system() == "Windows":
+        pytest.skip("Integration test skipped on Windows (requires Railway Linux environment)")
+    
     cache_dir = os.environ.get("KNOWLEDGE_CACHE_DIR")
     assert cache_dir is not None, "KNOWLEDGE_CACHE_DIR must be set for integration tests"
     assert cache_dir.startswith("/data"), f"Integration test must use persistent cache, got {cache_dir}"

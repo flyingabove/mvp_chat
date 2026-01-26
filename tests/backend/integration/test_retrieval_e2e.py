@@ -1,5 +1,6 @@
 import pytest
 import os
+import platform
 
 # This test is intentionally slow and real.
 # It MUST fail if retrieval is broken.
@@ -14,7 +15,12 @@ def test_character_retrieval_returns_real_knowledge():
     - Knowledge indexes load successfully
     - Retrieval returns REAL character knowledge
     - We do not silently hallucinate generic answers
+    
+    Only runs on Linux/Railway CI - skipped on Windows
     """
+    # Skip on Windows - integration tests require Linux /data paths (Railway only)
+    if platform.system() == "Windows":
+        pytest.skip("Integration test skipped on Windows (requires Railway Linux environment)")
 
     from backend.app.knowledge.runtime.load_indexes import load_character_indexes
     from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
