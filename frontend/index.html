@@ -372,7 +372,21 @@
       "- Type `[D]`, `(D)`, `[DEBUG]`, or `(DEBUG)` to toggle debug mode\n" +
       "- Shows game state info: current location, timestamp, character list";
 
-    writeBox("Murder Mystery — Rules & Objective", body);
+    writeBox("Murder Mystery — Rules & Objective", body);    
+    // Render known locations panel if available
+    if (meta.known_locations && meta.known_locations.length > 0) {
+      var locLines = [];
+      meta.known_locations.forEach(function(loc){
+        var locName = loc.name || loc.id;
+        var locDesc = loc.description ? loc.description : "(no description)";
+        var locTags = (loc.tags && loc.tags.length > 0) ? " [" + loc.tags.join(", ") + "]" : "";
+        locLines.push("**" + locName + "**" + locTags);
+        locLines.push(locDesc);
+        locLines.push("");
+      });
+      var locBody = locLines.join("\n").trim();
+      writeBox("Known Locations", locBody);
+    }
   }
 
   /* -------- SEND -------- */
