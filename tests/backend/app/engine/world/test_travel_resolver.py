@@ -58,3 +58,25 @@ def test_travel_resolver_advances_time_and_calls_exposure():
     assert exposure.describe_destination is True
     assert clock.minute == 1 + 5
     assert exp.calls == [None]
+
+
+def test_travel_resolver_creates_dynamic_edge_for_island():
+    """Test that disconnected locations create a dynamic bridge edge in-memory."""
+    g = WorldGraph()
+    g.add_location(Location(id="A", name="A", description="", tags=[]))
+    g.add_location(Location(id="B", name="B", description="", tags=[]))
+    # No edges between A and B - they form an island
+
+    clock = WorldClock()
+    rules = TravelRules(seed=42)
+    exp = _StubExposureResolver()
+    tr = TravelResolver(g, clock, rules, exp)
+
+    # Should create dynamic edge instead of crashing
+    exposure = tr.resolve("A", "B")
+    
+    # Travel should succeed with dynamic edge
+    assert exposure is not None
+    # Dynamic edge takes 8-25 minutes, plus 1 minute exit
+    assert clock.minute >= 1 + 8
+    assert clock.minute <= 1 + 25
