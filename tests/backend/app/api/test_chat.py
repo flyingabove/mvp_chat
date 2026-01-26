@@ -19,6 +19,12 @@ def client(monkeypatch):
     # Prevent retrieval from doing any IO during tests.
     monkeypatch.setattr(chat_mod, "retrieve_knowledge", lambda *args, **kwargs: ([], {}), raising=False)
 
+    # Mock location extractor to not call LLM (return NONE intent)
+    from backend.app.engine.extractors.location_extractor import LocationExtraction, LocationIntent
+    async def _mock_extract(*args, **kwargs):
+        return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text=None)
+    monkeypatch.setattr(chat_mod._LOCATION_EXTRACTOR, "extract", _mock_extract, raising=False)
+
     # Mock httpx.AsyncClient so /api/chat never hits OpenAI.
 
     class _FakeResp:

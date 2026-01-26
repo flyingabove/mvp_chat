@@ -242,6 +242,29 @@ async def chat_handler(data: dict):
     state: MurderGameState = sess["state"]
     log = sess["log"]
 
+    # DEBUG TOGGLE must be checked FIRST before any LLM calls
+    if _is_debug_toggle(msg):
+        currently_on = bool(sess.get("debug_mode", False))
+        sess["debug_mode"] = not currently_on
+
+        if sess["debug_mode"]:
+            notice = _box(
+                "ENTERING DEBUG MODE",
+                [
+                    "Type [D] to exit",
+                    "(Debug info will be appended after each reply)",
+                ],
+            )
+        else:
+            notice = _box(
+                "EXITING DEBUG MODE",
+                [
+                    "Type [D] to re-enter",
+                ],
+            )
+
+        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+
     # Optional: Use extractor to disambiguate explicit movement commands against the active world graph.
     # This is intentionally conservative: it only triggers on explicit commands like 'go to X'.
     runtime = getattr(state, "world_runtime", None)
@@ -397,29 +420,6 @@ async def chat_handler(data: dict):
         ]
 
         return {"reply": opening, "usage": {"total_tokens": 0}, "character": "default"}
-
-    # DEBUG TOGGLE (no LLM, no context, no time advance)
-    if _is_debug_toggle(msg):
-        currently_on = bool(sess.get("debug_mode", False))
-        sess["debug_mode"] = not currently_on
-
-        if sess["debug_mode"]:
-            notice = _box(
-                "ENTERING DEBUG MODE",
-                [
-                    "Type [D] to exit",
-                    "(Debug info will be appended after each reply)",
-                ],
-            )
-        else:
-            notice = _box(
-                "EXITING DEBUG MODE",
-                [
-                    "Type [D] to re-enter",
-                ],
-            )
-
-        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
     # REGULAR TURN
     if not state.story or not state.story_cfg:
