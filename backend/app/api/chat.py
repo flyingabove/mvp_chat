@@ -86,6 +86,21 @@ def _is_debug_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in DEBUG_TOGGLE_TOKENS
 
 
+# ---------------------------------------------------------------------------
+# CHINESE MODE TOGGLE
+# ---------------------------------------------------------------------------
+CHINESE_TOGGLE_TOKENS = {
+    "[CHINESE]",
+    "(CHINESE)",
+    "[C]",
+    "(C)",
+}
+
+
+def _is_chinese_toggle(msg: str) -> bool:
+    return (msg or "").strip().upper() in CHINESE_TOGGLE_TOKENS
+
+
 def _box(title: str, lines: list[str]) -> str:
     """Render a simple pretty ASCII box."""
     title = (title or "").strip()
@@ -125,6 +140,71 @@ def _truncate(s: str, n: int = 6000) -> str:
 
 
 # ---------------------------------------------------------------------------
+# CHINESE TRANSLATION
+# ---------------------------------------------------------------------------
+async def _translate_to_chinese(text: str) -> str:
+    """
+    Translate English text to Chinese using OpenAI API.
+    Preserves formatting: bold, italics, quotes, punctuation, line breaks.
+    """
+    if not text or not text.strip():
+        return text
+    
+    try:
+        prompt = (
+            "Translate the following English text to Simplified Chinese. "
+            "IMPORTANT: Preserve ALL formatting including: bold (**text**), "
+            "italics (*text*), quotes, newlines, punctuation, and special characters. "
+            "Keep the layout and structure exactly the same as the original. "
+            "Only translate the actual words, not the formatting markers. "
+            "Return ONLY the translated text, no explanations.\n\n"
+            f"Text to translate:\n{text}"
+        )
+        
+        payload = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a professional translator. Translate English to Simplified Chinese while preserving exact formatting."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.3,  # Lower temperature for consistent translations
+            "max_tokens": len(text) + 200,  # Chinese typically needs fewer characters
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                json=payload,
+            )
+        
+        if r.status_code < 200 or r.status_code >= 300:
+            _log({
+                "kind": "chinese_translation_error",
+                "status": r.status_code,
+                "error": _truncate(r.text, 1000),
+            })
+            return text  # Fallback to English on error
+        
+        data = r.json()
+        translated = str(data["choices"][0]["message"]["content"]).strip()
+        return translated
+        
+    except Exception as e:
+        _log({
+            "kind": "chinese_translation_exception",
+            "error": str(e),
+        })
+        return text  # Fallback to English on error
+
+
+# ---------------------------------------------------------------------------
 # SESSION RETRIEVAL
 # ---------------------------------------------------------------------------
 def get_session(session_id: str):
@@ -133,6 +213,7 @@ def get_session(session_id: str):
             "state": init_state(),
             "log": [],
             "debug_mode": False,
+            "chinese_mode": False,
         }
     return SESSIONS[session_id]
 
@@ -266,6 +347,29 @@ async def chat_handler(data: dict):
 
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
+    # CHINESE TOGGLE must be checked FIRST before any LLM calls
+    if _is_chinese_toggle(msg):
+        currently_on = bool(sess.get("chinese_mode", False))
+        sess["chinese_mode"] = not currently_on
+
+        if sess["chinese_mode"]:
+            notice = _box(
+                "进入中文模式",
+                [
+                    "Type [C] to exit",
+                    "(所有回复将被翻译为中文)",
+                ],
+            )
+        else:
+            notice = _box(
+                "退出中文模式",
+                [
+                    "Type [C] to return to English",
+                ],
+            )
+
+        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+
     t0 = time.time()
 
     # RESET
@@ -275,6 +379,7 @@ async def chat_handler(data: dict):
             "state": init_state(),
             "log": [],
             "debug_mode": False,
+            "chinese_mode": False,
         }
         return {"reply": "[memory cleared]", "usage": {"total_tokens": 0}, "character": "default"}
 
@@ -370,7 +475,12 @@ async def chat_handler(data: dict):
             {"role": "assistant", "content": opening}
         ]
 
-        return {"reply": opening, "usage": {"total_tokens": 0}, "character": "default"}
+        # Apply Chinese translation if chinese_mode is enabled
+        reply = opening
+        if bool(sess.get("chinese_mode", False)):
+            reply = await _translate_to_chinese(reply)
+
+        return {"reply": reply, "usage": {"total_tokens": 0}, "character": "default"}
 
     # REGULAR TURN
     if not state.story or not state.story_cfg:
@@ -566,5 +676,9 @@ async def chat_handler(data: dict):
             debug_lines.append("Speakers: (none)")
 
         reply = reply + "\n\n" + _box("DEBUG INFO", debug_lines)
+
+    # Apply Chinese translation if chinese_mode is enabled
+    if bool(sess.get("chinese_mode", False)):
+        reply = await _translate_to_chinese(reply)
 
     return {"reply": reply, "usage": data.get("usage"), "character": "default"}

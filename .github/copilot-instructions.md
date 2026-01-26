@@ -102,11 +102,21 @@ pytest tests/backend
 - Appends ASCII box with: current timestamp, user location, character list + individual locations.
 - Never added to LLM context (client-side only).
 
+### Chinese Translation Mode
+- Type `[C]`, `(C)`, `[CHINESE]`, or `(CHINESE)` to toggle Chinese mode (case-insensitive).
+- When enabled, all responses (including opening prompt) are translated to Simplified Chinese via OpenAI.
+- Translation preserves all formatting: **bold**, *italics*, "quotes", newlines, line breaks.
+- Falls back gracefully to English if translation API fails.
+- Can be combined with debug mode (both can be enabled simultaneously).
+- Uses lower temperature (0.3) for consistent, high-quality translations.
+
 ### JSON Logging
 - All key events logged as JSON lines to stdout (Railway Deploy Logs):
   - `chat_request`: Turn data, retrieval debug, chunk IDs.
   - `chat_response`: Latency, usage, preview.
   - `retrieval_error`, `chat_upstream_error`: Errors with context.
+  - `chinese_translation_error`: Translation API HTTP errors.
+  - `chinese_translation_exception`: Translation function exceptions.
 
 ## Conventions & Patterns
 
