@@ -265,56 +265,6 @@ async def chat_handler(data: dict):
 
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
-    # Optional: Use extractor to disambiguate explicit movement commands against the active world graph.
-    # This is intentionally conservative: it only triggers on explicit commands like 'go to X'.
-    runtime = getattr(state, "world_runtime", None)
-    if runtime is not None and getattr(state, "location_id", ""):
-        try:
-            _log({
-                "kind": "location_extraction_attempting",
-                "user_msg": msg,
-                "current_location_id": state.location_id,
-                "current_location_name": state.location,
-            })
-            extraction = await _LOCATION_EXTRACTOR.extract(msg, world_graph=runtime.world_graph)
-            
-            _log({
-                "kind": "location_extraction_complete",
-                "user_msg": msg,
-                "extraction_intent": extraction.intent.value,
-                "extraction_destination_id": extraction.destination_id,
-                "extraction_confidence": extraction.confidence,
-            })
-            
-            if extraction.intent == LocationIntent.MOVE and extraction.destination_id:
-                if extraction.destination_id in runtime.world_graph.locations:
-                    original_msg = msg
-                    msg = f"go to {extraction.destination_id}"
-                    _log({
-                        "kind": "location_extraction_applied",
-                        "original_msg": original_msg,
-                        "canonicalized_msg": msg,
-                        "destination_id": extraction.destination_id,
-                    })
-                else:
-                    _log({
-                        "kind": "location_extraction_invalid_destination",
-                        "user_msg": msg,
-                        "destination_id": extraction.destination_id,
-                    })
-        except Exception as e:
-            _log({
-                "kind": "location_extraction_error",
-                "error": str(e),
-                "user_msg": msg,
-            })
-    else:
-        if runtime is None:
-            _log({"kind": "location_extraction_skipped", "reason": "no_world_runtime"})
-        elif not getattr(state, "location_id", ""):
-            _log({"kind": "location_extraction_skipped", "reason": "no_location_id"})
-
-
     t0 = time.time()
 
     # RESET
@@ -437,7 +387,10 @@ async def chat_handler(data: dict):
         if not state.user.display_name:
             state.user.display_name = extracted
 
-    # --- Authoritative retrieval ---
+    # --- KNOWLEDGE RETRIEVAL (must happen BEFORE location extraction) ---
+    # This retrieval provides context that helps LocationExtractor disambiguate ambiguous location
+    # references. For example, "I'm going to IU's old workplace" needs FAISS knowledge context to
+    # resolve "old workplace" to the specific location ID (e.g., EDAM entertainment building).
     try:
         # Route retrieval to the correct character bundle for this story.
         if getattr(state, "knowledge_character_id", ""):
@@ -446,6 +399,60 @@ async def chat_handler(data: dict):
     except Exception as e:
         _log({"kind": "retrieval_error", "error": str(e)})
         return {"error": "knowledge retrieval failed", "character": "default"}
+
+    # --- LOCATION EXTRACTION (with knowledge context for disambiguation) ---
+    # LocationExtractor receives knowledge_chunks to disambiguate implicit location references
+    # using LLM calls. Example: "old workplace" → FAISS chunks mention EDAM → LLM extracts EDAM_ID
+    runtime = getattr(state, "world_runtime", None)
+    if runtime is not None and getattr(state, "location_id", ""):
+        try:
+            _log({
+                "kind": "location_extraction_attempting",
+                "user_msg": msg,
+                "current_location_id": state.location_id,
+                "current_location_name": state.location,
+            })
+            extraction = await _LOCATION_EXTRACTOR.extract(
+                msg, 
+                world_graph=runtime.world_graph,
+                knowledge_chunks=retrieved  # Pass knowledge chunks for disambiguation
+            )
+            
+            _log({
+                "kind": "location_extraction_complete",
+                "user_msg": msg,
+                "extraction_intent": extraction.intent.value,
+                "extraction_destination_id": extraction.destination_id,
+                "extraction_confidence": extraction.confidence,
+            })
+            
+            if extraction.intent == LocationIntent.MOVE and extraction.destination_id:
+                if extraction.destination_id in runtime.world_graph.locations:
+                    original_msg = msg
+                    msg = f"go to {extraction.destination_id}"
+                    _log({
+                        "kind": "location_extraction_applied",
+                        "original_msg": original_msg,
+                        "canonicalized_msg": msg,
+                        "destination_id": extraction.destination_id,
+                    })
+                else:
+                    _log({
+                        "kind": "location_extraction_invalid_destination",
+                        "user_msg": msg,
+                        "destination_id": extraction.destination_id,
+                    })
+        except Exception as e:
+            _log({
+                "kind": "location_extraction_error",
+                "error": str(e),
+                "user_msg": msg,
+            })
+    else:
+        if runtime is None:
+            _log({"kind": "location_extraction_skipped", "reason": "no_world_runtime"})
+        elif not getattr(state, "location_id", ""):
+            _log({"kind": "location_extraction_skipped", "reason": "no_location_id"})
 
     messages = build_messages(state, log, msg, retrieved)
     state.turns += 1

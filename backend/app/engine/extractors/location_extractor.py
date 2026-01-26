@@ -137,9 +137,14 @@ class LocationExtractor:
             destination_text=dest_text,
         )
 
-    async def extract(self, user_msg: str, *, world_graph) -> LocationExtraction:
+    async def extract(self, user_msg: str, *, world_graph, knowledge_chunks: list = None) -> LocationExtraction:
         """
         Extract movement intent and a destination_id (from the provided world graph).
+        
+        Args:
+            user_msg: The user's message
+            world_graph: The world graph to resolve location IDs against
+            knowledge_chunks: Optional list of knowledge chunks for disambiguation context
         """
         import json as _json
         should_attempt = await self._should_attempt(user_msg)
@@ -147,6 +152,7 @@ class LocationExtractor:
             "kind": "location_extractor_called",
             "user_msg": user_msg,
             "should_attempt": should_attempt,
+            "has_knowledge_context": knowledge_chunks is not None and len(knowledge_chunks) > 0,
         }, ensure_ascii=False))
         
         if not should_attempt:
@@ -168,6 +174,7 @@ class LocationExtractor:
             "Only output intent MOVE if the message is an explicit command like 'go to X' or 'move to X'.\n"
             "Do NOT output MOVE for questions like 'can we go to X?' or hypotheticals.\n"
             "If intent is MOVE, choose the single best destination_id from the provided location list.\n"
+            "Use the knowledge context to disambiguate location references (e.g., 'old workplace' might refer to a specific known location).\n"
             "If uncertain, return intent NONE.\n"
             "JSON schema:\n"
             "{\n"
@@ -178,12 +185,26 @@ class LocationExtractor:
             "}\n"
         )
 
-        user = (
-            "Known locations (id: name):\n"
-            f"{locations_block}\n\n"
-            "User message:\n"
+        user_parts = [
+            "Known locations (id: name):\n",
+            f"{locations_block}\n",
+        ]
+        
+        # Add knowledge context if available
+        if knowledge_chunks and len(knowledge_chunks) > 0:
+            user_parts.append("\nKnowledge context for disambiguation:\n")
+            for i, chunk in enumerate(knowledge_chunks[:5], 1):  # Limit to top 5 chunks
+                content = chunk.get("content") or chunk.get("text") or ""
+                chunk_id = chunk.get("chunk_id", f"chunk_{i}")
+                user_parts.append(f"[{chunk_id}]: {content[:500]}\n")
+            user_parts.append("\n")
+        
+        user_parts.extend([
+            "User message:\n",
             f"{user_msg}\n"
-        )
+        ])
+
+        user = "".join(user_parts)
 
         payload = {
             "model": self.model,
@@ -199,6 +220,7 @@ class LocationExtractor:
             "kind": "location_extractor_calling_llm",
             "user_msg": user_msg,
             "num_locations": num_locations,
+            "num_knowledge_chunks": len(knowledge_chunks) if knowledge_chunks else 0,
         }, ensure_ascii=False))
 
         try:

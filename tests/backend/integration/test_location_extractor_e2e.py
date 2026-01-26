@@ -169,3 +169,39 @@ async def test_location_extractor_real_api_move_to_variant():
     
     assert res.intent == LocationIntent.MOVE
     assert res.destination_id in world_graph.locations
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
+@pytest.mark.asyncio
+async def test_location_extractor_with_knowledge_context_disambiguation():
+    """Integration test: Location extractor uses knowledge chunks for disambiguation.
+    
+    This verifies that when knowledge context is provided, the LLM can disambiguate
+    ambiguous references like "old workplace" to their actual location IDs.
+    """
+    extractor = LocationExtractor()
+    world_graph = _WorldGraph()
+    
+    # Simulate knowledge chunks from FAISS retrieval about EDAM Entertainment
+    knowledge_chunks = [
+        "EDAM Entertainment is where Yuna used to work before joining the main company",
+        "Yuna's old workplace at EDAM was where she spent her formative years in the industry",
+        "The EDAM Entertainment Building is located downtown near the office district",
+        "EDAM Entertainment: A multimedia production company; Yuna worked there as director",
+        "Yuna mentions her time at EDAM with nostalgia when discussing career changes",
+    ]
+    
+    # Ambiguous user message that needs knowledge context
+    res = await extractor.extract(
+        "I'm going to IU's old workplace",
+        world_graph=world_graph,
+        knowledge_chunks=knowledge_chunks
+    )
+    
+    # Should classify as movement (it's clearly a command even if phrased naturally)
+    assert res.intent == LocationIntent.MOVE
+    # Should disambiguate to EDAM building using knowledge context
+    assert res.destination_id in world_graph.locations
+    # With knowledge context, should have high confidence
+    assert res.confidence >= 0.5
