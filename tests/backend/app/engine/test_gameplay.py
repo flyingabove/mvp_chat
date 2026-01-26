@@ -1,3 +1,4 @@
+from unittest.mock import Mock, MagicMock, patch
 from backend.app.engine.gameplay import (
     word_count,
     sanitize_location,
@@ -54,3 +55,57 @@ def test_confession_detected_with_default_patterns():
     st.story_cfg = {}
     assert confession_detected("I am the mastermind", st) is True
     assert confession_detected("just chatting", st) is False
+
+
+def test_advance_time_handles_no_valid_route_error():
+    """Test that advance_time gracefully handles RuntimeError from travel_resolver.
+    
+    Scenario: User tries to move from iu_apartment_room to iu_office,
+    but no valid route exists in the world graph. The travel_resolver
+    raises RuntimeError("No valid route from X to Y").
+    
+    Expected: advance_time() should not crash, and should skip location update
+    when travel resolution fails.
+    """
+    st = init_state()
+    st.story_cfg = {"time": {"mins_per_word": 0.0, "base_turn_mins": 1, "travel_mins": 10}}
+    st.location = "apartment"
+    st.location_id = "iu_apartment_room"
+    st.minute = 100
+    
+    # Mock world graph and travel resolver
+    mock_graph = Mock()
+    mock_graph.get_location = Mock(return_value=Mock(name="office"))
+    
+    # Travel resolver raises RuntimeError for invalid route
+    mock_resolver = Mock()
+    mock_resolver.resolve.side_effect = RuntimeError("No valid route from iu_apartment_room to iu_office")
+    
+    mock_clock = Mock()
+    mock_clock.minute = 115
+    mock_clock.advance = Mock()
+    
+    mock_runtime = Mock()
+    mock_runtime.world_graph = mock_graph
+    mock_runtime.travel_resolver = mock_resolver
+    mock_runtime.world_clock = mock_clock
+    
+    # Attach mock runtime to state
+    st.world_runtime = mock_runtime
+    
+    # Mock _resolve_destination_id to return a valid destination ID
+    with patch("backend.app.engine.gameplay._resolve_destination_id") as mock_resolve_dest:
+        mock_resolve_dest.return_value = "iu_office"
+        
+        # This should NOT crash despite travel_resolver raising RuntimeError
+        advance_time(st, "go to office")
+    
+    # Verify that travel_resolver was called (it did attempt the travel)
+    mock_resolver.resolve.assert_called_once_with("iu_apartment_room", "iu_office")
+    
+    # Verify state was NOT changed due to the error
+    # Location should remain unchanged when travel resolution fails
+    assert st.location == "apartment"
+    assert st.location_id == "iu_apartment_room"
+    # Time should be incremented by base_turn_mins only
+    assert st.minute == 101

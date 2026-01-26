@@ -83,21 +83,26 @@ def advance_time(state, player_text: str):
         if runtime is not None and getattr(state, "location_id", ""):
             dest_id = _resolve_destination_id(runtime.world_graph, place)
             if dest_id:
-                exposure = runtime.travel_resolver.resolve(state.location_id, dest_id)
-                state.last_travel_from_id = state.location_id
-                state.last_travel_to_id = dest_id
-                state.last_travel_exposure = exposure
-
-                state.location_id = dest_id
-                # Human-readable location string for UI + manifestation heuristics.
                 try:
-                    state.location = runtime.world_graph.get_location(dest_id).name
-                except Exception:
-                    state.location = place
+                    exposure = runtime.travel_resolver.resolve(state.location_id, dest_id)
+                    state.last_travel_from_id = state.location_id
+                    state.last_travel_to_id = dest_id
+                    state.last_travel_exposure = exposure
 
-                # Sync state.minute from world clock (authoritative)
-                state.minute = runtime.world_clock.minute
-                return
+                    state.location_id = dest_id
+                    # Human-readable location string for UI + manifestation heuristics.
+                    try:
+                        state.location = runtime.world_graph.get_location(dest_id).name
+                    except Exception:
+                        state.location = place
+
+                    # Sync state.minute from world clock (authoritative)
+                    state.minute = runtime.world_clock.minute
+                    return
+                except Exception:
+                    # Travel resolution failed (no route, invalid locations, etc.)
+                    # Fall through to legacy location update behavior below
+                    pass
 
         # If a world graph is active but we can't resolve the destination,
         # do NOT change location from arbitrary free-text.
