@@ -201,12 +201,21 @@ class LocationExtractor:
             "num_locations": num_locations,
         }, ensure_ascii=False))
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-                json=payload,
-            )
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                    json=payload,
+                )
+        except Exception as e:
+            print(_json.dumps({
+                "kind": "location_extractor_network_error",
+                "user_msg": user_msg,
+                "error": str(e),
+            }, ensure_ascii=False))
+            return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text="")
+        
         if r.status_code < 200 or r.status_code >= 300:
             print(_json.dumps({
                 "kind": "location_extractor_llm_error",
@@ -215,8 +224,16 @@ class LocationExtractor:
             }, ensure_ascii=False))
             return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text="")
 
-        data = r.json()
-        content = str(data["choices"][0]["message"]["content"]).strip()
+        try:
+            data = r.json()
+            content = str(data["choices"][0]["message"]["content"]).strip()
+        except Exception as e:
+            print(_json.dumps({
+                "kind": "location_extractor_parse_error",
+                "user_msg": user_msg,
+                "error": str(e),
+            }, ensure_ascii=False))
+            return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text="")
         
         print(_json.dumps({
             "kind": "location_extractor_llm_response",

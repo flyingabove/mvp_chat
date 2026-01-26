@@ -188,3 +188,132 @@ async def test_location_extractor_returns_destination_id_for_explicit_go_to(monk
     assert res.intent == LocationIntent.MOVE
     assert res.destination_id == "office_lobby"
     assert res.confidence >= 0.5
+
+
+# ============================================================================
+# ERROR HANDLING TESTS (network timeouts, malformed responses, etc.)
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_location_extractor_handles_network_timeout_on_classification(monkeypatch):
+    """Test: Network timeout on _should_attempt returns False gracefully."""
+    extractor = LocationExtractor(model="test-model")
+
+    async def fake_post_timeout(self, url, headers=None, json=None):
+        raise TimeoutError("Connection timeout")
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_timeout, raising=True)
+
+    # Should not raise, but return False
+    result = await extractor._should_attempt("go to office")
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_location_extractor_handles_network_timeout_on_extraction(monkeypatch):
+    """Test: Network timeout on extract() returns NONE intent gracefully."""
+    extractor = LocationExtractor(model="test-model")
+    world_graph = _WorldGraph()
+
+    call_count = {"count": 0}
+
+    async def fake_post(self, url, headers=None, json=None):
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            # Classification succeeds
+            return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": true}'}}]})
+        else:
+            # Extraction fails with timeout
+            raise TimeoutError("Connection timeout on extraction")
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post, raising=True)
+
+    # Should not raise, but return NONE intent
+    res = await extractor.extract("go to office", world_graph=world_graph)
+    assert isinstance(res, LocationExtraction)
+    assert res.intent == LocationIntent.NONE
+    assert res.destination_id is None
+
+
+@pytest.mark.asyncio
+async def test_location_extractor_handles_malformed_json_response(monkeypatch):
+    """Test: Malformed JSON in LLM response returns NONE intent."""
+    extractor = LocationExtractor(model="test-model")
+    world_graph = _WorldGraph()
+
+    call_count = {"count": 0}
+
+    async def fake_post(self, url, headers=None, json=None):
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            # Classification succeeds
+            return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": true}'}}]})
+        else:
+            # Extraction returns invalid JSON
+            return _Resp(200, {"choices": [{"message": {"content": 'NOT VALID JSON {{'}}]})
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post, raising=True)
+
+    # Should not raise, but return NONE intent
+    res = await extractor.extract("go to office", world_graph=world_graph)
+    assert isinstance(res, LocationExtraction)
+    assert res.intent == LocationIntent.NONE
+    assert res.destination_id is None
+
+
+@pytest.mark.asyncio
+async def test_location_extractor_handles_http_error_on_extraction(monkeypatch):
+    """Test: HTTP 500 on extraction returns NONE intent."""
+    extractor = LocationExtractor(model="test-model")
+    world_graph = _WorldGraph()
+
+    call_count = {"count": 0}
+
+    async def fake_post(self, url, headers=None, json=None):
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            # Classification succeeds
+            return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": true}'}}]})
+        else:
+            # Extraction fails with HTTP 500
+            return _Resp(500, {})
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post, raising=True)
+
+    # Should not raise, but return NONE intent
+    res = await extractor.extract("go to office", world_graph=world_graph)
+    assert isinstance(res, LocationExtraction)
+    assert res.intent == LocationIntent.NONE
+    assert res.destination_id is None
+
+
+@pytest.mark.asyncio
+async def test_location_extractor_handles_missing_json_keys(monkeypatch):
+    """Test: Response missing expected JSON keys returns NONE intent."""
+    extractor = LocationExtractor(model="test-model")
+    world_graph = _WorldGraph()
+
+    call_count = {"count": 0}
+
+    async def fake_post(self, url, headers=None, json=None):
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            # Classification succeeds
+            return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": true}'}}]})
+        else:
+            # Extraction returns JSON but missing "content" key in message
+            return _Resp(200, {"choices": [{"message": {}}]})
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post, raising=True)
+
+    # Should not raise, but return NONE intent
+    res = await extractor.extract("go to office", world_graph=world_graph)
+    assert isinstance(res, LocationExtraction)
+    assert res.intent == LocationIntent.NONE
+    assert res.destination_id is None
+
