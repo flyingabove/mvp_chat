@@ -176,6 +176,40 @@ def test_debug_box_speakers_do_not_include_location_as_name(client):
     # Ensure the location isn't mistakenly treated as a speaker name.
     assert "- IU’s Apartment" not in reply
 
+def test_debug_box_rendering_pretty_separator(client):
+    """Test that debug box has proper title/content separator."""
+    r0 = client.post("/api/chat", json={"session_id": "box1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    assert r0.status_code == 200
+
+    # Enable debug mode
+    r1 = client.post("/api/chat", json={"session_id": "box1", "message": "[D]"})
+    assert r1.status_code == 200
+    reply1 = r1.json()["reply"]
+
+    # Debug toggle boxes should have proper separator
+    assert "├" in reply1  # separator line must exist
+    assert "ENTERING DEBUG MODE" in reply1
+    lines = reply1.split("\n")
+    # Find title line and verify next line is separator
+    for i, line in enumerate(lines):
+        if "ENTERING DEBUG MODE" in line:
+            assert i + 1 < len(lines)
+            next_line = lines[i + 1]
+            assert "├" in next_line, f"Expected separator after title, got: {next_line}"
+            break
+    else:
+        assert False, "Could not find ENTERING DEBUG MODE in output"
+
+    # Normal turn should append debug box with proper formatting
+    r2 = client.post("/api/chat", json={"session_id": "box1", "message": "hello"})
+    assert r2.status_code == 200
+    reply2 = r2.json()["reply"]
+
+    assert "DEBUG INFO" in reply2
+    assert "├" in reply2  # separator for debug box
+    # Verify box has corners
+    assert "┌" in reply2 and "┐" in reply2
+    assert "└" in reply2 and "┘" in reply2
 # ============================================================================
 # Chat utility function tests
 # ============================================================================

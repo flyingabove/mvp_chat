@@ -94,7 +94,8 @@ def _box(title: str, lines: list[str]) -> str:
 
     top = "┌" + "─" * (inner_width + 2) + "┐"
     mid_title = "│ " + title.ljust(inner_width) + " │" if title else None
-    sep = "├" + "─" * (inner_width + 2) + "┤" if safe_lines else None
+    # Render separator if there's a title OR lines (to properly separate title from content)
+    sep = "├" + "─" * (inner_width + 2) + "┤" if (title or safe_lines) else None
     body = ["│ " + x.ljust(inner_width) + " │" for x in safe_lines]
     bottom = "└" + "─" * (inner_width + 2) + "┘"
 
