@@ -101,6 +101,21 @@ def _is_chinese_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in CHINESE_TOGGLE_TOKENS
 
 
+# ---------------------------------------------------------------------------
+# MAP TOGGLE
+# ---------------------------------------------------------------------------
+MAP_TOGGLE_TOKENS = {
+    "[MAP]",
+    "(MAP)",
+    "[M]",
+    "(M)",
+}
+
+
+def _is_map_toggle(msg: str) -> bool:
+    return (msg or "").strip().upper() in MAP_TOGGLE_TOKENS
+
+
 def _box(title: str, lines: list[str]) -> str:
     """Render a simple pretty ASCII box."""
     title = (title or "").strip()
@@ -367,6 +382,25 @@ async def chat_handler(data: dict):
                     "Type [C] to return to English",
                 ],
             )
+
+        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+
+    # MAP TOGGLE - Show available locations
+    if _is_map_toggle(msg):
+        state: MurderGameState = sess.get("state")
+        if not state or not state.world_runtime:
+            notice = _box(
+                "World Map",
+                [
+                    "No map available in this story.",
+                ],
+            )
+        else:
+            locations = list(state.world_runtime.world_graph.locations.values())
+            location_lines = []
+            for loc in locations:
+                location_lines.append(f"{loc.name}")
+            notice = _box("World Map", location_lines)
 
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
