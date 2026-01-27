@@ -8,7 +8,7 @@ from typing import Optional
 
 import httpx
 
-from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
+from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL, EXTRACTOR_TURNS
 
 
 class LocationIntent(str, Enum):
@@ -34,7 +34,7 @@ class LocationExtractor:
     def __init__(self, model: str | None = None):
         self.model = model or OPENAI_MODEL
 
-    async def _should_attempt(self, user_msg: str) -> bool:
+    async def _should_attempt(self, user_msg: str, conversation_log: list = None) -> bool:
         """
         Use LLM to determine if the message expresses a movement intent.
         This is more robust than regex and handles natural language variations.
@@ -42,7 +42,7 @@ class LocationExtractor:
         s = (user_msg or "").strip()
         if not s:
             return False
-        
+
         system = (
             "You are a classifier for movement intents in a text adventure game.\n"
             "Return ONLY valid JSON and nothing else.\n"
@@ -51,15 +51,22 @@ class LocationExtractor:
             "Return false for questions or hypotheticals like 'can we go to X?' or 'should I go to X?'.\n"
             'JSON schema: {"is_movement_intent": true|false}\n'
         )
-        
-        user = f"User message: {user_msg}\n"
-        
+
+        # Build messages with conversation history
+        messages = [{"role": "system", "content": system}]
+
+        # Add conversation history (limited to EXTRACTOR_TURNS)
+        if conversation_log:
+            history = [m for m in conversation_log if m.get("role") != "system"]
+            history = history[-EXTRACTOR_TURNS:] if len(history) > EXTRACTOR_TURNS else history
+            messages.extend(history)
+
+        # Add current user message
+        messages.append({"role": "user", "content": f"User message: {user_msg}\n"})
+
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            "messages": messages,
             "temperature": 0,
             "max_tokens": 50,
         }
@@ -137,17 +144,18 @@ class LocationExtractor:
             destination_text=dest_text,
         )
 
-    async def extract(self, user_msg: str, *, world_graph, knowledge_chunks: list = None) -> LocationExtraction:
+    async def extract(self, user_msg: str, *, world_graph, knowledge_chunks: list = None, conversation_log: list = None) -> LocationExtraction:
         """
         Extract movement intent and a destination_id (from the provided world graph).
-        
+
         Args:
             user_msg: The user's message
             world_graph: The world graph to resolve location IDs against
             knowledge_chunks: Optional list of knowledge chunks for disambiguation context
+            conversation_log: Optional conversation history for context
         """
         import json as _json
-        should_attempt = await self._should_attempt(user_msg)
+        should_attempt = await self._should_attempt(user_msg, conversation_log)
         print(_json.dumps({
             "kind": "location_extractor_called",
             "user_msg": user_msg,
@@ -206,12 +214,21 @@ class LocationExtractor:
 
         user = "".join(user_parts)
 
+        # Build messages with conversation history
+        messages = [{"role": "system", "content": system}]
+
+        # Add conversation history (limited to EXTRACTOR_TURNS)
+        if conversation_log:
+            history = [m for m in conversation_log if m.get("role") != "system"]
+            history = history[-EXTRACTOR_TURNS:] if len(history) > EXTRACTOR_TURNS else history
+            messages.extend(history)
+
+        # Add current extraction request
+        messages.append({"role": "user", "content": user})
+
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
+            "messages": messages,
             "temperature": 0,
             "max_tokens": 120,
         }

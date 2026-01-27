@@ -1,0 +1,127 @@
+%% MVP Chat - Architecture Diagram (Mermaid Format)
+%% This file can be rendered using Mermaid.js or any Mermaid-compatible viewer
+
+graph TB
+    subgraph "Client Layer"
+        USER[User Browser]
+        FRONTEND[Frontend: index.html<br/>Terminal UI<br/>Input Handler<br/>Typewriter Effect]
+    end
+
+    subgraph "API Layer"
+        API_CHAT[POST /api/chat<br/>Main gameplay endpoint]
+        API_STORIES[GET /api/stories<br/>List available stories]
+        API_STORY[GET /api/story/:id<br/>Story metadata]
+        API_HEALTH[GET /api/health<br/>Health check]
+        API_ECHO[POST /api/echo<br/>Debug endpoint]
+    end
+
+    subgraph "Game Engine"
+        STATE[State Management<br/>MurderGameState<br/>UserState<br/>CharacterState]
+        GAMEPLAY[Gameplay Mechanics<br/>Time advancement<br/>Movement detection<br/>Win condition check]
+        PROMPT[Prompt Builder<br/>System prompt construction<br/>Memory injection<br/>Context formatting]
+        STORY_LOADER[Story Loader<br/>JSON parsing<br/>BOM handling]
+        TIME_UTILS[Time Utilities<br/>World time formatting]
+
+        subgraph "Extractors"
+            LOC_EXT[Location Extractor<br/>NLP intent classification<br/>Destination resolution]
+        end
+
+        subgraph "World System"
+            WORLD_GRAPH[World Graph<br/>Locations + Edges]
+            WORLD_CLOCK[World Clock<br/>Time tracking]
+            TRAVEL_RES[Travel Resolver<br/>Route execution]
+            TRAVEL_RULES[Travel Rules<br/>Pathfinding BFS<br/>Seeded RNG]
+            EXPOSURE[Exposure Resolver<br/>Event probabilities]
+        end
+    end
+
+    subgraph "Knowledge System"
+        INDEX_SVC[Index Service<br/>Thread-safe cache<br/>Character routing]
+        RETRIEVE[Hybrid Retrieval<br/>BM25 + FAISS fusion]
+
+        subgraph "Index Artifacts"
+            CHUNKS[chunks.jsonl<br/>Pre-chunked knowledge]
+            BM25[bm25.json<br/>Lexical search index]
+            FAISS[faiss.index<br/>Vector search index]
+            EMBEDDINGS[embeddings.npy<br/>Sentence embeddings]
+        end
+    end
+
+    subgraph "External Services"
+        OPENAI[OpenAI API<br/>gpt-4o-mini<br/>Chat completion<br/>Location extraction<br/>Chinese translation]
+    end
+
+    subgraph "Data Storage"
+        STORIES_JSON[Story JSON Files<br/>backend/app/stories/<br/>iu_murder_mystery.json]
+        WORLD_JSON[World Graph JSON<br/>iu_murder_mystery_world.json]
+        KNOWLEDGE_DATA[Knowledge Data<br/>characters/1_iu/<br/>chunks.jsonl]
+    end
+
+    subgraph "Session Management"
+        SESSIONS[In-Memory Sessions<br/>session_id → state<br/>conversation log<br/>debug/chinese modes]
+    end
+
+    %% Client connections
+    USER --> FRONTEND
+    FRONTEND --> API_CHAT
+    FRONTEND --> API_STORIES
+    FRONTEND --> API_STORY
+
+    %% API to Engine
+    API_CHAT --> STATE
+    API_CHAT --> GAMEPLAY
+    API_CHAT --> PROMPT
+    API_CHAT --> LOC_EXT
+    API_CHAT --> RETRIEVE
+    API_CHAT --> SESSIONS
+
+    API_STORIES --> STORY_LOADER
+    API_STORY --> STORY_LOADER
+    API_STORY --> WORLD_GRAPH
+
+    %% Engine internal
+    GAMEPLAY --> STATE
+    GAMEPLAY --> TRAVEL_RES
+    PROMPT --> STATE
+
+    %% World system
+    TRAVEL_RES --> WORLD_GRAPH
+    TRAVEL_RES --> WORLD_CLOCK
+    TRAVEL_RES --> TRAVEL_RULES
+    TRAVEL_RES --> EXPOSURE
+    TRAVEL_RULES --> WORLD_GRAPH
+
+    %% Location extraction
+    LOC_EXT --> WORLD_GRAPH
+    LOC_EXT --> OPENAI
+
+    %% Knowledge system
+    RETRIEVE --> INDEX_SVC
+    INDEX_SVC --> CHUNKS
+    INDEX_SVC --> BM25
+    INDEX_SVC --> FAISS
+    INDEX_SVC --> EMBEDDINGS
+
+    %% Data loading
+    STORY_LOADER --> STORIES_JSON
+    WORLD_GRAPH --> WORLD_JSON
+    INDEX_SVC --> KNOWLEDGE_DATA
+
+    %% External API calls
+    API_CHAT --> OPENAI
+    PROMPT --> OPENAI
+
+    %% Styling
+    classDef clientStyle fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    classDef apiStyle fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef engineStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef knowledgeStyle fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef externalStyle fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef dataStyle fill:#fff9c4,stroke:#f57f17,stroke-width:2px
+
+    class USER,FRONTEND clientStyle
+    class API_CHAT,API_STORIES,API_STORY,API_HEALTH,API_ECHO apiStyle
+    class STATE,GAMEPLAY,PROMPT,STORY_LOADER,TIME_UTILS,LOC_EXT,WORLD_GRAPH,WORLD_CLOCK,TRAVEL_RES,TRAVEL_RULES,EXPOSURE engineStyle
+    class INDEX_SVC,RETRIEVE,CHUNKS,BM25,FAISS,EMBEDDINGS knowledgeStyle
+    class OPENAI externalStyle
+    class STORIES_JSON,WORLD_JSON,KNOWLEDGE_DATA,SESSIONS dataStyle

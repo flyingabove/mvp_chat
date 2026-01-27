@@ -568,9 +568,10 @@ async def chat_handler(data: dict):
                 "current_location_name": state.location,
             })
             extraction = await _LOCATION_EXTRACTOR.extract(
-                msg, 
+                msg,
                 world_graph=runtime.world_graph,
-                knowledge_chunks=retrieved  # Pass knowledge chunks for disambiguation
+                knowledge_chunks=retrieved,  # Pass knowledge chunks for disambiguation
+                conversation_log=log  # Pass conversation history for context
             )
             
             _log({
