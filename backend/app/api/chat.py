@@ -395,14 +395,24 @@ async def chat_handler(data: dict):
                     "No map available in this story.",
                 ],
             )
+            map_image = None
         else:
             locations = list(state.world_runtime.world_graph.locations.values())
             location_lines = []
             for loc in locations:
                 location_lines.append(f"{loc.name}")
             notice = _box("World Map", location_lines)
+            
+            # Get world map image path if available
+            map_image = None
+            if state.story_cfg:
+                world_cfg = state.story_cfg.get("world", {}) or {}
+                map_image = str(world_cfg.get("world_map_image", "")).strip() or None
 
-        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+        result = {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+        if map_image:
+            result["world_map_image"] = map_image
+        return result
 
     t0 = time.time()
 

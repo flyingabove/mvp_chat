@@ -18,13 +18,25 @@ async def list_stories():
 
     This endpoint enables the frontend to build a dynamic menu so new
     game modes / characters can be added by dropping in a new story JSON.
+    Stories can be in backend/app/stories/ directly or in subdirectories like backend/app/stories/1_iu/
     """
     stories_path = _stories_dir()
     out = []
     if not stories_path.exists():
         return {"stories": out}
 
-    for p in sorted(stories_path.glob("*.json")):
+    # Collect story files from both root and subdirectories
+    story_files = []
+    
+    # Root level stories
+    story_files.extend(sorted(stories_path.glob("*.json")))
+    
+    # Subdirectory stories (e.g., 1_iu/*, 2_other/*, etc.)
+    for subdir in sorted(stories_path.iterdir()):
+        if subdir.is_dir() and not subdir.name.startswith("__"):
+            story_files.extend(sorted(subdir.glob("*.json")))
+    
+    for p in story_files:
         # Skip world graph sidecar files.
         if p.name.endswith("_world.json"):
             continue

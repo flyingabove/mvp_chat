@@ -459,3 +459,65 @@ def test_map_toggle_mixed_with_normal_turns(client):
     assert r4.status_code == 200
     assert "World Map" in r4.json()["reply"], "Second MAP toggle should show map"
 
+
+def test_map_toggle_includes_world_map_image_path(client):
+    """Test that MAP toggle response includes world_map_image path when available."""
+    # Start new game with story that has world_map_image configured
+    r0 = client.post("/api/chat", json={"session_id": "map_img", "message": "__cmd_newgame__:iu_murder_mystery|M|ImgTest"})
+    assert r0.status_code == 200
+    
+    # Request map
+    r1 = client.post("/api/chat", json={"session_id": "map_img", "message": "[M]"})
+    assert r1.status_code == 200
+    resp = r1.json()
+    
+    # Verify response includes world map image path
+    assert "world_map_image" in resp, "Response should include world_map_image field"
+    assert "iu_murder_mystery_wm.png" in resp["world_map_image"], "Image path should reference the world map file"
+    assert "1_iu" in resp["world_map_image"], "Image path should be in 1_iu subdirectory"
+
+
+def test_story_loader_finds_story_in_subdirectory(client):
+    """Test that story loader can find stories in subdirectories like 1_iu."""
+    # This test verifies the consolidation - stories in subdirectories should load correctly
+    r = client.post("/api/chat", json={"session_id": "subdir_test", "message": "__cmd_newgame__:iu_murder_mystery|F|SubdirTest"})
+    assert r.status_code == 200
+    opening = r.json()
+    
+    # Verify story loaded correctly (opening should be present)
+    assert "reply" in opening
+    # The opening should contain the new longer opening text
+    assert len(opening["reply"]) > 100, "Opening text should be present and substantial"
+
+
+def test_story_with_world_config_loads_correctly(client):
+    """Test that story with world config in 1_iu folder loads and initializes world runtime."""
+    r0 = client.post("/api/chat", json={"session_id": "world_cfg", "message": "__cmd_newgame__:iu_murder_mystery|M|WorldCfg"})
+    assert r0.status_code == 200
+    
+    # Verify world is initialized by checking state
+    import backend.app.api.chat as chat_mod
+    state = chat_mod.SESSIONS["world_cfg"]["state"]
+    
+    # World should be loaded
+    assert state.world_runtime is not None, "World runtime should be loaded from story config"
+    assert state.world_runtime.world_graph is not None, "World graph should be initialized"
+    assert len(state.world_runtime.world_graph.locations) > 0, "World should have locations"
+
+
+def test_file_consolidation_single_location(client):
+    """Test that all story files are consolidated in 1_iu directory."""
+    import os
+    
+    # Verify old duplicate backend/stories directory doesn't exist
+    backend_stories_path = "backend/stories"
+    assert not os.path.exists(backend_stories_path), "Old backend/stories duplicate should be removed"
+    
+    # Verify files are in the correct 1_iu location
+    stories_1iu_dir = "backend/app/stories/1_iu"
+    assert os.path.isdir(stories_1iu_dir), "1_iu directory should exist"
+    
+    required_files = ["iu_murder_mystery.json", "iu_murder_mystery_world.json", "iu_murder_mystery_wm.png"]
+    for file in required_files:
+        path = os.path.join(stories_1iu_dir, file)
+        assert os.path.isfile(path), f"Required file {file} should exist in 1_iu directory"

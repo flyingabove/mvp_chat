@@ -85,8 +85,16 @@ class WorldLoader:
 
     @classmethod
     def try_load_story_world(cls, story_id: str, stories_dir: str, seed: int = 0) -> Optional[WorldLoadResult]:
-        """Convenience: load backend/app/stories/<story_id>_world.json if present."""
+        """Convenience: load backend/app/stories/<story_id>_world.json or backend/app/stories/<subdir>/<story_id>_world.json if present."""
         p = Path(stories_dir) / f"{story_id}_world.json"
         if not p.exists():
+            # Try subdirectories
+            stories_path = Path(stories_dir)
+            if stories_path.exists():
+                for subdir in stories_path.iterdir():
+                    if subdir.is_dir() and not subdir.name.startswith("__"):
+                        alt_path = subdir / f"{story_id}_world.json"
+                        if alt_path.exists():
+                            return cls.load_from_file(str(alt_path), seed=seed)
             return None
         return cls.load_from_file(str(p), seed=seed)
