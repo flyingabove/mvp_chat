@@ -417,6 +417,21 @@
     }
   }
 
+  /* -------- COMMAND DETECTION -------- */
+  var COMMAND_PATTERNS = [
+    /^\[d\]$/i, /^\(d\)$/i, /^\[debug\]$/i, /^\(debug\)$/i,
+    /^\[m\]$/i, /^\(m\)$/i, /^\[map\]$/i, /^\(map\)$/i,
+    /^\[c\]$/i, /^\(c\)$/i, /^\[chinese\]$/i, /^\(chinese\)$/i
+  ];
+
+  function isCommand(line){
+    var trimmed = line.trim();
+    for (var i = 0; i < COMMAND_PATTERNS.length; i++){
+      if (COMMAND_PATTERNS[i].test(trimmed)) return true;
+    }
+    return false;
+  }
+
   /* -------- INPUT FLOW -------- */
   function commitLine(){
     if (awaitingResponse) return;
@@ -502,6 +517,18 @@
   }
 
   function handleName(line){
+    // Check for commands first - process them and re-prompt for name
+    if (isCommand(line)){
+      awaitingResponse = true;
+      send(line, function(){
+        awaitingResponse = false;
+        writeLine("Enter your name:", "sys");
+        newPrompt();
+        ime.focus();
+      });
+      return;
+    }
+
     var name = line.trim().replace(/[^A-Za-z\s\-']/g, "").slice(0, 40);
     if (!name) {
       writeLine("Please enter a valid name.", "sys");
@@ -516,6 +543,18 @@
   }
 
   function handleGender(line){
+    // Check for commands first - process them and re-prompt for gender
+    if (isCommand(line)){
+      awaitingResponse = true;
+      send(line, function(){
+        awaitingResponse = false;
+        writeLine("Are you a girl (F) or boy (M)?", "sys");
+        newPrompt();
+        ime.focus();
+      });
+      return;
+    }
+
     var g = line.trim().toUpperCase();
     if (g !== "F" && g !== "M") {
       writeLine("Type **F** or **M**.", "sys");

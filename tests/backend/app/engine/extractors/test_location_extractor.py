@@ -317,3 +317,125 @@ async def test_location_extractor_handles_missing_json_keys(monkeypatch):
     assert res.intent == LocationIntent.NONE
     assert res.destination_id is None
 
+
+# ============================================================================
+# CONVERSATION HISTORY TESTS
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_location_extractor_includes_conversation_log_in_messages(monkeypatch):
+    """Test: conversation_log is passed and included in API request messages."""
+    extractor = LocationExtractor(model="test-model")
+    world_graph = _WorldGraph()
+
+    captured_payloads = []
+
+    async def fake_post_capture(self, url, headers=None, json=None):
+        captured_payloads.append(json)
+        # Return simple responses for both calls
+        if len(captured_payloads) == 1:
+            return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": true}'}}]})
+        else:
+            return _Resp(200, {"choices": [{"message": {"content": '{"intent":"MOVE","destination_id":"office_lobby","confidence":0.9,"destination_text":"Office Lobby"}'}}]})
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_capture, raising=True)
+
+    conversation_log = [
+        {"role": "system", "content": "You are a game master."},
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi there!"},
+        {"role": "user", "content": "Where can I go?"},
+        {"role": "assistant", "content": "You can visit the Office Lobby or Apartment."},
+    ]
+
+    res = await extractor.extract(
+        "go to Office Lobby",
+        world_graph=world_graph,
+        conversation_log=conversation_log
+    )
+
+    assert isinstance(res, LocationExtraction)
+    assert res.intent == LocationIntent.MOVE
+
+    # Verify conversation history was included in both API calls (minus system messages)
+    # First call: _should_attempt
+    first_payload = captured_payloads[0]
+    first_messages = first_payload["messages"]
+    # Should have system + 4 non-system history messages + current user message = 6 messages
+    assert len(first_messages) >= 5  # at least system + some history + user
+
+    # Second call: extract
+    second_payload = captured_payloads[1]
+    second_messages = second_payload["messages"]
+    # Should have system + history + extraction request
+    assert len(second_messages) >= 5
+
+    # Verify history content appears (non-system messages from conversation_log)
+    all_content = " ".join([m.get("content", "") for m in second_messages])
+    assert "Hello" in all_content or "Hi there" in all_content
+
+
+@pytest.mark.asyncio
+async def test_location_extractor_should_attempt_with_conversation_log(monkeypatch):
+    """Test: _should_attempt includes conversation history when provided."""
+    extractor = LocationExtractor(model="test-model")
+
+    captured_payload = {}
+
+    async def fake_post_capture(self, url, headers=None, json=None):
+        captured_payload.update(json)
+        return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": true}'}}]})
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_capture, raising=True)
+
+    conversation_log = [
+        {"role": "system", "content": "System prompt"},
+        {"role": "user", "content": "Previous message"},
+        {"role": "assistant", "content": "Previous response"},
+    ]
+
+    result = await extractor._should_attempt("go to office", conversation_log=conversation_log)
+    assert result is True
+
+    # Verify messages include history (system messages from log are filtered out)
+    messages = captured_payload.get("messages", [])
+    # Should have: classifier system + 2 non-system history + current user message = 4
+    assert len(messages) >= 3
+
+    # Check that conversation history content is present
+    all_content = " ".join([m.get("content", "") for m in messages])
+    assert "Previous message" in all_content or "Previous response" in all_content
+
+
+@pytest.mark.asyncio
+async def test_location_extractor_limits_conversation_log_to_extractor_turns(monkeypatch):
+    """Test: conversation_log is limited to EXTRACTOR_TURNS messages."""
+    from backend.app.config.settings import EXTRACTOR_TURNS
+
+    extractor = LocationExtractor(model="test-model")
+
+    captured_payload = {}
+
+    async def fake_post_capture(self, url, headers=None, json=None):
+        captured_payload.update(json)
+        return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": false}'}}]})
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post_capture, raising=True)
+
+    # Create a long conversation log with more than EXTRACTOR_TURNS messages
+    conversation_log = [{"role": "system", "content": "System"}]
+    for i in range(20):
+        conversation_log.append({"role": "user", "content": f"User message {i}"})
+        conversation_log.append({"role": "assistant", "content": f"Assistant response {i}"})
+
+    await extractor._should_attempt("go to office", conversation_log=conversation_log)
+
+    # Verify the messages are limited
+    messages = captured_payload.get("messages", [])
+    # Should be: 1 system (classifier) + up to EXTRACTOR_TURNS history + 1 user = at most EXTRACTOR_TURNS + 2
+    non_system_history = [m for m in messages if m.get("role") != "system" and "User message:" not in m.get("content", "")]
+    assert len(non_system_history) <= EXTRACTOR_TURNS
+
