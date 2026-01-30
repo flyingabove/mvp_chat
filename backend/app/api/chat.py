@@ -1,13 +1,11 @@
 
-from backend.app.engine.extractors.location_extractor import LocationExtractor, LocationIntent
-
 # app/api/chat.py
+
+from backend.app.engine.extractors.location_extractor import LocationExtractor, LocationIntent
 
 from fastapi import APIRouter
 
 import httpx
-
-import json
 
 import re
 
@@ -19,6 +17,8 @@ import uuid
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
 
 from backend.app.knowledge.runtime.index_service import IndexService
+
+from backend.app.utils.logging_utils import jlog as _log, truncate as _truncate
 
 
 from backend.app.config.settings import (
@@ -63,8 +63,9 @@ from backend.app.engine.prompt_builder import (
 router = APIRouter()
 
 
-# In-memory session store
-SESSIONS = {}  # session_id → { state: MurderGameState, log: list, debug_mode: bool }
+# In-memory session store (session-scoped: lost on server restart)
+# Keys: state (MurderGameState), log (list), debug_mode (bool), chinese_mode (bool)
+SESSIONS = {}
 
 
 # Shared extractor instance (stateless).
@@ -137,21 +138,6 @@ def _box(title: str, lines: list[str]) -> str:
     parts.extend(body)
     parts.append(bottom)
     return "\n".join(parts)
-
-
-# ---------------------------------------------------------------------------
-# SIMPLE JSON LOGGING (Railway Deploy Logs)
-# ---------------------------------------------------------------------------
-def _log(event: dict):
-    try:
-        print(json.dumps(event, ensure_ascii=False))
-    except Exception:
-        pass
-
-
-def _truncate(s: str, n: int = 6000) -> str:
-    s = s or ""
-    return s if len(s) <= n else s[:n] + f"...(truncated {len(s)-n} chars)"
 
 
 # ---------------------------------------------------------------------------
@@ -268,9 +254,7 @@ def sanitize_korean_terms(text: str, state: MurderGameState) -> str:
 # ---------------------------------------------------------------------------
 NAME_PATTERNS = [
     r"\bmy name is ([A-Za-z][A-Za-z\s'\-]{0,40})",
-    r"\bcall me ([A-Za-z][A-Za-z\s'\-]{0,40})",
-    r"\byou can call me ([A-Za-z][A-Za-z\s'\-]{0,40})",
-    r"\bjust call me ([A-Za-z][A-Za-z\s'\-]{0,40})",
+    r"\bcall me ([A-Za-z][A-Za-z\s'\-]{0,40})",  # also matches "you can call me", "just call me"
     r"\bit'?s ([A-Za-z][A-Za-z\s'\-]{0,40})",
     r"\bi am ([A-Za-z][A-Za-z\s'\-]{0,40})",
     r"\bim ([A-Za-z][A-Za-z\s'\-]{0,40})",

@@ -78,6 +78,8 @@ class MurderGameState:
     """
     # ==============================================================
     # Basic session progression
+    # Note: turns can alternatively be derived from len(log)//2, but
+    # keeping explicit counter for clarity and "first turn" detection.
     # ==============================================================
     story: Optional[str] = None
     gender: Optional[str] = None
@@ -91,7 +93,8 @@ class MurderGameState:
     location: str = START_LOCATION
 
     # ==============================================================
-    # Evidence (unused but future-ready)
+    # Evidence (TODO: implement evidence collection system)
+    # Reserved for future feature: tracking clues/evidence the player discovers.
     # ==============================================================
     evidence: List[str] = field(default_factory=list)
 
@@ -132,7 +135,6 @@ class MurderGameState:
     # ==============================================================
     # Korean usage controls
     # ==============================================================
-    allow_casual_korean: bool = False
     casual_korean_used: List[str] = field(default_factory=list)
 
     # ==============================================================
@@ -141,12 +143,14 @@ class MurderGameState:
     last_assistant_guess_name: str = ""
 
     # ==============================================================
-    # BACKWARD COMPAT
+    # BACKWARD COMPAT (deprecated - use direct attribute access instead)
     # ==============================================================
     def __getitem__(self, key):
+        """Deprecated: use direct attribute access (state.field) instead."""
         return getattr(self, key)
 
     def __setitem__(self, key, value):
+        """Deprecated: use direct attribute access (state.field = value) instead."""
         setattr(self, key, value)
 
     @property

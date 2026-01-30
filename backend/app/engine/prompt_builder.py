@@ -6,33 +6,7 @@ from backend.app.config.settings import (
     REL_START,
     MEMORY_TURNS,
 )
-
-# ---------------------------------------------------------------------------
-# Logging helpers (NO retrieval here; retrieval is done in api/chat.py)
-# ---------------------------------------------------------------------------
-import json as _json
-import time as _time
-
-
-def _jlog(obj: dict):
-    """
-    JSON-line logging to stdout. Shows up in Railway Deploy Logs.
-    Keep it compact + searchable.
-    """
-    try:
-        obj = dict(obj)
-        obj.setdefault("ts", _time.time())
-        print(_json.dumps(obj, ensure_ascii=False))
-    except Exception:
-        # Never crash prompt building due to logging.
-        pass
-
-
-def _truncate(s: str, n: int = 500) -> str:
-    if s is None:
-        return ""
-    s = str(s)
-    return s if len(s) <= n else (s[: n - 3] + "...")
+from backend.app.utils.logging_utils import jlog as _jlog, truncate as _truncate
 
 
 def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> str:
@@ -270,7 +244,6 @@ def build_messages(
     casual_terms = ["ya", "eotteoke", "jinjja", "gwaenchanha", "ani"]
     used = [term for term in casual_terms if term in lower]
     state.casual_korean_used = used
-    state.allow_casual_korean = bool(used)
 
     # ---------------------------
     # Knowledge formatting ONLY

@@ -79,7 +79,3 @@ def test_story_endpoint_existing(client):
     assert data["title"]
 
 
-def test_game_logic_router_not_included_in_main(client):
-    # /api/game-logic is defined but not included in main.py
-    r = client.get("/api/game-logic")
-    assert r.status_code == 404

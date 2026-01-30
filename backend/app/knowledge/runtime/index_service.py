@@ -73,6 +73,11 @@ class IndexService:
 
     @classmethod
     def reset_for_tests(cls) -> None:
+        """Test utility: clears all cached bundles and resets active character.
+
+        This method is intended for use in test fixtures to ensure test isolation.
+        Not intended for production use.
+        """
         with cls._lock:
             cls._bundles = {}
-            cls._active_character_id = ""
+            cls._active_character_id.set("")
