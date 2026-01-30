@@ -82,6 +82,28 @@ backend/app/
 
 ---
 
+## North Star Snapshot (Plain English)
+
+- One shared ground truth: locations, characters, time, and evidence live in a single state container, not in the model’s head.
+- Time is the engine: every message costs minutes; travel advances the world clock; NPC actions should be driven by elapsed time and incentives.
+- No plotted branches: instead of hand-scripted scenes, the system should react to incentives, constraints, and player choices.
+- Two-call ambition: first a structured extractor updates state, then the main LLM renders dialogue without inventing new facts. (Currently, only a location extractor exists; quest/extractor split is still to build.)
+- Difficulty = narrative resistance: easier modes forgive timing/decay; harder modes keep consequences sharp while preserving canon.
+
+## Class Quick Guide (Plain English)
+
+- `MurderGameState`: the entire game ledger—tracks player identity, time, location, relationship/emotion, story config, and optional world runtime.
+- `UserState`: what the NPC thinks your name and gender are; separates “display name” (what they call you) from “formal name”.
+- `CharacterState`: a lightweight card for each NPC (id, name, role, current emotion, relationship score).
+- `PromptBuilder`: assembles the system prompt and user message header, injects retrieved memory, enforces style/[[STATE]] tag rules.
+- `LocationExtractor`: LLM-powered classifier that only detects explicit move commands and maps them to a known location id using world graph + knowledge hints.
+- World graph set (`WorldGraph`, `Location`, `PathEdge`, `WorldClock`, `TravelRules`, `TravelResolver`, `ExposureResolver`): authoritative map + clock; chooses routes, advances minutes, and decides what parts of travel are exposed to the story.
+- `WorldLoader` / `WorldLoadResult`: load world JSON into the runtime objects above.
+- Knowledge layer (`IndexService`, `CharacterIndexBundle`, `retrieve_knowledge`): loads/caches BM25+FAISS artifacts per character and returns fused chunks + debug info.
+- Utilities (`WorldTimeFormatter`, `logging_utils`): human-readable timestamps and JSON logging for deploy visibility.
+
+---
+
 ## File-by-File Documentation
 
 ---
@@ -126,7 +148,8 @@ backend/app/
 - **`OPENAI_MODEL`**: "gpt-4o-mini" (hardcoded)
 - **`MAX_TOKENS`**: 512
 - **`TEMPERATURE`**: 0.8
-- **`MEMORY_TURNS`**: 18 (conversation history length)
+- **`MEMORY_TURNS`**: 8 (conversation history window for the main model)
+- **`EXTRACTOR_TURNS`**: 8 (history window for the location/movement extractor)
 - **`GAME_TITLE`**: "storieschat.ai (beta)"
 - **`START_LOCATION`**: "Nonhyeon-dong officetel"
 - **`START_MINUTE`**: 0
@@ -1499,7 +1522,7 @@ backend/app/
 │  9. Update Session & Return                                  │
 │     ┌──────────────────────────────────────────────────┐   │
 │     │ • log.append(user_msg, assistant_reply)           │   │
-│     │ • sess["log"] = log[-18:]  (trim to 18 turns)     │   │
+│     │ • sess["log"] = log[-8:]   (trim to 8 turns)      │   │
 │     │ • return {reply, usage, character}                │   │
 │     └──────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────┘

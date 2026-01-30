@@ -62,6 +62,22 @@
 
 ---
 
+## North Star (Plain English)
+- One ground truth: world state lives in code, not inside the LLM.
+- Time is the driver: every message spends minutes; travel advances the world clock.
+- No plotted branches: NPC behavior should flow from incentives and constraints, not scripts.
+- Two-call target: first a structured extractor mutates state, then a renderer speaks. (Currently only the location extractor exists.)
+- Difficulty changes forgiveness, not facts.
+
+## Class Cheat Sheet
+- `MurderGameState` — the session ledger: time, location, player identity, world runtime, NPC roster, mood/relationship.
+- `UserState` — what NPCs think your name/gender are (display vs formal).
+- `CharacterState` — per-NPC card with role, emotion, relationship.
+- `PromptBuilder` — shapes the system prompt + header and injects retrieved memory.
+- `LocationExtractor` — LLM classifier that only triggers on explicit “go/move to …” commands.
+- World graph set (`WorldGraph`, `Location`, `PathEdge`, `WorldClock`, `TravelRules`, `TravelResolver`, `ExposureResolver`) — map + clock that decide routes, minutes spent, and what travel details are exposed.
+- Knowledge layer (`IndexService`, `CharacterIndexBundle`, `retrieve_knowledge`) — loads/caches BM25+FAISS bundles per character.
+
 ## API Endpoints
 
 | Method | Endpoint | Purpose | Request | Response |
@@ -161,7 +177,8 @@ class UserState:
 OPENAI_MODEL = "gpt-4o-mini"
 MAX_TOKENS = 512
 TEMPERATURE = 0.8
-MEMORY_TURNS = 18  # Conversation history length
+MEMORY_TURNS = 8   # Conversation history length
+EXTRACTOR_TURNS = 8  # History window for movement intent classifier
 
 START_LOCATION = "Nonhyeon-dong officetel"
 START_MINUTE = 0
@@ -398,7 +415,7 @@ KNOWLEDGE_CHARACTER_ID=1_iu
 
 1. **Enable index warmup** - `DISABLE_INDEX_WARMUP=0` (default)
 2. **Use persistent cache** - Set `KNOWLEDGE_CACHE_DIR=/data/knowledge_cache`
-3. **Reduce MEMORY_TURNS** - Lower if memory constrained (default: 18)
+3. **Reduce MEMORY_TURNS** - Lower if memory constrained (default: 8)
 4. **Adjust MAX_TOKENS** - Lower for faster responses (default: 512)
 
 ---

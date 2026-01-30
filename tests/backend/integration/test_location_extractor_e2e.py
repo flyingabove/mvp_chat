@@ -169,11 +169,11 @@ async def test_location_extractor_with_knowledge_context_disambiguation(require_
     # Simulate knowledge chunks from FAISS retrieval about EDAM Entertainment
     # Chunks must be dicts with "text" key (matching real retrieval format)
     knowledge_chunks = [
-        {"text": "EDAM Entertainment is where Yuna used to work before joining the main company"},
-        {"text": "Yuna's old workplace at EDAM was where she spent her formative years in the industry"},
+        {"text": "EDAM Entertainment is where IU used to work before joining the main company"},
+        {"text": "IU's old workplace at EDAM was where she spent her formative years in the industry"},
         {"text": "The EDAM Entertainment Building is located downtown near the office district"},
-        {"text": "EDAM Entertainment: A multimedia production company; Yuna worked there as director"},
-        {"text": "Yuna mentions her time at EDAM with nostalgia when discussing career changes"},
+        {"text": "EDAM Entertainment: A multimedia production company; IU worked there as director"},
+        {"text": "IU mentions her time at EDAM with nostalgia when discussing career changes"},
     ]
 
     # Ambiguous user message that needs knowledge context

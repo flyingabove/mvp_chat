@@ -1,5 +1,0 @@
-MVP Chat to do list
-- Evolving Story Base Truths For good storytelling Minimal WorldDirector
-    - Event queue + time-based triggers
-    - A few “background moves” for suspects (dispose evidence, call lawyer, text friend)
-    - Evidence decay rules (CCTV overwritten after X hours) 
