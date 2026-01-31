@@ -148,6 +148,8 @@
 
   var CHAT_ENDPOINT  = API_BASE + "/chat";
   var STORY_ENDPOINT = API_BASE + "/story";   // GET /api/story/{story_id}
+  var PLAYBACK_LIST_ENDPOINT = API_BASE + "/integration_playback/scenarios";
+  var PLAYBACK_RUN_ENDPOINT  = API_BASE + "/integration_playback/run";
 
   /* ---------------- ERROR HANDLING ---------------- */
   function showErr(msg){
@@ -171,7 +173,8 @@
     story: null,
     gender: null,
     playerName: null,
-    storyMeta: null
+    storyMeta: null,
+    integrationOptions: []
   };
 
   /* -------- PROMPT / INPUT LOCKING -------- */
@@ -439,6 +442,7 @@
     writeLine("> " + line, "user");
 
     if (state.mode === "menu")   { handleMenu(line); return; }
+  if (state.mode === "integration_menu") { handleIntegrationMenu(line); return; }
     if (state.mode === "name")   { handleName(line); return; }
     if (state.mode === "gender") { handleGender(line); return; }
 
@@ -450,6 +454,7 @@
   function showMenu(){
     setHeader();
     writeLine("Choose a story (type the number and press Enter):", "sys");
+    writeLine("0) Integration playback (replay tests)", "sys");
     // Fetch story list dynamically so adding a new game is just dropping a JSON file.
     fetch(API_BASE + "/stories")
       .then(function(r){ return r.json(); })
@@ -479,6 +484,11 @@
     var choice = line.replace(/[^0-9]/g, "");
     var idx = parseInt(choice, 10);
     var list = state.storyOptions || [];
+    if (choice === "0" || idx === 0) {
+      state.mode = "integration_menu";
+      showIntegrationMenu();
+      return;
+    }
     if (!idx || idx < 1 || idx > list.length) {
       writeLine("Invalid choice. Type a valid number.", "sys");
       newPrompt();
@@ -502,6 +512,100 @@
         writeLine("Enter your name:", "sys");
         newPrompt();
         ime.focus();
+      });
+  }
+
+  function showIntegrationMenu(){
+    writeLine("Loading integration playbacks…", "sys");
+    fetch(PLAYBACK_LIST_ENDPOINT)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var list = (data && data.scenarios) ? data.scenarios : [];
+        state.integrationOptions = list;
+
+        if (!list.length){
+          writeLine("(No integration playbacks found.)", "err");
+          state.mode = "menu";
+          showMenu();
+          return;
+        }
+
+        writeLine("Choose an integration playback (type the number):", "sys");
+        list.forEach(function(s, i){
+          var usesLLM = (s.steps || []).some(function(step){ return step.uses_llm; });
+          var tag = usesLLM ? " [LLM]" : " [no LLM]";
+          var tags = (s.tags && s.tags.length) ? " [" + s.tags.join(", ") + "]" : "";
+          writeLine((i+1) + ") " + (s.title || s.id) + tags + tag, "sys");
+        });
+        newPrompt();
+        ime.focus();
+      })
+      .catch(function(){
+        writeLine("(Failed to load integration list.)", "err");
+        state.mode = "menu";
+        showMenu();
+      });
+  }
+
+  function handleIntegrationMenu(line){
+    var choice = line.replace(/[^0-9]/g, "");
+    var idx = parseInt(choice, 10);
+    var list = state.integrationOptions || [];
+    if (!idx || idx < 1 || idx > list.length) {
+      writeLine("Invalid choice. Type a valid number.", "sys");
+      newPrompt();
+      return;
+    }
+
+    var scenario = list[idx - 1];
+    state.mode = "integration_running";
+    runIntegrationPlayback(scenario);
+  }
+
+  function renderIntegrationLog(log){
+    if (!log || !log.length){
+      writeLine("(No steps returned from playback.)", "err");
+      return;
+    }
+
+    log.forEach(function(step){
+      var status = (step.status || "").toUpperCase();
+      var llm = step.uses_llm ? "[LLM]" : "[no LLM]";
+      var line = llm + " " + status + " — " + (step.description || "");
+      if (step.error) line += " — " + step.error;
+      writeLine(line, step.status === "error" ? "err" : "sys");
+    });
+  }
+
+  function runIntegrationPlayback(scenario){
+    writeLine("Running playback: " + (scenario.title || scenario.id), "sys");
+    awaitingResponse = true;
+
+    fetch(PLAYBACK_RUN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenario_id: scenario.id })
+    })
+      .then(function(r){
+        return r.json().then(function(data){ return { ok: r.ok, data: data }; });
+      })
+      .then(function(resp){
+        var data = resp.data || {};
+        renderIntegrationLog(data.log || []);
+
+        if (!resp.ok || data.status === "error"){
+          writeLine("Playback error: " + (data.error || "unknown"), "err");
+        } else {
+          writeLine("Playback complete.", "sys");
+        }
+      })
+      .catch(function(err){
+        writeLine("Playback failed: " + err, "err");
+      })
+      .finally(function(){
+        awaitingResponse = false;
+        state.mode = "menu";
+        showMenu();
       });
   }
 

@@ -9,6 +9,7 @@ from backend.app.api.echo import router as echo_router
 from backend.app.api.health import router as health_router
 from backend.app.api.story import router as story_router
 from backend.app.api.stories import router as stories_router
+from backend.app.api.integration_playback import router as integration_playback_router
 
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
@@ -108,6 +109,7 @@ app.include_router(echo_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
 app.include_router(story_router, prefix="/api")
 app.include_router(stories_router, prefix="/api")
+app.include_router(integration_playback_router, prefix="/api")
 
 
 # --------------------------------------------------
