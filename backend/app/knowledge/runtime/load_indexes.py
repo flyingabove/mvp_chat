@@ -8,6 +8,7 @@ from typing import List, Tuple
 
 from backend.app.knowledge.contracts.index_bundle import CharacterIndexBundle
 from backend.app.knowledge.runtime.bm25_runtime import load_bm25
+from backend.app.knowledge.runtime.cache_paths import default_cache_root
 
 # Runtime requires built artifacts (not just source chunks).
 # These are produced by backend.app.knowledge.build.build_index into KNOWLEDGE_CACHE_DIR.
@@ -121,12 +122,7 @@ def load_character_indexes(character_id: str) -> CharacterIndexBundle:
     image_char_dir = image_knowledge_dir / "characters" / character_id
 
     # Persistent cache root
-    persist_root_str = (
-        os.getenv("KNOWLEDGE_CACHE_DIR")
-        or os.getenv("KNOWLEDGE_PERSIST_ROOT")
-        or "/data/knowledge_cache"
-    )
-    persist_root = Path(persist_root_str).resolve()
+    persist_root = default_cache_root()
     persist_char_dir = persist_root / "characters" / character_id
 
     debug_notes: List[str] = []

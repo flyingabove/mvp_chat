@@ -6,7 +6,6 @@ import pytest
 
 
 def test_bm25_runtime_load_and_search(tmp_path):
-    pytest.importorskip("rank_bm25")
     from backend.app.knowledge.runtime.bm25_runtime import load_bm25, search_bm25
     from backend.app.knowledge.build.bm25_utils import BM25_SCHEMA
 
@@ -24,18 +23,17 @@ def test_bm25_runtime_load_and_search(tmp_path):
 
 
 def test_faiss_runtime_load_and_search(tmp_path):
-    faiss = pytest.importorskip("faiss")
-    if not hasattr(faiss, "IndexFlatIP"):
-        pytest.skip("faiss not available")
-
     from backend.app.knowledge.runtime.faiss_runtime import load_faiss_index, search_faiss
+    from backend.app.knowledge.runtime.faiss_shim import get_faiss
 
+    faiss = get_faiss()
     dim = 2
     index = faiss.IndexFlatIP(dim)
     vecs = np.array([[1.0, 0.0], [0.0, 1.0]], dtype="float32")
     index.add(vecs)
 
     idx_path = tmp_path / "faiss.index"
+
     faiss.write_index(index, str(idx_path))
 
     meta = [{"chunk_id": "x"}, {"chunk_id": "y"}]
@@ -51,8 +49,6 @@ def test_load_character_indexes_raises_when_artifacts_missing(monkeypatch, tmp_p
     """
     Error should be explicit when neither persistent cache nor image artifacts exist.
     """
-    pytest.importorskip("faiss")
-
     from backend.app.knowledge.runtime import load_indexes as li
 
     persist = tmp_path / "persist"

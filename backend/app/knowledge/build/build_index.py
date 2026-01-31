@@ -13,6 +13,7 @@ from .embedder import embed_texts, embed_query, get_embedder_info
 from .faiss_utils import build_faiss_index
 from .bm25_utils import build_bm25_index, load_chunks_jsonl
 from .fingerprint import FaissConfig, Bm25Config, compute_build_fingerprint
+from backend.app.knowledge.runtime.cache_paths import default_cache_root
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +30,8 @@ BASE_DIR = Path(__file__).resolve().parent
 KNOWLEDGE_DIR = BASE_DIR.parent
 
 # If you mount a Railway Volume, set KNOWLEDGE_CACHE_DIR=/data/knowledge_cache
-CACHE_ROOT = Path(os.getenv("KNOWLEDGE_CACHE_DIR", str(KNOWLEDGE_DIR))).resolve()
+# On Windows, defaults to %LOCALAPPDATA%/mvp_chat/knowledge_cache
+CACHE_ROOT = default_cache_root()
 
 
 # ---------------------------------------------------------------------------

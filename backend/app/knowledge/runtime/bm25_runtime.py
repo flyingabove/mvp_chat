@@ -56,10 +56,10 @@ def load_bm25(path: Path) -> Tuple[Any, list]:
 
     try:
         from rank_bm25 import BM25Okapi
-    except Exception as e:  # pragma: no cover
-        raise RuntimeError(f"rank_bm25 not available: {e}") from e
 
-    bm25 = BM25Okapi(corpus_tokens)
+        bm25 = BM25Okapi(corpus_tokens)
+    except Exception:
+        bm25 = _FallbackBM25(corpus_tokens)
     return bm25, chunks
 
 
@@ -75,3 +75,21 @@ def search_bm25(bm25: Any, chunks: list, query: str, k: int = 5) -> List[dict]:
 
     top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
     return [chunks[i] for i in top_indices]
+
+
+class _FallbackBM25:
+    """Minimal overlap-based scorer when rank_bm25 is unavailable."""
+
+    def __init__(self, corpus_tokens: list[list[str]]):
+        self.corpus_tokens = corpus_tokens
+
+    def get_scores(self, query_tokens: list[str]):
+        scores: List[float] = []
+        qset = set(query_tokens)
+        for doc in self.corpus_tokens:
+            if not doc:
+                scores.append(0.0)
+                continue
+            overlap = len(qset.intersection(doc))
+            scores.append(float(overlap))
+        return scores

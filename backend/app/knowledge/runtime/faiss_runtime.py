@@ -6,6 +6,8 @@ from typing import Any, List, Tuple
 
 import numpy as np
 
+from backend.app.knowledge.runtime.faiss_shim import get_faiss
+
 
 def load_faiss_index(index_path: Path, meta_path: Path) -> Tuple[Any, list]:
     if not index_path.exists():
@@ -13,10 +15,7 @@ def load_faiss_index(index_path: Path, meta_path: Path) -> Tuple[Any, list]:
     if not meta_path.exists():
         raise FileNotFoundError(f"meta.json not found: {meta_path}")
 
-    try:
-        import faiss  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise RuntimeError(f"faiss not available: {e}") from e
+    faiss = get_faiss()
 
     index = faiss.read_index(str(index_path))
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -26,13 +25,11 @@ def load_faiss_index(index_path: Path, meta_path: Path) -> Tuple[Any, list]:
 
 
 def search_faiss(index: Any, metadata: list, query_embedding: Any, k: int = 5) -> List[dict]:
-    try:
-        import faiss  # type: ignore
-    except Exception as e:  # pragma: no cover
-        raise RuntimeError(f"faiss not available: {e}") from e
+    faiss = get_faiss()
 
     q = np.array(query_embedding, dtype="float32").reshape(1, -1)
-    faiss.normalize_L2(q)
+    maybe_norm_q = faiss.normalize_L2(q)
+    q = maybe_norm_q if maybe_norm_q is not None else q
     scores, idxs = index.search(q, k)
 
     out: List[dict] = []

@@ -1,15 +1,10 @@
 from pathlib import Path
 import numpy as np
-import pytest
+
+from backend.app.knowledge.build.faiss_utils import build_faiss_index, faiss_search
 
 
 def test_build_faiss_index_and_search(tmp_path: Path):
-    faiss = pytest.importorskip("faiss")
-    if not hasattr(faiss, "IndexFlatIP"):
-        pytest.skip("faiss not available")
-
-    from backend.app.knowledge.build.faiss_utils import build_faiss_index, faiss_search
-
     out = tmp_path / "faiss.index"
 
     vecs = np.array([[1.0, 0.0], [0.0, 1.0]], dtype="float32")
