@@ -11,6 +11,13 @@ from backend.app.config.settings import (
     REL_MAX,
 )
 
+from backend.app.engine.epistemic_state import (
+    BeliefState,
+    EpistemicClaim,
+    EpistemicFact,
+    Observation,
+)
+
 import json
 import re
 
@@ -52,7 +59,7 @@ class CharacterState:
     Represents any character in the story world.
 
     - key: internal ID, e.g. "main"
-    - name: human-friendly name ("Yuna")
+    - name: human-friendly name e.g. ("Danny")
     - role: "ghost", "victim", "suspect", etc.
     - emotion: emotional descriptor ("wary", "cold", "soft")
     - relationship: relationship metric with player
@@ -123,6 +130,14 @@ class MurderGameState:
     main_character_id: Optional[str] = None
 
     # ==============================================================
+    # Epistemic structures
+    # ==============================================================
+    canonical_facts: List[EpistemicFact] = field(default_factory=list)
+    epistemic_log: List[EpistemicClaim] = field(default_factory=list)
+    observation_log: List[Observation] = field(default_factory=list)
+    beliefs: Dict[str, BeliefState] = field(default_factory=dict)
+
+    # ==============================================================
     # Optional world runtime (graph-based movement)
     # ==============================================================
     world_runtime: Optional[object] = None
@@ -159,6 +174,18 @@ class MurderGameState:
         if self.main_character_id and self.main_character_id in self.characters:
             return self.characters[self.main_character_id]
         return None
+
+    def get_belief_state(self, character_id: str) -> BeliefState:
+        """Fetch (or create) the belief log for a given character."""
+        if character_id not in self.beliefs:
+            self.beliefs[character_id] = BeliefState(character_id=character_id)
+        return self.beliefs[character_id]
+
+    def record_observation(self, **kwargs) -> Observation:
+        """Append an observation to the shared observation log."""
+        obs = Observation(**kwargs)
+        self.observation_log.append(obs)
+        return obs
 
 
 # ======================================================================
