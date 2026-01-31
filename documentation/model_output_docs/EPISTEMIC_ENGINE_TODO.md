@@ -1,9 +1,9 @@
 # Epistemic Engine To-Do (Aligned to North Star)
 
 ## 1) Clarifying Questions & Assumptions
-- Two-call loop is aspirational; today only the location extractor runs before the main model. Assume we will add a structured "epistemic extractor" call (state mutation only) before narrative. Confirm acceptance of double-LLM cost each turn.
-- Memory windows are short (MEMORY_TURNS=8, EXTRACTOR_TURNS=8). Assume we can add a compact epistemic store (facts/claims) that survives log trimming.
-- Stories currently ship minimal quest/goal metadata. Assume we can extend story JSON with triggers and incentives needed for epistemic reasoning without breaking existing stories.
+- Decision: Two-call loop approved — one structured extractor (state mutation only, including movement, quests, claims/contradictions, rel/emotion, evidence; no prose) plus one narrative call; double-LLM cost per turn is accepted.
+- Decision: Memory windows are short (MEMORY_TURNS=8, EXTRACTOR_TURNS=8); we will add a compact epistemic store (facts/claims) that survives log trimming.
+- Decision: We will extend story JSON with triggers and incentives for epistemic reasoning; start with the provided IU integration test case, then later augment the live game with triggers after the mini-game proves out.
 - Knowledge retrieval is character-scoped (BM25+FAISS). Assume we can either reuse this for epistemic cues or add a lightweight per-story knowledge graph without new infra.
 - Difficulty modes, rerolls, and post-milestone loops from the north star are not yet wired. Assume we keep code changes compatible with the current single-mode flow.
 - Chinese translation/debug/map toggles stay as-is; epistemic features should be language-agnostic and not break translation.
@@ -28,6 +28,7 @@
 - **Narrative prompt lift (call #2)**: extend `prompt_builder` to include a short "What the world knows" block with resolved facts + contested claims (with speaker labels) instead of raw log replay.
   - Keep memory concise (age out low-confidence or stale claims; cap per subject).
   - Add explicit instruction: "Do not invent new facts; if not in epistemic log, say you don't know."
+- **Story JSON extensions + IU mini-game**: add quest/trigger metadata first in the IU integration test harness, validate via the IU case, then port triggers into the main game stories after extractor/state updater are stable; build an IU "mini-game" scenario to exercise the full pipeline.
 - **Character knowledge graph**: optional lightweight graph linking characters, locations, and evidence ids.
   - Structure: `CharacterNode`, `Edge(type="saw_at", "reported", "conflicts_with")` stored on state; helper `link(subject, edge_type, target, minute, confidence)`.
   - Use to cross-check hallucinated NPCs and merge aliases (e.g., nicknames vs canonical ids).
