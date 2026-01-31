@@ -20,8 +20,14 @@
   - Provide helper methods: `record_observation(...)`, `contested_with(...)`, `resolve_conflict(...)`, `as_prompt_snippet()`.
   - Store on `MurderGameState` (e.g., `epistemic_log: list[Claim]`, `canonical_facts: list[EpistemicFact]`).
 - **Extractor pass (call #1)**: add `EpistemicExtractor` module to classify turn content into structured updates (movement intent, claims, contradictions, quest triggers) using conversation window + knowledge hints.
-  - Schema: `{ "moves": [...], "claims": [{"speaker":"player|npc", "content":"", "subject":"", "object":"", "time_ref":null, "location_ref":null, "confidence":0-1}] }`.
-  - Validate outputs against world graph and existing characters; reject hallucinated targets unless flagged as "unknown_npc" placeholder.
+  - Schema (enforce categories + provenance labels):
+    - `moves`: [{`destination_id`, `via` (ids), `raw_text`}]
+    - `claims`: [{`speaker`: player|npc, `content`, `subject`, `object`, `time_ref`, `location_ref`, `confidence`, `provenance`: observed|testimony|inferred|rumor}]
+    - `quests`: [{`id`, `status`: triggered|progress|completed}]
+    - `rel_emotion`: {`rel_delta`: -1|0|1, `emotion`}
+    - `evidence`: [{`id`, `action`: add|remove, `note`, `confidence`, `provenance`}]
+    - `world_mutations`: [{`type`: add|update|delete, `target`: location|item|flag, `id`, `fields`}] (optional, for non-move state changes)
+  - Validation: reject/flag unknown locations unless `unknown_npc_X`/placeholder; block world mutations that violate graph; keep provenance so renderer can hedge.
 - **State updater**: implement merge rules to apply extractor output into `MurderGameState`'s epistemic structures.
   - Deduplicate by normalized subject/object; bump confidence on repeats; mark contradictions when two claims disagree.
   - Attach minute/location from `advance_time` and `world_clock` for temporal ordering.
@@ -36,6 +42,14 @@
   - Unit: extractor JSON validity, merge rules, contradiction detection, prompt formatting, time ordering.
   - Integration: five-turn playthrough asserting epistemic log contains IU case facts (who confessed, cover-up items, contradictions logged).
 - **Tooling & hooks**: add debug box subsection to show top claims/facts, and structured logging (`epistemic_event`) for each mutation.
+
+## 5) Knowledge Graph Plan (truth vs belief vs retrieval)
+- Layers and precedence: Truth graph/state (canonical) > Epistemic/belief graphs (per character + player observation log) > Narrative log (what was said) > Retrieval index (lowest authority, for phrasing only).
+- Truth graph: locations, items/evidence, irreversible flags, validated world mutations. Updated only via validated extractor outputs + deterministic rules.
+- Belief/observation: per-character belief graph plus player observation log for what was seen/heard/claimed; can diverge from truth.
+- Retrieval: keep for style/backstory/dialogue; must be labeled (OBSERVED/TESTIMONY/RUMOR/INFERRED/NARRATION) and never overwrite truth.
+- Conflict handling: if retrieval contradicts truth, downgrade to testimony/rumor in prompts; renderer hedges unless truth is observable to player.
+- Tagging rule: before asserting a hard fact in prompts, ensure it is (a) observable truth or (b) an observation/evidence item; otherwise hedge as claim/belief.
 
 ## 4) Edge Cases to Plan For
 - **Hallucinated NPCs**: when the LLM references an unknown person, create a temporary `npc_unknown_X` node with low confidence; never merge into canonical characters without explicit confirmation.
