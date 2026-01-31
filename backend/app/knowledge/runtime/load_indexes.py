@@ -114,6 +114,17 @@ def _try_autobuild_into(persist_root: Path) -> str:
             os.environ["FORCE_REBUILD_INDEX"] = old_force
 
 
+def _can_autobuild(persist_root: Path) -> bool:
+    """Decide whether autobuild is allowed for the current platform.
+
+    - Linux/Unix: only allow when using a /data* persistent volume (deployment convention).
+    - Windows: allow by default (build into LOCALAPPDATA) unless ALLOW_LOCAL_AUTOBUILD=0.
+    """
+    if os.name == "nt":
+        return os.getenv("ALLOW_LOCAL_AUTOBUILD", "1") == "1"
+    return str(persist_root).startswith("/data")
+
+
 def load_character_indexes(character_id: str) -> CharacterIndexBundle:
     """Load retrieval artifacts for a character and return a bundle."""
 
@@ -142,7 +153,7 @@ def load_character_indexes(character_id: str) -> CharacterIndexBundle:
             debug_notes.append(f"copy image->persistent failed: {repr(e)}")
     else:
         # Attempt an autobuild into the persistent cache when it looks like deployment layout
-        if str(persist_root).startswith("/data"):
+        if _can_autobuild(persist_root):
             debug_notes.append(_try_autobuild_into(persist_root))
             if _has_required(persist_char_dir):
                 use_dir = persist_char_dir

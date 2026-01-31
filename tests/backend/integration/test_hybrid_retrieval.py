@@ -1,10 +1,10 @@
 import os
-import platform
 import pytest
 
 pytest.importorskip("faiss")
 pytest.importorskip("rank_bm25")
 
+from backend.app.knowledge.runtime.cache_paths import default_cache_root
 from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 from backend.app.knowledge.build.faiss_utils import faiss_search
 from backend.app.knowledge.build.bm25_utils import bm25_search
@@ -55,13 +55,15 @@ def test_character_hybrid_retrieval_recall_threshold():
     - KNOWLEDGE_CACHE_DIR: cache location (must start with /data for integration)
     - TEST_CHARACTER_ID: character to test (default "1_iu")
     """
-    # Skip on Windows - integration tests require Linux /data paths (Railway only)
-    if platform.system() == "Windows":
-        pytest.skip("Integration test skipped on Windows (requires Railway Linux environment)")
-    
     cache_dir = os.environ.get("KNOWLEDGE_CACHE_DIR")
-    assert cache_dir is not None, "KNOWLEDGE_CACHE_DIR must be set for integration tests"
-    assert cache_dir.startswith("/data"), f"Integration test must use persistent cache, got {cache_dir}"
+    if not cache_dir:
+        # Default to platform-aware cache root if not provided
+        cache_dir = str(default_cache_root())
+        os.environ["KNOWLEDGE_CACHE_DIR"] = cache_dir
+
+    if os.name != "nt":
+        # Linux/Unix still enforce persistent volume convention
+        assert cache_dir.startswith("/data"), f"Integration test must use persistent cache, got {cache_dir}"
 
     character_id = os.getenv("TEST_CHARACTER_ID", "1_iu")
     
