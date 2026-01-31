@@ -4,9 +4,9 @@
 - Decision: Two-call loop approved — one structured extractor (state mutation only, including movement, quests, claims/contradictions, rel/emotion, evidence; no prose) plus one narrative call; double-LLM cost per turn is accepted.
 - Decision: Memory windows are short (MEMORY_TURNS=8, EXTRACTOR_TURNS=8); we will add a compact epistemic store (facts/claims) that survives log trimming.
 - Decision: We will extend story JSON with triggers and incentives for epistemic reasoning; start with the provided IU integration test case, then later augment the live game with triggers after the mini-game proves out.
-- Knowledge retrieval is character-scoped (BM25+FAISS). Assume we can either reuse this for epistemic cues or add a lightweight per-story knowledge graph without new infra.
-- Difficulty modes, rerolls, and post-milestone loops from the north star are not yet wired. Assume we keep code changes compatible with the current single-mode flow.
-- Chinese translation/debug/map toggles stay as-is; epistemic features should be language-agnostic and not break translation.
+- Decision: Knowledge retrieval stays character-scoped (BM25+FAISS); we will reuse it for epistemic cues and add a lightweight per-story knowledge graph when needed without new infra.
+- Decision: Difficulty modes, rerolls, and post-milestone loops from the north star are not yet wired; keep code changes compatible with the current single-mode flow.
+- Decision: Chinese translation/debug/map toggles stay as-is; epistemic features must remain language-agnostic and keep [[STATE]] intact.
 
 ## 2) General Suggestions
 - Enforce single ground truth: keep epistemic state alongside MurderGameState, never inside prompt text only.
