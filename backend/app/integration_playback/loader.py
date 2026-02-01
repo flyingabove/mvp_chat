@@ -15,6 +15,22 @@ import sys
 _loaded = False
 
 
+def _import_scenarios(package_name: str) -> None:
+    try:
+        pkg = importlib.import_module(package_name)
+    except ModuleNotFoundError:
+        return
+
+    pkg_file = getattr(pkg, "__file__", None)
+    if not pkg_file:
+        return
+
+    pkg_path = Path(pkg_file).parent
+    for mod in pkgutil.iter_modules([str(pkg_path)]):
+        if mod.name.startswith("scenario_"):
+            importlib.import_module(f"{package_name}.{mod.name}")
+
+
 def ensure_scenarios_loaded() -> None:
     global _loaded
     if _loaded:
@@ -25,22 +41,10 @@ def ensure_scenarios_loaded() -> None:
     if str(root) not in sys.path:
         sys.path.append(str(root))
 
-    package_name = "tests.backend.integration"
-    try:
-        pkg = importlib.import_module(package_name)
-    except ModuleNotFoundError:
-        _loaded = True  # nothing to load, avoid re-trying
-        return
+    # Load built-in packaged scenarios (always shipped with app code)
+    _import_scenarios("backend.app.integration_playback.scenarios")
 
-    # In some deployment builds, pkg.__file__ may be None (namespace package)
-    pkg_file = getattr(pkg, "__file__", None)
-    if not pkg_file:
-        _loaded = True
-        return
-
-    pkg_path = Path(pkg_file).parent
-    for mod in pkgutil.iter_modules([str(pkg_path)]):
-        if mod.name.startswith("scenario_"):
-            importlib.import_module(f"{package_name}.{mod.name}")
+    # Load test scenarios when present (dev/test only)
+    _import_scenarios("tests.backend.integration")
 
     _loaded = True

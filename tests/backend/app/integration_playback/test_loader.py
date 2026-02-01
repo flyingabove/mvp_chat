@@ -1,10 +1,12 @@
 import types
 
 import backend.app.integration_playback.loader as loader
+from backend.app.integration_playback.scenario_registry import list_scenarios, SCENARIOS
 
 
 def _reset_loaded():
     loader._loaded = False
+    SCENARIOS.clear()
 
 
 def test_loader_handles_missing_package(monkeypatch):
@@ -41,3 +43,12 @@ def test_loader_handles_namespace_package(monkeypatch):
 
     assert loader._loaded is True
     assert iter_called is False  # should bail out before iter_modules when __file__ is missing
+
+
+def test_loader_loads_builtin_scenarios():
+    _reset_loaded()
+
+    loader.ensure_scenarios_loaded()
+
+    scenarios = list_scenarios()
+    assert "epistemic_iu_flow" in scenarios
