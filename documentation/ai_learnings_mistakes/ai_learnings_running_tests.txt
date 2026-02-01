@@ -1,0 +1,32 @@
+AI learnings: running tests on this repo
+=======================================
+
+Context
+- OS: Windows (PowerShell terminals). Environment: conda env at C:\Users\Christian\Miniconda3.
+- .env.test exists and is auto-loaded by tests/conftest.py; it provides OPENAI_API_KEY for integration tests (e.g., location extractor scenario).
+- Integration playback scenarios are discovered after adding tests/backend/integration/__init__.py.
+
+Commands that reliably work
+1) Integration tests only
+   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -m integration -r s
+   Expected: 5 tests run, ~36-41s, uses .env.test OPENAI_API_KEY.
+
+2) Unit tests (exclude integration)
+   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -m "not integration" -r s
+   Expected: 111 tests run, ~10s, no API key needed.
+
+3) Full suite (if ever needed)
+   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -r s
+
+Pitfalls observed
+- Plain `conda run ... pytest -m "not integration"` from PowerShell often failed due to quoting; the get_output_via_markers wrapper avoided this.
+- Background runs with redirection sometimes produced empty logs; prefer foreground with the commands above.
+- KeyboardInterrupts were seen when commands were re-invoked mid-run; wait for completion or rerun cleanly.
+
+Pre-flight checklist before running
+- Ensure .env.test exists with OPENAI_API_KEY (already present) or set env var directly.
+- Use the exact commands above (copy/paste) from repo root.
+- If scenarios are missing, confirm tests/backend/integration/__init__.py exists (already added) and loader uses ensure_scenarios_loaded.
+
+Reminder
+- Read this note before running tests. If a command fails, re-use the exact working forms above.
