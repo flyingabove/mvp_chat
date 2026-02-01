@@ -1,6 +1,5 @@
 """Playback scenario for LocationExtractor real OpenAI calls."""
 
-import asyncio
 import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
@@ -54,35 +53,33 @@ def _ensure_api_key(state: LocationExtractorContext):
         raise RuntimeError("OPENAI_API_KEY is required for playback")
 
 
-def _extract_expect_move(state: LocationExtractorContext, message: str, min_conf: float = 0.7):
-    res = asyncio.run(state.extractor.extract(message, world_graph=state.world_graph))
+async def _extract_expect_move(state: LocationExtractorContext, message: str, min_conf: float = 0.7):
+    res = await state.extractor.extract(message, world_graph=state.world_graph)
     state.last_result = res
     assert res.intent == LocationIntent.MOVE
     assert res.destination_id in state.world_graph.locations
     assert res.confidence >= min_conf
 
 
-def _extract_expect_none(state: LocationExtractorContext, message: str):
-    res = asyncio.run(state.extractor.extract(message, world_graph=state.world_graph))
+async def _extract_expect_none(state: LocationExtractorContext, message: str):
+    res = await state.extractor.extract(message, world_graph=state.world_graph)
     state.last_result = res
     assert res.intent == LocationIntent.NONE
     assert res.destination_id is None
 
 
-def _extract_ambiguous(state: LocationExtractorContext, message: str):
-    res = asyncio.run(state.extractor.extract(message, world_graph=state.world_graph))
+async def _extract_ambiguous(state: LocationExtractorContext, message: str):
+    res = await state.extractor.extract(message, world_graph=state.world_graph)
     state.last_result = res
     assert res.intent == LocationIntent.MOVE
     assert isinstance(res.destination_id, (str, type(None)))
 
 
-def _extract_with_knowledge(state: LocationExtractorContext, message: str):
-    res = asyncio.run(
-        state.extractor.extract(
-            message,
-            world_graph=state.world_graph,
-            knowledge_chunks=state.knowledge_chunks,
-        )
+async def _extract_with_knowledge(state: LocationExtractorContext, message: str):
+    res = await state.extractor.extract(
+        message,
+        world_graph=state.world_graph,
+        knowledge_chunks=state.knowledge_chunks,
     )
     state.last_result = res
     assert res.intent == LocationIntent.MOVE

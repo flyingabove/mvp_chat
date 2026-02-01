@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from backend.app.integration_playback.scenario_registry import get_scenario
@@ -9,7 +10,7 @@ class ScenarioRunner:
         self.context: dict[str, Any] = {}
         self.log: list[dict[str, Any]] = []
 
-    def run(self, scenario_id: str) -> Any:
+    async def run_async(self, scenario_id: str) -> Any:
         scenario = get_scenario(scenario_id)
         result = None
         for idx, step in enumerate(scenario.steps):
@@ -21,7 +22,6 @@ class ScenarioRunner:
                 "status": "pending",
             }
 
-            # Notes still appear in the log so the UI can display them.
             if step.kind == "note" or step.fn is None:
                 entry["status"] = "skipped"
                 self.log.append(entry)
@@ -33,27 +33,35 @@ class ScenarioRunner:
                     call_kwargs[k] = self.context[k]
 
             try:
+                fn_result = step.fn(**call_kwargs)
+                if asyncio.iscoroutine(fn_result):
+                    fn_result = await fn_result
+
                 if step.kind == "action":
-                    result = step.fn(**call_kwargs)
+                    result = fn_result
                     if result is not None:
-                        # If the action returns a state, store it for later steps.
                         self.context.setdefault("state", result)
-                elif step.kind == "assert":
-                    step.fn(**call_kwargs)
-                else:
-                    step.fn(**call_kwargs)
                 entry["status"] = "ok"
-            except Exception as exc:  # surfacing traceback to caller
+            except Exception as exc:
                 entry["status"] = "error"
                 entry["error"] = repr(exc)
                 self.log.append(entry)
                 raise
+
             self.log.append(entry)
+
         self.last_result = result
         return result
 
 
 def run_scenario(scenario_id: str):
     runner = ScenarioRunner()
-    result = runner.run(scenario_id)
+    # In test/CLI contexts there may be no running loop; use asyncio.run.
+    result = asyncio.run(runner.run_async(scenario_id))
+    return {"result": result, "log": runner.log}
+
+
+async def run_scenario_async(scenario_id: str):
+    runner = ScenarioRunner()
+    result = await runner.run_async(scenario_id)
     return {"result": result, "log": runner.log}

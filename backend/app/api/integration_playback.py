@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from backend.app.integration_playback.loader import ensure_scenarios_loaded
 from backend.app.integration_playback.scenario_registry import list_scenarios
-from backend.app.integration_playback.runner import ScenarioRunner
+from backend.app.integration_playback.runner import ScenarioRunner, run_scenario_async
 
 router = APIRouter()
 
@@ -29,19 +29,10 @@ async def run_playback(body: dict):
 
     runner = ScenarioRunner()
     try:
-        result = runner.run(scenario_id)
+        result = await runner.run_async(scenario_id)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"Scenario not found: {scenario_id}")
     except Exception as exc:
-        # Include partial log so UI can show where it failed.
-        return {
-            "status": "error",
-            "error": repr(exc),
-            "log": runner.log,
-        }
+        return {"status": "error", "error": repr(exc), "log": runner.log}
 
-    return {
-        "status": "ok",
-        "log": runner.log,
-        "result": result,
-    }
+    return {"status": "ok", "log": runner.log, "result": result}
