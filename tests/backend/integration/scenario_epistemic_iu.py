@@ -13,23 +13,23 @@ from backend.app.integration_playback.scenario_registry import register_scenario
 def _init_state():
     st = init_state()
     st.story = "iu_demo_epistemic"
-    return st
+    return {"state": st, "story": st.story}
 
 
 def _seed_truth(state):
-    state.canonical_facts.append(
-        EpistemicFact(
-            id="truth_stabbing",
-            content="Steve stabbed IU in the kitchen",
-            subject="steve",
-            object="iu",
-            source="system",
-            provenance="validated",
-            confidence=1.0,
-            location_ref="kitchen",
-            timestamp_minute=60,
-        )
+    fact = EpistemicFact(
+        id="truth_stabbing",
+        content="Steve stabbed IU in the kitchen",
+        subject="steve",
+        object="iu",
+        source="system",
+        provenance="validated",
+        confidence=1.0,
+        location_ref="kitchen",
+        timestamp_minute=60,
     )
+    state.canonical_facts.append(fact)
+    return {"canonical_facts": [fact.content]}
 
 
 def _round1_denials(state):
@@ -61,10 +61,14 @@ def _round1_denials(state):
     steve_belief.add_claim(deny_steve)
     bob_belief.add_claim(deny_bob)
     state.epistemic_log.extend([deny_steve, deny_bob])
+    return {
+        "steve_claim": deny_steve.content,
+        "bob_claim": deny_bob.content,
+    }
 
 
 def _add_observations(state):
-    state.record_observation(
+    obs1 = state.record_observation(
         id="obs_neighbor",
         content="Neighbor heard a man and a woman arguing around 11:50",
         source="neighbor",
@@ -73,7 +77,7 @@ def _add_observations(state):
         location_ref="hallway",
         timestamp_minute=50,
     )
-    state.record_observation(
+    obs2 = state.record_observation(
         id="obs_cctv",
         content="Hallway camera shows a male silhouette entering at 11:45",
         source="system",
@@ -82,6 +86,7 @@ def _add_observations(state):
         location_ref="hallway_camera",
         timestamp_minute=45,
     )
+    return {"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]}
 
 
 def _round3_contradictions(state):
@@ -114,6 +119,10 @@ def _round3_contradictions(state):
     state.epistemic_log.extend([steve_round3, bob_round3])
     steve_belief.add_claim(steve_round3)
     bob_belief.add_claim(bob_round3)
+    return {
+        "steve_contradiction": steve_round3.content,
+        "bob_contradiction": bob_round3.content,
+    }
 
 
 def _round4_confessions(state):
@@ -162,6 +171,10 @@ def _round4_confessions(state):
             status=EpistemicStatus.RESOLVED,
         )
     )
+    return {
+        "steve_confession": steve_confession.content,
+        "bob_coverup": bob_coverup.content,
+    }
 
 
 def _assert_epistemic(state):
@@ -174,6 +187,11 @@ def _assert_epistemic(state):
     assert state.canonical_facts, "Truth graph should hold canonical facts"
     assert state.beliefs["steve"].claims
     assert state.beliefs["bob"].claims
+    return {
+        "contested": len(contested),
+        "resolved": len(resolved),
+        "canonical": [f.content for f in state.canonical_facts],
+    }
 
 
 # Build scenario

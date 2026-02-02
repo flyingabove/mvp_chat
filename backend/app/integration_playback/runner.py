@@ -46,10 +46,21 @@ class ScenarioRunner:
                         state_obj = fn_result
                     if state_obj is not None:
                         self.context.setdefault("state", state_obj)
+
                 entry["status"] = "ok"
+
                 if fn_result is not None:
                     # Capture lightweight output so UI can show dialogue/results.
-                    entry["output"] = fn_result
+                    log_output = fn_result
+
+                    # Strip heavy objects (e.g., state) from the payload while retaining story metadata.
+                    if isinstance(fn_result, dict) and "state" in fn_result:
+                        log_output = {k: v for k, v in fn_result.items() if k != "state"}
+                        if not log_output:
+                            log_output = None
+
+                    if log_output is not None:
+                        entry["output"] = log_output
             except Exception as exc:
                 entry["status"] = "error"
                 entry["error"] = repr(exc)

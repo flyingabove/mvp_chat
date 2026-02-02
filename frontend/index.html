@@ -639,6 +639,11 @@
       output.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
       return;
     }
+    if (typeof output === "object" && Array.isArray(output.canonical_facts)) {
+      writeLine("Canonical facts:", "bot");
+      output.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+      return;
+    }
     if (typeof output === "object" && Array.isArray(output.canonical)) {
       writeLine("Canonical facts:", "bot");
       output.canonical.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
