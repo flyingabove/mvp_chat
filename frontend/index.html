@@ -174,7 +174,9 @@
     gender: null,
     playerName: null,
     storyMeta: null,
-    integrationOptions: []
+    integrationOptions: [],
+    pendingIntegration: null,
+    integrationDebug: false
   };
 
   /* -------- PROMPT / INPUT LOCKING -------- */
@@ -443,6 +445,7 @@
 
     if (state.mode === "menu")   { handleMenu(line); return; }
   if (state.mode === "integration_menu") { handleIntegrationMenu(line); return; }
+  if (state.mode === "integration_debug_prompt") { handleIntegrationDebugPrompt(line); return; }
     if (state.mode === "name")   { handleName(line); return; }
     if (state.mode === "gender") { handleGender(line); return; }
 
@@ -515,6 +518,21 @@
       });
   }
 
+  function integrationLLMLabel(scenario){
+    var steps = scenario.steps || [];
+    var anyLLM = steps.some(function(step){ return step.uses_llm; });
+    if (!anyLLM) return "no LLM";
+
+    var tags = scenario.tags || [];
+    var hasExtractor = tags.indexOf("extractor") >= 0;
+    var hasChat = tags.indexOf("chat") >= 0;
+
+    if (hasChat && hasExtractor) return "LLM chat and extractor";
+    if (hasExtractor) return "LLM extractor only";
+    if (hasChat) return "LLM chat only";
+    return "LLM";
+  }
+
   function showIntegrationMenu(){
     writeLine("Loading integration playbacks…", "sys");
     fetch(PLAYBACK_LIST_ENDPOINT)
@@ -532,10 +550,9 @@
 
         writeLine("Choose an integration playback (type the number):", "sys");
         list.forEach(function(s, i){
-          var usesLLM = (s.steps || []).some(function(step){ return step.uses_llm; });
-          var tag = usesLLM ? " [LLM]" : " [no LLM]";
+          var llmLabel = integrationLLMLabel(s);
           var tags = (s.tags && s.tags.length) ? " [" + s.tags.join(", ") + "]" : "";
-          writeLine((i+1) + ") " + (s.title || s.id) + tags + tag, "sys");
+          writeLine((i+1) + ") " + (s.title || s.id) + tags + " [" + llmLabel + "]", "sys");
         });
         newPrompt();
         ime.focus();
@@ -558,11 +575,31 @@
     }
 
     var scenario = list[idx - 1];
+    state.pendingIntegration = scenario;
+    state.mode = "integration_debug_prompt";
+    writeLine("Enable debug output for this playback? (y/n)", "sys");
+    newPrompt();
+  }
+
+  function handleIntegrationDebugPrompt(line){
+    var ans = (line || "").trim().toLowerCase();
+    if (ans === "y" || ans === "yes") {
+      state.integrationDebug = true;
+    } else if (ans === "n" || ans === "no") {
+      state.integrationDebug = false;
+    } else {
+      writeLine("Type y or n to choose debug mode.", "sys");
+      newPrompt();
+      return;
+    }
+
+    var scenario = state.pendingIntegration;
+    state.pendingIntegration = null;
     state.mode = "integration_running";
     runIntegrationPlayback(scenario);
   }
 
-  function renderIntegrationLog(log){
+  function renderIntegrationLog(log, debugMode){
     if (!log || !log.length){
       writeLine("(No steps returned from playback.)", "err");
       return;
@@ -576,17 +613,18 @@
       writeLine(header, step.status === "error" ? "err" : "sys");
 
       if (step.output !== undefined) {
-        renderStepOutput(step.output);
+        renderStepOutput(step.output, debugMode);
       }
     });
   }
 
-  function renderStepOutput(output){
+  function renderStepOutput(output, debugMode){
+    var debug = !!debugMode;
     if (output == null) return;
 
     // Generic array -> list lines
     if (Array.isArray(output)) {
-      output.forEach(function(item){ renderStepOutput(item); });
+      output.forEach(function(item){ renderStepOutput(item, debug); });
       return;
     }
 
@@ -605,11 +643,6 @@
       if (output.bob_contradiction) writeLine("Bob: " + output.bob_contradiction, "bot");
       if (output.steve_confession) writeLine("Steve: " + output.steve_confession, "bot");
       if (output.bob_coverup) writeLine("Bob: " + output.bob_coverup, "bot");
-    }
-
-    if (typeof output === "object" && Array.isArray(output.observations)) {
-      output.observations.forEach(function(o){ if (o) writeLine(o, "bot"); });
-      // continue rendering other fields below
     }
 
     // Location extractor style
@@ -639,6 +672,10 @@
       output.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
       return;
     }
+    if (typeof output === "object" && output.contested !== undefined && output.resolved !== undefined) {
+      writeLine("Epistemic summary: contested " + output.contested + " | resolved " + output.resolved, "bot");
+      // continue to canonical facts if present
+    }
     if (typeof output === "object" && Array.isArray(output.canonical_facts)) {
       writeLine("Canonical facts:", "bot");
       output.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
@@ -667,11 +704,13 @@
       return;
     }
 
-    // Generic fallback
-    try {
-      writeLine(JSON.stringify(output, null, 2), "bot");
-    } catch(e) {
-      writeLine(String(output), "bot");
+    // Generic fallback only in debug mode
+    if (debug) {
+      try {
+        writeLine(JSON.stringify(output, null, 2), "bot");
+      } catch(e) {
+        writeLine(String(output), "bot");
+      }
     }
   }
 
@@ -689,7 +728,7 @@
       })
       .then(function(resp){
         var data = resp.data || {};
-        renderIntegrationLog(data.log || []);
+        renderIntegrationLog(data.log || [], state.integrationDebug);
 
         if (!resp.ok || data.status === "error"){
           writeLine("Playback error: " + (data.error || "unknown"), "err");
