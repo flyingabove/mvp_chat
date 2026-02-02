@@ -30,7 +30,8 @@ class ChatFiveTurnContext:
 
 
 def _init_context() -> ChatFiveTurnContext:
-    return ChatFiveTurnContext()
+    ctx = ChatFiveTurnContext()
+    return {"state": ctx, "reply": "Spinning up deterministic chat harness."}
 
 
 def _set_env(state: ChatFiveTurnContext):
@@ -75,7 +76,7 @@ def _post_message(state: ChatFiveTurnContext, message: str):
     state.last_response = resp
     assert resp.status_code == 200
     payload = resp.json()
-    return {"user": message, "reply": payload.get("reply", ""), "raw": payload}
+    return {"user": message, "reply": payload.get("reply", ""), "debug": {"raw": payload}}
 
 
 def _assert_state(state: ChatFiveTurnContext):
@@ -94,9 +95,8 @@ def _assert_state(state: ChatFiveTurnContext):
     expected_minute = 0 + 2 + (2 + (1 + 2)) + (2 + (1 + 3)) + (2 + (1 + 1)) + (2 + (1 + 15))
     assert st.minute == expected_minute
     return {
-        "location_id": st.location_id,
-        "location": st.location,
-        "minute": st.minute,
+        "reply": f"Time audit: arrived at {st.location} (minute {expected_minute}).",
+        "debug": {"location_id": st.location_id, "location": st.location, "minute": st.minute},
     }
 
 

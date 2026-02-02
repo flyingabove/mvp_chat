@@ -45,7 +45,7 @@ def _init_context() -> LocationExtractorContext:
         {"text": "EDAM Entertainment: A multimedia production company; IU worked there as director"},
         {"text": "IU mentions her time at EDAM with nostalgia when discussing career changes"},
     ]
-    return ctx
+    return {"state": ctx, "reply": "Booting location extractor with a tiny world graph."}
 
 
 def _ensure_api_key(state: LocationExtractorContext):
@@ -59,12 +59,22 @@ async def _extract_expect_move(state: LocationExtractorContext, message: str, mi
     assert res.intent == LocationIntent.MOVE
     assert res.destination_id in state.world_graph.locations
     assert res.confidence >= min_conf
-    return {
-        "message": message,
-        "intent": res.intent.value,
-        "destination_id": res.destination_id,
-        "confidence": res.confidence,
-    }
+    return [
+        {
+            "user": "Player",
+            "reply": message,
+            "debug": {
+                "message": message,
+                "intent": res.intent.value,
+                "destination_id": res.destination_id,
+                "confidence": res.confidence,
+            },
+        },
+        {
+            "user": "Extractor",
+            "reply": f"Understood. Moving to {res.destination_id} (conf {res.confidence:.2f}).",
+        },
+    ]
 
 
 async def _extract_expect_none(state: LocationExtractorContext, message: str):
@@ -72,7 +82,22 @@ async def _extract_expect_none(state: LocationExtractorContext, message: str):
     state.last_result = res
     assert res.intent == LocationIntent.NONE
     assert res.destination_id is None
-    return {"message": message, "intent": res.intent.value, "destination_id": res.destination_id}
+    return [
+        {
+            "user": "Player",
+            "reply": message,
+            "debug": {
+                "message": message,
+                "intent": res.intent.value,
+                "destination_id": res.destination_id,
+                "confidence": res.confidence,
+            },
+        },
+        {
+            "user": "Extractor",
+            "reply": "No movement intent detected.",
+        },
+    ]
 
 
 async def _extract_ambiguous(state: LocationExtractorContext, message: str):
@@ -80,12 +105,22 @@ async def _extract_ambiguous(state: LocationExtractorContext, message: str):
     state.last_result = res
     assert res.intent == LocationIntent.MOVE
     assert isinstance(res.destination_id, (str, type(None)))
-    return {
-        "message": message,
-        "intent": res.intent.value,
-        "destination_id": res.destination_id,
-        "confidence": res.confidence,
-    }
+    return [
+        {
+            "user": "Player",
+            "reply": message,
+            "debug": {
+                "message": message,
+                "intent": res.intent.value,
+                "destination_id": res.destination_id,
+                "confidence": res.confidence,
+            },
+        },
+        {
+            "user": "Extractor",
+            "reply": f"Ambiguous move toward {res.destination_id or 'unknown'} (conf {res.confidence:.2f}).",
+        },
+    ]
 
 
 async def _extract_with_knowledge(state: LocationExtractorContext, message: str):
@@ -98,12 +133,23 @@ async def _extract_with_knowledge(state: LocationExtractorContext, message: str)
     assert res.intent == LocationIntent.MOVE
     assert res.destination_id in state.world_graph.locations
     assert res.confidence >= 0.5
-    return {
-        "message": message,
-        "intent": res.intent.value,
-        "destination_id": res.destination_id,
-        "confidence": res.confidence,
-    }
+    return [
+        {
+            "user": "Player",
+            "reply": message,
+            "debug": {
+                "message": message,
+                "intent": res.intent.value,
+                "destination_id": res.destination_id,
+                "confidence": res.confidence,
+                "knowledge_chunks": state.knowledge_chunks,
+            },
+        },
+        {
+            "user": "Extractor",
+            "reply": f"Guided to {res.destination_id} using knowledge (conf {res.confidence:.2f}).",
+        },
+    ]
 
 
 steps = [

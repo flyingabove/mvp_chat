@@ -16,7 +16,8 @@ class RetrievalContext:
 
 
 def _init_context() -> RetrievalContext:
-    return RetrievalContext(character_id=os.getenv("TEST_CHARACTER_ID", "1_iu"))
+    ctx = RetrievalContext(character_id=os.getenv("TEST_CHARACTER_ID", "1_iu"))
+    return {"state": ctx, "reply": "Priming retrieval cache for character dossier."}
 
 
 def _run_retrieval(state: RetrievalContext):
@@ -34,7 +35,15 @@ def _run_retrieval(state: RetrievalContext):
     joined_text = " ".join((c.get("text", "") or "").lower() for c in chunks)
     state.joined_text = joined_text
     assert len(joined_text) > 0, "Retrieved chunks have no text content"
-    return {"query": query, "chunks": chunks[:3]}
+
+    sample = (chunks[0].get("text", "") or "").strip() if chunks else ""
+    sample = sample[:220]
+
+    return [
+        {"user": "Detective", "reply": "Who are you?"},
+        {"user": "System", "reply": f"Retrieved profile snippet: {sample}"},
+        {"debug": {"chunks": chunks[:3], "query": query}},
+    ]
 
 
 steps = [

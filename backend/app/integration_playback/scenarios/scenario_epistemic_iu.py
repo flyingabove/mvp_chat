@@ -9,7 +9,12 @@ from backend.app.integration_playback.scenario_registry import register_scenario
 def _init_state():
     st = init_state()
     st.story = "iu_demo_epistemic"
-    return {"state": st, "story": st.story}
+    return {
+        "state": st,
+        "story": st.story,
+        "reply": "Detective opens the IU case file and syncs the evidence board.",
+        "debug": {"story": st.story},
+    }
 
 
 def _seed_truth(state):
@@ -25,7 +30,10 @@ def _seed_truth(state):
         timestamp_minute=60,
     )
     state.canonical_facts.append(fact)
-    return {"canonical_facts": [fact.content]}
+    return {
+        "reply": "System pins canonical truth: Steve stabbed IU in the kitchen.",
+        "debug": {"canonical_facts": [fact.content]},
+    }
 
 
 def _round1_denials(state):
@@ -57,10 +65,13 @@ def _round1_denials(state):
     steve_belief.add_claim(deny_steve)
     bob_belief.add_claim(deny_bob)
     state.epistemic_log.extend([deny_steve, deny_bob])
-    return {
-        "steve_claim": deny_steve.content,
-        "bob_claim": deny_bob.content,
-    }
+    return [
+        {"user": "Detective", "reply": "Steve, where were you when IU arrived?"},
+        {"user": "Steve", "reply": "IU never even arrived. I was alone."},
+        {"user": "Detective", "reply": "Bob, your turn—were you with her?"},
+        {"user": "Bob", "reply": "I was driving all night, never saw IU."},
+        {"steve_claim": deny_steve.content, "bob_claim": deny_bob.content},
+    ]
 
 
 def _add_observations(state):
@@ -82,7 +93,12 @@ def _add_observations(state):
         location_ref="hallway_camera",
         timestamp_minute=45,
     )
-    return {"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]}
+    return [
+        {"user": "Detective", "reply": "Any witnesses or footage?"},
+        "Neighbor whispers about an argument near midnight.",
+        "CCTV shows a shadow slipping in earlier.",
+        {"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]},
+    ]
 
 
 def _round3_contradictions(state):
@@ -115,10 +131,12 @@ def _round3_contradictions(state):
     state.epistemic_log.extend([steve_round3, bob_round3])
     steve_belief.add_claim(steve_round3)
     bob_belief.add_claim(bob_round3)
-    return {
-        "steve_contradiction": steve_round3.content,
-        "bob_contradiction": bob_round3.content,
-    }
+    return [
+        {"user": "Detective", "reply": "Stories don’t align—clarify what happened."},
+        {"user": "Steve", "reply": "Bob did swing by, but I stepped out before anything happened."},
+        {"user": "Bob", "reply": "Steve never left—he blocked the kitchen the whole time."},
+        {"steve_contradiction": steve_round3.content, "bob_contradiction": bob_round3.content},
+    ]
 
 
 def _round4_confessions(state):
@@ -167,10 +185,12 @@ def _round4_confessions(state):
             status=EpistemicStatus.RESOLVED,
         )
     )
-    return {
-        "steve_confession": steve_confession.content,
-        "bob_coverup": bob_coverup.content,
-    }
+    return [
+        {"user": "Detective", "reply": "Steve, final chance—what really happened?"},
+        {"user": "Steve", "reply": "I stabbed IU. Bob took the knife to dump it."},
+        {"user": "Bob", "reply": "I wiped everything and tossed the knife off a bridge."},
+        {"steve_confession": steve_confession.content, "bob_coverup": bob_coverup.content},
+    ]
 
 
 def _assert_epistemic(state):
@@ -184,9 +204,12 @@ def _assert_epistemic(state):
     assert state.beliefs["steve"].claims
     assert state.beliefs["bob"].claims
     return {
-        "contested": len(contested),
-        "resolved": len(resolved),
-        "canonical": [f.content for f in state.canonical_facts],
+        "reply": "Board check: contested threads resolved, truths pinned.",
+        "debug": {
+            "canonical_facts": [f.content for f in state.canonical_facts],
+            "contested": len(contested),
+            "resolved": len(resolved),
+        },
     }
 
 
