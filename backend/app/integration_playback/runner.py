@@ -42,6 +42,9 @@ class ScenarioRunner:
                     if result is not None:
                         self.context.setdefault("state", result)
                 entry["status"] = "ok"
+                if fn_result is not None:
+                    # Capture lightweight output so UI can show dialogue/results.
+                    entry["output"] = fn_result
             except Exception as exc:
                 entry["status"] = "error"
                 entry["error"] = repr(exc)

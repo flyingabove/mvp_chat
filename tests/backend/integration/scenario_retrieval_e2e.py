@@ -34,6 +34,7 @@ def _run_retrieval(state: RetrievalContext):
     joined_text = " ".join((c.get("text", "") or "").lower() for c in chunks)
     state.joined_text = joined_text
     assert len(joined_text) > 0, "Retrieved chunks have no text content"
+    return {"query": query, "chunks": chunks[:3]}
 
 
 steps = [

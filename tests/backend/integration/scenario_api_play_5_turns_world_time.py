@@ -74,6 +74,8 @@ def _post_message(state: ChatFiveTurnContext, message: str):
     resp = state.client.post("/api/chat", json={"session_id": "t1", "message": message})
     state.last_response = resp
     assert resp.status_code == 200
+    payload = resp.json()
+    return {"user": message, "reply": payload.get("reply", ""), "raw": payload}
 
 
 def _assert_state(state: ChatFiveTurnContext):
@@ -91,6 +93,11 @@ def _assert_state(state: ChatFiveTurnContext):
 
     expected_minute = 0 + 2 + (2 + (1 + 2)) + (2 + (1 + 3)) + (2 + (1 + 1)) + (2 + (1 + 15))
     assert st.minute == expected_minute
+    return {
+        "location_id": st.location_id,
+        "location": st.location,
+        "minute": st.minute,
+    }
 
 
 def _cleanup(state: ChatFiveTurnContext):
