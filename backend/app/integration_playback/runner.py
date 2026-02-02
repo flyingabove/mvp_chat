@@ -39,8 +39,13 @@ class ScenarioRunner:
 
                 if step.kind == "action":
                     result = fn_result
-                    if result is not None:
-                        self.context.setdefault("state", result)
+                    state_obj = None
+                    if isinstance(fn_result, dict) and "state" in fn_result:
+                        state_obj = fn_result.get("state")
+                    elif fn_result is not None:
+                        state_obj = fn_result
+                    if state_obj is not None:
+                        self.context.setdefault("state", state_obj)
                 entry["status"] = "ok"
                 if fn_result is not None:
                     # Capture lightweight output so UI can show dialogue/results.

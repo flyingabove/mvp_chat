@@ -570,11 +570,104 @@
 
     log.forEach(function(step){
       var status = (step.status || "").toUpperCase();
-      var llm = step.uses_llm ? "[LLM]" : "[no LLM]";
-      var line = llm + " " + status + " — " + (step.description || "");
-      if (step.error) line += " — " + step.error;
-      writeLine(line, step.status === "error" ? "err" : "sys");
+      var llm = step.uses_llm ? " [LLM]" : " [no LLM]";
+      var header = llm + " " + status + " — " + (step.description || "");
+      if (step.error) header += " — " + step.error;
+      writeLine(header, step.status === "error" ? "err" : "sys");
+
+      if (step.output !== undefined) {
+        renderStepOutput(step.output);
+      }
     });
+  }
+
+  function renderStepOutput(output){
+    if (output == null) return;
+
+    // Generic array -> list lines
+    if (Array.isArray(output)) {
+      output.forEach(function(item){ renderStepOutput(item); });
+      return;
+    }
+
+    // Chat-style outputs: show user then assistant reply
+    if (typeof output === "object" && output.user && output.reply) {
+      writeLine("> " + output.user, "user");
+      writeLine(output.reply, "bot");
+      return;
+    }
+
+    // Epistemic claims/confessions/observations
+    if (typeof output === "object" && (output.steve_claim || output.bob_claim || output.steve_confession || output.bob_coverup)) {
+      if (output.steve_claim) writeLine("Steve: " + output.steve_claim, "bot");
+      if (output.bob_claim) writeLine("Bob: " + output.bob_claim, "bot");
+      if (output.steve_contradiction) writeLine("Steve: " + output.steve_contradiction, "bot");
+      if (output.bob_contradiction) writeLine("Bob: " + output.bob_contradiction, "bot");
+      if (output.steve_confession) writeLine("Steve: " + output.steve_confession, "bot");
+      if (output.bob_coverup) writeLine("Bob: " + output.bob_coverup, "bot");
+    }
+
+    if (typeof output === "object" && Array.isArray(output.observations)) {
+      output.observations.forEach(function(o){ if (o) writeLine(o, "bot"); });
+      // continue rendering other fields below
+    }
+
+    // Location extractor style
+    if (typeof output === "object" && output.message && output.intent) {
+      writeLine("> " + output.message, "user");
+      var summary = "Intent: " + output.intent;
+      if (output.destination_id) summary += " | destination: " + output.destination_id;
+      if (output.confidence !== undefined) summary += " | confidence: " + output.confidence;
+      writeLine(summary, "bot");
+      return;
+    }
+
+    // Metrics / stats
+    if (typeof output === "object" && output.precision !== undefined && output.recall !== undefined) {
+      var metrics = [
+        "precision: " + output.precision,
+        "recall: " + output.recall,
+        "accuracy: " + output.accuracy
+      ].join(" | ");
+      writeLine(metrics, "bot");
+      return;
+    }
+
+    // Observations / facts arrays
+    if (typeof output === "object" && Array.isArray(output.observations)) {
+      writeLine("Observations:", "bot");
+      output.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
+      return;
+    }
+    if (typeof output === "object" && Array.isArray(output.canonical)) {
+      writeLine("Canonical facts:", "bot");
+      output.canonical.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+      return;
+    }
+
+    // Retrieval chunks sample
+    if (typeof output === "object" && Array.isArray(output.chunks)) {
+      writeLine("Sample chunks:", "bot");
+      output.chunks.forEach(function(c){
+        if (!c) return;
+        var txt = (c.text || c.content || "").slice(0, 200);
+        writeLine("- " + txt, "bot");
+      });
+      return;
+    }
+
+    // Plain string
+    if (typeof output === "string") {
+      writeLine(output, "bot");
+      return;
+    }
+
+    // Generic fallback
+    try {
+      writeLine(JSON.stringify(output, null, 2), "bot");
+    } catch(e) {
+      writeLine(String(output), "bot");
+    }
   }
 
   function runIntegrationPlayback(scenario){
