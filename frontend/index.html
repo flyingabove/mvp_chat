@@ -757,12 +757,18 @@
 
   function runIntegrationPlayback(scenario){
     writeLine("Running playback: " + (scenario.title || scenario.id), "sys");
+    if (state.integrationDebug) {
+      writeLine("Debug mode: ON", "sys");
+    }
     awaitingResponse = true;
 
     fetch(PLAYBACK_RUN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scenario_id: scenario.id })
+      body: JSON.stringify({
+        scenario_id: scenario.id,
+        debug: !!state.integrationDebug
+      })
     })
       .then(function(r){
         return r.json().then(function(data){ return { ok: r.ok, data: data }; });
