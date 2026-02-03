@@ -627,65 +627,63 @@
       output.forEach(function(item){ renderStepOutput(item, debug); });
       return;
     }
-        if (Array.isArray(output)) {
-          output.forEach(function(item){ renderStepOutput(item, debug); });
-          return;
-        }
 
-        // Explicit debug payloads (only when debug is on)
-        if (typeof output === "object" && output.debug) {
-          if (!debug) return;
-          var dbg = output.debug;
-          if (dbg.title) writeLine(dbg.title, "sys");
-          if (dbg.canonical_facts && Array.isArray(dbg.canonical_facts)) {
-            writeLine("Canonical facts:", "bot");
-            dbg.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
-          }
-          if (dbg.observations && Array.isArray(dbg.observations)) {
-            writeLine("Observations:", "bot");
-            dbg.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
-          }
-          if (dbg.metrics) {
-            var m = dbg.metrics;
-            var line = [];
-            if (m.precision !== undefined) line.push("precision: " + m.precision);
-            if (m.recall !== undefined) line.push("recall: " + m.recall);
-            if (m.accuracy !== undefined) line.push("accuracy: " + m.accuracy);
-            if (line.length) writeLine(line.join(" | "), "bot");
-          }
-          if (dbg.intent) {
-            var intentLine = "Intent: " + dbg.intent;
-            if (dbg.destination_id) intentLine += " | destination: " + dbg.destination_id;
-            if (dbg.confidence !== undefined) intentLine += " | confidence: " + dbg.confidence;
-            writeLine(intentLine, "bot");
-          }
-          if (dbg.story) writeLine("Story: " + dbg.story, "sys");
-          if (dbg.state_note) writeLine(dbg.state_note, "sys");
-          if (dbg.chunks && Array.isArray(dbg.chunks)) {
-            writeLine("Sample chunks:", "bot");
-            dbg.chunks.forEach(function(c){
-              if (!c) return;
-              var txt = (c.text || c.content || "").slice(0, 200);
-              writeLine("- " + txt, "bot");
-            });
-          }
-          return;
-        }
+    // Explicit debug payloads (only when debug is on)
+    if (typeof output === "object" && output.debug) {
+      if (!debug) return;
+      var dbg = output.debug;
+      if (dbg.title) writeLine(dbg.title, "sys");
+      if (dbg.canonical_facts && Array.isArray(dbg.canonical_facts)) {
+        writeLine("Canonical facts:", "bot");
+        dbg.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+      }
+      if (dbg.observations && Array.isArray(dbg.observations)) {
+        writeLine("Observations:", "bot");
+        dbg.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
+      }
+      if (dbg.metrics) {
+        var m = dbg.metrics;
+        var line = [];
+        if (m.precision !== undefined) line.push("precision: " + m.precision);
+        if (m.recall !== undefined) line.push("recall: " + m.recall);
+        if (m.accuracy !== undefined) line.push("accuracy: " + m.accuracy);
+        if (line.length) writeLine(line.join(" | "), "bot");
+      }
+      if (dbg.intent) {
+        var intentLine = "Intent: " + dbg.intent;
+        if (dbg.destination_id) intentLine += " | destination: " + dbg.destination_id;
+        if (dbg.confidence !== undefined) intentLine += " | confidence: " + dbg.confidence;
+        writeLine(intentLine, "bot");
+      }
+      if (dbg.story) writeLine("Story: " + dbg.story, "sys");
+      if (dbg.state_note) writeLine(dbg.state_note, "sys");
+      if (dbg.chunks && Array.isArray(dbg.chunks)) {
+        writeLine("Sample chunks:", "bot");
+        dbg.chunks.forEach(function(c){
+          if (!c) return;
+          var txt = (c.text || c.content || "").slice(0, 200);
+          writeLine("- " + txt, "bot");
+        });
+      }
+      return;
+    }
+
+    // Chat-style outputs: show user then assistant reply
+    if (typeof output === "object" && output.user !== undefined && output.reply !== undefined) {
       writeLine("> " + output.user, "user");
       writeLine(output.reply, "bot");
       return;
     }
 
     // Epistemic claims/confessions/observations
-    if (typeof output === "object" && (output.steve_claim || output.bob_claim || output.steve_confession || output.bob_coverup)) {
+    if (typeof output === "object" && (output.steve_claim || output.bob_claim || output.steve_confession || output.bob_coverup || output.steve_contradiction || output.bob_contradiction)) {
       if (output.steve_claim) writeLine("Steve: " + output.steve_claim, "bot");
-          return;
       if (output.bob_claim) writeLine("Bob: " + output.bob_claim, "bot");
       if (output.steve_contradiction) writeLine("Steve: " + output.steve_contradiction, "bot");
       if (output.bob_contradiction) writeLine("Bob: " + output.bob_contradiction, "bot");
       if (output.steve_confession) writeLine("Steve: " + output.steve_confession, "bot");
       if (output.bob_coverup) writeLine("Bob: " + output.bob_coverup, "bot");
-          return;
+      return;
     }
 
     // Location extractor style
