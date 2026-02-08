@@ -628,6 +628,36 @@
       return;
     }
 
+    // Bordered debug box (class-based scenarios)
+    if (typeof output === "object" && output.debug_box) {
+      if (!debug) return;
+      var box = output.debug_box;
+      var title = "DEBUG INFO";
+      var lines = [];
+      if (box.timestamp) lines.push("Timestamp: " + box.timestamp);
+      if (box.location) lines.push("User location: " + box.location);
+      if (box.location_id) lines.push("Location ID: " + box.location_id);
+      if (box.minute !== undefined) lines.push("Minute: " + box.minute);
+      if (box.story) lines.push("Story: " + box.story);
+      // Render remaining keys
+      var skip = {timestamp:1,scenario:1,step:1,location:1,location_id:1,minute:1,story:1};
+      Object.keys(box).forEach(function(k) {
+        if (skip[k]) return;
+        var v = box[k];
+        if (Array.isArray(v)) {
+          lines.push(k + ":");
+          v.forEach(function(item) { lines.push("  - " + item); });
+        } else if (typeof v === "object" && v !== null) {
+          lines.push(k + ":");
+          Object.keys(v).forEach(function(vk) { lines.push("  " + vk + ": " + v[vk]); });
+        } else {
+          lines.push(k + ": " + v);
+        }
+      });
+      writeBox(title, lines.join("\n"));
+      return;
+    }
+
     // Explicit debug payloads (only when debug is on)
     if (typeof output === "object" && output.debug) {
       if (!debug) return;

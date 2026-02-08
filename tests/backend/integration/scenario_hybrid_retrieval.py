@@ -1,7 +1,7 @@
 """Playback scenario for hybrid retrieval recall/precision thresholds."""
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List
 
 from backend.app.knowledge.runtime.cache_paths import default_cache_root
@@ -10,8 +10,7 @@ from backend.app.knowledge.build.faiss_utils import faiss_search
 from backend.app.knowledge.build.bm25_utils import bm25_search
 from backend.app.knowledge.build.hybrid import hybrid_retrieve
 from backend.app.knowledge.build.embedder import embed_query
-from backend.app.integration_playback.scenario import Scenario, Step
-from backend.app.integration_playback.scenario_registry import register_scenario
+from backend.app.integration_playback.scenario import IntegrationScenario, step
 
 TEST_CASES_BY_CHARACTER = {
     "1_iu": [
@@ -50,102 +49,87 @@ class HybridRetrievalContext:
     accuracy: float | None = None
 
 
-def _init_context() -> HybridRetrievalContext:
-    ctx = HybridRetrievalContext()
-    ctx.character_id = os.getenv("TEST_CHARACTER_ID", "1_iu")
-    return {
-        "state": ctx,
-        "reply": "Loading the hybrid retrieval bundle—think of this as a quick 'can we find the right fact fast?' drill.",
-    }
+class HybridRetrievalScenario(IntegrationScenario):
+    scenario_id = "hybrid_retrieval_thresholds"
+    title = "Hybrid retrieval quality thresholds"
+    description = "Runs hybrid retrieval against IU knowledge and enforces recall/precision/accuracy bounds."
+    tags = ["integration", "retrieval", "hybrid"]
+    requires_cache = True
 
+    def setup(self):
+        ctx = HybridRetrievalContext()
+        ctx.character_id = os.getenv("TEST_CHARACTER_ID", "1_iu")
 
-def _set_cache_dir(state: HybridRetrievalContext):
-    cache_dir = os.environ.get("KNOWLEDGE_CACHE_DIR")
-    if not cache_dir:
-        cache_dir = str(default_cache_root())
-        os.environ["KNOWLEDGE_CACHE_DIR"] = cache_dir
-    state.cache_dir = cache_dir
-    if os.name != "nt":
-        assert cache_dir.startswith("/data"), f"Integration test must use persistent cache, got {cache_dir}"
+        cache_dir = os.environ.get("KNOWLEDGE_CACHE_DIR")
+        if not cache_dir:
+            cache_dir = str(default_cache_root())
+            os.environ["KNOWLEDGE_CACHE_DIR"] = cache_dir
+        ctx.cache_dir = cache_dir
+        if os.name != "nt":
+            assert cache_dir.startswith("/data"), f"Integration test must use persistent cache, got {cache_dir}"
 
+        self.state = ctx
+        return {
+            "reply": "Loading the hybrid retrieval bundle\u2014think of this as a quick 'can we find the right fact fast?' drill.",
+            **self.debug_info({"character_id": ctx.character_id, "cache_dir": ctx.cache_dir}),
+        }
 
-def _run_hybrid_eval(state: HybridRetrievalContext):
-    test_cases = TEST_CASES_BY_CHARACTER.get(state.character_id)
-    if not test_cases:
-        raise AssertionError(f"No test cases defined for character {state.character_id}")
+    @step(kind="assert", description="Run hybrid retrieval quality checks")
+    def run_hybrid_eval(self):
+        test_cases = TEST_CASES_BY_CHARACTER.get(self.state.character_id)
+        if not test_cases:
+            raise AssertionError(f"No test cases defined for character {self.state.character_id}")
 
-    bundle = load_character_indexes(state.character_id)
-    chunks = bundle.chunks
-    chunk_ids = bundle.chunk_ids
-    bm25 = bundle.bm25
-    faiss_index = bundle.faiss_index
+        bundle = load_character_indexes(self.state.character_id)
+        chunks = bundle.chunks
+        chunk_ids = bundle.chunk_ids
+        bm25 = bundle.bm25
+        faiss_index = bundle.faiss_index
 
-    assert chunks and isinstance(chunks, list), "chunks must be a non-empty list"
-    assert all(isinstance(c, dict) for c in chunks), "each chunk must be a dict"
-    assert all(chunk_ids), "All chunks must have chunk_id"
+        assert chunks and isinstance(chunks, list), "chunks must be a non-empty list"
+        assert all(isinstance(c, dict) for c in chunks), "each chunk must be a dict"
+        assert all(chunk_ids), "All chunks must have chunk_id"
 
-    tp = fp = fn = 0
-    correct_at_1 = 0
+        tp = fp = fn = 0
+        correct_at_1 = 0
 
-    for case in test_cases:
-        q = case["q"]
-        gold = case["ans"]
+        for case in test_cases:
+            q = case["q"]
+            gold = case["ans"]
 
-        bm25_idxs, _ = bm25_search(bm25, chunks, q, k=8)
-        qv = embed_query(q)
-        faiss_idxs, _ = faiss_search(faiss_index, qv, k=8)
+            bm25_idxs, _ = bm25_search(bm25, chunks, q, k=8)
+            qv = embed_query(q)
+            faiss_idxs, _ = faiss_search(faiss_index, qv, k=8)
 
-        fused = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=8)
-        retrieved_ids = [chunk_ids[i] for i in fused]
+            fused = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=8)
+            retrieved_ids = [chunk_ids[i] for i in fused]
 
-        if gold in retrieved_ids:
-            tp += 1
-        else:
-            fn += 1
+            if gold in retrieved_ids:
+                tp += 1
+            else:
+                fn += 1
 
-        fp += max(len(retrieved_ids) - (1 if gold in retrieved_ids else 0), 0)
+            fp += max(len(retrieved_ids) - (1 if gold in retrieved_ids else 0), 0)
 
-        if retrieved_ids and retrieved_ids[0] == gold:
-            correct_at_1 += 1
+            if retrieved_ids and retrieved_ids[0] == gold:
+                correct_at_1 += 1
 
-    precision = tp / max(tp + fp, 1)
-    recall = tp / max(tp + fn, 1)
-    accuracy = correct_at_1 / len(test_cases)
+        precision = tp / max(tp + fp, 1)
+        recall = tp / max(tp + fn, 1)
+        accuracy = correct_at_1 / len(test_cases)
 
-    state.precision = precision
-    state.recall = recall
-    state.accuracy = accuracy
+        self.state.precision = precision
+        self.state.recall = recall
+        self.state.accuracy = accuracy
 
-    assert recall >= 0.90, f"Hybrid recall too low: {recall:.3f}"
-    assert precision >= 0.115, f"Hybrid precision too low: {precision:.3f}"
-    assert accuracy >= 0.25, f"Top-1 accuracy too low: {accuracy:.3f}"
-    return [
-        {"user": "Detective", "reply": "Alright—run the hybrid search over the IU dossier and tell me if it still hits the right chunks."},
-        {
-            "user": "System",
-            "reply": f"Done. Metrics: precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.",
-            "debug": {
-                "metrics": {"precision": precision, "recall": recall, "accuracy": accuracy},
-                "character_id": state.character_id,
+        assert recall >= 0.90, f"Hybrid recall too low: {recall:.3f}"
+        assert precision >= 0.115, f"Hybrid precision too low: {precision:.3f}"
+        assert accuracy >= 0.25, f"Top-1 accuracy too low: {accuracy:.3f}"
+        return [
+            {"user": "Detective", "reply": "Alright\u2014run the hybrid search over the IU dossier and tell me if it still hits the right chunks."},
+            {
+                "user": "System",
+                "reply": f"Done. Metrics: precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.",
             },
-        },
-    ]
-
-
-steps = [
-    Step(kind="action", description="Init hybrid retrieval context", fn=_init_context, uses_llm=False),
-    Step(kind="action", description="Resolve cache dir", fn=_set_cache_dir, kwargs={"state": None}, uses_llm=False),
-    Step(kind="assert", description="Run hybrid retrieval quality checks", fn=_run_hybrid_eval, kwargs={"state": None}, uses_llm=False),
-]
-
-SCENARIO_HYBRID_RETRIEVAL = Scenario(
-    id="hybrid_retrieval_thresholds",
-    title="Hybrid retrieval quality thresholds",
-    description="Runs hybrid retrieval against IU knowledge and enforces recall/precision/accuracy bounds.",
-    tags=["integration", "retrieval", "hybrid"],
-    requires_api_key=False,
-    requires_cache=True,
-    steps=steps,
-)
-
-register_scenario(SCENARIO_HYBRID_RETRIEVAL)
+            self.debug_info({"metrics": {"precision": round(precision, 3), "recall": round(recall, 3), "accuracy": round(accuracy, 3)}}),
+        ]

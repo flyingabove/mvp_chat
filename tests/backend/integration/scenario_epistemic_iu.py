@@ -6,239 +6,219 @@ structured Scenario for UI playback and programmatic execution.
 
 from backend.app.engine.epistemic_state import EpistemicClaim, EpistemicFact, EpistemicStatus
 from backend.app.engine.state import init_state
-from backend.app.integration_playback.scenario import Scenario, Step
-from backend.app.integration_playback.scenario_registry import register_scenario
+from backend.app.integration_playback.scenario import IntegrationScenario, step
 
 
-def _init_state():
-    st = init_state()
-    st.story = "iu_demo_epistemic"
-    return {
-        "state": st,
-        "story": st.story,
-        "reply": "The detective flips open the case file, takes a breath, and starts pinning notes to the board.",
-        "debug": {"story": st.story},
-    }
-
-
-def _seed_truth(state):
-    fact = EpistemicFact(
-        id="truth_stabbing",
-        content="Steve stabbed IU in the kitchen",
-        subject="steve",
-        object="iu",
-        source="system",
-        provenance="validated",
-        confidence=1.0,
-        location_ref="kitchen",
-        timestamp_minute=60,
+class EpistemicIUScenario(IntegrationScenario):
+    scenario_id = "epistemic_iu_flow"
+    title = "Epistemic: a believable interrogation flow (denials \u2192 contradictions \u2192 confessions)"
+    description = (
+        "A more conversational, story-like walkthrough that still exercises the exact same epistemic machinery. "
+        "No API calls\u2014just deterministic updates to beliefs, observations, contested claims, and resolved truths."
     )
-    state.canonical_facts.append(fact)
-    return {
-        "reply": "A verified fact gets pinned to the board: Steve stabbed IU in the kitchen.",
-        "debug": {"canonical_facts": [fact.content]},
-    }
+    tags = ["integration", "epistemic", "cached"]
 
+    def setup(self):
+        st = init_state()
+        st.story = "iu_demo_epistemic"
+        self.state = st
+        return {
+            "reply": "The detective flips open the case file, takes a breath, and starts pinning notes to the board.",
+            **self.debug_info({"story": st.story}),
+        }
 
-def _round1_denials(state):
-    steve_belief = state.get_belief_state("steve")
-    bob_belief = state.get_belief_state("bob")
-
-    deny_steve = EpistemicClaim(
-        id="r1_steve_denial",
-        content="Steve claims IU never arrived and he was alone",
-        subject="steve",
-        object="iu",
-        source="steve",
-        provenance="testimony",
-        confidence=0.6,
-        location_ref="apartment",
-        timestamp_minute=10,
-    )
-    deny_bob = EpistemicClaim(
-        id="r1_bob_denial",
-        content="Bob claims he was driving and never saw IU",
-        subject="bob",
-        object="iu",
-        source="bob",
-        provenance="testimony",
-        confidence=0.6,
-        location_ref="car",
-        timestamp_minute=10,
-    )
-    steve_belief.add_claim(deny_steve)
-    bob_belief.add_claim(deny_bob)
-    state.epistemic_log.extend([deny_steve, deny_bob])
-    return [
-        {"user": "Detective", "reply": "Steve—walk me through your night. When did IU get there?"},
-        {"user": "Steve", "reply": "She didn't. IU never arrived. I was alone."},
-        {"user": "Detective", "reply": "Bob, I need your version too. Were you with IU at any point?"},
-        {"user": "Bob", "reply": "No. I was driving all night. I never saw IU."},
-        {"steve_claim": deny_steve.content, "bob_claim": deny_bob.content},
-    ]
-
-
-def _add_observations(state):
-    obs1 = state.record_observation(
-        id="obs_neighbor",
-        content="Neighbor heard a man and a woman arguing around 11:50",
-        source="neighbor",
-        provenance="observed",
-        confidence=0.7,
-        location_ref="hallway",
-        timestamp_minute=50,
-    )
-    obs2 = state.record_observation(
-        id="obs_cctv",
-        content="Hallway camera shows a male silhouette entering at 11:45",
-        source="system",
-        provenance="observed",
-        confidence=0.9,
-        location_ref="hallway_camera",
-        timestamp_minute=45,
-    )
-    return [
-        {"user": "Detective", "reply": "Alright. Any witnesses? Any cameras? Give me something concrete."},
-        "A neighbor quietly mentions hearing a man and a woman arguing close to midnight.",
-        "The hallway camera catches a dark silhouette entering earlier than that.",
-        {"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]},
-    ]
-
-
-def _round3_contradictions(state):
-    steve_belief = state.get_belief_state("steve")
-    bob_belief = state.get_belief_state("bob")
-
-    steve_round3 = EpistemicClaim(
-        id="r3_steve_blame_bob",
-        content="Steve admits Bob visited but says he stepped out before anything happened",
-        subject="steve",
-        object="bob",
-        source="steve",
-        provenance="testimony",
-        confidence=0.55,
-        location_ref="kitchen",
-        timestamp_minute=70,
-    )
-    bob_round3 = EpistemicClaim(
-        id="r3_bob_refutes_exit",
-        content="Bob says Steve never left and was blocking the kitchen",
-        subject="bob",
-        object="steve",
-        source="bob",
-        provenance="testimony",
-        confidence=0.6,
-        location_ref="kitchen",
-        timestamp_minute=70,
-    )
-    steve_round3.contested_with(bob_round3)
-    state.epistemic_log.extend([steve_round3, bob_round3])
-    steve_belief.add_claim(steve_round3)
-    bob_belief.add_claim(bob_round3)
-    return [
-        {"user": "Detective", "reply": "Your stories don't line up. Slow down and tell me exactly what happened."},
-        {"user": "Steve", "reply": "Bob did stop by, but I stepped out before anything happened."},
-        {"user": "Bob", "reply": "He's lying. Steve never left—he was blocking the kitchen the whole time."},
-        {"steve_contradiction": steve_round3.content, "bob_contradiction": bob_round3.content},
-    ]
-
-
-def _round4_confessions(state):
-    steve_belief = state.get_belief_state("steve")
-    bob_belief = state.get_belief_state("bob")
-
-    steve_confession = EpistemicClaim(
-        id="r4_steve_confesses",
-        content="Steve confesses he stabbed IU; Bob took the knife to dispose of it",
-        subject="steve",
-        object="iu",
-        source="steve",
-        provenance="testimony",
-        confidence=0.95,
-        location_ref="kitchen",
-        timestamp_minute=90,
-    ).resolve_conflict("Confession recorded by detective")
-
-    bob_coverup = EpistemicClaim(
-        id="r4_bob_coverup",
-        content="Bob admits wiping surfaces and throwing the knife off a bridge",
-        subject="bob",
-        object="iu",
-        source="bob",
-        provenance="testimony",
-        confidence=0.9,
-        location_ref="bridge",
-        timestamp_minute=92,
-    ).resolve_conflict("Bob corroborates cover-up details")
-
-    state.epistemic_log.extend([steve_confession, bob_coverup])
-    steve_belief.add_claim(steve_confession)
-    bob_belief.add_claim(bob_coverup)
-
-    state.canonical_facts.append(
-        EpistemicFact(
-            id="truth_coverup",
-            content="Bob removed the knife and wiped surfaces after the stabbing",
-            subject="bob",
+    @step(kind="action", description="Seed truth")
+    def seed_truth(self):
+        fact = EpistemicFact(
+            id="truth_stabbing",
+            content="Steve stabbed IU in the kitchen",
+            subject="steve",
             object="iu",
             source="system",
             provenance="validated",
             confidence=1.0,
             location_ref="kitchen",
-            timestamp_minute=92,
-            status=EpistemicStatus.RESOLVED,
+            timestamp_minute=60,
         )
-    )
-    return [
-        {"user": "Detective", "reply": "Steve—last chance. What really happened in that kitchen?"},
-        {"user": "Steve", "reply": "I stabbed IU. Bob took the knife to get rid of it."},
-        {"user": "Bob", "reply": "I wiped things down and tossed the knife off a bridge."},
-        {"steve_confession": steve_confession.content, "bob_coverup": bob_coverup.content},
-    ]
+        self.state.canonical_facts.append(fact)
+        return {
+            "reply": "A verified fact gets pinned to the board: Steve stabbed IU in the kitchen.",
+            **self.debug_info({"canonical_facts": [fact.content]}),
+        }
 
+    @step(kind="action", description="Round 1 denials")
+    def round1_denials(self):
+        steve_belief = self.state.get_belief_state("steve")
+        bob_belief = self.state.get_belief_state("bob")
 
-def _assert_epistemic(state):
-    contested = [c for c in state.epistemic_log if c.status == EpistemicStatus.CONTESTED]
-    resolved = [c for c in state.epistemic_log if c.status == EpistemicStatus.RESOLVED]
+        deny_steve = EpistemicClaim(
+            id="r1_steve_denial",
+            content="Steve claims IU never arrived and he was alone",
+            subject="steve",
+            object="iu",
+            source="steve",
+            provenance="testimony",
+            confidence=0.6,
+            location_ref="apartment",
+            timestamp_minute=10,
+        )
+        deny_bob = EpistemicClaim(
+            id="r1_bob_denial",
+            content="Bob claims he was driving and never saw IU",
+            subject="bob",
+            object="iu",
+            source="bob",
+            provenance="testimony",
+            confidence=0.6,
+            location_ref="car",
+            timestamp_minute=10,
+        )
+        steve_belief.add_claim(deny_steve)
+        bob_belief.add_claim(deny_bob)
+        self.state.epistemic_log.extend([deny_steve, deny_bob])
+        return [
+            {"user": "Detective", "reply": "Steve\u2014walk me through your night. When did IU get there?"},
+            {"user": "Steve", "reply": "She didn't. IU never arrived. I was alone."},
+            {"user": "Detective", "reply": "Bob, I need your version too. Were you with IU at any point?"},
+            {"user": "Bob", "reply": "No. I was driving all night. I never saw IU."},
+            self.debug_info({"steve_claim": deny_steve.content, "bob_claim": deny_bob.content}),
+        ]
 
-    assert len(state.observation_log) == 2
-    assert contested, "Expected contested claims when accounts diverge"
-    assert len(resolved) >= 2, "Confessions should move claims to resolved"
-    assert state.canonical_facts, "Truth graph should hold canonical facts"
-    assert state.beliefs["steve"].claims
-    assert state.beliefs["bob"].claims
-    return {
-        "reply": "Board check: contradictions surfaced, confessions logged, and verified truths pinned cleanly.",
-        "debug": {
-            "canonical_facts": [f.content for f in state.canonical_facts],
-            "contested": len(contested),
-            "resolved": len(resolved),
-        },
-    }
+    @step(kind="action", description="Add observations")
+    def add_observations(self):
+        obs1 = self.state.record_observation(
+            id="obs_neighbor",
+            content="Neighbor heard a man and a woman arguing around 11:50",
+            source="neighbor",
+            provenance="observed",
+            confidence=0.7,
+            location_ref="hallway",
+            timestamp_minute=50,
+        )
+        obs2 = self.state.record_observation(
+            id="obs_cctv",
+            content="Hallway camera shows a male silhouette entering at 11:45",
+            source="system",
+            provenance="observed",
+            confidence=0.9,
+            location_ref="hallway_camera",
+            timestamp_minute=45,
+        )
+        return [
+            {"user": "Detective", "reply": "Alright. Any witnesses? Any cameras? Give me something concrete."},
+            "A neighbor quietly mentions hearing a man and a woman arguing close to midnight.",
+            "The hallway camera catches a dark silhouette entering earlier than that.",
+            self.debug_info({"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]}),
+        ]
 
+    @step(kind="action", description="Round 3 contradictions")
+    def round3_contradictions(self):
+        steve_belief = self.state.get_belief_state("steve")
+        bob_belief = self.state.get_belief_state("bob")
 
-# Build scenario
-_epistemic_steps = [
-    Step(kind="action", description="Init state", fn=_init_state, uses_llm=False),
-    Step(kind="action", description="Seed truth", fn=_seed_truth, kwargs={"state": None}, uses_llm=False),
-    Step(kind="action", description="Round 1 denials", fn=_round1_denials, kwargs={"state": None}, uses_llm=False),
-    Step(kind="action", description="Add observations", fn=_add_observations, kwargs={"state": None}, uses_llm=False),
-    Step(kind="action", description="Round 3 contradictions", fn=_round3_contradictions, kwargs={"state": None}, uses_llm=False),
-    Step(kind="action", description="Round 4 confessions", fn=_round4_confessions, kwargs={"state": None}, uses_llm=False),
-    Step(kind="assert", description="Validate epistemic state", fn=_assert_epistemic, kwargs={"state": None}, uses_llm=False),
-]
+        steve_round3 = EpistemicClaim(
+            id="r3_steve_blame_bob",
+            content="Steve admits Bob visited but says he stepped out before anything happened",
+            subject="steve",
+            object="bob",
+            source="steve",
+            provenance="testimony",
+            confidence=0.55,
+            location_ref="kitchen",
+            timestamp_minute=70,
+        )
+        bob_round3 = EpistemicClaim(
+            id="r3_bob_refutes_exit",
+            content="Bob says Steve never left and was blocking the kitchen",
+            subject="bob",
+            object="steve",
+            source="bob",
+            provenance="testimony",
+            confidence=0.6,
+            location_ref="kitchen",
+            timestamp_minute=70,
+        )
+        steve_round3.contested_with(bob_round3)
+        self.state.epistemic_log.extend([steve_round3, bob_round3])
+        steve_belief.add_claim(steve_round3)
+        bob_belief.add_claim(bob_round3)
+        return [
+            {"user": "Detective", "reply": "Your stories don't line up. Slow down and tell me exactly what happened."},
+            {"user": "Steve", "reply": "Bob did stop by, but I stepped out before anything happened."},
+            {"user": "Bob", "reply": "He's lying. Steve never left\u2014he was blocking the kitchen the whole time."},
+            self.debug_info({"steve_contradiction": steve_round3.content, "bob_contradiction": bob_round3.content}),
+        ]
 
-SCENARIO_EPISTEMIC_IU = Scenario(
-    id="epistemic_iu_flow",
-    title="Epistemic: a believable interrogation flow (denials → contradictions → confessions)",
-    description=(
-        "A more conversational, story-like walkthrough that still exercises the exact same epistemic machinery. "
-        "No API calls—just deterministic updates to beliefs, observations, contested claims, and resolved truths."
-    ),
-    tags=["integration", "epistemic", "cached"],
-    requires_api_key=False,
-    requires_cache=False,
-    steps=_epistemic_steps,
-)
+    @step(kind="action", description="Round 4 confessions")
+    def round4_confessions(self):
+        steve_belief = self.state.get_belief_state("steve")
+        bob_belief = self.state.get_belief_state("bob")
 
-register_scenario(SCENARIO_EPISTEMIC_IU)
+        steve_confession = EpistemicClaim(
+            id="r4_steve_confesses",
+            content="Steve confesses he stabbed IU; Bob took the knife to dispose of it",
+            subject="steve",
+            object="iu",
+            source="steve",
+            provenance="testimony",
+            confidence=0.95,
+            location_ref="kitchen",
+            timestamp_minute=90,
+        ).resolve_conflict("Confession recorded by detective")
+
+        bob_coverup = EpistemicClaim(
+            id="r4_bob_coverup",
+            content="Bob admits wiping surfaces and throwing the knife off a bridge",
+            subject="bob",
+            object="iu",
+            source="bob",
+            provenance="testimony",
+            confidence=0.9,
+            location_ref="bridge",
+            timestamp_minute=92,
+        ).resolve_conflict("Bob corroborates cover-up details")
+
+        self.state.epistemic_log.extend([steve_confession, bob_coverup])
+        steve_belief.add_claim(steve_confession)
+        bob_belief.add_claim(bob_coverup)
+
+        self.state.canonical_facts.append(
+            EpistemicFact(
+                id="truth_coverup",
+                content="Bob removed the knife and wiped surfaces after the stabbing",
+                subject="bob",
+                object="iu",
+                source="system",
+                provenance="validated",
+                confidence=1.0,
+                location_ref="kitchen",
+                timestamp_minute=92,
+                status=EpistemicStatus.RESOLVED,
+            )
+        )
+        return [
+            {"user": "Detective", "reply": "Steve\u2014last chance. What really happened in that kitchen?"},
+            {"user": "Steve", "reply": "I stabbed IU. Bob took the knife to get rid of it."},
+            {"user": "Bob", "reply": "I wiped things down and tossed the knife off a bridge."},
+            self.debug_info({"steve_confession": steve_confession.content, "bob_coverup": bob_coverup.content}),
+        ]
+
+    @step(kind="assert", description="Validate epistemic state")
+    def assert_epistemic(self):
+        contested = [c for c in self.state.epistemic_log if c.status == EpistemicStatus.CONTESTED]
+        resolved = [c for c in self.state.epistemic_log if c.status == EpistemicStatus.RESOLVED]
+
+        assert len(self.state.observation_log) == 2
+        assert contested, "Expected contested claims when accounts diverge"
+        assert len(resolved) >= 2, "Confessions should move claims to resolved"
+        assert self.state.canonical_facts, "Truth graph should hold canonical facts"
+        assert self.state.beliefs["steve"].claims
+        assert self.state.beliefs["bob"].claims
+        return {
+            "reply": "Board check: contradictions surfaced, confessions logged, and verified truths pinned cleanly.",
+            **self.debug_info({
+                "canonical_facts": [f.content for f in self.state.canonical_facts],
+                "contested": len(contested),
+                "resolved": len(resolved),
+            }),
+        }
