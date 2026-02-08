@@ -58,7 +58,7 @@ class LocationExtractorScenario(IntegrationScenario):
         if not os.getenv("OPENAI_API_KEY"):
             raise RuntimeError("OPENAI_API_KEY is required for playback")
         return {
-            "reply": "Spinning up the LocationExtractor with a small, easy-to-reason-about world graph.",
+            "reply": "*Spinning up the LocationExtractor with a small, easy-to-reason-about world graph.*",
             **self.debug_info(),
         }
 
@@ -71,13 +71,10 @@ class LocationExtractorScenario(IntegrationScenario):
         assert res.destination_id in self.state.world_graph.locations
         assert res.confidence >= min_conf
         return [
-            {
-                "user": "Player",
-                "reply": message,
-            },
+            {"user": "Player", "reply": f"*The player speaks.* \"{message}\""},
             {
                 "user": "Extractor",
-                "reply": f"Got it\u2014I'll treat that as a move to {res.destination_id} (conf {res.confidence:.2f}).",
+                "reply": f"*Got it\u2014treating that as a move to {res.destination_id}.* \"Confidence: {res.confidence:.2f}.\"",
             },
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
         ]
@@ -87,14 +84,12 @@ class LocationExtractorScenario(IntegrationScenario):
         self.state.last_result = res
         assert res.intent == LocationIntent.NONE
         assert res.destination_id is None
+        display_msg = message if message.strip() else "(empty)"
         return [
-            {
-                "user": "Player",
-                "reply": message,
-            },
+            {"user": "Player", "reply": f"*The player speaks.* \"{display_msg}\""},
             {
                 "user": "Extractor",
-                "reply": "Sounds like conversation (not travel)\u2014no movement intent detected.",
+                "reply": "*Sounds like conversation, not travel\u2014no movement intent detected.*",
             },
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
         ]
@@ -105,15 +100,12 @@ class LocationExtractorScenario(IntegrationScenario):
         assert res.intent == LocationIntent.MOVE
         assert isinstance(res.destination_id, (str, type(None)))
         return [
-            {
-                "user": "Player",
-                "reply": message,
-            },
+            {"user": "Player", "reply": f"*The player speaks.* \"{message}\""},
             {
                 "user": "Extractor",
                 "reply": (
-                    f"I think you want to move, but the destination is ambiguous: {res.destination_id or 'unknown'} "
-                    f"(conf {res.confidence:.2f})."
+                    f"*Movement intent detected, but the destination is ambiguous:* "
+                    f"\"{res.destination_id or 'unknown'}\" *(conf {res.confidence:.2f}).*"
                 ),
             },
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
@@ -130,13 +122,10 @@ class LocationExtractorScenario(IntegrationScenario):
         assert res.destination_id in self.state.world_graph.locations
         assert res.confidence >= 0.5
         return [
-            {
-                "user": "Player",
-                "reply": message,
-            },
+            {"user": "Player", "reply": f"*The player speaks.* \"{message}\""},
             {
                 "user": "Extractor",
-                "reply": f"Using the knowledge hints, I'd route you to {res.destination_id} (conf {res.confidence:.2f}).",
+                "reply": f"*Using the knowledge hints, routing to {res.destination_id}.* \"Confidence: {res.confidence:.2f}.\"",
             },
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence, "knowledge_used": True}),
         ]

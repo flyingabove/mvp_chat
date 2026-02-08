@@ -70,7 +70,7 @@ class HybridRetrievalScenario(IntegrationScenario):
 
         self.state = ctx
         return {
-            "reply": "Loading the hybrid retrieval bundle\u2014think of this as a quick 'can we find the right fact fast?' drill.",
+            "reply": "*Loading the hybrid retrieval bundle\u2014think of this as a quick 'can we find the right fact fast?' drill.*",
             **self.debug_info({"character_id": ctx.character_id, "cache_dir": ctx.cache_dir}),
         }
 
@@ -126,10 +126,10 @@ class HybridRetrievalScenario(IntegrationScenario):
         assert precision >= 0.115, f"Hybrid precision too low: {precision:.3f}"
         assert accuracy >= 0.25, f"Top-1 accuracy too low: {accuracy:.3f}"
         return [
-            {"user": "Detective", "reply": "Alright\u2014run the hybrid search over the IU dossier and tell me if it still hits the right chunks."},
+            {"user": "Detective", "reply": "*The detective taps the dossier.* \"Alright\u2014run the hybrid search over the IU dossier and tell me if it still hits the right chunks.\""},
             {
                 "user": "System",
-                "reply": f"Done. Metrics: precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.",
+                "reply": f"*Search complete.* \"Precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.\"\n\n*(All thresholds met.)*",
             },
             self.debug_info({"metrics": {"precision": round(precision, 3), "recall": round(recall, 3), "accuracy": round(accuracy, 3)}}),
         ]

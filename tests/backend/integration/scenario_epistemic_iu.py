@@ -23,7 +23,9 @@ class EpistemicIUScenario(IntegrationScenario):
         st.story = "iu_demo_epistemic"
         self.state = st
         return {
-            "reply": "The detective flips open the case file, takes a breath, and starts pinning notes to the board.",
+            "reply": (
+                "*The detective flips open the case file, takes a breath, and starts pinning notes to the board.*"
+            ),
             **self.debug_info({"story": st.story}),
         }
 
@@ -42,7 +44,11 @@ class EpistemicIUScenario(IntegrationScenario):
         )
         self.state.canonical_facts.append(fact)
         return {
-            "reply": "A verified fact gets pinned to the board: Steve stabbed IU in the kitchen.",
+            "reply": (
+                "*A verified fact gets pinned to the board.* "
+                "\"Steve stabbed IU in the kitchen.\"\n\n"
+                "*(The ink is still fresh, but the truth is already cold.)*"
+            ),
             **self.debug_info({"canonical_facts": [fact.content]}),
         }
 
@@ -77,10 +83,10 @@ class EpistemicIUScenario(IntegrationScenario):
         bob_belief.add_claim(deny_bob)
         self.state.epistemic_log.extend([deny_steve, deny_bob])
         return [
-            {"user": "Detective", "reply": "Steve\u2014walk me through your night. When did IU get there?"},
-            {"user": "Steve", "reply": "She didn't. IU never arrived. I was alone."},
-            {"user": "Detective", "reply": "Bob, I need your version too. Were you with IU at any point?"},
-            {"user": "Bob", "reply": "No. I was driving all night. I never saw IU."},
+            {"user": "Detective", "reply": "*The detective leans forward, eyes narrowing.* \"Steve\u2014walk me through your night. When did IU get there?\""},
+            {"user": "Steve", "reply": "*Steve shifts in his seat.* \"She didn't. IU never arrived. I was alone.\""},
+            {"user": "Detective", "reply": "*The detective turns slowly.* \"Bob, I need your version too. Were you with IU at any point?\""},
+            {"user": "Bob", "reply": "*Bob stares at the table.* \"No. I was driving all night. I never saw IU.\""},
             self.debug_info({"steve_claim": deny_steve.content, "bob_claim": deny_bob.content}),
         ]
 
@@ -105,9 +111,9 @@ class EpistemicIUScenario(IntegrationScenario):
             timestamp_minute=45,
         )
         return [
-            {"user": "Detective", "reply": "Alright. Any witnesses? Any cameras? Give me something concrete."},
-            "A neighbor quietly mentions hearing a man and a woman arguing close to midnight.",
-            "The hallway camera catches a dark silhouette entering earlier than that.",
+            {"user": "Detective", "reply": "*The detective slaps the folder on the desk.* \"Alright. Any witnesses? Any cameras? Give me something concrete.\""},
+            {"user": "Neighbor", "reply": "*A neighbor quietly mentions hearing a man and a woman arguing close to midnight.*"},
+            {"user": "System", "reply": "*The hallway camera catches a dark silhouette entering earlier than that.*"},
             self.debug_info({"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]}),
         ]
 
@@ -143,9 +149,9 @@ class EpistemicIUScenario(IntegrationScenario):
         steve_belief.add_claim(steve_round3)
         bob_belief.add_claim(bob_round3)
         return [
-            {"user": "Detective", "reply": "Your stories don't line up. Slow down and tell me exactly what happened."},
-            {"user": "Steve", "reply": "Bob did stop by, but I stepped out before anything happened."},
-            {"user": "Bob", "reply": "He's lying. Steve never left\u2014he was blocking the kitchen the whole time."},
+            {"user": "Detective", "reply": "*The detective's voice drops.* \"Your stories don't line up. Slow down and tell me exactly what happened.\""},
+            {"user": "Steve", "reply": "*Steve's jaw tightens.* \"Bob did stop by, but I stepped out before anything happened.\""},
+            {"user": "Bob", "reply": "*Bob slams his hand on the table.* \"He's lying. Steve never left\u2014he was blocking the kitchen the whole time.\"\n\n*(The contradiction hangs in the air like smoke.)*"},
             self.debug_info({"steve_contradiction": steve_round3.content, "bob_contradiction": bob_round3.content}),
         ]
 
@@ -197,9 +203,9 @@ class EpistemicIUScenario(IntegrationScenario):
             )
         )
         return [
-            {"user": "Detective", "reply": "Steve\u2014last chance. What really happened in that kitchen?"},
-            {"user": "Steve", "reply": "I stabbed IU. Bob took the knife to get rid of it."},
-            {"user": "Bob", "reply": "I wiped things down and tossed the knife off a bridge."},
+            {"user": "Detective", "reply": "*The detective stands, casting a long shadow.* \"Steve\u2014last chance. What really happened in that kitchen?\""},
+            {"user": "Steve", "reply": "*Steve's voice breaks.* \"I stabbed IU. Bob took the knife to get rid of it.\"\n\n*(His hands are shaking.)*"},
+            {"user": "Bob", "reply": "*Bob exhales slowly.* \"I wiped things down and tossed the knife off a bridge.\""},
             self.debug_info({"steve_confession": steve_confession.content, "bob_coverup": bob_coverup.content}),
         ]
 
@@ -215,7 +221,10 @@ class EpistemicIUScenario(IntegrationScenario):
         assert self.state.beliefs["steve"].claims
         assert self.state.beliefs["bob"].claims
         return {
-            "reply": "Board check: contradictions surfaced, confessions logged, and verified truths pinned cleanly.",
+            "reply": (
+                "*The board is complete. Contradictions surfaced, confessions logged, and verified truths pinned cleanly.*\n\n"
+                "*(The case is closed.)*"
+            ),
             **self.debug_info({
                 "canonical_facts": [f.content for f in self.state.canonical_facts],
                 "contested": len(contested),

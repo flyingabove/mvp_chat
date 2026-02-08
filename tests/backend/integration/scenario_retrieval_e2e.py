@@ -24,7 +24,7 @@ class RetrievalE2EScenario(IntegrationScenario):
     def setup(self):
         self.state = RetrievalContext(character_id=os.getenv("TEST_CHARACTER_ID", "1_iu"))
         return {
-            "reply": "Warming up the knowledge indexes—pretend we're about to ask a real person 'who are you?'",
+            "reply": "*Warming up the knowledge indexes\u2014pretend we're about to ask a real person 'who are you?'*",
             **self.debug_info({"character_id": self.state.character_id}),
         }
 
@@ -49,7 +49,7 @@ class RetrievalE2EScenario(IntegrationScenario):
         sample = sample[:220]
 
         return [
-            {"user": "Detective", "reply": "Before we start—who are you, really?"},
-            {"user": "System", "reply": f"Pulled a quick dossier snippet: {sample}"},
+            {"user": "Detective", "reply": "*The detective leans back in his chair.* \"Before we start\u2014who are you, really?\""},
+            {"user": "System", "reply": f"*Pulled a quick dossier snippet:* \"{sample}\""},
             self.debug_info({"chunks": [c.get("text", "")[:100] for c in chunks[:3]], "query": query}),
         ]

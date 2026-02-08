@@ -84,7 +84,7 @@ class ChatFiveTurnScenario(IntegrationScenario):
         ctx.client = TestClient(app)
 
         return {
-            "reply": "Okay\u2014booting a deterministic chat harness so we can rehearse a short, realistic travel flow.",
+            "reply": "*Booting a deterministic chat harness so we can rehearse a short, realistic travel flow.*",
             **self.debug_info(),
         }
 
@@ -105,10 +105,11 @@ class ChatFiveTurnScenario(IntegrationScenario):
         self.state.last_response = resp
         assert resp.status_code == 200
         payload = resp.json()
+        reply = payload.get("reply", "")
         return {
             "user": message,
-            "reply": payload.get("reply", ""),
-            **self.debug_info({"raw_keys": list(payload.keys())}),
+            "reply": reply,
+            **self.debug_info(),
         }
 
     # -- Steps --
@@ -154,6 +155,9 @@ class ChatFiveTurnScenario(IntegrationScenario):
         expected_minute = 0 + 3 + (2 + (1 + 2)) + (2 + (1 + 3)) + (2 + (1 + 1)) + (2 + (1 + 15))
         assert st.minute == expected_minute
         return {
-            "reply": f"Quick time audit: we ended up at {st.location} and the clock reads minute {expected_minute}.",
+            "reply": (
+                f"*Quick time audit: we ended up at {st.location} and the clock reads minute {expected_minute}.*\n\n"
+                f"*(Travel graph and time accounting verified.)*"
+            ),
             **self.debug_info({"location_id": st.location_id, "location": st.location, "minute": st.minute}),
         }
