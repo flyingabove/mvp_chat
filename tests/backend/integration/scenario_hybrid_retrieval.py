@@ -53,7 +53,10 @@ class HybridRetrievalContext:
 def _init_context() -> HybridRetrievalContext:
     ctx = HybridRetrievalContext()
     ctx.character_id = os.getenv("TEST_CHARACTER_ID", "1_iu")
-    return {"state": ctx, "reply": "Loading hybrid retrieval bundle."}
+    return {
+        "state": ctx,
+        "reply": "Loading the hybrid retrieval bundle—think of this as a quick 'can we find the right fact fast?' drill.",
+    }
 
 
 def _set_cache_dir(state: HybridRetrievalContext):
@@ -117,10 +120,10 @@ def _run_hybrid_eval(state: HybridRetrievalContext):
     assert precision >= 0.115, f"Hybrid precision too low: {precision:.3f}"
     assert accuracy >= 0.25, f"Top-1 accuracy too low: {accuracy:.3f}"
     return [
-        {"user": "Detective", "reply": "Run hybrid retrieval over the IU dossier."},
+        {"user": "Detective", "reply": "Alright—run the hybrid search over the IU dossier and tell me if it still hits the right chunks."},
         {
             "user": "System",
-            "reply": f"Metrics: precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.",
+            "reply": f"Done. Metrics: precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.",
             "debug": {
                 "metrics": {"precision": precision, "recall": recall, "accuracy": accuracy},
                 "character_id": state.character_id,

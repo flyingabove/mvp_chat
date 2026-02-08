@@ -31,7 +31,10 @@ class ChatFiveTurnContext:
 
 def _init_context() -> ChatFiveTurnContext:
     ctx = ChatFiveTurnContext()
-    return {"state": ctx, "reply": "Spinning up deterministic chat harness."}
+    return {
+        "state": ctx,
+        "reply": "Okay—booting a deterministic chat harness so we can rehearse a short, realistic travel flow.",
+    }
 
 
 def _set_env(state: ChatFiveTurnContext):
@@ -92,10 +95,10 @@ def _assert_state(state: ChatFiveTurnContext):
     assert not reply_text.startswith("[")
     assert reply_text.lstrip().startswith("*")
 
-    expected_minute = 0 + 2 + (2 + (1 + 2)) + (2 + (1 + 3)) + (2 + (1 + 1)) + (2 + (1 + 15))
+    expected_minute = 0 + 3 + (2 + (1 + 2)) + (2 + (1 + 3)) + (2 + (1 + 1)) + (2 + (1 + 15))
     assert st.minute == expected_minute
     return {
-        "reply": f"Time audit: arrived at {st.location} (minute {expected_minute}).",
+        "reply": f"Quick time audit: we ended up at {st.location} and the clock reads minute {expected_minute}.",
         "debug": {"location_id": st.location_id, "location": st.location, "minute": st.minute},
     }
 
@@ -129,7 +132,7 @@ actions = [
     Step(kind="action", description="Patch OpenAI HTTP", fn=_patch_openai_post, kwargs={"state": None}, uses_llm=False),
     Step(kind="action", description="Create TestClient", fn=_create_client, kwargs={"state": None}, uses_llm=False),
     Step(kind="action", description="Start new IU game", fn=_post_message, kwargs={"state": None, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"}, uses_llm=False),
-    Step(kind="action", description="Turn 1: small talk", fn=_post_message, kwargs={"state": None, "message": "hello"}, uses_llm=False),
+    Step(kind="action", description="Turn 1: quick check-in", fn=_post_message, kwargs={"state": None, "message": "Hey IU—just checking in before we head out."}, uses_llm=False),
     Step(kind="action", description="Turn 2: go to lobby", fn=_post_message, kwargs={"state": None, "message": "go to iu_apartment_lobby"}, uses_llm=False),
     Step(kind="action", description="Turn 3: go to parking garage", fn=_post_message, kwargs={"state": None, "message": "go to apartment_parking_garage"}, uses_llm=False),
     Step(kind="action", description="Turn 4: go to car", fn=_post_message, kwargs={"state": None, "message": "go to my_car"}, uses_llm=False),
@@ -140,8 +143,12 @@ actions = [
 
 SCENARIO_API_CHAT_5_TURNS = Scenario(
     id="api_chat_5_turns_time_location",
-    title="Chat API five turns with travel + time",
-    description="Deterministic API flow that checks travel graph resolution and time accounting over five turns.",
+    title="Chat API: a quick five-message 'leave home and arrive at EDAM' run",
+    description=(
+        "A short, human-feeling chat that still stays fully deterministic: start a new game, say hi, then walk out "
+        "to the lobby, garage, car, and finally the EDAM lobby. The assertions remain the same: travel graph "
+        "resolution and time accounting must match exactly."
+    ),
     tags=["integration", "chat", "deterministic"],
     requires_api_key=False,
     requires_cache=False,

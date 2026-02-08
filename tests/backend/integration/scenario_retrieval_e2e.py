@@ -17,7 +17,10 @@ class RetrievalContext:
 
 def _init_context() -> RetrievalContext:
     ctx = RetrievalContext(character_id=os.getenv("TEST_CHARACTER_ID", "1_iu"))
-    return {"state": ctx, "reply": "Priming retrieval cache for character dossier."}
+    return {
+        "state": ctx,
+        "reply": "Warming up the knowledge indexes—pretend we're about to ask a real person 'who are you?'",
+    }
 
 
 def _run_retrieval(state: RetrievalContext):
@@ -40,8 +43,8 @@ def _run_retrieval(state: RetrievalContext):
     sample = sample[:220]
 
     return [
-        {"user": "Detective", "reply": "Who are you?"},
-        {"user": "System", "reply": f"Retrieved profile snippet: {sample}"},
+        {"user": "Detective", "reply": "Before we start—who are you, really?"},
+        {"user": "System", "reply": f"Pulled a quick dossier snippet: {sample}"},
         {"debug": {"chunks": chunks[:3], "query": query}},
     ]
 

@@ -16,7 +16,7 @@ def _init_state():
     return {
         "state": st,
         "story": st.story,
-        "reply": "Detective opens the IU case file and syncs the evidence board.",
+        "reply": "The detective flips open the case file, takes a breath, and starts pinning notes to the board.",
         "debug": {"story": st.story},
     }
 
@@ -35,7 +35,7 @@ def _seed_truth(state):
     )
     state.canonical_facts.append(fact)
     return {
-        "reply": "System pins canonical truth: Steve stabbed IU in the kitchen.",
+        "reply": "A verified fact gets pinned to the board: Steve stabbed IU in the kitchen.",
         "debug": {"canonical_facts": [fact.content]},
     }
 
@@ -70,10 +70,10 @@ def _round1_denials(state):
     bob_belief.add_claim(deny_bob)
     state.epistemic_log.extend([deny_steve, deny_bob])
     return [
-        {"user": "Detective", "reply": "Steve, where were you when IU arrived?"},
-        {"user": "Steve", "reply": "IU never even arrived. I was alone."},
-        {"user": "Detective", "reply": "Bob, your turn—were you with her?"},
-        {"user": "Bob", "reply": "I was driving all night, never saw IU."},
+        {"user": "Detective", "reply": "Steve—walk me through your night. When did IU get there?"},
+        {"user": "Steve", "reply": "She didn't. IU never arrived. I was alone."},
+        {"user": "Detective", "reply": "Bob, I need your version too. Were you with IU at any point?"},
+        {"user": "Bob", "reply": "No. I was driving all night. I never saw IU."},
         {"steve_claim": deny_steve.content, "bob_claim": deny_bob.content},
     ]
 
@@ -98,9 +98,9 @@ def _add_observations(state):
         timestamp_minute=45,
     )
     return [
-        {"user": "Detective", "reply": "Any witnesses or footage?"},
-        "Neighbor whispers about an argument near midnight.",
-        "CCTV shows a shadow slipping in earlier.",
+        {"user": "Detective", "reply": "Alright. Any witnesses? Any cameras? Give me something concrete."},
+        "A neighbor quietly mentions hearing a man and a woman arguing close to midnight.",
+        "The hallway camera catches a dark silhouette entering earlier than that.",
         {"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]},
     ]
 
@@ -136,9 +136,9 @@ def _round3_contradictions(state):
     steve_belief.add_claim(steve_round3)
     bob_belief.add_claim(bob_round3)
     return [
-        {"user": "Detective", "reply": "Stories don’t align—clarify what happened."},
-        {"user": "Steve", "reply": "Bob did swing by, but I stepped out before anything happened."},
-        {"user": "Bob", "reply": "Steve never left—he was blocking the kitchen the whole time."},
+        {"user": "Detective", "reply": "Your stories don't line up. Slow down and tell me exactly what happened."},
+        {"user": "Steve", "reply": "Bob did stop by, but I stepped out before anything happened."},
+        {"user": "Bob", "reply": "He's lying. Steve never left—he was blocking the kitchen the whole time."},
         {"steve_contradiction": steve_round3.content, "bob_contradiction": bob_round3.content},
     ]
 
@@ -190,9 +190,9 @@ def _round4_confessions(state):
         )
     )
     return [
-        {"user": "Detective", "reply": "Steve, final chance—what really happened?"},
-        {"user": "Steve", "reply": "I stabbed IU. Bob took the knife to dump it."},
-        {"user": "Bob", "reply": "I wiped everything and tossed the knife off a bridge."},
+        {"user": "Detective", "reply": "Steve—last chance. What really happened in that kitchen?"},
+        {"user": "Steve", "reply": "I stabbed IU. Bob took the knife to get rid of it."},
+        {"user": "Bob", "reply": "I wiped things down and tossed the knife off a bridge."},
         {"steve_confession": steve_confession.content, "bob_coverup": bob_coverup.content},
     ]
 
@@ -208,7 +208,7 @@ def _assert_epistemic(state):
     assert state.beliefs["steve"].claims
     assert state.beliefs["bob"].claims
     return {
-        "reply": "Board check: contested threads resolved, truths pinned.",
+        "reply": "Board check: contradictions surfaced, confessions logged, and verified truths pinned cleanly.",
         "debug": {
             "canonical_facts": [f.content for f in state.canonical_facts],
             "contested": len(contested),
@@ -230,8 +230,11 @@ _epistemic_steps = [
 
 SCENARIO_EPISTEMIC_IU = Scenario(
     id="epistemic_iu_flow",
-    title="Epistemic IU interrogation flow",
-    description="Deterministic epistemic log progression with denials, contradictions, confessions (no API calls).",
+    title="Epistemic: a believable interrogation flow (denials → contradictions → confessions)",
+    description=(
+        "A more conversational, story-like walkthrough that still exercises the exact same epistemic machinery. "
+        "No API calls—just deterministic updates to beliefs, observations, contested claims, and resolved truths."
+    ),
     tags=["integration", "epistemic", "cached"],
     requires_api_key=False,
     requires_cache=False,

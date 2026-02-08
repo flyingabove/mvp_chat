@@ -45,7 +45,10 @@ def _init_context() -> LocationExtractorContext:
         {"text": "EDAM Entertainment: A multimedia production company; IU worked there as director"},
         {"text": "IU mentions her time at EDAM with nostalgia when discussing career changes"},
     ]
-    return {"state": ctx, "reply": "Booting location extractor with a tiny world graph."}
+    return {
+        "state": ctx,
+        "reply": "Spinning up the LocationExtractor with a small, easy-to-reason-about world graph.",
+    }
 
 
 def _ensure_api_key(state: LocationExtractorContext):
@@ -72,7 +75,7 @@ async def _extract_expect_move(state: LocationExtractorContext, message: str, mi
         },
         {
             "user": "Extractor",
-            "reply": f"Understood. Moving to {res.destination_id} (conf {res.confidence:.2f}).",
+            "reply": f"Got it—I'll treat that as a move to {res.destination_id} (conf {res.confidence:.2f}).",
         },
     ]
 
@@ -95,7 +98,7 @@ async def _extract_expect_none(state: LocationExtractorContext, message: str):
         },
         {
             "user": "Extractor",
-            "reply": "No movement intent detected.",
+            "reply": "Sounds like conversation (not travel)—no movement intent detected.",
         },
     ]
 
@@ -118,7 +121,10 @@ async def _extract_ambiguous(state: LocationExtractorContext, message: str):
         },
         {
             "user": "Extractor",
-            "reply": f"Ambiguous move toward {res.destination_id or 'unknown'} (conf {res.confidence:.2f}).",
+            "reply": (
+                f"I think you want to move, but the destination is ambiguous: {res.destination_id or 'unknown'} "
+                f"(conf {res.confidence:.2f})."
+            ),
         },
     ]
 
@@ -147,7 +153,7 @@ async def _extract_with_knowledge(state: LocationExtractorContext, message: str)
         },
         {
             "user": "Extractor",
-            "reply": f"Guided to {res.destination_id} using knowledge (conf {res.confidence:.2f}).",
+            "reply": f"Using the knowledge hints, I'd route you to {res.destination_id} (conf {res.confidence:.2f}).",
         },
     ]
 
@@ -169,8 +175,11 @@ steps = [
 
 SCENARIO_LOCATION_EXTRACTOR = Scenario(
     id="location_extractor_llm",
-    title="Location extractor with OpenAI",
-    description="Runs the LocationExtractor against real OpenAI for multiple movement phrases, including disambiguation.",
+    title="Location extractor: realistic phrasing against OpenAI",
+    description=(
+        "Runs the LocationExtractor against real OpenAI for a variety of human-sounding movement phrases, including "
+        "a knowledge-guided disambiguation. The assertions are unchanged; only the narration is more natural."
+    ),
     tags=["integration", "extractor", "llm"],
     requires_api_key=True,
     requires_cache=False,
