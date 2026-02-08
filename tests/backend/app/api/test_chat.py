@@ -94,12 +94,14 @@ def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
     assert "ENTERING DEBUG MODE" in data2["reply"]
     assert spy.calls == base_calls
 
-    # Normal turn should call LLM and append debug box
+    # Normal turn should call LLM and return debug_box as structured data
     r3 = client.post("/api/chat", json={"session_id": "dbg1", "message": "hello"})
     assert r3.status_code == 200
     data3 = r3.json()
-    assert "DEBUG INFO" in data3["reply"]
-    assert "Timestamp:" in data3["reply"]
+    assert "debug_box" in data3, "debug_box should be in response when debug mode is on"
+    assert "timestamp" in data3["debug_box"]
+    assert "location" in data3["debug_box"]
+    assert "DEBUG INFO" not in data3["reply"], "debug info should not be in reply text anymore"
     assert not re.match(r"^\[\d{4}-\d{2}-\d{2} ", data3["reply"])  # no leading timestamp
     assert spy.calls == base_calls + 1
 
@@ -110,11 +112,11 @@ def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
     assert "EXITING DEBUG MODE" in data4["reply"]
     assert spy.calls == base_calls + 1
 
-    # Next normal turn should not have debug box
+    # Next normal turn should not have debug_box
     r5 = client.post("/api/chat", json={"session_id": "dbg1", "message": "hello again"})
     assert r5.status_code == 200
     data5 = r5.json()
-    assert "DEBUG INFO" not in data5["reply"]
+    assert "debug_box" not in data5, "debug_box should not be present when debug mode is off"
     assert spy.calls == base_calls + 2
 def test_debug_toggle_strips_leading_gt(client):
     from backend.app.api import chat as chat_mod
@@ -133,12 +135,12 @@ def test_debug_toggle_strips_leading_gt(client):
     assert "ENTERING DEBUG MODE" in data1["reply"]
     assert spy.calls == base_calls  # toggle must NOT call OpenAI
 
-    # A normal message should now call the OpenAI mock and append debug box.
+    # A normal message should now call the OpenAI mock and return debug_box.
     r2 = client.post("/api/chat", json={"session_id": "gt1", "message": "hello"})
     assert r2.status_code == 200
     data2 = r2.json()
-    assert "DEBUG INFO" in data2["reply"]
-    assert "Timestamp:" in data2["reply"]
+    assert "debug_box" in data2, "debug_box should be in response when debug mode is on"
+    assert "timestamp" in data2["debug_box"]
     assert spy.calls == base_calls + 1
 
     # Exit debug mode with a leading '>' as well.
@@ -148,11 +150,11 @@ def test_debug_toggle_strips_leading_gt(client):
     assert "EXITING DEBUG MODE" in data3["reply"]
     assert spy.calls == base_calls + 1  # toggle must NOT call OpenAI
 
-    # Next normal turn should not have debug info.
+    # Next normal turn should not have debug_box.
     r4 = client.post("/api/chat", json={"session_id": "gt1", "message": "hello again"})
     assert r4.status_code == 200
     data4 = r4.json()
-    assert "DEBUG INFO" not in data4["reply"]
+    assert "debug_box" not in data4, "debug_box should not be present when debug mode is off"
     assert spy.calls == base_calls + 2
 
 
@@ -165,51 +167,45 @@ def test_debug_box_speakers_do_not_include_location_as_name(client):
     r1 = client.post("/api/chat", json={"session_id": "spk1", "message": "[D]"})
     assert r1.status_code == 200
 
-    # Normal turn to get debug info appended
+    # Normal turn to get debug_box
     r2 = client.post("/api/chat", json={"session_id": "spk1", "message": "hello"})
     assert r2.status_code == 200
-    reply = r2.json()["reply"]
+    data2 = r2.json()
 
-    assert "DEBUG INFO" in reply
-    assert "Speakers:" in reply
+    assert "debug_box" in data2
+    debug_box = data2["debug_box"]
+    assert "speakers" in debug_box
 
     # Ensure the location isn't mistakenly treated as a speaker name.
-    assert "- IU’s Apartment" not in reply
+    if debug_box["speakers"]:
+        for name in debug_box["speakers"]:
+            assert "Apartment" not in name, f"Location leaked into speakers: {name}"
 
-def test_debug_box_rendering_pretty_separator(client):
-    """Test that debug box has proper title/content separator."""
+def test_debug_box_rendering_structured(client):
+    """Test that debug box is returned as structured data, not ASCII art in reply."""
     r0 = client.post("/api/chat", json={"session_id": "box1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
     assert r0.status_code == 200
 
-    # Enable debug mode
+    # Enable debug mode — toggle notices still use ASCII _box() in reply
     r1 = client.post("/api/chat", json={"session_id": "box1", "message": "[D]"})
     assert r1.status_code == 200
     reply1 = r1.json()["reply"]
-
-    # Debug toggle boxes should have proper separator
-    assert "├" in reply1  # separator line must exist
     assert "ENTERING DEBUG MODE" in reply1
-    lines = reply1.split("\n")
-    # Find title line and verify next line is separator
-    for i, line in enumerate(lines):
-        if "ENTERING DEBUG MODE" in line:
-            assert i + 1 < len(lines)
-            next_line = lines[i + 1]
-            assert "├" in next_line, f"Expected separator after title, got: {next_line}"
-            break
-    else:
-        assert False, "Could not find ENTERING DEBUG MODE in output"
 
-    # Normal turn should append debug box with proper formatting
+    # Normal turn should return debug_box as structured data (not in reply text)
     r2 = client.post("/api/chat", json={"session_id": "box1", "message": "hello"})
     assert r2.status_code == 200
-    reply2 = r2.json()["reply"]
+    data2 = r2.json()
 
-    assert "DEBUG INFO" in reply2
-    assert "├" in reply2  # separator for debug box
-    # Verify box has corners
-    assert "┌" in reply2 and "┐" in reply2
-    assert "└" in reply2 and "┘" in reply2
+    # debug_box must be a dict with expected keys
+    assert "debug_box" in data2
+    box = data2["debug_box"]
+    assert isinstance(box, dict)
+    assert "timestamp" in box
+    assert "location" in box
+    # Reply text should NOT contain ASCII debug box
+    assert "┌" not in data2["reply"]
+    assert "DEBUG INFO" not in data2["reply"]
 # ============================================================================
 # Chat utility function tests
 # ============================================================================

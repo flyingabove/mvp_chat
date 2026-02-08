@@ -672,42 +672,31 @@ async def chat_handler(data: dict):
     # Start with clean reply (no timestamp prefix).
     reply = clean
 
-    # Append debug box for UI visibility (never added to LLM context).
+    # Build debug_box as structured data for frontend rendering (never added to LLM context).
+    debug_box = None
     if bool(sess.get("debug_mode", False)):
         user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
         chars = list((getattr(state, "characters", {}) or {}).values())
 
-        speaker_lines: list[str] = []
+        speakers: list[str] = []
         for c in chars:
             try:
                 name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
             except Exception:
                 name = "(unnamed)"
+            speakers.append(name)
 
-            # Prefer per-character location if available; otherwise fall back to user location.
-            try:
-                loc = (getattr(c, "location", "") or "").strip()
-            except Exception:
-                loc = ""
-            if not loc:
-                loc = user_loc
-
-            speaker_lines.append(f"- {name}")
-
-        debug_lines = [
-            f"Timestamp: {ts}",
-            f"User location: {user_loc}",
-        ]
-        if speaker_lines:
-            debug_lines.append("Speakers:")
-            debug_lines.extend(speaker_lines)
-        else:
-            debug_lines.append("Speakers: (none)")
-
-        reply = reply + "\n\n" + _box("DEBUG INFO", debug_lines)
+        debug_box = {
+            "timestamp": ts,
+            "location": user_loc,
+            "speakers": speakers if speakers else None,
+        }
 
     # Apply Chinese translation if chinese_mode is enabled
     if bool(sess.get("chinese_mode", False)):
         reply = await _translate_to_chinese(reply)
 
-    return {"reply": reply, "usage": data.get("usage"), "character": "default"}
+    result = {"reply": reply, "usage": data.get("usage"), "character": "default"}
+    if debug_box is not None:
+        result["debug_box"] = debug_box
+    return result

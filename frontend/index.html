@@ -396,7 +396,36 @@
           }
 
           typewrite((data && data.reply) ? data.reply : "", "bot", typeOpt || TYPE_DEFAULT)
-            .then(function(){ if (done) done(); });
+            .then(function(){
+              // Render debug box if present (same writeBox used by integration playback)
+              if (data && data.debug_box) {
+                var box = data.debug_box;
+                var lines = [];
+                if (box.timestamp) lines.push("Timestamp: " + box.timestamp);
+                if (box.location) lines.push("User location: " + box.location);
+                if (box.location_id) lines.push("Location ID: " + box.location_id);
+                if (box.minute != null) lines.push("Minute: " + box.minute);
+                if (box.story) lines.push("Story: " + box.story);
+                if (box.scenario) lines.push("Scenario: " + box.scenario);
+                if (box.speakers) {
+                  lines.push("Speakers:");
+                  for (var si = 0; si < box.speakers.length; si++) {
+                    lines.push("- " + box.speakers[si]);
+                  }
+                }
+                // Remaining extra keys
+                var skip = {timestamp:1,location:1,location_id:1,minute:1,story:1,scenario:1,speakers:1,step:1};
+                var keys = Object.keys(box);
+                for (var ki = 0; ki < keys.length; ki++) {
+                  if (!skip[keys[ki]]) {
+                    var v = box[keys[ki]];
+                    lines.push(keys[ki] + ": " + (typeof v === "object" ? JSON.stringify(v) : v));
+                  }
+                }
+                writeBox("DEBUG INFO", lines.join("\n"));
+              }
+              if (done) done();
+            });
 
         } else {
           writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
