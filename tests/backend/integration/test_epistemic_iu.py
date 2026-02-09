@@ -231,3 +231,11 @@ class EpistemicIUScenario(IntegrationScenario):
                 "resolved": len(resolved),
             }),
         }
+
+
+# -- Pytest entry point --
+import pytest  # noqa: E402
+
+@pytest.mark.integration
+def test_epistemic_state_tracks_iu_case_without_api():
+    EpistemicIUScenario.run_as_test()

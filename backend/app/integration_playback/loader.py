@@ -1,8 +1,9 @@
 """Auto-load integration playback scenarios.
 
 This scans the tests/backend/integration/ package for modules named
-scenario_*.py that register Scenario objects on import. This keeps the
-frontend simple: the backend maintains the registry.
+test_*.py (or legacy scenario_*.py) that register IntegrationScenario
+subclasses on import.  This keeps the frontend simple: the backend
+maintains the registry.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import sys
 _loaded = False
 
 
-def _import_scenarios(package_name: str) -> None:
+def _import_scenarios(package_name: str, prefixes: tuple[str, ...] = ("scenario_", "test_")) -> None:
     try:
         pkg = importlib.import_module(package_name)
     except ModuleNotFoundError:
@@ -27,7 +28,7 @@ def _import_scenarios(package_name: str) -> None:
 
     pkg_path = Path(pkg_file).parent
     for mod in pkgutil.iter_modules([str(pkg_path)]):
-        if mod.name.startswith("scenario_"):
+        if any(mod.name.startswith(p) for p in prefixes):
             importlib.import_module(f"{package_name}.{mod.name}")
 
 

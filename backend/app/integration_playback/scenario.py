@@ -152,6 +152,19 @@ class IntegrationScenario(ABC):
             for _, name, meta in methods
         ]
 
+    # -- Pytest entry point --
+    @classmethod
+    def run_as_test(cls) -> None:
+        """Run this scenario through the playback runner and assert all steps pass."""
+        from backend.app.integration_playback.runner import run_scenario
+
+        result = run_scenario(cls.scenario_id)
+        log = result["log"]
+        assert all(entry["status"] == "ok" for entry in log), (
+            "Scenario steps did not all succeed: "
+            + ", ".join(f"{e['description']}={e['status']}" for e in log if e["status"] != "ok")
+        )
+
     # -- Debug helper --
     def debug_info(self, extra: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """Build a standardized debug payload rendered as a bordered box."""
