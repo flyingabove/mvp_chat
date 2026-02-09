@@ -179,6 +179,18 @@ class IntegrationScenario(ABC):
                 val = getattr(self.state, attr, None)
                 if val is not None:
                     info[attr] = val
+            # Surface speakers generically so both game and playback can render the same debug box
+            if "speakers" not in info:
+                speakers: list[str] = []
+                if self.player_role:
+                    speakers.append(self.player_role)
+                beliefs = getattr(self.state, "beliefs", None)
+                if isinstance(beliefs, dict):
+                    speakers.extend(str(k) for k in beliefs.keys())
+                if speakers:
+                    # Preserve insertion order while removing duplicates
+                    seen = set()
+                    info["speakers"] = [s for s in speakers if not (s in seen or seen.add(s))]
         if extra:
             info.update(extra)
         return {"debug_box": info}

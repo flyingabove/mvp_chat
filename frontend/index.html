@@ -258,6 +258,41 @@
     return d;
   }
 
+  function renderDebugBox(box, debugMode){
+    var allow = (debugMode === undefined) ? true : !!debugMode;
+    if (!box || !allow) return Promise.resolve();
+
+    var lines = [];
+    if (box.timestamp) lines.push("Timestamp: " + box.timestamp);
+    if (box.location) lines.push("User location: " + box.location);
+    if (box.location_id) lines.push("Location ID: " + box.location_id);
+    if (box.minute != null) lines.push("Minute: " + box.minute);
+    if (box.story) lines.push("Story: " + box.story);
+    if (box.scenario) lines.push("Scenario: " + box.scenario);
+    if (Array.isArray(box.speakers)) {
+      lines.push("Speakers:");
+      box.speakers.forEach(function(s){ lines.push("- " + s); });
+    }
+
+    var skip = {timestamp:1,location:1,location_id:1,minute:1,story:1,scenario:1,speakers:1,step:1};
+    Object.keys(box).forEach(function(k){
+      if (skip[k]) return;
+      var v = box[k];
+      if (Array.isArray(v)) {
+        lines.push(k + ":");
+        v.forEach(function(item){ lines.push("  - " + item); });
+      } else if (v && typeof v === "object") {
+        lines.push(k + ":");
+        Object.keys(v).forEach(function(vk){ lines.push("  " + vk + ": " + v[vk]); });
+      } else {
+        lines.push(k + ": " + v);
+      }
+    });
+
+    writeBox("DEBUG INFO", lines.join("\n"));
+    return Promise.resolve();
+  }
+
   function writeBox(title, body){
     var wrap = document.createElement("div");
     wrap.className = "box";
@@ -396,36 +431,8 @@
           }
 
           typewrite((data && data.reply) ? data.reply : "", "bot", typeOpt || TYPE_DEFAULT)
-            .then(function(){
-              // Render debug box if present (same writeBox used by integration playback)
-              if (data && data.debug_box) {
-                var box = data.debug_box;
-                var lines = [];
-                if (box.timestamp) lines.push("Timestamp: " + box.timestamp);
-                if (box.location) lines.push("User location: " + box.location);
-                if (box.location_id) lines.push("Location ID: " + box.location_id);
-                if (box.minute != null) lines.push("Minute: " + box.minute);
-                if (box.story) lines.push("Story: " + box.story);
-                if (box.scenario) lines.push("Scenario: " + box.scenario);
-                if (box.speakers) {
-                  lines.push("Speakers:");
-                  for (var si = 0; si < box.speakers.length; si++) {
-                    lines.push("- " + box.speakers[si]);
-                  }
-                }
-                // Remaining extra keys
-                var skip = {timestamp:1,location:1,location_id:1,minute:1,story:1,scenario:1,speakers:1,step:1};
-                var keys = Object.keys(box);
-                for (var ki = 0; ki < keys.length; ki++) {
-                  if (!skip[keys[ki]]) {
-                    var v = box[keys[ki]];
-                    lines.push(keys[ki] + ": " + (typeof v === "object" ? JSON.stringify(v) : v));
-                  }
-                }
-                writeBox("DEBUG INFO", lines.join("\n"));
-              }
-              if (done) done();
-            });
+            .then(function(){ return renderDebugBox(data && data.debug_box, true); })
+            .then(function(){ if (done) done(); });
 
         } else {
           writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
@@ -628,13 +635,14 @@
     runIntegrationPlayback(scenario);
   }
 
-  function renderIntegrationLog(log, debugMode){
+  async function renderIntegrationLog(log, debugMode){
     if (!log || !log.length){
       writeLine("(No steps returned from playback.)", "err");
       return;
     }
 
-    log.forEach(function(step){
+    for (var i = 0; i < log.length; i++){
+      var step = log[i];
       var status = (step.status || "").toUpperCase();
       var llm = step.uses_llm ? " [LLM]" : " [no LLM]";
       var header = llm + " " + status + " — " + (step.description || "");
@@ -642,101 +650,167 @@
       writeLine(header, step.status === "error" ? "err" : "sys");
 
       if (step.output !== undefined) {
-        renderStepOutput(step.output, debugMode);
+        await renderStepOutput(step.output, debugMode);
       }
-    });
+    }
+  }
+
+  function formatChatLine(output){
+    var role = output.role || "";
+    var label = role === "user" ? "[USER] " : role === "llm" ? "[LLM] " : "";
+    var body = normalizeNewlines(output.reply || "");
+    var prefix = "";
+
+    if (role === "llm" && output.user) {
+      prefix = output.user + ": ";
+    }
+    if (role === "user" && body.trim().indexOf(">") !== 0) {
+      prefix = "> ";
+    }
+
+    return {
+      text: label + prefix + body,
+      cls: role === "user" ? "user" : "bot",
+    };
   }
 
   function renderStepOutput(output, debugMode){
     var debug = !!debugMode;
-    if (output == null) return;
 
-    // Generic array -> list lines
-    if (Array.isArray(output)) {
-      output.forEach(function(item){ renderStepOutput(item, debug); });
-      return;
-    }
+    function renderItem(item){
+      if (item == null) return Promise.resolve();
 
-    // Bordered debug box (class-based scenarios)
-    if (typeof output === "object" && output.debug_box) {
-      if (!debug) return;
-      var box = output.debug_box;
-      var title = "DEBUG INFO";
-      var lines = [];
-      if (box.timestamp) lines.push("Timestamp: " + box.timestamp);
-      if (box.location) lines.push("User location: " + box.location);
-      if (box.location_id) lines.push("Location ID: " + box.location_id);
-      if (box.minute !== undefined) lines.push("Minute: " + box.minute);
-      if (box.story) lines.push("Story: " + box.story);
-      // Render remaining keys
-      var skip = {timestamp:1,scenario:1,step:1,location:1,location_id:1,minute:1,story:1};
-      Object.keys(box).forEach(function(k) {
-        if (skip[k]) return;
-        var v = box[k];
-        if (Array.isArray(v)) {
-          lines.push(k + ":");
-          v.forEach(function(item) { lines.push("  - " + item); });
-        } else if (typeof v === "object" && v !== null) {
-          lines.push(k + ":");
-          Object.keys(v).forEach(function(vk) { lines.push("  " + vk + ": " + v[vk]); });
-        } else {
-          lines.push(k + ": " + v);
+      if (Array.isArray(item)) {
+        return item.reduce(function(p, el){ return p.then(function(){ return renderItem(el); }); }, Promise.resolve());
+      }
+
+      if (typeof item === "object" && item.user !== undefined && item.reply !== undefined) {
+        var chat = formatChatLine(item);
+        return typewrite(chat.text, chat.cls).then(function(){
+          if (item.debug_box) {
+            return renderDebugBox(item.debug_box, debug);
+          }
+        });
+      }
+
+      if (typeof item === "object" && item.debug_box) {
+        return renderDebugBox(item.debug_box, debug);
+      }
+
+      if (typeof item === "object" && item.debug) {
+        if (!debug) return Promise.resolve();
+        var dbg = item.debug;
+        if (dbg.title) writeLine(dbg.title, "sys");
+        if (dbg.canonical_facts && Array.isArray(dbg.canonical_facts)) {
+          writeLine("Canonical facts:", "bot");
+          dbg.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
         }
-      });
-      writeBox(title, lines.join("\n"));
-      return;
-    }
+        if (dbg.observations && Array.isArray(dbg.observations)) {
+          writeLine("Observations:", "bot");
+          dbg.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
+        }
+        if (dbg.metrics) {
+          var m = dbg.metrics;
+          var line = [];
+          if (m.precision !== undefined) line.push("precision: " + m.precision);
+          if (m.recall !== undefined) line.push("recall: " + m.recall);
+          if (m.accuracy !== undefined) line.push("accuracy: " + m.accuracy);
+          if (line.length) writeLine(line.join(" | "), "bot");
+        }
+        if (dbg.intent) {
+          var intentLine = "Intent: " + dbg.intent;
+          if (dbg.destination_id) intentLine += " | destination: " + dbg.destination_id;
+          if (dbg.confidence !== undefined) intentLine += " | confidence: " + dbg.confidence;
+          writeLine(intentLine, "bot");
+        }
+        if (dbg.story) writeLine("Story: " + dbg.story, "sys");
+        if (dbg.state_note) writeLine(dbg.state_note, "sys");
+        if (dbg.chunks && Array.isArray(dbg.chunks)) {
+          writeLine("Sample chunks:", "bot");
+          dbg.chunks.forEach(function(c){
+            if (!c) return;
+            var txt = (c.text || c.content || "").slice(0, 200);
+            writeLine("- " + txt, "bot");
+          });
+        }
+        return Promise.resolve();
+      }
 
-    // Explicit debug payloads (only when debug is on)
-    if (typeof output === "object" && output.debug) {
-      if (!debug) return;
-      var dbg = output.debug;
-      if (dbg.title) writeLine(dbg.title, "sys");
-      if (dbg.canonical_facts && Array.isArray(dbg.canonical_facts)) {
-        writeLine("Canonical facts:", "bot");
-        dbg.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+      if (typeof item === "object" && (item.steve_claim || item.bob_claim || item.steve_confession || item.bob_coverup || item.steve_contradiction || item.bob_contradiction)) {
+        if (item.steve_claim) writeLine("Steve: " + item.steve_claim, "bot");
+        if (item.bob_claim) writeLine("Bob: " + item.bob_claim, "bot");
+        if (item.steve_contradiction) writeLine("Steve: " + item.steve_contradiction, "bot");
+        if (item.bob_contradiction) writeLine("Bob: " + item.bob_contradiction, "bot");
+        if (item.steve_confession) writeLine("Steve: " + item.steve_confession, "bot");
+        if (item.bob_coverup) writeLine("Bob: " + item.bob_coverup, "bot");
+        return Promise.resolve();
       }
-      if (dbg.observations && Array.isArray(dbg.observations)) {
+
+      if (typeof item === "object" && item.message && item.intent) {
+        writeLine("> " + item.message, "user");
+        var summary = "Intent: " + item.intent;
+        if (item.destination_id) summary += " | destination: " + item.destination_id;
+        if (item.confidence !== undefined) summary += " | confidence: " + item.confidence;
+        writeLine(summary, "bot");
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && item.precision !== undefined && item.recall !== undefined) {
+        var metrics = [
+          "precision: " + item.precision,
+          "recall: " + item.recall,
+          "accuracy: " + item.accuracy
+        ].join(" | ");
+        writeLine(metrics, "bot");
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && Array.isArray(item.observations)) {
         writeLine("Observations:", "bot");
-        dbg.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
+        item.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
+        return Promise.resolve();
       }
-      if (dbg.metrics) {
-        var m = dbg.metrics;
-        var line = [];
-        if (m.precision !== undefined) line.push("precision: " + m.precision);
-        if (m.recall !== undefined) line.push("recall: " + m.recall);
-        if (m.accuracy !== undefined) line.push("accuracy: " + m.accuracy);
-        if (line.length) writeLine(line.join(" | "), "bot");
+      if (typeof item === "object" && item.contested !== undefined && item.resolved !== undefined) {
+        writeLine("Epistemic summary: contested " + item.contested + " | resolved " + item.resolved, "bot");
       }
-      if (dbg.intent) {
-        var intentLine = "Intent: " + dbg.intent;
-        if (dbg.destination_id) intentLine += " | destination: " + dbg.destination_id;
-        if (dbg.confidence !== undefined) intentLine += " | confidence: " + dbg.confidence;
-        writeLine(intentLine, "bot");
+      if (typeof item === "object" && Array.isArray(item.canonical_facts)) {
+        writeLine("Canonical facts:", "bot");
+        item.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+        return Promise.resolve();
       }
-      if (dbg.story) writeLine("Story: " + dbg.story, "sys");
-      if (dbg.state_note) writeLine(dbg.state_note, "sys");
-      if (dbg.chunks && Array.isArray(dbg.chunks)) {
+      if (typeof item === "object" && Array.isArray(item.canonical)) {
+        writeLine("Canonical facts:", "bot");
+        item.canonical.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && Array.isArray(item.chunks)) {
         writeLine("Sample chunks:", "bot");
-        dbg.chunks.forEach(function(c){
+        item.chunks.forEach(function(c){
           if (!c) return;
           var txt = (c.text || c.content || "").slice(0, 200);
           writeLine("- " + txt, "bot");
         });
+        return Promise.resolve();
       }
-      return;
+
+      if (typeof item === "string") {
+        writeLine(item, "bot");
+        return Promise.resolve();
+      }
+
+      if (debug) {
+        try {
+          writeLine(JSON.stringify(item, null, 2), "bot");
+        } catch(e) {
+          writeLine(String(item), "bot");
+        }
+      }
+      return Promise.resolve();
     }
 
-    // Chat-style outputs with role tags
-    if (typeof output === "object" && output.user !== undefined && output.reply !== undefined) {
-      var role = output.role || "";
-      var label = role === "user" ? "[USER] " : role === "llm" ? "[LLM] " : "";
-      var speaker = output.user || "";
-      var cls = role === "user" ? "user" : "bot";
-      var line = (speaker ? label + speaker + ": " : label) + output.reply;
-      writeLine(line, cls);
-      return;
-    }
+    return renderItem(output);
+  }
 
     // Epistemic claims/confessions/observations
     if (typeof output === "object" && (output.steve_claim || output.bob_claim || output.steve_confession || output.bob_coverup || output.steve_contradiction || output.bob_contradiction)) {
@@ -836,9 +910,9 @@
       .then(function(r){
         return r.json().then(function(data){ return { ok: r.ok, data: data }; });
       })
-      .then(function(resp){
+      .then(async function(resp){
         var data = resp.data || {};
-        renderIntegrationLog(data.log || [], state.integrationDebug);
+        await renderIntegrationLog(data.log || [], state.integrationDebug);
 
         if (!resp.ok || data.status === "error"){
           writeLine("Playback error: " + (data.error || "unknown"), "err");
