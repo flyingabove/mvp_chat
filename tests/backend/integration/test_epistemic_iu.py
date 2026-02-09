@@ -84,10 +84,23 @@ class EpistemicIUScenario(IntegrationScenario):
         bob_belief.add_claim(deny_bob)
         self.state.epistemic_log.extend([deny_steve, deny_bob])
         return [
-            {"user": "Detective", "reply": "Steve, walk me through your night. When did IU get there?"},
-            {"user": "Steve", "reply": "*Steve shifts in his seat.* \"She didn't. IU never arrived. I was alone.\""},
-            {"user": "Detective", "reply": "Bob, I need your version too. Were you with IU at any point?"},
-            {"user": "Bob", "reply": "*Bob stares at the table.* \"No. I was driving all night. I never saw IU.\""},
+            self.say_user("Walk me through your night. Start at 10."),
+            self.say_llm("Steve", "Stayed in. Watched TV. IU didn't come over."),
+            self.say_user("Last time you saw her?"),
+            self.say_llm("Steve", "Yesterday. We're not great right now."),
+            self.say_user("Bob here tonight?"),
+            self.say_llm("Steve", "No. Haven't seen Bob today."),
+            self.say_user("Any reason IU would show up late?"),
+            self.say_llm("Steve", "No. She had her own place. She wasn't here."),
+
+            self.say_user("Walk me through your night."),
+            self.say_llm("Bob", "Drove around. Cleared my head. I didn't see IU."),
+            self.say_user("Were you at Steve's?"),
+            self.say_llm("Bob", "No."),
+            self.say_user("You talk to Steve today?"),
+            self.say_llm("Bob", "Texted. Nothing serious."),
+            self.say_user("You two ever argue with IU?"),
+            self.say_llm("Bob", "No. That was Steve's relationship."),
             self.debug_info({"steve_claim": deny_steve.content, "bob_claim": deny_bob.content}),
         ]
 
@@ -112,9 +125,13 @@ class EpistemicIUScenario(IntegrationScenario):
             timestamp_minute=45,
         )
         return [
-            {"user": "Detective", "reply": "Alright. Any witnesses? Any cameras? Give me something concrete."},
-            {"user": "Neighbor", "reply": "*A neighbor quietly mentions hearing a man and a woman arguing close to midnight.*"},
-            {"user": "System", "reply": "*The hallway camera catches a dark silhouette entering at 11:45.*"},
+            self.say_user("IU's phone was active near your building late. You sure she didn't come by?"),
+            self.say_llm("Steve", "Phones ping towers. Doesn't mean anything."),
+            self.say_user("Neighbor heard arguing around 11:50. A woman crying."),
+            self.say_llm("Steve", "Thin walls. Could be anyone."),
+            self.say_user("Did Bob come over?"),
+            self.say_llm("Steve", "No."),
+            self.say_llm("System", "*Hallway camera shows a male silhouette entering at 11:45.*"),
             self.debug_info({"observations": [getattr(obs1, "content", None), getattr(obs2, "content", None)]}),
         ]
 
@@ -150,9 +167,23 @@ class EpistemicIUScenario(IntegrationScenario):
         steve_belief.add_claim(steve_round3)
         bob_belief.add_claim(bob_round3)
         return [
-            self.say_user("Your stories don't line up. Tell me exactly what happened."),
-            self.say_llm("Steve", "*Steve's jaw tightens.* \"Bob did stop by, but I stepped out before anything happened.\""),
-            self.say_llm("Bob", "*Bob slams his hand on the table.* \"He's lying. Steve never left\u2014he was blocking the kitchen the whole time.\"\n\n*(The contradiction hangs in the air like smoke.)*"),
+            self.say_user("Bob's car was near your building at 11:46."),
+            self.say_llm("Steve", "He drives everywhere."),
+            self.say_user("He didn't deny being near. He denied being inside."),
+            self.say_llm("Steve", "...So?"),
+            self.say_user("Bob is positioning himself. He says you were worked up and asks what cooperation looks like."),
+            self.say_llm("Steve", "Fine. Bob came by for a minute."),
+            self.say_user("Inside?"),
+            self.say_llm("Steve", "Yeah. Brief. But I left before things got bad."),
+            self.say_user("You left your own apartment?"),
+            self.say_llm("Steve", "I stepped out. Air. I didn't kill her."),
+
+            self.say_user("Steve admits you were there."),
+            self.say_llm("Bob", "...What?"),
+            self.say_user("He says you came inside. He says he left before things got bad."),
+            self.say_llm("Bob", "I was there, yes. But I didn't do anything. I walked in and felt something was off. Steve and IU were arguing. Steve was blocking the kitchen."),
+            self.say_user("Did Steve leave?"),
+            self.say_llm("Bob", "No. That's a lie. He didn't leave. He was right there."),
             self.debug_info({"steve_contradiction": steve_round3.content, "bob_contradiction": bob_round3.content}),
         ]
 
@@ -204,9 +235,17 @@ class EpistemicIUScenario(IntegrationScenario):
             )
         )
         return [
-            self.say_user("Steve, last chance. What really happened in that kitchen?"),
-            self.say_llm("Steve", "*Steve's voice breaks.* \"I stabbed IU. Bob took the knife to get rid of it.\"\n\n*(His hands are shaking.)*"),
-            self.say_llm("Bob", "*Bob exhales slowly.* \"I wiped things down and tossed the knife off a bridge.\""),
+            self.say_user("He says you never left. He also says he's willing to cooperate."),
+            self.say_llm("Steve", "She came at me with accusations. She had papers. She was screaming. I grabbed her arm to calm her down. It got out of control."),
+            self.say_user("Did you stab IU?"),
+            self.say_llm("Steve", "...I didn't mean to. It was a moment."),
+            self.say_user("Where's the knife?"),
+            self.say_llm("Steve", "Bob took it. He said he'd fix it."),
+
+            self.say_user("Steve confessed. He says you took the knife."),
+            self.say_llm("Bob", "I didn't stab her. But yes after it happened, Steve panicked. I wiped things. I took the knife. I threw it off a bridge."),
+            self.say_user("Why help him?"),
+            self.say_llm("Bob", "Because if I didn't, he'd say I did it. Exactly like he tried just now."),
             self.debug_info({"steve_confession": steve_confession.content, "bob_coverup": bob_coverup.content}),
         ]
 
