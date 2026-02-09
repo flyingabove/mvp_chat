@@ -1,6 +1,8 @@
-from typing import Dict
+import json
+from pathlib import Path
+from typing import Dict, List
 
-from backend.app.integration_playback.scenario import Scenario, Step
+from backend.app.integration_playback.scenario import Scenario
 
 SCENARIOS: Dict[str, Scenario] = {}
 
@@ -17,3 +19,17 @@ def get_scenario(scenario_id: str) -> Scenario:
 
 def list_scenarios() -> Dict[str, Scenario]:
     return dict(SCENARIOS)
+
+
+def build_scenario_index() -> List[dict]:
+    """Return a deterministic list of scenario dicts for export/UI consumption."""
+    return [SCENARIOS[k].to_dict() for k in sorted(SCENARIOS.keys())]
+
+
+def export_scenarios_json(out_path: str | Path) -> Path:
+    """Write the scenario index to JSON for UI/playback clients."""
+    path = Path(out_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"scenarios": build_scenario_index()}
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
+    return path

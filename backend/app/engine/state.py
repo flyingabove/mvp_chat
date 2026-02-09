@@ -17,6 +17,10 @@ from backend.app.engine.epistemic_state import (
     EpistemicFact,
     Observation,
 )
+from backend.app.config.epistemic_flags import (
+    belief_enabled,
+    truth_enabled,
+)
 
 import json
 import re
@@ -177,6 +181,9 @@ class MurderGameState:
 
     def get_belief_state(self, character_id: str) -> BeliefState:
         """Fetch (or create) the belief log for a given character."""
+        if not belief_enabled():
+            # Return empty stub without mutating shared beliefs when disabled
+            return BeliefState(character_id=character_id)
         if character_id not in self.beliefs:
             self.beliefs[character_id] = BeliefState(character_id=character_id)
         return self.beliefs[character_id]
@@ -184,8 +191,22 @@ class MurderGameState:
     def record_observation(self, **kwargs) -> Observation:
         """Append an observation to the shared observation log."""
         obs = Observation(**kwargs)
-        self.observation_log.append(obs)
+        if belief_enabled():
+            self.observation_log.append(obs)
         return obs
+
+    # ==============================================================
+    # Epistemic helpers (toggle-aware)
+    # ==============================================================
+    def add_canonical_fact(self, fact: EpistemicFact) -> None:
+        """Append to canonical facts if truth layer is enabled."""
+        if truth_enabled():
+            self.canonical_facts.append(fact)
+
+    def add_epistemic_claims(self, *claims: EpistemicClaim) -> None:
+        """Append claims to epistemic log if belief layer is enabled."""
+        if belief_enabled():
+            self.epistemic_log.extend(claims)
 
 
 # ======================================================================

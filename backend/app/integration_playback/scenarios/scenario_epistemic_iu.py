@@ -29,7 +29,7 @@ def _seed_truth(state):
         location_ref="kitchen",
         timestamp_minute=60,
     )
-    state.canonical_facts.append(fact)
+    state.add_canonical_fact(fact)
     return {
         "reply": "System pins canonical truth: Steve stabbed IU in the kitchen.",
         "debug": {"canonical_facts": [fact.content]},
@@ -64,7 +64,7 @@ def _round1_denials(state):
     )
     steve_belief.add_claim(deny_steve)
     bob_belief.add_claim(deny_bob)
-    state.epistemic_log.extend([deny_steve, deny_bob])
+    state.add_epistemic_claims(deny_steve, deny_bob)
     return [
         {"user": "Detective", "reply": "Steve, where were you when IU arrived?"},
         {"user": "Steve", "reply": "IU never even arrived. I was alone."},
@@ -128,7 +128,7 @@ def _round3_contradictions(state):
         timestamp_minute=70,
     )
     steve_round3.contested_with(bob_round3)
-    state.epistemic_log.extend([steve_round3, bob_round3])
+    state.add_epistemic_claims(steve_round3, bob_round3)
     steve_belief.add_claim(steve_round3)
     bob_belief.add_claim(bob_round3)
     return [
@@ -167,11 +167,11 @@ def _round4_confessions(state):
         timestamp_minute=92,
     ).resolve_conflict("Bob corroborates cover-up details")
 
-    state.epistemic_log.extend([steve_confession, bob_coverup])
+    state.add_epistemic_claims(steve_confession, bob_coverup)
     steve_belief.add_claim(steve_confession)
     bob_belief.add_claim(bob_coverup)
 
-    state.canonical_facts.append(
+    state.add_canonical_fact(
         EpistemicFact(
             id="truth_coverup",
             content="Bob removed the knife and wiped surfaces after the stabbing",

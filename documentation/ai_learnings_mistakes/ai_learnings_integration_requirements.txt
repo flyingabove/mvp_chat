@@ -1,0 +1,54 @@
+AI learnings: integration test requirements
+==========================================
+
+Context
+- OS: Windows (PowerShell terminals). Python via conda env at C:\Users\Christian\Miniconda3.
+- .env.test is auto-loaded by tests/conftest.py; must contain OPENAI_API_KEY for integration tests that touch LLM/extractor flows.
+- Integration playback scenarios are auto-registered (tests/backend/integration/__init__.py present) and run through ScenarioRunner.
+
+Technical requirements (numbered)
+1) Environment
+   - Use the configured conda env at C:\Users\Christian\Miniconda3.
+   - Run from repo root (C:\Users\Christian\Documents\Projects\mvp_chat).
+   - Ensure .env.test exists with OPENAI_API_KEY; alternatively set env var directly.
+
+2) Commands that work (foreground)
+   1. Full suite: python -m pytest
+      - Expected: all tests (unit + integration) ~50s.
+   2. Integration-only: python -m pytest -m integration -r s
+      - Uses .env.test OPENAI_API_KEY.
+   3. Unit-only: python -m pytest -m "not integration" -r s
+      - No API key needed.
+   - Use the vscode get_output_via_markers wrapper if quoting breaks in PowerShell (see ai_learnings_running_tests.txt for exact command forms).
+
+3) Scenario message formatting
+   - Chat outputs must carry a single role tag per message block ([USER] or [LLM]), not per sentence.
+   - Keep multi-line narrative blocks intact (preserve newlines and ">" prompts); typewriter rendering is shared between game and integration playback.
+   - Role mapping: player_role -> [USER]; all other speakers -> [LLM].
+
+4) Debug box expectations (shared code)
+   - Use the shared debug_box renderer (no custom integration-only code).
+   - Keys shown: timestamp, location, location_id, minute, story, scenario, speakers (auto-built from player_role + belief keys), plus any extra payload.
+   - Same debug payload should render identically in both game and integration playback.
+
+5) Epistemic integration specifics
+   - Use IntegrationScenario helpers (say_user, say_llm, debug_info) so role tags are consistent.
+   - Claims/observations/confessions logged via state methods; contested/resolved statuses must be asserted in tests.
+   - Multi-turn dialogue should mirror the canonical script (denials -> observations -> contradictions -> confessions) with formatting unchanged from the game view except for role tags.
+
+6) Class structure and execution
+    - Integration scenarios should subclass IntegrationScenario with scenario_id/title/description/tags/player_role set.
+    - Steps must be methods decorated with @step(kind="action"/"assert"/etc.), relying on get_steps ordering; no ad-hoc invocation.
+    - Use run_as_test() as the pytest entry point so class-based scenarios execute via ScenarioRunner (same path as playback UI).
+    - Registration is automatic via __init_subclass__ and scenario_registry; ensure tests/backend/integration/__init__.py exists so discovery happens.
+    - Step outputs must return chat payloads (say_user/say_llm) and debug_info; avoid custom printing or bespoke debug formats.
+
+6) Pitfalls and reminders
+   - Quoting in PowerShell can break direct pytest calls; prefer the documented wrapper if commands fail.
+   - Background runs with redirection can drop output; run foreground for reliable logs.
+   - If scenarios do not appear, ensure ensure_scenarios_loaded runs and tests/backend/integration/__init__.py exists.
+
+Pre-flight checklist
+- Confirm OPENAI_API_KEY available (.env.test loaded automatically).
+- Run from repo root with the commands above.
+- Expect role-tagged blocks and shared debug boxes; if format drifts, adjust IntegrationScenario/renderer, not ad-hoc in tests.

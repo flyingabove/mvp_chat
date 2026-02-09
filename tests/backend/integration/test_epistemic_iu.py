@@ -43,7 +43,7 @@ class EpistemicIUScenario(IntegrationScenario):
             location_ref="kitchen",
             timestamp_minute=60,
         )
-        self.state.canonical_facts.append(fact)
+        self.state.add_canonical_fact(fact)
         return {
             "reply": (
                 "*A verified fact gets pinned to the board.* "
@@ -82,7 +82,7 @@ class EpistemicIUScenario(IntegrationScenario):
         )
         steve_belief.add_claim(deny_steve)
         bob_belief.add_claim(deny_bob)
-        self.state.epistemic_log.extend([deny_steve, deny_bob])
+        self.state.add_epistemic_claims(deny_steve, deny_bob)
         return [
             self.say_user("Walk me through your night. Start at 10."),
             self.say_llm("Steve", "Stayed in. Watched TV. IU didn't come over."),
@@ -163,7 +163,7 @@ class EpistemicIUScenario(IntegrationScenario):
             timestamp_minute=70,
         )
         steve_round3.contested_with(bob_round3)
-        self.state.epistemic_log.extend([steve_round3, bob_round3])
+        self.state.add_epistemic_claims(steve_round3, bob_round3)
         steve_belief.add_claim(steve_round3)
         bob_belief.add_claim(bob_round3)
         return [
@@ -216,11 +216,11 @@ class EpistemicIUScenario(IntegrationScenario):
             timestamp_minute=92,
         ).resolve_conflict("Bob corroborates cover-up details")
 
-        self.state.epistemic_log.extend([steve_confession, bob_coverup])
+        self.state.add_epistemic_claims(steve_confession, bob_coverup)
         steve_belief.add_claim(steve_confession)
         bob_belief.add_claim(bob_coverup)
 
-        self.state.canonical_facts.append(
+        self.state.add_canonical_fact(
             EpistemicFact(
                 id="truth_coverup",
                 content="Bob removed the knife and wiped surfaces after the stabbing",

@@ -89,5 +89,5 @@ def test_state_has_epistemic_slots_and_belief_getter():
     assert obs in st.observation_log
 
     fact = EpistemicFact(id="f1", content="IU is deceased", source="system")
-    st.canonical_facts.append(fact)
+    st.add_canonical_fact(fact)
     assert st.canonical_facts[0].status == EpistemicStatus.ASSERTED

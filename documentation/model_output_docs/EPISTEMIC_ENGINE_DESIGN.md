@@ -3,26 +3,47 @@
 ## Purpose
 Build a layered epistemic system that keeps one canonical truth, separates beliefs/observations, preserves a full narrative log, and uses retrieval only for style and recall. The goal is to let the extractor update state safely, keep contradictions survivable, and give the renderer clear guidance on what can be asserted vs what must be hedged.
 
-## The Four Layers (Jobs, Storage, Updates)
-1) **Canonical World State (Truth)**
-- What it holds: hard facts about the world — locations, time, who has what, who did what; evidence objects and their properties (exists, destroyed, overwritten); irreversible flags (e.g., "mastermind confessed", "door locked").
-- Storage: structured state on `MurderGameState` plus a story knowledge graph (truth graph) loaded per story.
-- Updates: only through validated extractor outputs and deterministic game rules; never from retrieval.
+## Data Types and Truth Levels (authorities and risk)
+- **Ground truth (validated fact):** observable/validated events, physical state, irreversible flags; authority: highest; hedging: none.
+- **Observed evidence:** player/NPC directly sees/hears something (camera, bruise, shouting); authority: high but time/locale bound; hedging: minimal if timestamped.
+- **Testimony/claim:** spoken statements by a speaker; authority: medium; hedging: "X claims…"; may conflict.
+- **Rumor/inferred:** second-hand or model inference; authority: low; hedging: strong.
+- **Narrative style memory:** phrasing/recall for fluency; authority: lowest; never overwrites higher tiers.
 
-2) **Epistemic State (Who knows/believes what)**
-- What it holds: per-character beliefs (can be wrong), player-observed information, rumor/fact confidence, provenance of claims.
-- Storage: per-character belief graph + player observation log stored on `MurderGameState`.
-- Updates: extractor notes exposures (saw CCTV, heard claim, inferred); NPCs can lie so belief graphs may diverge from truth graph.
+Authority ladder: Ground truth > Observed evidence > Testimony > Rumor/Inferred > Narrative style. Each layer below must never overwrite a higher layer; higher layers may explain or reconcile lower ones.
+Promotion rule: Observed evidence can be promoted to ground truth only after deterministic validation (e.g., evidence registry + chain-of-custody). Inference from model reasoning stays quarantined at low confidence unless independently validated.
 
-3) **Narrative Log (What was said)**
-- What it holds: full transcript of user and assistant turns, exactly as spoken/rendered.
-- Storage: existing message log in `MurderGameState`.
-- Purpose: audit trail, forensics/debug, material for retrieval.
+## Epistemic Layers (jobs, storage, allowed data)
+1) **Canonical World State (Truth Layer)**
+- Holds: ground truth facts, irreversible flags, validated evidence state (exists/destroyed/possessed), authoritative timeline/location relations.
+- Storage: structured state on `MurderGameState` plus per-story truth graph.
+- Allowed data types: Ground truth only (validated facts/irreversible flags). No rumor/testimony here. Observed evidence may be promoted once validated.
+- Updates: only via validated extractor outputs + deterministic rules; never from retrieval or raw testimony.
 
-4) **Retrieval Index (Search memory)**
-- What it holds: snippets of past dialogue, lore paragraphs, scene summaries, "what the player experienced" phrased for style.
-- Scope: only player-observable experience, not hidden truth.
-- Purpose: help the model talk well; lowest authority. Labeled snippets (OBSERVED / TESTIMONY / RUMOR / INFERRED / NARRATION) to prevent hallucinated authority.
+2) **Epistemic State (Belief/Observation Layer)**
+- Holds: per-character belief graphs, claims/testimony with provenance, player/NPC observations, confidence scores, contradictions.
+- Storage: belief graph per character + shared observation log on `MurderGameState`.
+- Allowed data types: Testimony/claims, observed evidence (time/location bound), inferred/rumor entries with explicit provenance/confidence. Not authoritative truth.
+- Validation/promotion: Observed evidence can be promoted to truth only after deterministic checks (e.g., evidence registry + chain-of-custody). Model-only inference remains low-confidence and does not promote without external validation.
+- Updates: extractor records exposures; contradictions set contested status; can diverge from truth layer.
+
+3) **Narrative Log (Transcript Layer)**
+- Holds: exact turns as spoken/rendered (user + assistant), including stylistic prose.
+- Storage: message log in `MurderGameState`.
+- Allowed data types: Narrative style memory only; no authority. References higher layers but never asserts them implicitly.
+- Purpose: audit trail, forensics, source for retrieval snippets; never a source of truth.
+
+4) **Retrieval Index (Style/Recall Layer)**
+- Holds: labeled snippets of what the player experienced (OBSERVED/TESTIMONY/RUMOR/INFERRED/NARRATION), scene summaries, lore.
+- Storage: retrieval index (BM25/FAISS) keyed by session/story.
+- Allowed data types: Narrative style memory and hedged testimony/rumor labels; must never store or assert ground truth unless marked as validated fact.
+- Purpose: improve phrasing/recall; lowest authority; cannot mutate any other layer.
+
+## Why all four layers
+- Truth layer guards canonical state and prevents narrative/retrieval drift.
+- Belief/observation layer models disagreement, confidence, and provenance without polluting truth.
+- Transcript layer preserves what was said for accountability and for building retrieval snippets.
+- Retrieval layer offers style/recall without authority, keeping prompts lean and hedged.
 
 ## Core Data Structures (Plain English)
 - **TruthGraph** (per story): nodes for characters, locations, items/evidence, events, flags; edges for relations (e.g., saw_at, owns, occurred_at, ordered); attributes for time bounds, confidence (truth defaults to 1.0), provenance (usually "validated").

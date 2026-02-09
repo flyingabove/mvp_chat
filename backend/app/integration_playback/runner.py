@@ -3,6 +3,7 @@ import json
 import sys
 from typing import Any
 
+from backend.app.config.epistemic_flags import narrative_enabled
 from backend.app.integration_playback.scenario_registry import get_scenario
 
 
@@ -79,7 +80,7 @@ def _emit_output(output: Any, debug: bool = False, player_role: str = "") -> Non
     Messages from ``player_role`` are tagged [USER] in blue.
     All other character messages are tagged [LLM] in orange.
     """
-    if output is None:
+    if output is None or not narrative_enabled():
         return
 
     annotated = _annotate_roles(output, player_role)
@@ -173,7 +174,7 @@ class ScenarioRunner:
             if asyncio.iscoroutine(setup_result):
                 setup_result = await setup_result
             entry["status"] = "ok"
-            if setup_result is not None:
+            if setup_result is not None and narrative_enabled():
                 entry["output"] = _annotate_roles(_strip_state(setup_result), self._player_role)
         except Exception as exc:
             entry["status"] = "error"
@@ -204,7 +205,7 @@ class ScenarioRunner:
                         fn_result = await fn_result
                     result = fn_result
                     entry["status"] = "ok"
-                    if fn_result is not None:
+                    if fn_result is not None and narrative_enabled():
                         entry["output"] = _annotate_roles(_strip_state(fn_result), self._player_role)
                 except Exception as exc:
                     entry["status"] = "error"
@@ -253,12 +254,8 @@ class ScenarioRunner:
                 "description": step.description,
                 "uses_llm": getattr(step, "uses_llm", False),
                 "status": "pending",
+                "mode": getattr(step, "mode", ""),
             }
-
-            if step.kind == "note" or step.fn is None:
-                entry["status"] = "skipped"
-                self.log.append(entry)
-                continue
 
             call_kwargs = dict(step.kwargs)
             for k, v in call_kwargs.items():
@@ -266,9 +263,16 @@ class ScenarioRunner:
                     call_kwargs[k] = self.context[k]
 
             try:
-                fn_result = step.fn(**call_kwargs)
-                if asyncio.iscoroutine(fn_result):
-                    fn_result = await fn_result
+                if step.kind in {"user", "system", "llm", "delay"} and step.fn is None:
+                    fn_result = self._run_structured_step(step)
+                elif step.fn is None and step.kind == "note":
+                    entry["status"] = "skipped"
+                    self.log.append(entry)
+                    continue
+                else:
+                    fn_result = step.fn(**call_kwargs)
+                    if asyncio.iscoroutine(fn_result):
+                        fn_result = await fn_result
 
                 if step.kind == "action":
                     result = fn_result
@@ -282,7 +286,7 @@ class ScenarioRunner:
 
                 entry["status"] = "ok"
 
-                if fn_result is not None:
+                if fn_result is not None and narrative_enabled():
                     log_output = _strip_state(fn_result)
                     if log_output is not None:
                         entry["output"] = log_output
@@ -293,9 +297,36 @@ class ScenarioRunner:
                 raise
 
             self.log.append(entry)
+            self._emit(step.description, entry["status"], entry.get("output"))
 
         self.last_result = result
         return result
+
+    def _run_structured_step(self, step):
+        kind = step.kind
+        payload = getattr(step, "payload", {}) or {}
+        mode = getattr(step, "mode", "")
+        cached = getattr(step, "cached_response", None)
+
+        if kind == "delay":
+            return None
+
+        if kind == "user":
+            text = payload.get("text") or payload.get("reply") or ""
+            speaker = payload.get("user") or "User"
+            return {"user": speaker, "reply": text, "role": "user"}
+
+        if kind == "system":
+            return payload
+
+        if kind == "llm":
+            if mode == "cached" or cached is not None:
+                if cached is None:
+                    raise RuntimeError("cached llm step missing cached_response")
+                return cached
+            raise RuntimeError("live llm/extractor calls not supported in playback harness")
+
+        return payload
 
 
 def _strip_state(fn_result: Any) -> Any:

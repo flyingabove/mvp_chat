@@ -17,6 +17,9 @@ class Step:
     fn: Optional[Callable[..., Any]] = None
     kwargs: Dict[str, Any] = field(default_factory=dict)
     uses_llm: bool = False  # flag so UI can label LLM-backed steps
+    mode: str = ""  # e.g., cached|live for llm/extractor steps
+    payload: Dict[str, Any] = field(default_factory=dict)  # authored data for user/system/llm steps
+    cached_response: Any = None  # optional deterministic output for cached llm/extractor
 
     def to_dict(self) -> dict:
         return {
@@ -25,6 +28,9 @@ class Step:
             "has_fn": self.fn is not None,
             "kwargs": self.kwargs,
             "uses_llm": self.uses_llm,
+            "mode": self.mode,
+            "payload": self.payload,
+            "cached_response": self.cached_response,
         }
 
 
