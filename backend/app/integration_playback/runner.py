@@ -42,12 +42,22 @@ def _format_debug_box(box: dict) -> str:
     return "\n".join(lines)
 
 
-def _emit_output(output: Any, debug: bool = False) -> None:
+# ANSI color codes
+_BLUE = "\033[94m"
+_ORANGE = "\033[33m"
+_DIM = "\033[2m"
+_RESET = "\033[0m"
+
+
+def _emit_output(output: Any, debug: bool = False, player_role: str = "") -> None:
     """Print a step's output to stdout immediately.
 
     Handles the two shapes returned by steps:
     - Single dict  {"user": ..., "reply": ..., "debug_box": ...}
     - List of dicts [{...}, {...}, ...]
+
+    Messages from ``player_role`` are tagged [USER] in blue.
+    All other character messages are tagged [LLM] in orange.
     """
     if output is None:
         return
@@ -61,27 +71,31 @@ def _emit_output(output: Any, debug: bool = False) -> None:
         # Debug box — only show when debug mode requested
         if "debug_box" in item and not item.get("reply"):
             if debug:
-                _print_live(f"\n  {'─' * 40}\n  DEBUG INFO\n  {'─' * 40}\n")
-                _print_live(_format_debug_box(item["debug_box"]) + "\n")
-                _print_live(f"  {'─' * 40}\n")
+                _print_live(f"\n  {_DIM}{'─' * 40}\n  DEBUG INFO\n  {'─' * 40}{_RESET}\n")
+                _print_live(_DIM + _format_debug_box(item["debug_box"]) + _RESET + "\n")
+                _print_live(f"  {_DIM}{'─' * 40}{_RESET}\n")
             continue
 
         # Conversational message
-        user = item.get("user", "")
+        speaker = item.get("user", "")
         reply = item.get("reply", "")
         if not reply:
             continue
 
-        if user:
-            _print_live(f"\n  {user}: {reply}\n")
+        is_user = bool(player_role and speaker == player_role)
+
+        if is_user:
+            _print_live(f"\n  {_BLUE}[USER] {speaker}: {reply}{_RESET}\n")
+        elif speaker:
+            _print_live(f"\n  {_ORANGE}[LLM] {speaker}: {reply}{_RESET}\n")
         else:
             _print_live(f"\n  {reply}\n")
 
         # Inline debug_box on the same message
         if debug and "debug_box" in item:
-            _print_live(f"\n  {'─' * 40}\n  DEBUG INFO\n  {'─' * 40}\n")
-            _print_live(_format_debug_box(item["debug_box"]) + "\n")
-            _print_live(f"  {'─' * 40}\n")
+            _print_live(f"\n  {_DIM}{'─' * 40}\n  DEBUG INFO\n  {'─' * 40}{_RESET}\n")
+            _print_live(_DIM + _format_debug_box(item["debug_box"]) + _RESET + "\n")
+            _print_live(f"  {_DIM}{'─' * 40}{_RESET}\n")
 
 
 class ScenarioRunner:
@@ -91,6 +105,7 @@ class ScenarioRunner:
         self.log: list[dict[str, Any]] = []
         self.live = live
         self.debug = debug
+        self._player_role: str = ""
 
     async def run_async(self, scenario_id: str) -> Any:
         scenario = get_scenario(scenario_id)
@@ -108,7 +123,7 @@ class ScenarioRunner:
         marker = "+" if status == "ok" else "x" if status == "error" else "."
         _print_live(f"\n  [{marker}] {description}\n")
         if output is not None:
-            _emit_output(output, debug=self.debug)
+            _emit_output(output, debug=self.debug, player_role=self._player_role)
 
     # ------------------------------------------------------------------
     # Class-based execution (IntegrationScenario subclasses)
@@ -119,6 +134,7 @@ class ScenarioRunner:
         instance = cls()
         result = None
         idx = 0
+        self._player_role = getattr(cls, "player_role", "") or ""
 
         if self.live:
             _print_live(f"\n{'=' * 60}\n  {scenario.title}\n{'=' * 60}\n")

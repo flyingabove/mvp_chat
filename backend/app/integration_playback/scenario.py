@@ -108,6 +108,7 @@ class IntegrationScenario(ABC):
     tags: ClassVar[List[str]] = []
     requires_api_key: ClassVar[bool] = False
     requires_cache: ClassVar[bool] = False
+    player_role: ClassVar[str] = ""  # speaker name that represents the user/player (e.g. "Detective")
 
     def __init__(self) -> None:
         self.state: Any = None

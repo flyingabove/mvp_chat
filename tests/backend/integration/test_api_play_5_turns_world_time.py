@@ -49,6 +49,7 @@ class ChatFiveTurnScenario(IntegrationScenario):
         "resolution and time accounting must match exactly."
     )
     tags = ["integration", "chat", "deterministic"]
+    player_role = "Detective"
 
     def setup(self):
         from backend.app.api import chat as chat_module
@@ -99,44 +100,50 @@ class ChatFiveTurnScenario(IntegrationScenario):
 
     # -- Helper --
 
-    def _post(self, message: str):
+    def _post(self, api_message: str, user_line: str = ""):
+        """Send ``api_message`` to the chat API, return [USER dict, LLM dict, debug dict]."""
         assert self.state.client is not None, "Test client not initialized"
-        resp = self.state.client.post("/api/chat", json={"session_id": "t1", "message": message})
+        resp = self.state.client.post("/api/chat", json={"session_id": "t1", "message": api_message})
         self.state.last_response = resp
         assert resp.status_code == 200
-        payload = resp.json()
-        reply = payload.get("reply", "")
-        return {
-            "user": message,
-            "reply": reply,
-            **self.debug_info(),
-        }
+        reply = resp.json().get("reply", "")
+        return [
+            {"user": "Detective", "reply": user_line or api_message},
+            {"user": "IU", "reply": reply},
+            self.debug_info(),
+        ]
 
     # -- Steps --
 
     @step(kind="action", description="Start new IU game")
     def start_game(self):
-        return self._post("__cmd_newgame__:iu_murder_mystery|M|Chris")
+        return self._post(
+            "__cmd_newgame__:iu_murder_mystery|M|Chris",
+            "Start a new case file.",
+        )
 
     @step(kind="action", description="Turn 1: quick check-in")
     def turn1(self):
-        return self._post("Hey IU\u2014just checking in before we head out.")
+        return self._post(
+            "Hey IU\u2014just checking in before we head out.",
+            "Hey IU, just checking in before we head out.",
+        )
 
     @step(kind="action", description="Turn 2: go to lobby")
     def turn2(self):
-        return self._post("go to iu_apartment_lobby")
+        return self._post("go to iu_apartment_lobby", "Let's head to the apartment lobby.")
 
     @step(kind="action", description="Turn 3: go to parking garage")
     def turn3(self):
-        return self._post("go to apartment_parking_garage")
+        return self._post("go to apartment_parking_garage", "Moving to the parking garage.")
 
     @step(kind="action", description="Turn 4: go to car")
     def turn4(self):
-        return self._post("go to my_car")
+        return self._post("go to my_car", "Get in the car.")
 
     @step(kind="action", description="Turn 5: go to workplace lobby")
     def turn5(self):
-        return self._post("go to workplace_lobby")
+        return self._post("go to workplace_lobby", "Drive to the EDAM lobby.")
 
     @step(kind="assert", description="Validate state and time")
     def assert_state(self):
@@ -154,13 +161,16 @@ class ChatFiveTurnScenario(IntegrationScenario):
 
         expected_minute = 0 + 3 + (2 + (1 + 2)) + (2 + (1 + 3)) + (2 + (1 + 1)) + (2 + (1 + 15))
         assert st.minute == expected_minute
-        return {
-            "reply": (
-                f"*Quick time audit: we ended up at {st.location} and the clock reads minute {expected_minute}.*\n\n"
-                f"*(Travel graph and time accounting verified.)*"
-            ),
-            **self.debug_info({"location_id": st.location_id, "location": st.location, "minute": st.minute}),
-        }
+        return [
+            {
+                "user": "System",
+                "reply": (
+                    f"*Quick time audit: we ended up at {st.location} and the clock reads minute {expected_minute}.*\n\n"
+                    f"*(Travel graph and time accounting verified.)*"
+                ),
+            },
+            self.debug_info({"location_id": st.location_id, "location": st.location, "minute": st.minute}),
+        ]
 
 
 # -- Pytest entry point --

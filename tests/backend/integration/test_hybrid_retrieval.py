@@ -55,6 +55,7 @@ class HybridRetrievalScenario(IntegrationScenario):
     description = "Runs hybrid retrieval against IU knowledge and enforces recall/precision/accuracy bounds."
     tags = ["integration", "retrieval", "hybrid"]
     requires_cache = True
+    player_role = "Detective"
 
     def setup(self):
         ctx = HybridRetrievalContext()
@@ -126,7 +127,7 @@ class HybridRetrievalScenario(IntegrationScenario):
         assert precision >= 0.115, f"Hybrid precision too low: {precision:.3f}"
         assert accuracy >= 0.25, f"Top-1 accuracy too low: {accuracy:.3f}"
         return [
-            {"user": "Detective", "reply": "*The detective taps the dossier.* \"Alright\u2014run the hybrid search over the IU dossier and tell me if it still hits the right chunks.\""},
+            {"user": "Detective", "reply": "Run the hybrid search on IU's dossier. Are we still hitting the right chunks?"},
             {
                 "user": "System",
                 "reply": f"*Search complete.* \"Precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.\"\n\n*(All thresholds met.)*",
