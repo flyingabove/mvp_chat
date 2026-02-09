@@ -1,14 +1,96 @@
 import asyncio
+import json
+import sys
 from typing import Any
 
 from backend.app.integration_playback.scenario_registry import get_scenario
 
 
+# ---------------------------------------------------------------------------
+# Live output printing — streams step results as they happen
+# ---------------------------------------------------------------------------
+
+def _print_live(text: str) -> None:
+    """Write text to stdout immediately (handles Windows cp1252 gracefully)."""
+    try:
+        sys.stdout.write(text)
+    except UnicodeEncodeError:
+        sys.stdout.write(text.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace"))
+    sys.stdout.flush()
+
+
+def _format_debug_box(box: dict) -> str:
+    """Format a debug_box dict as readable lines."""
+    lines = []
+    if box.get("timestamp"):
+        lines.append(f"  Timestamp:   {box['timestamp']}")
+    if box.get("location"):
+        lines.append(f"  Location:    {box['location']}")
+    if box.get("location_id"):
+        lines.append(f"  Location ID: {box['location_id']}")
+    if box.get("minute") is not None:
+        lines.append(f"  Minute:      {box['minute']}")
+    if box.get("story"):
+        lines.append(f"  Story:       {box['story']}")
+    if box.get("scenario"):
+        lines.append(f"  Scenario:    {box['scenario']}")
+    skip = {"timestamp", "location", "location_id", "minute", "story", "scenario", "step"}
+    for k, v in box.items():
+        if k not in skip:
+            display = json.dumps(v, default=str) if isinstance(v, (dict, list)) else str(v)
+            lines.append(f"  {k}: {display}")
+    return "\n".join(lines)
+
+
+def _emit_output(output: Any, debug: bool = False) -> None:
+    """Print a step's output to stdout immediately.
+
+    Handles the two shapes returned by steps:
+    - Single dict  {"user": ..., "reply": ..., "debug_box": ...}
+    - List of dicts [{...}, {...}, ...]
+    """
+    if output is None:
+        return
+
+    items = output if isinstance(output, list) else [output]
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+
+        # Debug box — only show when debug mode requested
+        if "debug_box" in item and not item.get("reply"):
+            if debug:
+                _print_live(f"\n  {'─' * 40}\n  DEBUG INFO\n  {'─' * 40}\n")
+                _print_live(_format_debug_box(item["debug_box"]) + "\n")
+                _print_live(f"  {'─' * 40}\n")
+            continue
+
+        # Conversational message
+        user = item.get("user", "")
+        reply = item.get("reply", "")
+        if not reply:
+            continue
+
+        if user:
+            _print_live(f"\n  {user}: {reply}\n")
+        else:
+            _print_live(f"\n  {reply}\n")
+
+        # Inline debug_box on the same message
+        if debug and "debug_box" in item:
+            _print_live(f"\n  {'─' * 40}\n  DEBUG INFO\n  {'─' * 40}\n")
+            _print_live(_format_debug_box(item["debug_box"]) + "\n")
+            _print_live(f"  {'─' * 40}\n")
+
+
 class ScenarioRunner:
-    def __init__(self):
+    def __init__(self, live: bool = True, debug: bool = False):
         self.last_result: Any = None
         self.context: dict[str, Any] = {}
         self.log: list[dict[str, Any]] = []
+        self.live = live
+        self.debug = debug
 
     async def run_async(self, scenario_id: str) -> Any:
         scenario = get_scenario(scenario_id)
@@ -19,6 +101,15 @@ class ScenarioRunner:
 
         return await self._run_legacy_scenario(scenario)
 
+    def _emit(self, description: str, status: str, output: Any = None) -> None:
+        """Print step header + output immediately if live mode is on."""
+        if not self.live:
+            return
+        marker = "+" if status == "ok" else "x" if status == "error" else "."
+        _print_live(f"\n  [{marker}] {description}\n")
+        if output is not None:
+            _emit_output(output, debug=self.debug)
+
     # ------------------------------------------------------------------
     # Class-based execution (IntegrationScenario subclasses)
     # ------------------------------------------------------------------
@@ -28,6 +119,9 @@ class ScenarioRunner:
         instance = cls()
         result = None
         idx = 0
+
+        if self.live:
+            _print_live(f"\n{'=' * 60}\n  {scenario.title}\n{'=' * 60}\n")
 
         # --- setup ---
         entry = {
@@ -48,8 +142,10 @@ class ScenarioRunner:
             entry["status"] = "error"
             entry["error"] = repr(exc)
             self.log.append(entry)
+            self._emit("Setup", "error")
             raise
         self.log.append(entry)
+        self._emit("Setup", "ok", entry.get("output"))
 
         # --- steps (with cleanup in finally) ---
         step_descs = cls.get_steps()
@@ -77,8 +173,10 @@ class ScenarioRunner:
                     entry["status"] = "error"
                     entry["error"] = repr(exc)
                     self.log.append(entry)
+                    self._emit(sd.description, "error")
                     raise
                 self.log.append(entry)
+                self._emit(sd.description, "ok", entry.get("output"))
         finally:
             # Cleanup always runs.
             idx += 1
@@ -98,6 +196,9 @@ class ScenarioRunner:
                 cleanup_entry["status"] = "error"
                 cleanup_entry["error"] = repr(exc)
             self.log.append(cleanup_entry)
+
+        if self.live:
+            _print_live(f"\n{'=' * 60}\n")
 
         self.last_result = result
         return result
@@ -168,14 +269,14 @@ def _strip_state(fn_result: Any) -> Any:
     return fn_result
 
 
-def run_scenario(scenario_id: str):
-    runner = ScenarioRunner()
+def run_scenario(scenario_id: str, live: bool = True, debug: bool = False):
+    runner = ScenarioRunner(live=live, debug=debug)
     # In test/CLI contexts there may be no running loop; use asyncio.run.
     result = asyncio.run(runner.run_async(scenario_id))
     return {"result": result, "log": runner.log}
 
 
-async def run_scenario_async(scenario_id: str):
-    runner = ScenarioRunner()
+async def run_scenario_async(scenario_id: str, live: bool = True, debug: bool = False):
+    runner = ScenarioRunner(live=live, debug=debug)
     result = await runner.run_async(scenario_id)
     return {"result": result, "log": runner.log}
