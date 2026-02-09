@@ -150,9 +150,9 @@ class EpistemicIUScenario(IntegrationScenario):
         steve_belief.add_claim(steve_round3)
         bob_belief.add_claim(bob_round3)
         return [
-            {"user": "Detective", "reply": "Your stories don't line up. Tell me exactly what happened."},
-            {"user": "Steve", "reply": "*Steve's jaw tightens.* \"Bob did stop by, but I stepped out before anything happened.\""},
-            {"user": "Bob", "reply": "*Bob slams his hand on the table.* \"He's lying. Steve never left\u2014he was blocking the kitchen the whole time.\"\n\n*(The contradiction hangs in the air like smoke.)*"},
+            self.say_user("Your stories don't line up. Tell me exactly what happened."),
+            self.say_llm("Steve", "*Steve's jaw tightens.* \"Bob did stop by, but I stepped out before anything happened.\""),
+            self.say_llm("Bob", "*Bob slams his hand on the table.* \"He's lying. Steve never left\u2014he was blocking the kitchen the whole time.\"\n\n*(The contradiction hangs in the air like smoke.)*"),
             self.debug_info({"steve_contradiction": steve_round3.content, "bob_contradiction": bob_round3.content}),
         ]
 
@@ -204,9 +204,9 @@ class EpistemicIUScenario(IntegrationScenario):
             )
         )
         return [
-            {"user": "Detective", "reply": "Steve, last chance. What really happened in that kitchen?"},
-            {"user": "Steve", "reply": "*Steve's voice breaks.* \"I stabbed IU. Bob took the knife to get rid of it.\"\n\n*(His hands are shaking.)*"},
-            {"user": "Bob", "reply": "*Bob exhales slowly.* \"I wiped things down and tossed the knife off a bridge.\""},
+            self.say_user("Steve, last chance. What really happened in that kitchen?"),
+            self.say_llm("Steve", "*Steve's voice breaks.* \"I stabbed IU. Bob took the knife to get rid of it.\"\n\n*(His hands are shaking.)*"),
+            self.say_llm("Bob", "*Bob exhales slowly.* \"I wiped things down and tossed the knife off a bridge.\""),
             self.debug_info({"steve_confession": steve_confession.content, "bob_coverup": bob_coverup.content}),
         ]
 

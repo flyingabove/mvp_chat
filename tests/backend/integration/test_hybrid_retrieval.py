@@ -127,11 +127,8 @@ class HybridRetrievalScenario(IntegrationScenario):
         assert precision >= 0.115, f"Hybrid precision too low: {precision:.3f}"
         assert accuracy >= 0.25, f"Top-1 accuracy too low: {accuracy:.3f}"
         return [
-            {"user": "Detective", "reply": "Run the hybrid search on IU's dossier. Are we still hitting the right chunks?"},
-            {
-                "user": "System",
-                "reply": f"*Search complete.* \"Precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.\"\n\n*(All thresholds met.)*",
-            },
+            self.say_user("Run the hybrid search on IU's dossier. Are we still hitting the right chunks?"),
+            self.say_llm("System", f"*Search complete.* \"Precision {precision:.3f}, recall {recall:.3f}, accuracy {accuracy:.3f}.\"\n\n*(All thresholds met.)*"),
             self.debug_info({"metrics": {"precision": round(precision, 3), "recall": round(recall, 3), "accuracy": round(accuracy, 3)}}),
         ]
 

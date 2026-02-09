@@ -49,6 +49,26 @@ _DIM = "\033[2m"
 _RESET = "\033[0m"
 
 
+def _annotate_roles(output: Any, player_role: str) -> Any:
+    """Attach role metadata to chat-style payloads so UI can render [USER]/[LLM]."""
+    if not player_role:
+        return output
+
+    if isinstance(output, list):
+        return [_annotate_roles(item, player_role) for item in output]
+
+    if isinstance(output, dict):
+        if output.get("user") is not None and output.get("reply") is not None:
+            role = "user" if output.get("user") == player_role else "llm"
+            new_item = dict(output)
+            new_item.setdefault("role", role)
+            return new_item
+        if "debug_box" in output:
+            return dict(output)
+
+    return output
+
+
 def _emit_output(output: Any, debug: bool = False, player_role: str = "") -> None:
     """Print a step's output to stdout immediately.
 
@@ -62,7 +82,8 @@ def _emit_output(output: Any, debug: bool = False, player_role: str = "") -> Non
     if output is None:
         return
 
-    items = output if isinstance(output, list) else [output]
+    annotated = _annotate_roles(output, player_role)
+    items = annotated if isinstance(annotated, list) else [annotated]
 
     for item in items:
         if not isinstance(item, dict):
@@ -153,7 +174,7 @@ class ScenarioRunner:
                 setup_result = await setup_result
             entry["status"] = "ok"
             if setup_result is not None:
-                entry["output"] = _strip_state(setup_result)
+                entry["output"] = _annotate_roles(_strip_state(setup_result), self._player_role)
         except Exception as exc:
             entry["status"] = "error"
             entry["error"] = repr(exc)
@@ -184,7 +205,7 @@ class ScenarioRunner:
                     result = fn_result
                     entry["status"] = "ok"
                     if fn_result is not None:
-                        entry["output"] = _strip_state(fn_result)
+                        entry["output"] = _annotate_roles(_strip_state(fn_result), self._player_role)
                 except Exception as exc:
                     entry["status"] = "error"
                     entry["error"] = repr(exc)

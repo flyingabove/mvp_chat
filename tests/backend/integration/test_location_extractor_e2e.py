@@ -72,11 +72,8 @@ class LocationExtractorScenario(IntegrationScenario):
         assert res.destination_id in self.state.world_graph.locations
         assert res.confidence >= min_conf
         return [
-            {"user": "Player", "reply": message},
-            {
-                "user": "Extractor",
-                "reply": f"*Move detected -> {res.destination_id}.* Confidence: {res.confidence:.2f}.",
-            },
+            self.say_user(message),
+            self.say_llm("Extractor", f"*Move detected -> {res.destination_id}.* Confidence: {res.confidence:.2f}."),
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
         ]
 
@@ -87,11 +84,8 @@ class LocationExtractorScenario(IntegrationScenario):
         assert res.destination_id is None
         display_msg = message if message.strip() else "(empty)"
         return [
-            {"user": "Player", "reply": display_msg},
-            {
-                "user": "Extractor",
-                "reply": "*No movement intent detected\u2014treating as conversation.*",
-            },
+            self.say_user(display_msg),
+            self.say_llm("Extractor", "*No movement intent detectedtreating as conversation.*"),
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
         ]
 
@@ -101,14 +95,8 @@ class LocationExtractorScenario(IntegrationScenario):
         assert res.intent == LocationIntent.MOVE
         assert isinstance(res.destination_id, (str, type(None)))
         return [
-            {"user": "Player", "reply": message},
-            {
-                "user": "Extractor",
-                "reply": (
-                    f"*Movement intent detected, destination ambiguous:* "
-                    f"\"{res.destination_id or 'unknown'}\" (conf {res.confidence:.2f})."
-                ),
-            },
+            self.say_user(message),
+            self.say_llm("Extractor", f"*Movement intent detected, destination ambiguous:* \"{res.destination_id or 'unknown'}\" (conf {res.confidence:.2f})."),
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
         ]
 
@@ -123,11 +111,8 @@ class LocationExtractorScenario(IntegrationScenario):
         assert res.destination_id in self.state.world_graph.locations
         assert res.confidence >= 0.5
         return [
-            {"user": "Player", "reply": message},
-            {
-                "user": "Extractor",
-                "reply": f"*Knowledge-guided routing -> {res.destination_id}.* Confidence: {res.confidence:.2f}.",
-            },
+            self.say_user(message),
+            self.say_llm("Extractor", f"*Knowledge-guided routing -> {res.destination_id}.* Confidence: {res.confidence:.2f}."),
             self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence, "knowledge_used": True}),
         ]
 

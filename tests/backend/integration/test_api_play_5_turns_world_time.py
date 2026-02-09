@@ -108,8 +108,8 @@ class ChatFiveTurnScenario(IntegrationScenario):
         assert resp.status_code == 200
         reply = resp.json().get("reply", "")
         return [
-            {"user": "Detective", "reply": user_line or api_message},
-            {"user": "IU", "reply": reply},
+            self.say_user(user_line or api_message),
+            self.say_llm("IU", reply),
             self.debug_info(),
         ]
 

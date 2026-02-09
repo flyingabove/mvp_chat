@@ -727,10 +727,14 @@
       return;
     }
 
-    // Chat-style outputs: show user then assistant reply
+    // Chat-style outputs with role tags
     if (typeof output === "object" && output.user !== undefined && output.reply !== undefined) {
-      writeLine("> " + output.user, "user");
-      writeLine(output.reply, "bot");
+      var role = output.role || "";
+      var label = role === "user" ? "[USER] " : role === "llm" ? "[LLM] " : "";
+      var speaker = output.user || "";
+      var cls = role === "user" ? "user" : "bot";
+      var line = (speaker ? label + speaker + ": " : label) + output.reply;
+      writeLine(line, cls);
       return;
     }
 

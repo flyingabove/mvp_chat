@@ -183,6 +183,20 @@ class IntegrationScenario(ABC):
             info.update(extra)
         return {"debug_box": info}
 
+    # -- Chat message helpers (explicitly label user vs LLM) --
+    def say_user(self, text: str) -> Dict[str, Any]:
+        """Return a chat-style payload tagged as the player/user."""
+        speaker = self.player_role or "User"
+        return {"user": speaker, "reply": text, "role": "user"}
+
+    def say_llm(self, speaker: str, text: str) -> Dict[str, Any]:
+        """Return a chat-style payload tagged as LLM/system."""
+        return {"user": speaker, "reply": text, "role": "llm"}
+
+    def say_system(self, text: str) -> Dict[str, Any]:
+        """Return a chat-style payload tagged as system/LLM narrator."""
+        return {"user": "System", "reply": text, "role": "llm"}
+
 
 # ---------------------------------------------------------------------------
 # Bridge: class -> legacy Scenario dataclass

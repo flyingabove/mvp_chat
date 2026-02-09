@@ -50,8 +50,8 @@ class RetrievalE2EScenario(IntegrationScenario):
         sample = sample[:220]
 
         return [
-            {"user": "Detective", "reply": "Before we start, who are you, really?"},
-            {"user": "System", "reply": f"*Pulled a quick dossier snippet:* \"{sample}\""},
+            self.say_user("Before we start, who are you, really?"),
+            self.say_system(f"*Pulled a quick dossier snippet:* \"{sample}\""),
             self.debug_info({"chunks": [c.get("text", "")[:100] for c in chunks[:3]], "query": query}),
         ]
 
