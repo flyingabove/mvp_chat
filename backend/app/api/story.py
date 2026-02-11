@@ -39,7 +39,10 @@ def get_story_meta(story_id: str):
         # Silently fail if world loading fails
         pass
 
-    return {
+    # World map image path (if configured)
+    world_map_image = str(world_cfg.get("world_map_image", "")).strip() or None
+
+    result = {
         "id": story_id,
         "title": story.get("title", story_id),
         "goal": {
@@ -54,5 +57,8 @@ def get_story_meta(story_id: str):
             "loss_condition": rules.get("loss_condition", ""),
             "dialogue": rules.get("dialogue", ""),
         },
-        "known_locations": known_locations
+        "known_locations": known_locations,
     }
+    if world_map_image:
+        result["world_map_image"] = world_map_image
+    return result

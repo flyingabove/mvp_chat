@@ -576,12 +576,23 @@ window.addEventListener("error", function(e){
     }
 
     state.story = list[idx-1].id;
+    var storyTitle = list[idx-1].title || list[idx-1].id;
     state.mode = "name";
 
-    // Fetch & cache story meta (for the rules box)
+    // Welcome → World Map → Instructions → Name prompt
+    writeLine("Welcome to **" + storyTitle + "**", "sys");
+
     fetchStoryMeta(state.story)
       .then(function(meta){
         state.storyMeta = meta;
+
+        // Show world map (locations list)
+        var locs = (meta && meta.known_locations) ? meta.known_locations : [];
+        if (locs.length) {
+          var mapLines = locs.map(function(loc){ return loc.name || loc.id; });
+          writeBox("World Map", mapLines.join("\n"));
+        }
+
         renderInstructions(meta);
       })
       .catch(function(){
