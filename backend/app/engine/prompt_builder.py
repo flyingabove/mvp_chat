@@ -42,7 +42,7 @@ def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> st
     )
 
 
-def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "") -> str:
+def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False) -> str:
     cfg = state.story_cfg or {}
 
     # Primary character label for prompts (avoid hardcoding any specific persona)
@@ -214,8 +214,22 @@ Append EXACTLY one line at the end of every response:
 If forgotten, reply ONLY with that tag.
 """
 
+    truth_override = ""
+    if truth_mode:
+        truth_override = """
+────────────────────────────────────────
+### TRUTH MODE OVERRIDE (ACTIVE — DEBUG)
+────────────────────────────────────────
+TRUTH MODE IS ON. This overrides ALL deception/lying behavior.
+- Answer every question with the FULL, HONEST truth.
+- Do NOT lie, omit, mislead, deflect, or protect anyone.
+- Reveal what you know about suspects, motives, timelines, alibis — completely.
+- If you do NOT know something (it is not in your memory/context), say so explicitly.
+- Stay in character tonally but remove ALL deception.
+"""
+
     # Inject canonical memory BEFORE the required tail so the model always sees it.
-    return base_prompt + (memory_block or "") + first_turn_hint + required_tail
+    return base_prompt + (memory_block or "") + truth_override + first_turn_hint + required_tail
 
 
 def build_messages(
@@ -223,6 +237,7 @@ def build_messages(
     log: list,
     user_msg: str,
     knowledge_chunks: list,
+    truth_mode: bool = False,
 ):
     """
     Build the chat completion messages for the model.
@@ -252,7 +267,7 @@ def build_messages(
     char_name = (getattr(main_char, "name", "") or "the character").strip() or "the character"
     memory_block = _format_memory_block(knowledge_chunks, char_name)
 
-    sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block)
+    sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block, truth_mode=truth_mode)
     messages = [{"role": "system", "content": sysmsg}]
 
     # keep last MEMORY_TURNS - 2 non-system turns

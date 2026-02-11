@@ -418,7 +418,8 @@ window.addEventListener("error", function(e){
       "**Available Commands:**\n" +
       "- Type `[D]`, `(D)`, `[DEBUG]`, or `(DEBUG)` to toggle debug mode (shows game state info)\n" +
       "- Type `[M]`, `(M)`, `[MAP]`, or `(MAP)` to view the world map\n" +
-      "- Type `[C]`, `(C)`, `[CHINESE]`, or `(CHINESE)` to toggle Chinese translation mode";
+      "- Type `[C]`, `(C)`, `[CHINESE]`, or `(CHINESE)` to toggle Chinese translation mode\n" +
+      "- Type `[T]`, `(T)`, `[TRUTH]`, or `(TRUTH)` to toggle truth mode (forces honest answers)";
 
     writeBox("Murder Mystery — Rules & Objective", body);
   }
@@ -469,7 +470,8 @@ window.addEventListener("error", function(e){
   var COMMAND_PATTERNS = [
     /^\[d\]$/i, /^\(d\)$/i, /^\[debug\]$/i, /^\(debug\)$/i,
     /^\[m\]$/i, /^\(m\)$/i, /^\[map\]$/i, /^\(map\)$/i,
-    /^\[c\]$/i, /^\(c\)$/i, /^\[chinese\]$/i, /^\(chinese\)$/i
+    /^\[c\]$/i, /^\(c\)$/i, /^\[chinese\]$/i, /^\(chinese\)$/i,
+    /^\[t\]$/i, /^\(t\)$/i, /^\[truth\]$/i, /^\(truth\)$/i
   ];
 
   function isCommand(line){

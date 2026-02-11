@@ -117,6 +117,21 @@ def _is_map_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in MAP_TOGGLE_TOKENS
 
 
+# ---------------------------------------------------------------------------
+# TRUTH MODE TOGGLE
+# ---------------------------------------------------------------------------
+TRUTH_TOGGLE_TOKENS = {
+    "[TRUTH]",
+    "(TRUTH)",
+    "[T]",
+    "(T)",
+}
+
+
+def _is_truth_toggle(msg: str) -> bool:
+    return (msg or "").strip().upper() in TRUTH_TOGGLE_TOKENS
+
+
 def _box(title: str, lines: list[str]) -> str:
     """Render a simple pretty ASCII box."""
     title = (title or "").strip()
@@ -215,6 +230,7 @@ def get_session(session_id: str):
             "log": [],
             "debug_mode": False,
             "chinese_mode": False,
+            "truth_mode": False,
         }
     return SESSIONS[session_id]
 
@@ -398,6 +414,29 @@ async def chat_handler(data: dict):
             result["world_map_image"] = map_image
         return result
 
+    # TRUTH TOGGLE - Force character to answer honestly (debug tool)
+    if _is_truth_toggle(msg):
+        currently_on = bool(sess.get("truth_mode", False))
+        sess["truth_mode"] = not currently_on
+
+        if sess["truth_mode"]:
+            notice = _box(
+                "ENTERING TRUTH MODE",
+                [
+                    "Type [T] to exit",
+                    "(Character will answer ALL questions honestly — no lies, no omissions)",
+                ],
+            )
+        else:
+            notice = _box(
+                "EXITING TRUTH MODE",
+                [
+                    "Type [T] to re-enter",
+                ],
+            )
+
+        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+
     t0 = time.time()
 
     # RESET
@@ -408,6 +447,7 @@ async def chat_handler(data: dict):
             "log": [],
             "debug_mode": False,
             "chinese_mode": False,
+            "truth_mode": False,
         }
         return {"reply": "[memory cleared]", "usage": {"total_tokens": 0}, "character": "default"}
 
@@ -594,7 +634,7 @@ async def chat_handler(data: dict):
         elif not getattr(state, "location_id", ""):
             _log({"kind": "location_extraction_skipped", "reason": "no_location_id"})
 
-    messages = build_messages(state, log, msg, retrieved)
+    messages = build_messages(state, log, msg, retrieved, truth_mode=bool(sess.get("truth_mode", False)))
     state.turns += 1
 
     payload = {
