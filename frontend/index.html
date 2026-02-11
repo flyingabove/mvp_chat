@@ -518,6 +518,14 @@ window.addEventListener("error", function(e){
     return false;
   }
 
+  /* -------- RE-PROMPT AFTER LOCAL COMMANDS -------- */
+  function repromptCurrentMode(){
+    if (state.mode === "name") writeLine("Enter your name:", "sys");
+    else if (state.mode === "gender") writeLine("Are you a girl (F) or boy (M)?", "sys");
+    newPrompt();
+    ime.focus();
+  }
+
   /* -------- INPUT FLOW -------- */
   function commitLine(){
     if (awaitingResponse) return;
@@ -538,8 +546,7 @@ window.addEventListener("error", function(e){
     // [M] / [MAP] handled locally at all times — no backend call needed
     if (MAP_CMD_RE.test(line.trim())) {
       renderWorldMap(state.storyMeta || null);
-      newPrompt();
-      ime.focus();
+      repromptCurrentMode();
       return;
     }
 
