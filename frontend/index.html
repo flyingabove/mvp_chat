@@ -133,6 +133,24 @@
 <div id="errbox"></div>
 
 <script>
+// Early fatal-error guard: if the main script crashes during init,
+// show a visible error instead of a blank page.
+window.__appBooted = false;
+window.addEventListener("error", function(e){
+  if (window.__appBooted) return; // main handler will deal with it
+  var box = document.getElementById("errbox");
+  if (box) {
+    box.style.display = "block";
+    box.textContent = "Fatal init error: " + (e.message || e) + " — please refresh or check console.";
+  }
+  var term = document.getElementById("term");
+  if (term && !term.children.length) {
+    term.innerHTML = '<div class="err line" style="padding:24px;">Something went wrong loading the app. Check the browser console (F12) and refresh.</div>';
+  }
+});
+</script>
+
+<script>
 (function(){
   /* ---------------- ENV DETECTION ---------------- */
   var host = window.location.hostname.toLowerCase();
@@ -833,86 +851,6 @@
     return renderItem(output);
   }
 
-    // Epistemic claims/confessions/observations
-    if (typeof output === "object" && (output.steve_claim || output.bob_claim || output.steve_confession || output.bob_coverup || output.steve_contradiction || output.bob_contradiction)) {
-      if (output.steve_claim) writeLine("Steve: " + output.steve_claim, "bot");
-      if (output.bob_claim) writeLine("Bob: " + output.bob_claim, "bot");
-      if (output.steve_contradiction) writeLine("Steve: " + output.steve_contradiction, "bot");
-      if (output.bob_contradiction) writeLine("Bob: " + output.bob_contradiction, "bot");
-      if (output.steve_confession) writeLine("Steve: " + output.steve_confession, "bot");
-      if (output.bob_coverup) writeLine("Bob: " + output.bob_coverup, "bot");
-      return;
-    }
-
-    // Location extractor style
-    if (typeof output === "object" && output.message && output.intent) {
-      writeLine("> " + output.message, "user");
-      var summary = "Intent: " + output.intent;
-      if (output.destination_id) summary += " | destination: " + output.destination_id;
-      if (output.confidence !== undefined) summary += " | confidence: " + output.confidence;
-      writeLine(summary, "bot");
-      return;
-    }
-
-    // Metrics / stats
-    if (typeof output === "object" && output.precision !== undefined && output.recall !== undefined) {
-      var metrics = [
-        "precision: " + output.precision,
-        "recall: " + output.recall,
-        "accuracy: " + output.accuracy
-      ].join(" | ");
-      writeLine(metrics, "bot");
-      return;
-    }
-
-    // Observations / facts arrays
-    if (typeof output === "object" && Array.isArray(output.observations)) {
-      writeLine("Observations:", "bot");
-      output.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
-      return;
-    }
-    if (typeof output === "object" && output.contested !== undefined && output.resolved !== undefined) {
-      writeLine("Epistemic summary: contested " + output.contested + " | resolved " + output.resolved, "bot");
-      // continue to canonical facts if present
-    }
-    if (typeof output === "object" && Array.isArray(output.canonical_facts)) {
-      writeLine("Canonical facts:", "bot");
-      output.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
-      return;
-    }
-    if (typeof output === "object" && Array.isArray(output.canonical)) {
-      writeLine("Canonical facts:", "bot");
-      output.canonical.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
-      return;
-    }
-
-    // Retrieval chunks sample
-    if (typeof output === "object" && Array.isArray(output.chunks)) {
-      writeLine("Sample chunks:", "bot");
-      output.chunks.forEach(function(c){
-        if (!c) return;
-        var txt = (c.text || c.content || "").slice(0, 200);
-        writeLine("- " + txt, "bot");
-      });
-      return;
-    }
-
-    // Plain string
-    if (typeof output === "string") {
-      writeLine(output, "bot");
-      return;
-    }
-
-    // Generic fallback only in debug mode
-    if (debug) {
-      try {
-        writeLine(JSON.stringify(output, null, 2), "bot");
-      } catch(e) {
-        writeLine(String(output), "bot");
-      }
-    }
-  }
-
   function runIntegrationPlayback(scenario){
     writeLine("Running playback: " + (scenario.title || scenario.id), "sys");
     if (state.integrationDebug) {
@@ -1035,6 +973,7 @@
   loadVersion();
   showMenu();
   ime.focus();
+  window.__appBooted = true;
 
 })();
 </script>
