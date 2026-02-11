@@ -492,30 +492,51 @@
 
   function showMenu(){
     setHeader();
+    writeLine("Loading stories...", "sys");
+    var promptShown = false;
+    var timeoutId = setTimeout(function(){
+      if (promptShown) return;
+      writeLine("(Story list is taking unusually long to load. Check connectivity / API and refresh if needed.)", "err");
+      newPrompt();
+      ime.focus();
+      promptShown = true;
+    }, 6000);
+
     writeLine("Choose a story (type the number and press Enter):", "sys");
     writeLine("0) Integration playback (replay tests)", "sys");
     // Fetch story list dynamically so adding a new game is just dropping a JSON file.
     fetch(API_BASE + "/stories")
       .then(function(r){ return r.json(); })
       .then(function(data){
+        clearTimeout(timeoutId);
         var list = (data && data.stories) ? data.stories : [];
         state.storyOptions = list;
         if (!list.length) {
           writeLine("(No stories found on server.)", "err");
-          newPrompt();
-          ime.focus();
+          if (!promptShown) {
+            newPrompt();
+            ime.focus();
+            promptShown = true;
+          }
           return;
         }
         list.forEach(function(s, i){
           writeLine((i+1) + ") " + (s.title || s.id), "sys");
         });
-        newPrompt();
-        ime.focus();
+        if (!promptShown) {
+          newPrompt();
+          ime.focus();
+          promptShown = true;
+        }
       })
       .catch(function(){
+        clearTimeout(timeoutId);
         writeLine("(Could not load story list.)", "err");
-        newPrompt();
-        ime.focus();
+        if (!promptShown) {
+          newPrompt();
+          ime.focus();
+          promptShown = true;
+        }
       });
   }
 
