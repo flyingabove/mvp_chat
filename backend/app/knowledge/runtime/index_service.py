@@ -23,6 +23,16 @@ class IndexService:
     _bundles: Dict[str, CharacterIndexBundle] = {}
     _active_character_id: ContextVar[str] = ContextVar('active_character_id', default='')
 
+    @staticmethod
+    def _list_character_dirs() -> list[str]:
+        """Enumerate packaged character directories (sorted for determinism)."""
+        try:
+            from pathlib import Path
+            knowledge_dir = Path(__file__).resolve().parents[1] / 'characters'
+            return sorted(p.name for p in knowledge_dir.iterdir() if p.is_dir())
+        except Exception:
+            return []
+
     @classmethod
     def set_active_character(cls, character_id: str) -> None:
         """Set the default character bundle used by get() when none is passed."""
@@ -39,17 +49,15 @@ class IndexService:
         if env:
             return env
 
-        # Last-resort fallback: if there is exactly one character dir packaged,
-        # use it. This keeps local tests/dev ergonomic without hardcoding a persona.
-        try:
-            from pathlib import Path
-            knowledge_dir = Path(__file__).resolve().parents[1] / 'characters'
-            dirs = [p.name for p in knowledge_dir.iterdir() if p.is_dir()]
-            if len(dirs) == 1:
-                return dirs[0]
-        except Exception:
-            pass
-        return ''
+        dirs = cls._list_character_dirs()
+        if not dirs:
+            return ''
+
+        # Prefer canonical default if shipped; otherwise first entry for determinism.
+        if '1_iu' in dirs:
+            return '1_iu'
+
+        return dirs[0]
 
 
     @classmethod
