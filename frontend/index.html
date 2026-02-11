@@ -69,6 +69,13 @@
       white-space:normal;
     }
 
+    .map-img {
+      max-width:100%;
+      border-radius:8px;
+      margin:8px 0 12px 0;
+      display:block;
+    }
+
     #inputline { position:relative; }
     #cursor {
       display:inline-block;
@@ -329,6 +336,29 @@ window.addEventListener("error", function(e){
     scrollToBottom(true);
   }
 
+  /* -------- WORLD MAP (reused everywhere) -------- */
+  var MAP_CMD_RE = /^\[m\]$|^\(m\)$|^\[map\]$|^\(map\)$/i;
+
+  function renderWorldMap(meta){
+    if (!meta) {
+      writeLine("(No map available yet — select a story first.)", "err");
+      return;
+    }
+    var locs = (meta.known_locations || []);
+    if (locs.length) {
+      var mapLines = locs.map(function(loc){ return loc.name || loc.id; });
+      writeBox("World Map", mapLines.join("\n"));
+    }
+    if (meta.world_map_image) {
+      var img = document.createElement("img");
+      img.className = "map-img";
+      img.src = API_BASE + "/story-image/" + meta.world_map_image;
+      img.alt = "World Map";
+      term.appendChild(img);
+      scrollToBottom(true);
+    }
+  }
+
   function renderBuffer(){
     var b = document.getElementById("buffer");
     if (b) b.textContent = ime.value;
@@ -499,6 +529,14 @@ window.addEventListener("error", function(e){
 
     writeLine("> " + line, "user");
 
+    // [M] / [MAP] handled locally at all times — no backend call needed
+    if (MAP_CMD_RE.test(line.trim())) {
+      renderWorldMap(state.storyMeta || null);
+      newPrompt();
+      ime.focus();
+      return;
+    }
+
     if (state.mode === "menu")   { handleMenu(line); return; }
   if (state.mode === "integration_menu") { handleIntegrationMenu(line); return; }
   if (state.mode === "integration_debug_prompt") { handleIntegrationDebugPrompt(line); return; }
@@ -579,20 +617,12 @@ window.addEventListener("error", function(e){
     var storyTitle = list[idx-1].title || list[idx-1].id;
     state.mode = "name";
 
-    // Welcome → World Map → Instructions → Name prompt
+    // Welcome → Instructions → Name prompt (map shown after all setup is done)
     writeLine("Welcome to **" + storyTitle + "**", "sys");
 
     fetchStoryMeta(state.story)
       .then(function(meta){
         state.storyMeta = meta;
-
-        // Show world map (locations list)
-        var locs = (meta && meta.known_locations) ? meta.known_locations : [];
-        if (locs.length) {
-          var mapLines = locs.map(function(loc){ return loc.name || loc.id; });
-          writeBox("World Map", mapLines.join("\n"));
-        }
-
         renderInstructions(meta);
       })
       .catch(function(){
@@ -955,8 +985,9 @@ window.addEventListener("error", function(e){
 
     awaitingResponse = true;
 
-    // Opener should type faster
+    // Opener should type faster, then show world map
     send(init, function(){
+      renderWorldMap(state.storyMeta);
       state.mode = "chat";
       unlockInput();
     }, TYPE_OPENER);

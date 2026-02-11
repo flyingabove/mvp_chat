@@ -5,6 +5,28 @@ import os
 from backend.app.utils.logging_utils import jlog
 
 
+def find_story_dir(story_id: str) -> str | None:
+    """
+    Return the subdirectory name (e.g. '1_iu') that contains story_id.json,
+    or None if the story lives at the root or is not found.
+    """
+    base = os.path.dirname(os.path.dirname(__file__))  # app/
+    stories_dir = os.path.join(base, "stories")
+
+    # Direct path (root level)
+    if os.path.isfile(os.path.join(stories_dir, f"{story_id}.json")):
+        return None
+
+    try:
+        for d in os.listdir(stories_dir):
+            if os.path.isdir(os.path.join(stories_dir, d)) and not d.startswith("__"):
+                if os.path.isfile(os.path.join(stories_dir, d, f"{story_id}.json")):
+                    return d
+    except Exception:
+        pass
+    return None
+
+
 def load_story(story_id: str) -> dict:
     """
     Load a story JSON file by id from app/stories/<story_id>.json or app/stories/<subdirectory>/<story_id>.json,

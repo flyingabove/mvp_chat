@@ -1,8 +1,44 @@
+import os
+
 from fastapi import APIRouter, HTTPException
-from backend.app.engine.story_loader import load_story
+from fastapi.responses import FileResponse
+from backend.app.engine.story_loader import load_story, find_story_dir
 from backend.app.engine.world.world_loader import WorldLoader
 
 router = APIRouter()
+
+# Absolute path to stories directory (used by image endpoint)
+_STORIES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stories")
+
+
+def _discover_map_image(story_id: str) -> str | None:
+    """Auto-discover map image by convention: {folder}/{folder}.png"""
+    subdir = find_story_dir(story_id)
+    if not subdir:
+        return None
+    candidate = os.path.join(_STORIES_DIR, subdir, f"{subdir}.png")
+    if os.path.isfile(candidate):
+        return f"{subdir}/{subdir}.png"
+    return None
+
+
+@router.get("/story-image/{path:path}")
+def get_story_image(path: str):
+    """Serve story image files (PNG only) from backend/app/stories/."""
+    if not path.endswith(".png"):
+        raise HTTPException(status_code=400, detail="Only PNG files are served")
+
+    # Prevent path traversal
+    safe = os.path.normpath(path)
+    if ".." in safe or safe.startswith(os.sep):
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    full = os.path.join(_STORIES_DIR, safe)
+    if not os.path.isfile(full):
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return FileResponse(full, media_type="image/png")
+
 
 @router.get("/story/{story_id}")
 def get_story_meta(story_id: str):
@@ -13,20 +49,20 @@ def get_story_meta(story_id: str):
 
     goal = story.get("goal", {}) or {}
     rules = story.get("rules", {}) or {}
-    
+
     # Load known locations from world if available
     known_locations = []
     world_cfg = story.get("world", {}) or {}
     seed = int(world_cfg.get("seed", 0))
     world_file = str(world_cfg.get("file", "")).strip()
-    
+
     try:
         if world_file:
             loaded = WorldLoader.load_from_file(f"backend/app/stories/{world_file}", seed=seed)
         else:
             # Try auto-loading from story_id
             loaded = WorldLoader.try_load_story_world(story_id, stories_dir="backend/app/stories", seed=seed)
-        
+
         if loaded and loaded.world_graph:
             for loc_id, loc in loaded.world_graph.locations.items():
                 known_locations.append({
@@ -39,8 +75,8 @@ def get_story_meta(story_id: str):
         # Silently fail if world loading fails
         pass
 
-    # World map image path (if configured)
-    world_map_image = str(world_cfg.get("world_map_image", "")).strip() or None
+    # Auto-discover map image by convention ({folder}/{folder}.png)
+    world_map_image = _discover_map_image(story_id)
 
     result = {
         "id": story_id,
