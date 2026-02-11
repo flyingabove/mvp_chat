@@ -70,8 +70,10 @@ def _dir_listing(d: Path, max_items: int = 80) -> str:
 
 
 def _find_tmp_cache_dir(character_id: str) -> Path | None:
-    """Find a pytest-created cache directory under /tmp that has required artifacts."""
-    root = Path("/tmp")
+    """Find a pytest-created cache directory under the platform temp root that has required artifacts."""
+    import tempfile
+
+    root = Path(tempfile.gettempdir())
     patterns = ("pytest-of-*", "pytest-*")
     candidates: List[Path] = []
     for pat in patterns:
@@ -114,15 +116,13 @@ def _try_autobuild_into(persist_root: Path) -> str:
             os.environ["FORCE_REBUILD_INDEX"] = old_force
 
 
-def _can_autobuild(persist_root: Path) -> bool:
-    """Decide whether autobuild is allowed for the current platform.
+def _can_autobuild(_: Path) -> bool:
+    """Decide whether autobuild is allowed.
 
-    - Linux/Unix: only allow when using a /data* persistent volume (deployment convention).
-    - Windows: allow by default (build into LOCALAPPDATA) unless ALLOW_LOCAL_AUTOBUILD=0.
+    Controlled only by ALLOW_LOCAL_AUTOBUILD (default on) to keep Windows usable
+    without special-casing paths. Persist root selection is handled upstream.
     """
-    if os.name == "nt":
-        return os.getenv("ALLOW_LOCAL_AUTOBUILD", "1") == "1"
-    return str(persist_root).startswith("/data")
+    return os.getenv("ALLOW_LOCAL_AUTOBUILD", "1") == "1"
 
 
 def load_character_indexes(character_id: str) -> CharacterIndexBundle:

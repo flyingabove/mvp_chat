@@ -30,7 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent
 KNOWLEDGE_DIR = BASE_DIR.parent
 
 # If you mount a Railway Volume, set KNOWLEDGE_CACHE_DIR=/data/knowledge_cache
-# On Windows, defaults to %LOCALAPPDATA%/mvp_chat/knowledge_cache
+# Otherwise falls back to a temp-based cache (platform agnostic).
 CACHE_ROOT = default_cache_root()
 
 

@@ -78,7 +78,7 @@ class EpistemicLayerScenario(IntegrationScenario):
 
     @step(kind="action", description="Retrieval memory block")
     def retrieval_memory(self):
-        block = _format_memory_block([
+        block = prompt_builder._format_memory_block([
             {"type": "OBSERVED", "chunk_id": "chk1", "text": "Observed event"}
         ], "IU")
         return {"retrieval_block": block}
@@ -95,7 +95,7 @@ class EpistemicLayerScenario(IntegrationScenario):
         assert self.state.observation_log, "Expected observations when belief layer on"
 
         # Retrieval block check
-        block = _format_memory_block([
+        block = prompt_builder._format_memory_block([
             {"type": "OBSERVED", "chunk_id": "chk1", "text": "Observed event"}
         ], "IU")
         assert block.strip(), "Expected retrieval memory block when retrieval layer on"
