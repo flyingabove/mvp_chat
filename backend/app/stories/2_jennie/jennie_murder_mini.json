@@ -1,0 +1,92 @@
+{
+  "id": "jennie_murder_mini",
+  "title": "The Quiet Agreement — Jennie Mini-Case",
+  "theme": "epistemic_murder_demo",
+  "meta": {
+    "disclaimer": "Fictional mini-case for epistemic-state testing. No real-world allegations are intended."
+  },
+  "setting": {
+    "district": "Seoul, fictionalized",
+    "apartment_area": "Steve's mid-rise apartment near a quiet side street",
+    "start_location": "Interview Room A",
+    "work_context": "You are a detective tasked with exploiting contradictions and the cooperation deal."
+  },
+  "victim": {
+    "public_name": "Jennie Kim (fictional case)",
+    "facts": [
+      "Found in Steve's apartment kitchen; no forced entry.",
+      "Time of death estimated 11:40–12:15.",
+      "Murder weapon missing; scene unusually tidy."
+    ]
+  },
+  "main_character": {
+    "key": "main",
+    "name": "Jennie",
+    "role": "victim (fictional)",
+    "knowledge_character_id": "2_jennie"
+  },
+  "protagonist": {
+    "role": "Lead detective running back-to-back interrogations",
+    "profile": "Direct, patient, focused on contradictions and deal timing."
+  },
+  "style": {
+    "tone": "Tight, procedural, interrogation-first.",
+    "korean_phrases": ["gwaenchanha", "jinjja", "arasseo", "ya", "ne"]
+  },
+  "prompt_suggestions": [
+    "Push them on the timeline and who took the knife.",
+    "Remind them only the first cooperator keeps the best deal."
+  ],
+  "time": {
+    "mins_per_word": 0.25,
+    "base_turn_mins": 1,
+    "travel_mins": 5
+  },
+  "world": {
+    "file": "2_jennie/jennie_murder_mini_world.json",
+    "seed": 99,
+    "start_datetime": "2025-04-12T09:00:00",
+    "start_location_id": "interview_room_steve",
+    "world_map_image": "2_jennie/jennie_murder_mini_wm.png"
+  },
+  "emotion": {
+    "start": "controlled, skeptical"
+  },
+  "suspects": [
+    {
+      "name": "Steve",
+      "role": "Fictional ex-boyfriend",
+      "motive": "Financial confrontation; wants to erase evidence.",
+      "tells": ["avoids timeline", "minimizes anger", "pushes blame toward Bob"]
+    },
+    {
+      "name": "Bob",
+      "role": "Fictional friend/accessory",
+      "motive": "Protect himself from being framed; complicit in cleanup.",
+      "tells": ["downplays presence", "worries about deal timing", "admits to wiping surfaces when cornered"]
+    }
+  ],
+  "opening": {
+    "text": "You sit between two rooms, switching back and forth. Steve and Bob keep insisting no one was there. The lab has almost nothing—no weapon, no prints, a too-clean kitchen. The only leverage is logic: the phone ping, the neighbor at 11:50, a single smudged shoeprint. And the standing rule: first full cooperator gets the deal.\n\nThey know it. You know it. The question is who breaks first."
+  },
+  "rules": {
+    "dialogue": {"pg13": true, "mix_korean_phrases": true},
+    "deal_policy": "State the cooperation rule clearly each time a contradiction appears."
+  },
+  "goal": {
+    "win_text_rule": "Case is resolved when both act and coverup are admitted (who stabbed, who concealed)."
+  },
+  "leads": [
+    {"id": "phone_ping", "hint": "Jennie's phone pinged near the building close to midnight.", "unlocks": ["press_timeline"]},
+    {"id": "neighbor_audio", "hint": "Neighbor heard a woman crying around 11:50.", "unlocks": ["press_presence"]},
+    {"id": "missing_weapon", "hint": "The knife is missing; whoever took it is exposed.", "unlocks": ["press_coverup"]}
+  ],
+  "win_detection": {
+    "regex": [
+      "(?i)\\bi stabbed her\\b",
+      "(?i)\\bi took the knife\\b",
+      "(?i)\\bi cleaned (the|her|it) up\\b",
+      "(?i)\\bi wiped the surfaces\\b"
+    ]
+  }
+}

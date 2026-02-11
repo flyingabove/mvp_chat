@@ -1,0 +1,54 @@
+{
+  "world_id": "jennie_murder_mini",
+  "version": 1,
+  "time": {
+    "start_minute": 0,
+    "minute_label": "minutes_since_start"
+  },
+  "locations": {
+    "interview_room_steve": {
+      "name": "Interview Room A",
+      "tags": ["indoor", "interrogation"],
+      "description": "Sparse table, recorder light blinking, Steve sits guarded.",
+      "allows_phone": false
+    },
+    "interview_room_bob": {
+      "name": "Interview Room B",
+      "tags": ["indoor", "interrogation"],
+      "description": "Parallel room where Bob waits, watching the clock.",
+      "allows_phone": false
+    },
+    "apartment_kitchen": {
+      "name": "Steve's Kitchen",
+      "tags": ["indoor", "crime_scene"],
+      "description": "Too-clean counters, faint bleach, no weapon in sight.",
+      "allows_phone": true
+    },
+    "apartment_entry": {
+      "name": "Apartment Entry/Hallway",
+      "tags": ["indoor", "transitional"],
+      "description": "Narrow hall near the kitchen, camera mount over the door.",
+      "allows_phone": true
+    },
+    "hallway_camera": {
+      "name": "Hallway Camera View",
+      "tags": ["surveillance", "evidence"],
+      "description": "Angle showing a silhouette entering near 11:45.",
+      "allows_phone": false
+    },
+    "evidence_lab": {
+      "name": "Evidence Lab",
+      "tags": ["indoor", "analysis"],
+      "description": "Monitors show phone pings, audio spectrograms, and shoeprint scans.",
+      "allows_phone": false
+    }
+  },
+  "edges": [
+    {"from": "interview_room_steve", "to": "evidence_lab", "minutes": 2},
+    {"from": "interview_room_bob", "to": "evidence_lab", "minutes": 2},
+    {"from": "evidence_lab", "to": "apartment_entry", "minutes": 8, "is_transit": true},
+    {"from": "apartment_entry", "to": "apartment_kitchen", "minutes": 1},
+    {"from": "apartment_entry", "to": "hallway_camera", "minutes": 1},
+    {"from": "apartment_kitchen", "to": "hallway_camera", "minutes": 1}
+  ]
+}

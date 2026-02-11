@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass
 
+from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
 from backend.app.integration_playback.scenario import IntegrationScenario, step
@@ -24,6 +25,8 @@ class RetrievalE2EScenario(IntegrationScenario):
 
     def setup(self):
         self.state = RetrievalContext(character_id=os.getenv("TEST_CHARACTER_ID", "1_iu"))
+        IndexService.reset_for_tests()
+        IndexService.set_active_character(self.state.character_id)
         return {
             "reply": "*Warming up the knowledge indexes\u2014pretend we're about to ask a real person 'who are you?'*",
             **self.debug_info({"character_id": self.state.character_id}),
@@ -32,6 +35,7 @@ class RetrievalE2EScenario(IntegrationScenario):
     @step(kind="assert", description="Run end-to-end retrieval")
     def run_retrieval(self):
         indexes = load_character_indexes(self.state.character_id)
+        IndexService.set_active_character(self.state.character_id)
 
         assert indexes.chunks, "No knowledge chunks loaded"
         assert len(indexes.chunks) > 0
