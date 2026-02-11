@@ -70,7 +70,8 @@
     }
 
     .map-img {
-      max-width:100%;
+      width:340px;
+      max-width:90%;
       border-radius:8px;
       margin:8px 0 12px 0;
       display:block;
@@ -352,8 +353,13 @@ window.addEventListener("error", function(e){
     if (meta.world_map_image) {
       var img = document.createElement("img");
       img.className = "map-img";
-      img.src = API_BASE + "/story-image/" + meta.world_map_image;
       img.alt = "World Map";
+      img.onload = function(){ scrollToBottom(true); };
+      img.onerror = function(){
+        img.remove();
+        writeLine("(Map image failed to load: " + meta.world_map_image + ")", "err");
+      };
+      img.src = API_BASE + "/story-image/" + meta.world_map_image;
       term.appendChild(img);
       scrollToBottom(true);
     }
