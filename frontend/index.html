@@ -223,7 +223,8 @@ window.addEventListener("error", function(e){
     l.innerHTML =
       '<span class="sys">&gt; </span>' +
       '<span id="buffer"></span>' +
-      '<span id="cursor">&nbsp;</span>';
+      '<span id="cursor">&nbsp;</span>' +
+      '<span id="afterCursor"></span>';
 
     term.appendChild(l);
     scrollToBottom(true);
@@ -366,9 +367,18 @@ window.addEventListener("error", function(e){
   }
 
   function renderBuffer(){
+    var val = ime.value || "";
+    var pos = (ime.selectionStart != null) ? ime.selectionStart : val.length;
+    var before = val.slice(0, pos);
+    var after = val.slice(pos);
+
     var b = document.getElementById("buffer");
-    if (b) b.textContent = ime.value;
-    ghost.textContent = ime.value || "";
+    if (b) b.textContent = before;
+
+    var a = document.getElementById("afterCursor");
+    if (a) a.textContent = after;
+
+    ghost.textContent = val;
   }
 
   /* -------- TYPEWRITER -------- */
@@ -1008,6 +1018,9 @@ window.addEventListener("error", function(e){
 
   /* -------- EVENTS (keep iOS behavior) -------- */
   ime.addEventListener("input", renderBuffer);
+  ime.addEventListener("keyup", renderBuffer);
+  ime.addEventListener("click", renderBuffer);
+  ime.addEventListener("select", renderBuffer);
 
   term.addEventListener("click", function(){ ime.focus(); });
   term.addEventListener("touchstart", function(){ ime.focus(); }, { passive:true });
