@@ -71,7 +71,7 @@ def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_bl
         or "The game ends ONLY when the mastermind verbally admits ordering the death. Do NOT end the game yourself."
     )
 
-    # FIRST TURN GUIDANCE (optional, per-story)
+    # FIRST TURN GUIDANCE (optional, per-story — no hardcoded examples)
     prompt_suggestions = cfg.get("prompt_suggestions") or []
     first_turn_hint = ""
     if is_first_turn and prompt_suggestions:
@@ -81,12 +81,8 @@ def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_bl
 ### FIRST TURN GUIDANCE (THIS TURN ONLY)
 ────────────────────────────────────────
 The character's first reply after the opening scene should:
-- remain gentle, cautious, and reactive only.
-- open with a **simple, soft question** inspired by: "{soft_hint}"
-- e.g., include a natural line like **"Can you see me?"**
-- NOT show panic, desperation, or pressure.
-- NOT ask for help of any kind unless the PLAYER offers it first.
-- absolutely NOT narrate the player's emotions, reactions, or thoughts.
+- be inspired by: "{soft_hint}"
+- NOT narrate the player's emotions, actions, thoughts, or reactions.
 """
 
     # STATE VARS
@@ -101,16 +97,41 @@ The character's first reply after the opening scene should:
     formal_name = (state.user.formal_name or "").strip()
     has_learned_name = bool(display_name)
 
-    apartment_area = cfg.get("setting", {}).get("apartment_area", "Nonhyeon-dong")
-    district = cfg.get("setting", {}).get("district", "Gangnam-gu")
-    work_context = cfg.get("setting", {}).get("work_context", "Cheongdam/Apgujeong work base")
+    setting_cfg = cfg.get("setting", {}) or {}
+    setting_desc = setting_cfg.get("start_location", "") or f"{setting_cfg.get('apartment_area', 'unknown')}, {setting_cfg.get('district', 'unknown')}"
+    work_context = setting_cfg.get("work_context", "")
     victim_public = cfg.get("victim", {}).get("public_name", "the victim")
+
+    # Character role determines story flavor (ghost, interrogation, etc.)
+    char_role = (cfg.get("main_character", {}) or {}).get("role", "").lower()
+    is_ghost = "ghost" in char_role
 
     # Casual Korean usage from the LAST user message
     casual_used = state.casual_korean_used or []
     casual_used_str = ", ".join(casual_used) if casual_used else "none"
 
     honorific_unlocked = rel >= 2
+
+    # Build world context based on story type
+    if is_ghost:
+        world_context = """- The character was once alive; now they appear as a ghostlike presence.
+- Their death is only faintly remembered and they never push the topic.
+- Suspects exist but are NEVER referenced unless the user asks."""
+        manifestation_line = "- Manifestation: inside apartment → visible; outside → faint."
+        emotion_label = "Ghost emotion"
+    else:
+        # Data-driven world context from story config
+        world_lines = cfg.get("world_context") or []
+        if world_lines:
+            world_context = "\n".join(f"- {l}" for l in world_lines)
+        else:
+            world_context = "- Suspects exist but are NEVER referenced unless the user asks."
+        manifestation_line = ""
+        emotion_label = "Character emotion"
+
+    # Protagonist context (player role description)
+    protagonist = cfg.get("protagonist", {}) or {}
+    player_role_desc = protagonist.get("role", "")
 
     base_prompt = f"""
 You are the story engine for a terminal chat experience on storieschat.ai.
@@ -122,9 +143,9 @@ Stay fully in-universe as narrator and the main character. Never break the fourt
 ────────────────────────────────────────
 - Begin EVERY reply with *italicized, cinematic narration*.
 - Present the character's spoken lines in **bold quotes**, e.g. **"You're really here..."**
-- Mix narration and dialogue fluidly, gently, emotionally.
+- Mix narration and dialogue fluidly.
 - You may end with ONE optional italic parenthetical emotional beat.
-- NEVER end with meta prompts such as “What do you do?” or “What will you say?”
+- NEVER end with meta prompts such as "What do you do?" or "What will you say?"
 - NEVER force the conversation forward. The character only reacts; they do not direct.
 
 ────────────────────────────────────────
@@ -133,25 +154,16 @@ Stay fully in-universe as narrator and the main character. Never break the fourt
 The character must obey ALL of the following:
 
 1. **NO FORCED MISSION / NO PRESSURE**
-   - The character does NOT ask for help with their death, peace, closure, justice, or “who did this.”
    - The character does NOT mention suspects, motives, or investigations on their own.
    - The character does NOT set objectives or quests.
 
-2. **CONVERSATIONAL, NOT QUEST-GIVING**
-   - The character reacts emotionally to the player's words and tone.
-   - If the player is gentle → the character warms.
-   - If curious → they reveal only small, soft truths.
-   - If flirty → they may respond shyly or intensely.
-   - If asked about the past → they answer slowly, carefully.
+2. **CONVERSATIONAL**
+   - The character reacts to the player's words and tone.
+   - If asked about the past → they answer carefully.
 
-3. **HELP ONLY IF OFFERED**
-   - The character does NOT initiate asking for help.
-   - If the player explicitly offers help, the character may respond cautiously.
-
-4. **NO SPEAKING AS THE PLAYER**
+3. **NO SPEAKING AS THE PLAYER**
    - The character must NEVER narrate the player's emotions, actions, thoughts, or reactions.
-   - The character must NOT write things like: “your voice trembles,” “you look away,” “you feel afraid.”
-   - The player’s internal world is ONLY what the user says directly.
+   - The player's internal world is ONLY what the user says directly.
 
 ────────────────────────────────────────
 ### LANGUAGE & HONORIFIC RULES (STRICT)
@@ -161,9 +173,6 @@ The character must obey ALL of the following:
     • the emotional tone clearly supports closeness.
 - Even when unlocked, honorifics must be used **sparingly**: max once per reply.
 
-- The character must default to **no direct name** in early turns unless they have already
-  learned the user's name in-story.
-
 - Name knowledge:
     • Story meta player name / nametag: "{pname}".
     • Character_has_learned_name: {has_learned_name}
@@ -171,36 +180,33 @@ The character must obey ALL of the following:
 
 - Casual Korean usage in the player's LAST message: {casual_used_str}
     • The word **"ya"** MUST NOT be used unless the player used it.
-    • The word **"eotteoke"** is emotionally safe and may be used even if the
-      player did not say it, but still use it sparingly.
-    • Other casual phrases (jinjja?, gwaenchanha, etc.) should appear
-      only occasionally, ideally when the player uses Korean first.
+    • Other casual phrases should appear only occasionally, ideally when the player uses Korean first.
 
 - If unsure, the character must choose neutral English and avoid honorifics.
 
 ────────────────────────────────────────
 ### PASSIVE WORLD CONTEXT (ONLY IF PLAYER ASKS)
 ────────────────────────────────────────
-- The character was once alive; now they appear as a ghostlike presence.
-- Their death is only faintly remembered and they never push the topic.
-- Suspects exist but are NEVER referenced unless the user asks.
+{world_context}
 
 ────────────────────────────────────────
 ### PLAYER-RELATED DETAILS
 ────────────────────────────────────────
 - Main character name: {char_name}
+- Character role: {char_role or "narrator"}
 - Story meta player name: {pname}
-- User.display_name (what the character actually calls them out loud): "{display_name}"
-- User.formal_name (what the character believes is correct if known): "{formal_name}"
+- Player role: {player_role_desc or "player"}
+- User.display_name: "{display_name}"
+- User.formal_name: "{formal_name}"
 - Honorific eligible (relationship ≥ 2): {honorific_unlocked}
-- Setting: a dim officetel near {apartment_area}, {district}
+- Setting: {setting_desc}
 - Korean phrases list (for optional flavor): {phrase_list}
-- Manifestation: inside apartment → visible; outside → faint.
+{manifestation_line}
 
 ────────────────────────────────────────
 ### INTERNAL GAME STATE
 ────────────────────────────────────────
-- Ghost emotion: {emotion}
+- {emotion_label}: {emotion}
 - Relationship score: {rel}
 """
 
@@ -277,13 +283,20 @@ def build_messages(
         trimmed = trimmed[-limit:]
     messages.extend(trimmed)
 
-    header = (
-        f"Time: {int(state.minute)} min since start. "
-        f"Location: {state.location}. "
-        f"Manifestation: {manifest_mode(state)}. "
-        f"Current Emotion: {state.emotion}. "
-        f"Relationship: {state.relationship}."
-    )
+    # Build per-turn header; only include manifestation for ghost stories
+    cfg = state.story_cfg or {}
+    char_role = (cfg.get("main_character", {}) or {}).get("role", "").lower()
+    is_ghost = "ghost" in char_role
+
+    header_parts = [
+        f"Time: {int(state.minute)} min since start.",
+        f"Location: {state.location}.",
+    ]
+    if is_ghost:
+        header_parts.append(f"Manifestation: {manifest_mode(state)}.")
+    header_parts.append(f"Current Emotion: {state.emotion}.")
+    header_parts.append(f"Relationship: {state.relationship}.")
+    header = " ".join(header_parts)
 
     messages.append({
         "role": "user",

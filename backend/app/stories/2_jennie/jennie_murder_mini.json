@@ -73,6 +73,13 @@
     "dialogue": {"pg13": true, "mix_korean_phrases": true},
     "deal_policy": "State the cooperation rule clearly each time a contradiction appears."
   },
+  "world_context": [
+    "This is a procedural interrogation. You switch between suspects in separate rooms.",
+    "Steve and Bob are in custody; neither knows what the other has said.",
+    "The cooperation deal is your main leverage — first full cooperator gets leniency.",
+    "Physical evidence is thin: no weapon, no prints, a too-clean kitchen.",
+    "Suspects are NEVER referenced unless the player asks about them directly."
+  ],
   "goal": {
     "win_text_rule": "Case is resolved when both act and coverup are admitted (who stabbed, who concealed)."
   },
