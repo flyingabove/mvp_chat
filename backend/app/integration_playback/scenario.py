@@ -120,6 +120,41 @@ class IntegrationScenario(ABC):
         self.state: Any = None
         self._step_index: int = 0
 
+    # -- Env helpers --
+    @staticmethod
+    def _ensure_openai_api_key() -> str | None:
+        """Prefer OPENAI_API_KEY env; if missing, attempt to load .env.test once.
+
+        This mirrors test runner expectations for Railway/CI (env var first) and
+        local dev (fallback to .env.test if present). The method is intentionally
+        lightweight and side-effect free if the key already exists.
+        """
+        import os
+        from pathlib import Path
+
+        key = os.environ.get("OPENAI_API_KEY")
+        if key:
+            return key
+
+        env_path = Path(__file__).resolve().parents[3] / ".env.test"
+        if env_path.exists():
+            try:
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" not in line:
+                        continue
+                    k, _, v = line.partition("=")
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if k and k not in os.environ:
+                        os.environ[k] = v
+                return os.environ.get("OPENAI_API_KEY")
+            except Exception:
+                return None
+        return None
+
     # -- Auto-registration on subclass creation --
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -164,6 +199,9 @@ class IntegrationScenario(ABC):
     def run_as_test(cls) -> None:
         """Run this scenario through the playback runner and assert all steps pass."""
         from backend.app.integration_playback.runner import run_scenario
+
+        # Ensure API key presence (prefers env var, falls back to .env.test when available)
+        cls._ensure_openai_api_key()
 
         result = run_scenario(cls.scenario_id)
         log = result["log"]

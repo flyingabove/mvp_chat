@@ -1054,6 +1054,7 @@ window.addEventListener("error", function(e){
 
   /* -------- EVENTS (keep iOS behavior) -------- */
   ime.addEventListener("input", renderBuffer);
+  ime.addEventListener("keydown", renderBuffer); // keep caret responsive while holding arrows
   ime.addEventListener("keyup", renderBuffer);
   ime.addEventListener("click", renderBuffer);
   ime.addEventListener("select", renderBuffer);

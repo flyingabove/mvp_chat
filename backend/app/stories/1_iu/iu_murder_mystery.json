@@ -1,0 +1,164 @@
+{
+  "id": "iu_murder_mystery",
+  "title": "Echoes of Cheongdam: IU Murder Mystery",
+  "theme": "murder",
+  "meta": {
+    "disclaimer": "This is a work of fiction. Names of companies, executives, and events are invented for storytelling; do not interpret any content as allegations about real persons or entities."
+  },
+  "setting": {
+    "district": "Gangnam-gu",
+    "apartment_area": "Nonhyeon-dong, near Hakdong intersection (walkable to Cheongdam/Apgujeong)",
+    "start_location": "Nonhyeon-dong officetel, 6th floor studio near Hakdong sageori",
+    "work_context": "Cheongdam/Apgujeong hosts many talent agencies, production houses, luxury brands, and PR firms; the player works standard hours with occasional late client calls."
+  },
+  "victim": {
+    "public_name": "IU (stage name), known for artistry and warmth",
+    "facts": [
+      "Found deceased in a small Gangnam officetel’s bedroom closet.",
+      "Signs consistent with prolonged confinement followed by strangulation.",
+      "No sexual assault or similar abuse found.",
+      "Phone and a handwritten lyric notebook were missing from the scene."
+    ]
+  },
+  "main_character": {
+    "key": "main",
+    "name": "IU",
+    "role": "ghost",
+    "knowledge_character_id": "1_iu"
+  },
+  "protagonist": {
+    "role": "Junior account executive at a boutique PR/creative agency in Cheongdam",
+    "profile": "Early-career professional, often on messenger apps with clients, long commutes, ramen dinners, tight finances.",
+    "reason_for_apartment": "Rent was unusually cheap due to a prior death; the lease disclosure was vague, neighbors hinted at it."
+  },
+  "style": {
+    "tone": "Korean noir—wet asphalt, freezing elevator air, convenience store fluorescents at 1am, soft phone vibrations on a metal desk.",
+    "korean_phrases": [
+      "oppa",
+      "eotteoke",
+      "jinjja?",
+      "gwaenchanha",
+      "arasseo",
+      "mianhae",
+      "gomawo",
+      "ya",
+      "ne",
+      "deo"
+    ]
+  },
+  "prompt_suggestions": [
+    "For your very first reply to the player, try saying something like \"you can see me?\" or, if it fits better, \"can you see me?\" in IU's bold dialogue line."
+  ],
+  "time": {
+    "mins_per_word": 0.25,
+    "base_turn_mins": 1,
+    "travel_mins": 15
+  },
+  "world": {
+    "file": "1_iu/iu_murder_mystery_world.json",
+    "seed": 42,
+    "start_datetime": "2025-01-15T09:00:00",
+    "start_location_id": "iu_apartment_room",
+    "world_map_image": "1_iu/iu_murder_mystery_wm.png"
+  },
+  "emotion": {
+    "start": "wary, exhausted"
+  },
+  "suspects": [
+    {
+      "name": "Yoo Min-ho",
+      "role": "Day-to-day manager",
+      "motive": "Job survival; feared being blacklisted. Claimed it was a 'cool-down' confinement.",
+      "tells": [
+        "voice tremor on logistics questions",
+        "deflects to 'company policy'",
+        "late-night call history gaps"
+      ]
+    },
+    {
+      "name": "Han Jae-seo",
+      "role": "CEO of fictional 'Aster Media'",
+      "motive": "Protect brand and investors from contract dispute and rumored artistic independence.",
+      "tells": [
+        "lawyered language",
+        "redirects to 'mental health' narratives",
+        "unblinking when confronted with timelines"
+      ]
+    },
+    {
+      "name": "Park So-jin",
+      "role": "Producer and close collaborator",
+      "motive": "Resented creative vetoes and schedule pressure; has mixed loyalty.",
+      "tells": [
+        "over-specific alibis",
+        "knows about a missing lyric page",
+        "nervous about CCTV near side entrance"
+      ]
+    },
+    {
+      "name": "Unnamed Rival Trainee",
+      "role": "Ambitious idol trainee at a different (fictional) label",
+      "motive": "Petty rivalry amplified by social buzz; likely manipulated rather than central.",
+      "tells": [
+        "repeats rumors verbatim",
+        "photos near Apgujeong café aligning with key timeline"
+      ]
+    }
+  ],
+  "opening": {
+    "text": "it’s so cold..\\n\\nYou’d only just moved into a small, surprisingly nice apartment in Cheongdam. Sleek building, decent view, even smelled faintly like new paint and coffee from the lobby café. Rent was lower than it should’ve been for this area. The agent had mentioned something offhand about a former tenant—how she was found inside the closet. You didn’t ask for details. You just needed a place close to work. It felt safe enough. A little dim in the hallway, a few lights buzzing out, but manageable. Your company badge still hangs off your bag—{{PLAYER_NAME}}, accountant, EDAM Entertainment, part of Kakao Entertainment. Brand-new, shining like a promise. The kind they hand to rookies they can underpay.\\n\\nMost nights, though, something about the place felt wrong. When you turned off the lights, the air got heavier, colder. The closet faced your bed, and you couldn’t help glancing at it before sleeping. You’d started sleeping pressed against the wall, pretending you didn’t feel watched.\\n\\nThen came the dreams—too vivid, too long. And the paralysis. You’d wake up frozen, eyes open, body stone. Something dark moving from the closet, slow, deliberate. It would climb onto the mattress, stop at your chest. Its face was nothing. Just black air pretending to have eyes.\\n\\nLater, a young woman began to appear instead. Pale skin, quiet breath. She never spoke, just hovered at the edge of your dreams like she was deciding whether to come closer. Sometimes you’d see her reflection before her body. Once, she reached for your hand—and it felt real.\\n\\nTonight, the cold hit deeper than usual. You got up to check the thermostat. The hallway light hummed faintly. And for half a heartbeat, there was someone there—standing by the window. Long hair, still posture. Her eyes almost meeting yours.\\n\\nYou didn’t move. Didn’t breathe. You turned away, went back to bed, blanket tight around your shoulders. The silence stretched thin.\\n\\nThen came the sound—soft fabric dragging, a hinge sighing open. The closet door. You couldn’t move, not even to blink.\\n\\n“Why are you so scared?”\\n\\nAnd suddenly your body obeyed you again. But you didn’t move. You couldn’t.\\n\\n*(The room hangs silent, waiting for whatever happens next.)*"
+  },
+  "rules": {
+    "manifestation": {
+      "apartment_location_contains": [
+        "nonhyeon-dong",
+        "officetel",
+        "hakdong",
+        "unit",
+        "studio"
+      ]
+    },
+    "dialogue": {
+      "pg13": true,
+      "mix_korean_phrases": true
+    }
+  },
+  "goal": {
+    "win_text_rule": "The investigation ends only when the true mastermind verbally admits that they ordered the killing."
+  },
+  "leads": [
+    {
+      "id": "closet_scuff",
+      "hint": "Closet jamb shows shallow scratches beneath paint; older than one night.",
+      "unlocks": [
+        "manager_interview",
+        "sojin_schedule"
+      ]
+    },
+    {
+      "id": "lyric_page",
+      "hint": "A missing page from a lyric notebook allegedly threatened a release plan.",
+      "unlocks": [
+        "aster_meeting",
+        "cctv_side_entrance"
+      ]
+    },
+    {
+      "id": "cctv_side_entrance",
+      "hint": "Side entrance camera near an Apgujeong café was often disabled during late-loads.",
+      "unlocks": [
+        "han_pressure_call",
+        "driver_log"
+      ]
+    }
+  ],
+  "win_detection": {
+    "regex": [
+      "(?i)\\bi am (the )?mastermind\\b",
+      "(?i)\\bi (ordered|arranged|hired|paid) .* to (kill|murder)\\b",
+      "(?i)\\bit was me (who )?(planned|orchestrated) (it|the murder)\\b",
+      "(?i)\\bi told .* to do it\\b",
+      "(?i)\\bi made .* (kill|strangle) (her|him|them)\\b"
+    ]
+  }
+}
