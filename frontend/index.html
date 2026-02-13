@@ -340,6 +340,7 @@ window.addEventListener("error", function(e){
 
   /* -------- WORLD MAP (reused everywhere) -------- */
   var MAP_CMD_RE = /^\[m\]$|^\(m\)$|^\[map\]$|^\(map\)$/i;
+  var EXIT_CMD_RE = /^\s*(?:e|exit|\[e\]|\(e\)|\[exit\]|\(exit\))\s*$/i;
 
   function renderWorldMap(meta){
     if (!meta) {
@@ -464,6 +465,7 @@ window.addEventListener("error", function(e){
       "**Available Commands:**\n" +
       "- Type `[D]`, `(D)`, `[DEBUG]`, or `(DEBUG)` to toggle debug mode (shows game state info)\n" +
       "- Type `[M]`, `(M)`, `[MAP]`, or `(MAP)` to view the world map\n" +
+      "- Type `[E]`, `(E)`, `[EXIT]`, or `(EXIT)` to exit to the story menu\n" +
       "- Type `[C]`, `(C)`, `[CHINESE]`, or `(CHINESE)` to toggle Chinese translation mode\n" +
       "- Type `[T]`, `(T)`, `[TRUTH]`, or `(TRUTH)` to toggle truth mode (forces honest answers)";
 
@@ -536,6 +538,30 @@ window.addEventListener("error", function(e){
     ime.focus();
   }
 
+  function resetSessionState(){
+    state.sid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + ":" + Math.random());
+    state.turns = 0;
+    state.story = null;
+    state.gender = null;
+    state.playerName = null;
+    state.storyMeta = null;
+    state.pendingIntegration = null;
+    state.integrationDebug = false;
+  }
+
+  function exitToMenu(){
+    if (state.mode === "menu") {
+      writeLine("Already at the story menu. Pick a number to begin.", "sys");
+      newPrompt();
+      return;
+    }
+
+    resetSessionState();
+    state.mode = "menu";
+    writeLine("Exiting the current game. Returning to story selection…", "sys");
+    showMenu();
+  }
+
   /* -------- INPUT FLOW -------- */
   function commitLine(){
     if (awaitingResponse) return;
@@ -552,6 +578,11 @@ window.addEventListener("error", function(e){
     }
 
     writeLine("> " + line, "user");
+
+    if (EXIT_CMD_RE.test(line)) {
+      exitToMenu();
+      return;
+    }
 
     // [M] / [MAP] handled locally at all times — no backend call needed
     if (MAP_CMD_RE.test(line.trim())) {
