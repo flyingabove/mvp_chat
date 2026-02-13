@@ -84,6 +84,10 @@
   "goal": {
     "win_text_rule": "Case is resolved when both act and coverup are admitted (who stabbed, who concealed)."
   },
+  "canonical_truth": [
+    "Steve stabbed Jennie in the kitchen around 11:50, during the confrontation.",
+    "Bob helped cover up afterwards by wiping surfaces and removing the knife."
+  ],
   "leads": [
     {"id": "phone_ping", "hint": "Jennie's phone pinged near the building close to midnight.", "unlocks": ["press_timeline"]},
     {"id": "neighbor_audio", "hint": "Neighbor heard a woman crying around 11:50.", "unlocks": ["press_presence"]},

@@ -234,6 +234,12 @@ TRUTH MODE IS ON. This overrides ALL deception/lying behavior.
 - Stay in character tonally but remove ALL deception.
 """
 
+        canonical_truths = getattr(state, "canonical_truth", None)
+        if canonical_truths:
+            truth_override += "\nCanonical truths you must not contradict:\n"
+            for fact in canonical_truths:
+                truth_override += f"- {fact}\n"
+
     # Inject canonical memory BEFORE the required tail so the model always sees it.
     return base_prompt + (memory_block or "") + truth_override + first_turn_hint + required_tail
 

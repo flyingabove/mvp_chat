@@ -471,6 +471,8 @@ async def chat_handler(data: dict):
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
         new_state.story_cfg = cfg
+        # Canonical truths (for truth-mode override guidance)
+        new_state.canonical_truth = cfg.get("canonical_truth", [])
 
         # Optional world graph runtime (does not change gameplay unless movement occurs)
         world_cfg = cfg.get("world", {}) or {}
