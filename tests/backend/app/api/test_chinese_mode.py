@@ -7,6 +7,10 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import first_story_id
+
+STORY_ID = first_story_id()
+
 
 @pytest.fixture()
 def client_with_translation(monkeypatch):
@@ -121,7 +125,7 @@ def test_chinese_toggle_enters_mode(client_with_translation):
     # Start a new game
     resp = client.post("/api/chat", json={
         "session_id": "cn_test1",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -144,7 +148,7 @@ def test_chinese_toggle_exits_mode(client_with_translation):
     # Start a new game
     resp = client.post("/api/chat", json={
         "session_id": "cn_test2",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -174,7 +178,7 @@ def test_chinese_mode_persists_in_session(client_with_translation):
     # Start new game
     resp = client.post("/api/chat", json={
         "session_id": "cn_test3",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -335,7 +339,7 @@ def test_chinese_mode_translates_opening_on_newgame(client_with_translation):
     # Start new game - should translate opening
     resp = client.post("/api/chat", json={
         "session_id": session_id,
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -352,7 +356,7 @@ def test_chinese_mode_translates_regular_responses(client_with_translation):
     # Setup: start game, enable Chinese mode
     resp = client.post("/api/chat", json={
         "session_id": "cn_test_responses",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -387,7 +391,7 @@ def test_english_mode_no_translation(client_with_translation):
     # Start game (no Chinese mode)
     resp = client.post("/api/chat", json={
         "session_id": "cn_test_english",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -412,7 +416,7 @@ def test_chinese_toggle_with_special_characters(client_with_translation):
     # Start game
     resp = client.post("/api/chat", json={
         "session_id": "cn_test_special",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -459,7 +463,7 @@ def test_chinese_and_debug_modes_can_coexist(client_with_translation):
     # Start game
     resp = client.post("/api/chat", json={
         "session_id": "cn_test_both",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     
@@ -507,7 +511,7 @@ def test_chinese_mode_with_empty_response(client_with_translation):
     # Start game with Chinese mode
     resp = client.post("/api/chat", json={
         "session_id": "cn_test_empty",
-        "message": "__cmd_newgame__:iu_murder_mystery|M|TestPlayer"
+        "message": "__cmd_newgame__:" + STORY_ID + "|M|TestPlayer"
     })
     assert resp.status_code == 200
     

@@ -7,11 +7,14 @@ from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.knowledge.runtime.load_indexes import load_character_indexes
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
 from backend.app.integration_playback.scenario import IntegrationScenario, step
+from tests.conftest import first_character_id
+
+_DEFAULT_CHAR = first_character_id()
 
 
 @dataclass
 class RetrievalContext:
-    character_id: str = "1_iu"
+    character_id: str = _DEFAULT_CHAR
     joined_text: str | None = None
 
 
@@ -24,7 +27,7 @@ class RetrievalE2EScenario(IntegrationScenario):
     player_role = "Detective"
 
     def setup(self):
-        self.state = RetrievalContext(character_id=os.getenv("TEST_CHARACTER_ID", "1_iu"))
+        self.state = RetrievalContext(character_id=os.getenv("TEST_CHARACTER_ID", _DEFAULT_CHAR))
         IndexService.reset_for_tests()
         IndexService.set_active_character(self.state.character_id)
         return {

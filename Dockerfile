@@ -49,10 +49,10 @@ RUN echo "================ BUILD-TIME DEBUG (BEFORE TESTS) ================" \
  && ls -la /data || true \
  && ls -la /data/knowledge_cache || true \
  && ls -la /data/knowledge_cache/characters || true \
- && ls -la /data/knowledge_cache/characters/1_iu || true \
+ && ls -la /data/knowledge_cache/characters/ || true \
  && echo "" \
- && echo "📂 /srv/backend/app/knowledge/characters/1_iu (image bundle)" \
- && ls -la /srv/backend/app/knowledge/characters/1_iu || true \
+ && echo "📂 /srv/backend/app/knowledge/characters/ (image bundles)" \
+ && ls -la /srv/backend/app/knowledge/characters/ || true \
  && echo "" \
  && echo "📂 /tmp tree (build-time)" \
  && ls -la /tmp || true \
@@ -109,10 +109,10 @@ CMD ["sh", "-e", "-c", "\
   ls -la /data || true; \
   ls -la /data/knowledge_cache || true; \
   ls -la /data/knowledge_cache/characters || true; \
-  ls -la /data/knowledge_cache/characters/1_iu || true; \
+  ls -la /data/knowledge_cache/characters/ || true; \
   echo \"\"; \
-  echo \"📂 /srv/backend/app/knowledge/characters/1_iu (image bundle)\"; \
-  ls -la /srv/backend/app/knowledge/characters/1_iu || true; \
+  echo \"📂 /srv/backend/app/knowledge/characters/ (image bundles)\"; \
+  ls -la /srv/backend/app/knowledge/characters/ || true; \
   echo \"========================================================\"; \
   \
   if [ \"${FORCE_REBUILD_INDEX:-0}\" = \"1\" ]; then \
@@ -127,8 +127,8 @@ CMD ["sh", "-e", "-c", "\
   python -m backend.app.knowledge.build.build_index; \
   \
   echo \"================ RUNTIME DEBUG (AFTER BUILD_INDEX) ================\"; \
-  echo \"📂 /data/knowledge_cache/characters/1_iu\"; \
-  ls -la /data/knowledge_cache/characters/1_iu || true; \
+  echo \"📂 /data/knowledge_cache/characters/\"; \
+  ls -la /data/knowledge_cache/characters/ || true; \
   echo \"🔎 Find bm25.json/faiss.index under /data\"; \
   find /data -type f -name bm25.json 2>/dev/null | head -n 50 || true; \
   find /data -type f -name faiss.index 2>/dev/null | head -n 50 || true; \

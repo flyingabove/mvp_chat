@@ -155,11 +155,19 @@ def main(character_dirname: str | None = None) -> None:
     Build knowledge indexes for a given character.
 
     Args:
-        character_dirname: Directory name under knowledge/characters/ (e.g., "1_iu", "2_alice")
-                          Defaults to env var CHARACTER_DIRNAME or "1_iu" for backwards compatibility.
+        character_dirname: Directory name under knowledge/characters/ (e.g., "1_iu_murder_mystery").
+                          Defaults to env var CHARACTER_DIRNAME or first discovered directory.
     """
     if character_dirname is None:
-        character_dirname = os.getenv("CHARACTER_DIRNAME", "1_iu")
+        character_dirname = os.getenv("CHARACTER_DIRNAME", "")
+    if not character_dirname:
+        # Auto-discover first character directory
+        from pathlib import Path
+        chars_dir = Path(__file__).resolve().parents[1] / "characters"
+        dirs = sorted(p.name for p in chars_dir.iterdir() if p.is_dir()) if chars_dir.exists() else []
+        if not dirs:
+            raise RuntimeError("No character directories found under knowledge/characters/")
+        character_dirname = dirs[0]
 
     paths = _get_paths(character_dirname)
 

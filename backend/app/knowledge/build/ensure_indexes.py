@@ -13,11 +13,11 @@ def main(character_dirname: str | None = None):
     Ensure indexes are built for a character.
     
     Args:
-        character_dirname: Directory name under knowledge/characters/ (e.g., "1_iu", "2_alice")
-                          If None, uses CHARACTER_DIRNAME env var or defaults to "1_iu".
+        character_dirname: Directory name under knowledge/characters/.
+                          If None, uses CHARACTER_DIRNAME env var or auto-discovers.
     """
     if character_dirname is None:
-        character_dirname = os.getenv("CHARACTER_DIRNAME", "1_iu")
+        character_dirname = os.getenv("CHARACTER_DIRNAME", "") or None
 
     try:
         build_main(character_dirname)

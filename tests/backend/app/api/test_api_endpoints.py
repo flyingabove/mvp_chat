@@ -3,6 +3,10 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import first_story_id
+
+STORY_ID = first_story_id()
+
 
 @pytest.fixture()
 def client(monkeypatch):
@@ -72,10 +76,10 @@ def test_echo_endpoint(client):
 
 
 def test_story_endpoint_existing(client):
-    r = client.get("/api/story/iu_murder_mystery")
+    r = client.get("/api/story/" + STORY_ID)
     assert r.status_code == 200
     data = r.json()
-    assert data["id"] == "iu_murder_mystery"
+    assert data["id"] == STORY_ID
     assert data["title"]
 
 

@@ -17,5 +17,5 @@ def test_stories_endpoint_is_registered(monkeypatch):
     assert "stories" in data
     assert isinstance(data["stories"], list)
 
-    # Repo ships at least one story (iu_murder_mystery.json)
-    assert any(s.get("id") == "iu_murder_mystery" for s in data["stories"])
+    # Repo ships at least one story
+    assert len(data["stories"]) > 0, "At least one story should be available"

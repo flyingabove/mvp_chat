@@ -5,6 +5,12 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.conftest import first_story_id, first_story_folder
+
+# Auto-discover the first available story for all tests
+STORY_ID = first_story_id()
+STORY_FOLDER = first_story_folder()
+
 
 @pytest.fixture()
 def client(monkeypatch):
@@ -63,7 +69,7 @@ def client(monkeypatch):
 
 def test_chat_newgame_and_turn(client):
     # Start a new game
-    r = client.post("/api/chat", json={"session_id": "s1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    r = client.post("/api/chat", json={"session_id": "s1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
     assert r.status_code == 200
     data = r.json()
     assert "reply" in data
@@ -81,7 +87,7 @@ def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
     from backend.app.api import chat as chat_mod
 
     # Start a new game so a normal turn hits the LLM mock.
-    r = client.post("/api/chat", json={"session_id": "dbg1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    r = client.post("/api/chat", json={"session_id": "dbg1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
     assert r.status_code == 200
 
     spy = getattr(chat_mod, "_TEST_OPENAI_POST_SPY")
@@ -122,7 +128,7 @@ def test_debug_toggle_strips_leading_gt(client):
     from backend.app.api import chat as chat_mod
 
     # Start a new game so the "regular turn" path is active for subsequent messages.
-    r0 = client.post("/api/chat", json={"session_id": "gt1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    r0 = client.post("/api/chat", json={"session_id": "gt1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
     assert r0.status_code == 200
 
     spy = getattr(chat_mod, "_TEST_OPENAI_POST_SPY")
@@ -160,7 +166,7 @@ def test_debug_toggle_strips_leading_gt(client):
 
 def test_debug_box_speakers_do_not_include_location_as_name(client):
     # Start a new game
-    r0 = client.post("/api/chat", json={"session_id": "spk1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    r0 = client.post("/api/chat", json={"session_id": "spk1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
     assert r0.status_code == 200
 
     # Enable debug mode
@@ -183,7 +189,7 @@ def test_debug_box_speakers_do_not_include_location_as_name(client):
 
 def test_debug_box_rendering_structured(client):
     """Test that debug box is returned as structured data, not ASCII art in reply."""
-    r0 = client.post("/api/chat", json={"session_id": "box1", "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    r0 = client.post("/api/chat", json={"session_id": "box1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
     assert r0.status_code == 200
 
     # Enable debug mode — toggle notices still use ASCII _box() in reply
@@ -247,7 +253,7 @@ def test_name_extraction_and_confirmation():
 def test_map_toggle_shows_locations_from_world(client):
     """Test that [M] or [MAP] command shows available locations."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map1", "message": "__cmd_newgame__:iu_murder_mystery|M|Player"})
+    r0 = client.post("/api/chat", json={"session_id": "map1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Player"})
     assert r0.status_code == 200
     opening = r0.json()
 
@@ -259,9 +265,8 @@ def test_map_toggle_shows_locations_from_world(client):
 
     # Should show World Map box with locations (no LLM call)
     assert "World Map" in reply1
-    # Should contain at least one location name from the IU story world
-    # (IU's Apartment is the starting location)
-    assert "Apartment" in reply1 or "Location" in reply1
+    # Should contain at least one location name from the story world
+    assert len(reply1) > 30, "Map should contain location data"
 
     # Verify no LLM tokens were used (early exit, same as [D])
     assert resp1.get("usage", {}).get("total_tokens", 0) == 0
@@ -270,7 +275,7 @@ def test_map_toggle_shows_locations_from_world(client):
 def test_map_toggle_case_insensitive(client):
     """Test that map toggle is case-insensitive."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map2", "message": "__cmd_newgame__:iu_murder_mystery|F|Player"})
+    r0 = client.post("/api/chat", json={"session_id": "map2", "message": "__cmd_newgame__:" + STORY_ID + "|F|Player"})
     assert r0.status_code == 200
 
     # Test various forms: [MAP], (MAP), [m], (map)
@@ -311,7 +316,7 @@ def test_map_toggle_token_detection():
 def test_map_toggle_no_llm_call(client):
     """Verify that MAP toggle does not invoke LLM (0 tokens)."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map_no_llm", "message": "__cmd_newgame__:iu_murder_mystery|M|Test"})
+    r0 = client.post("/api/chat", json={"session_id": "map_no_llm", "message": "__cmd_newgame__:" + STORY_ID + "|M|Test"})
     assert r0.status_code == 200
     
     # Normal turn should use LLM
@@ -330,7 +335,7 @@ def test_map_toggle_no_llm_call(client):
 def test_map_toggle_returns_boxed_format(client):
     """Verify that MAP toggle returns properly formatted box output."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map_box", "message": "__cmd_newgame__:iu_murder_mystery|F|BoxTest"})
+    r0 = client.post("/api/chat", json={"session_id": "map_box", "message": "__cmd_newgame__:" + STORY_ID + "|F|BoxTest"})
     assert r0.status_code == 200
     
     # Request map
@@ -351,7 +356,7 @@ def test_map_toggle_returns_boxed_format(client):
 def test_map_toggle_shows_all_locations(client):
     """Verify that MAP toggle lists all world locations."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map_all_locs", "message": "__cmd_newgame__:iu_murder_mystery|M|AllLocs"})
+    r0 = client.post("/api/chat", json={"session_id": "map_all_locs", "message": "__cmd_newgame__:" + STORY_ID + "|M|AllLocs"})
     assert r0.status_code == 200
     
     # Request map
@@ -359,10 +364,7 @@ def test_map_toggle_shows_all_locations(client):
     assert r1.status_code == 200
     reply = r1.json()["reply"]
     
-    # Should contain multiple locations from the IU world
-    # We know from iu_murder_mystery_world.json there are 11 locations
-    # At minimum, verify we see some key locations
-    assert "Apartment" in reply or "apartment" in reply, "Should mention apartment location"
+    # Should contain multiple locations from the story world
     # Count newlines to verify multiple entries (locations are on separate lines in the box)
     location_lines = [line for line in reply.split('\n') if line.strip() and '─' not in line and 'World' not in line]
     assert len(location_lines) > 3, f"Should list multiple locations, got: {reply}"
@@ -373,7 +375,7 @@ def test_map_toggle_without_world_runtime(client, monkeypatch):
     import backend.app.api.chat as chat_mod
     
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map_no_world", "message": "__cmd_newgame__:iu_murder_mystery|F|NoWorld"})
+    r0 = client.post("/api/chat", json={"session_id": "map_no_world", "message": "__cmd_newgame__:" + STORY_ID + "|F|NoWorld"})
     assert r0.status_code == 200
     
     # Remove world_runtime from session state
@@ -392,7 +394,7 @@ def test_map_toggle_without_world_runtime(client, monkeypatch):
 def test_map_toggle_with_whitespace_variants(client):
     """Test MAP toggle with extra whitespace."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map_ws", "message": "__cmd_newgame__:iu_murder_mystery|M|Whitespace"})
+    r0 = client.post("/api/chat", json={"session_id": "map_ws", "message": "__cmd_newgame__:" + STORY_ID + "|M|Whitespace"})
     assert r0.status_code == 200
     
     # Test with leading/trailing whitespace
@@ -414,7 +416,7 @@ def test_map_toggle_with_whitespace_variants(client):
 def test_map_toggle_multiple_calls_consistent(client):
     """Test that multiple MAP toggle calls return consistent results."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map_consistent", "message": "__cmd_newgame__:iu_murder_mystery|F|Consistent"})
+    r0 = client.post("/api/chat", json={"session_id": "map_consistent", "message": "__cmd_newgame__:" + STORY_ID + "|F|Consistent"})
     assert r0.status_code == 200
     
     # Request map three times
@@ -432,7 +434,7 @@ def test_map_toggle_multiple_calls_consistent(client):
 def test_map_toggle_mixed_with_normal_turns(client):
     """Test MAP toggle interleaved with normal game turns."""
     # Start new game
-    r0 = client.post("/api/chat", json={"session_id": "map_mixed", "message": "__cmd_newgame__:iu_murder_mystery|M|Mixed"})
+    r0 = client.post("/api/chat", json={"session_id": "map_mixed", "message": "__cmd_newgame__:" + STORY_ID + "|M|Mixed"})
     assert r0.status_code == 200
     
     # Normal turn
@@ -458,43 +460,41 @@ def test_map_toggle_mixed_with_normal_turns(client):
 
 def test_map_toggle_includes_world_map_image_path(client):
     """Test that MAP toggle response includes world_map_image path when available."""
-    # Start new game with story that has world_map_image configured
-    r0 = client.post("/api/chat", json={"session_id": "map_img", "message": "__cmd_newgame__:iu_murder_mystery|M|ImgTest"})
+    # Start new game with first discovered story
+    r0 = client.post("/api/chat", json={"session_id": "map_img", "message": "__cmd_newgame__:" + STORY_ID + "|M|ImgTest"})
     assert r0.status_code == 200
-    
+
     # Request map
     r1 = client.post("/api/chat", json={"session_id": "map_img", "message": "[M]"})
     assert r1.status_code == 200
     resp = r1.json()
-    
-    # Verify response includes world map image path
+
+    # Verify response includes world map image path (auto-discovered)
     assert "world_map_image" in resp, "Response should include world_map_image field"
-    assert "iu_murder_mystery_wm.png" in resp["world_map_image"], "Image path should reference the world map file"
-    assert "1_iu" in resp["world_map_image"], "Image path should be in 1_iu subdirectory"
+    assert resp["world_map_image"].endswith(".png"), "Image path should be a PNG file"
+    assert STORY_FOLDER in resp["world_map_image"], f"Image path should reference story folder {STORY_FOLDER}"
 
 
 def test_story_loader_finds_story_in_subdirectory(client):
-    """Test that story loader can find stories in subdirectories like 1_iu."""
-    # This test verifies the consolidation - stories in subdirectories should load correctly
-    r = client.post("/api/chat", json={"session_id": "subdir_test", "message": "__cmd_newgame__:iu_murder_mystery|F|SubdirTest"})
+    """Test that story loader can find stories in subdirectories."""
+    r = client.post("/api/chat", json={"session_id": "subdir_test", "message": "__cmd_newgame__:" + STORY_ID + "|F|SubdirTest"})
     assert r.status_code == 200
     opening = r.json()
-    
+
     # Verify story loaded correctly (opening should be present)
     assert "reply" in opening
-    # The opening should contain the new longer opening text
     assert len(opening["reply"]) > 100, "Opening text should be present and substantial"
 
 
 def test_story_with_world_config_loads_correctly(client):
-    """Test that story with world config in 1_iu folder loads and initializes world runtime."""
-    r0 = client.post("/api/chat", json={"session_id": "world_cfg", "message": "__cmd_newgame__:iu_murder_mystery|M|WorldCfg"})
+    """Test that story with world config loads and initializes world runtime."""
+    r0 = client.post("/api/chat", json={"session_id": "world_cfg", "message": "__cmd_newgame__:" + STORY_ID + "|M|WorldCfg"})
     assert r0.status_code == 200
-    
+
     # Verify world is initialized by checking state
     import backend.app.api.chat as chat_mod
     state = chat_mod.SESSIONS["world_cfg"]["state"]
-    
+
     # World should be loaded
     assert state.world_runtime is not None, "World runtime should be loaded from story config"
     assert state.world_runtime.world_graph is not None, "World graph should be initialized"
@@ -502,18 +502,31 @@ def test_story_with_world_config_loads_correctly(client):
 
 
 def test_file_consolidation_single_location(client):
-    """Test that all story files are consolidated in 1_iu directory."""
+    """Test that all story files are in the expected story folder (auto-discovered)."""
     import os
-    
+    from backend.app.engine.story_loader import find_story_dir, _story_json_candidates
+
     # Verify old duplicate backend/stories directory doesn't exist
-    backend_stories_path = "backend/stories"
-    assert not os.path.exists(backend_stories_path), "Old backend/stories duplicate should be removed"
-    
-    # Verify files are in the correct 1_iu location
-    stories_1iu_dir = "backend/app/stories/1_iu"
-    assert os.path.isdir(stories_1iu_dir), "1_iu directory should exist"
-    
-    required_files = ["iu_murder_mystery.json", "iu_murder_mystery_world.json", "iu_murder_mystery_wm.png"]
-    for file in required_files:
-        path = os.path.join(stories_1iu_dir, file)
-        assert os.path.isfile(path), f"Required file {file} should exist in 1_iu directory"
+    assert not os.path.exists("backend/stories"), "Old backend/stories duplicate should be removed"
+
+    # Auto-discover the first story's folder and verify it exists
+    story_dir = find_story_dir(STORY_ID)
+    assert story_dir is not None, f"Story folder for {STORY_ID} should exist"
+
+    full_dir = os.path.join("backend", "app", "stories", story_dir)
+    assert os.path.isdir(full_dir), f"Story directory {full_dir} should exist"
+
+    # Verify the story JSON exists (either {id}.json or {id}_story.json)
+    found_story_json = any(
+        os.path.isfile(os.path.join(full_dir, f))
+        for f in _story_json_candidates(STORY_ID)
+    )
+    assert found_story_json, f"Story JSON for {STORY_ID} should exist in {full_dir}"
+
+    # Verify a world JSON exists ({id}_world.json)
+    world_json = os.path.join(full_dir, f"{STORY_ID}_world.json")
+    assert os.path.isfile(world_json), f"World JSON should exist at {world_json}"
+
+    # Verify a map image exists ({folder}.png convention)
+    map_png = os.path.join(full_dir, f"{story_dir}.png")
+    assert os.path.isfile(map_png), f"Map image should exist at {map_png}"

@@ -61,6 +61,60 @@ _load_env_test()
 
 
 # ---------------------------------------------------------------------------
+# STORY / CHARACTER AUTO-DISCOVERY
+# ---------------------------------------------------------------------------
+def _discover_stories() -> list[dict]:
+    """Auto-discover all available story configs (sorted by folder prefix)."""
+    stories_dir = Path(__file__).parent.parent / "backend" / "app" / "stories"
+    results = []
+    if not stories_dir.exists():
+        return results
+    import json as _json
+    for subdir in sorted(stories_dir.iterdir()):
+        if not subdir.is_dir() or subdir.name.startswith("__"):
+            continue
+        for p in sorted(subdir.glob("*.json")):
+            if p.name.endswith("_world.json"):
+                continue
+            try:
+                cfg = _json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            results.append({
+                "id": str(cfg.get("id") or p.stem).strip(),
+                "folder": subdir.name,
+                "path": str(p),
+                "config": cfg,
+            })
+    return results
+
+
+def first_story_id() -> str:
+    """Return the ID of the first available story (sorted by folder)."""
+    stories = _discover_stories()
+    if not stories:
+        raise RuntimeError("No stories found in backend/app/stories/")
+    return stories[0]["id"]
+
+
+def first_story_folder() -> str:
+    """Return the folder name of the first available story."""
+    stories = _discover_stories()
+    if not stories:
+        raise RuntimeError("No stories found in backend/app/stories/")
+    return stories[0]["folder"]
+
+
+def first_character_id() -> str:
+    """Return the first character directory name from knowledge/characters/."""
+    chars_dir = Path(__file__).parent.parent / "backend" / "app" / "knowledge" / "characters"
+    if not chars_dir.exists():
+        return ""
+    dirs = sorted(p.name for p in chars_dir.iterdir() if p.is_dir())
+    return dirs[0] if dirs else ""
+
+
+# ---------------------------------------------------------------------------
 # FIXTURES
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")

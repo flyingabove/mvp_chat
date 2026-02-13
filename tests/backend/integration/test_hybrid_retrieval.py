@@ -11,10 +11,13 @@ from backend.app.knowledge.build.bm25_utils import bm25_search
 from backend.app.knowledge.build.hybrid import hybrid_retrieve
 from backend.app.knowledge.build.embedder import embed_query
 from backend.app.integration_playback.scenario import IntegrationScenario, step
+from tests.conftest import first_character_id
+
+_DEFAULT_CHAR = first_character_id()
 
 TEST_CASES_BY_CHARACTER = {
 
-    "1_iu": [
+    _DEFAULT_CHAR: [
 
         {"section": "identity", "q": "What is IU’s legal name?", "ans": "iu_1_identity_basic"},
         {"section": "physical", "q": "How tall is IU?", "ans": "iu_2_personal_physical"},
@@ -47,7 +50,7 @@ TEST_CASES_BY_CHARACTER = {
 
 @dataclass
 class HybridRetrievalContext:
-    character_id: str = "1_iu"
+    character_id: str = _DEFAULT_CHAR
     cache_dir: str | None = None
     precision: float | None = None
     recall: float | None = None
@@ -64,7 +67,7 @@ class HybridRetrievalScenario(IntegrationScenario):
 
     def setup(self):
         ctx = HybridRetrievalContext()
-        ctx.character_id = os.getenv("TEST_CHARACTER_ID", "1_iu")
+        ctx.character_id = os.getenv("TEST_CHARACTER_ID", _DEFAULT_CHAR)
 
         cache_dir = os.environ.get("KNOWLEDGE_CACHE_DIR")
         if not cache_dir:

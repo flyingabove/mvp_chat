@@ -9,6 +9,9 @@ import httpx
 from fastapi.testclient import TestClient
 
 from backend.app.integration_playback.scenario import IntegrationScenario, step
+from tests.conftest import first_story_id
+
+STORY_ID = first_story_id()
 
 
 def _make_assistant_reply(turn: int) -> str:
@@ -118,7 +121,7 @@ class ChatFiveTurnScenario(IntegrationScenario):
     @step(kind="action", description="Start new IU game")
     def start_game(self):
         return self._post(
-            "__cmd_newgame__:iu_murder_mystery|M|Chris",
+            f"__cmd_newgame__:{STORY_ID}|M|Chris",
             "Start a new case file.",
         )
 

@@ -53,10 +53,7 @@ class IndexService:
         if not dirs:
             return ''
 
-        # Prefer canonical default if shipped; otherwise first entry for determinism.
-        if '1_iu' in dirs:
-            return '1_iu'
-
+        # First sorted entry (folders use <int>_ prefix for deterministic ordering).
         return dirs[0]
 
 

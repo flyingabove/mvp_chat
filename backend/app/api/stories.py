@@ -18,7 +18,7 @@ async def list_stories():
 
     This endpoint enables the frontend to build a dynamic menu so new
     game modes / characters can be added by dropping in a new story JSON.
-    Stories can be in backend/app/stories/ directly or in subdirectories like backend/app/stories/1_iu/
+    Stories can be in backend/app/stories/ directly or in subdirectories.
     """
     stories_path = _stories_dir()
     out = []
