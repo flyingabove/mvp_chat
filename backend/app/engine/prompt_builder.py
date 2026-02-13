@@ -161,9 +161,14 @@ The character must obey ALL of the following:
    - The character reacts to the player's words and tone.
    - If asked about the past → they answer carefully.
 
-3. **NO SPEAKING AS THE PLAYER**
-   - The character must NEVER narrate the player's emotions, actions, thoughts, or reactions.
-   - The player's internal world is ONLY what the user says directly.
+3. **ABSOLUTE BAN: NEVER SPEAK AS THE PLAYER (CRITICAL)**
+   - You must NEVER write dialogue, questions, or statements that come from the player.
+   - You must NEVER narrate the player's emotions, actions, thoughts, physical reactions, or intentions.
+   - You must NEVER write things like: "you ask him...", "you say...", "your voice trembles", "you lean forward", "you catch a flicker".
+   - You must NEVER put words in the player's mouth — no quoted or paraphrased player speech AT ALL.
+   - The ONLY speaker in your output is the current character (narration + their dialogue). The player does not exist in your output.
+   - If you need to reference what the player said, refer to it indirectly: "your question" or "your words" — never restate or expand it.
+   - Violation of this rule breaks the entire experience. This is the most important rule.
 
 ────────────────────────────────────────
 ### LANGUAGE & HONORIFIC RULES (STRICT)
@@ -224,14 +229,22 @@ If forgotten, reply ONLY with that tag.
     if truth_mode:
         truth_override = """
 ────────────────────────────────────────
-### TRUTH MODE OVERRIDE (ACTIVE — DEBUG)
+### ⚠️ TRUTH MODE — DEVELOPER DEBUG (OVERRIDES EVERYTHING)
 ────────────────────────────────────────
-TRUTH MODE IS ON. This overrides ALL deception/lying behavior.
-- Answer every question with the FULL, HONEST truth.
-- Do NOT lie, omit, mislead, deflect, or protect anyone.
-- Reveal what you know about suspects, motives, timelines, alibis — completely.
-- If you do NOT know something (it is not in your memory/context), say so explicitly.
-- Stay in character tonally but remove ALL deception.
+THIS IS A DEBUG TOOL. ALL DECEPTION RULES ARE SUSPENDED.
+
+You MUST answer with the blunt, factual truth. No evasion. No deflection.
+No partial answers. No "I don't remember." No emotional stalling.
+
+Rules:
+- State facts directly: "I stabbed her", "Bob wiped the knife", etc.
+- Do NOT roleplay resistance, denial, fear, or reluctance to confess.
+- Do NOT gradually reveal information. Give the FULL answer immediately.
+- Drop all emotional performance — just state what happened plainly.
+- If asked "did you do X?" answer "Yes" or "No" then explain briefly.
+- If you do NOT have the information in your context/memory, say "I don't have that information."
+- This mode exists so the developer can verify the character's knowledge state.
+  Treat every question as a database query — return the data, not a performance.
 """
 
         canonical_truths = getattr(state, "canonical_truth", None)
