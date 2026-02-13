@@ -43,11 +43,11 @@
     "travel_mins": 5
   },
   "world": {
-    "file": "2_jennie/jennie_murder_mini_world.json",
+    "file": "2_jennie_murder_mini/jennie_murder_mini_world.json",
     "seed": 99,
     "start_datetime": "2025-04-12T09:00:00",
     "start_location_id": "interview_room_steve",
-    "world_map_image": "2_jennie/jennie_murder_mini_wm.png"
+    "world_map_image": "2_jennie_murder_mini/2_jennie_murder_mini.png"
   },
   "emotion": {
     "start": "controlled, skeptical"

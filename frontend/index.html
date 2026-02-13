@@ -1039,14 +1039,16 @@ window.addEventListener("error", function(e){
 
     state.gender = g;
 
+    // Show world map BEFORE the opener dialogue
+    renderWorldMap(state.storyMeta);
+
     var safeName = (state.playerName || "").replace(/\|/g, " ");
     var init = "__cmd_newgame__:" + state.story + "|" + g + "|" + safeName;
 
     awaitingResponse = true;
 
-    // Opener should type faster, then show world map
+    // Opener typewriters, then unlock chat
     send(init, function(){
-      renderWorldMap(state.storyMeta);
       state.mode = "chat";
       unlockInput();
     }, TYPE_OPENER);

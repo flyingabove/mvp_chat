@@ -1,0 +1,44 @@
+Game Structure (Data Model)
+====================================
+
+Key artifacts per game (one folder per game)
+- Naming: folders use `<integer>_<slug>` and the integer must be unique per game (1, 2, 3, …). If an integer collides, fix the overlap before proceeding.
+
+Knowledge (retrieval inputs)
+- Path: backend\app\knowledge\characters\<id>/
+- knowledge.json: canonical fact source you author. Plain JSON list of facts.
+- chunks.jsonl: derived from knowledge.json; flattened, windowed chunks with metadata for retrieval.
+- Artifacts produced by build pipeline: BM25/FAISS index files alongside chunks.jsonl. These are what the app loads at runtime; knowledge.json itself is authoring-time only.
+
+Story content
+- Path: backend\app\stories\<folder>/ where <folder> = `<int>_<slug>` (e.g., `1_iu_murder_mystery`, `2_jennie_murder_mini`)
+- Story JSON: either `<story_id>.json` or `<story_id>_story.json` (loader tries both).
+  Main narrative/story config (goal, opening text, rules, canonical_truth, knowledge_character_id, world_context).
+- `<story_id>_world.json`: world graph (locations, edges, start_location_id). Descriptions should encode specifics (e.g., "Interview Room A is Steve's room"). When loaded, Location.description carries this text.
+- Map image: `<folder>.png` (convention: folder name = image name). Auto-discovered by _discover_map_image().
+  Also supports explicit path via world.world_map_image field in the story JSON.
+  Served to the frontend via GET /api/story-image/{path}.
+- IMPORTANT: world.file and world.world_map_image paths in story JSON must use the ACTUAL folder name (e.g., "2_jennie_murder_mini/..."), not short aliases.
+
+Frontend/meta
+- index.html fetches /api/stories and uses world_map_image from story meta to render map + location list.
+- version.json bumps to bust cache when assets change.
+
+Loading flow (runtime)
+1) Story selection loads /api/story/<story_id> which:
+   - Loads story JSON and world JSON (via WorldLoader) to expose known_locations and map path.
+   - Discovers map image using world_map_image field or naming conventions.
+2) New game (__cmd_newgame__) loads story JSON, sets knowledge_character_id, and loads world graph. Canonical truths (story.canonical_truth) flow into prompt when truth mode is on.
+3) Retrieval: IndexService activates the character bundle; FAISS/BM25 artifacts (built from chunks.jsonl) are loaded from backend\app\knowledge\runtime.
+
+Instructions for AI to create a game
+1) Pick a unique id/folder `<int>_<slug>` (no integer reuse). Example: `3_newcase`.
+2) Author knowledge.json under backend\app\knowledge\characters\<id>/ with solid, sourced facts. If the person/entity is ambiguous, ask for clarification—do not invent.
+3) Generate chunks.jsonl from knowledge.json (windowed passages). Run the index builder so FAISS/BM25 artifacts exist beside chunks.jsonl.
+4) Create story JSON under backend\app\stories\<folder>/ as `<story_id>_story.json`. Include: goal, opening, rules, canonical_truth (explicit facts), knowledge_character_id, world_context array.
+   Set the world.file path using the actual folder name: "<folder>/<story_id>_world.json".
+5) Create world JSON (<story_id>_world.json) with locations/edges. Ensure descriptions encode ownership details (e.g., "Interview Room A is Steve's room"; "Interview Room B is Bob's room") so Location.description carries them after load.
+6) Produce a coherent map image named `<folder>.png` inside the story folder. Keep scale/layout believable. Auto-discovery will find it by convention.
+7) Verify frontend: story appears in /api/stories, map renders, location list shows descriptions.
+8) Add/extend integration tests to load the story, world, and map; ensure data paths resolve. Run full test suite (python -m pytest).
+9) If anything is unclear, stop and ask for clarification before proceeding.

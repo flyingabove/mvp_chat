@@ -55,11 +55,11 @@
     "travel_mins": 15
   },
   "world": {
-    "file": "1_iu/iu_murder_mystery_world.json",
+    "file": "1_iu_murder_mystery/iu_murder_mystery_world.json",
     "seed": 42,
     "start_datetime": "2025-01-15T09:00:00",
     "start_location_id": "iu_apartment_room",
-    "world_map_image": "1_iu/iu_murder_mystery_wm.png"
+    "world_map_image": "1_iu_murder_mystery/1_iu_murder_mystery.png"
   },
   "emotion": {
     "start": "wary, exhausted"

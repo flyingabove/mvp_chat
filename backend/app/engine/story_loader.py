@@ -5,23 +5,30 @@ import os
 from backend.app.utils.logging_utils import jlog
 
 
+def _story_json_candidates(story_id: str) -> list[str]:
+    """Filenames to try when resolving a story (handles _story suffix convention)."""
+    return [f"{story_id}.json", f"{story_id}_story.json"]
+
+
 def find_story_dir(story_id: str) -> str | None:
     """
-    Return the subdirectory name (e.g. '1_iu') that contains story_id.json,
-    or None if the story lives at the root or is not found.
+    Return the subdirectory name (e.g. '1_iu_murder_mystery') that contains
+    the story JSON for story_id, or None if it lives at root / not found.
     """
     base = os.path.dirname(os.path.dirname(__file__))  # app/
     stories_dir = os.path.join(base, "stories")
 
     # Direct path (root level)
-    if os.path.isfile(os.path.join(stories_dir, f"{story_id}.json")):
-        return None
+    for fname in _story_json_candidates(story_id):
+        if os.path.isfile(os.path.join(stories_dir, fname)):
+            return None
 
     try:
         for d in os.listdir(stories_dir):
             if os.path.isdir(os.path.join(stories_dir, d)) and not d.startswith("__"):
-                if os.path.isfile(os.path.join(stories_dir, d, f"{story_id}.json")):
-                    return d
+                for fname in _story_json_candidates(story_id):
+                    if os.path.isfile(os.path.join(stories_dir, d, fname)):
+                        return d
     except Exception:
         pass
     return None
@@ -29,33 +36,44 @@ def find_story_dir(story_id: str) -> str | None:
 
 def load_story(story_id: str) -> dict:
     """
-    Load a story JSON file by id from app/stories/<story_id>.json or app/stories/<subdirectory>/<story_id>.json,
-    handling BOM and logging basic debug info.
+    Load a story JSON file by id, trying both {story_id}.json and
+    {story_id}_story.json in root and subdirectories.
     """
     base = os.path.dirname(os.path.dirname(__file__))  # app/
     stories_dir = os.path.join(base, "stories")
 
-    # Try direct path first: app/stories/<story_id>.json
-    story_path = os.path.join(stories_dir, f"{story_id}.json")
+    story_path = None
 
-    jlog({"kind": "story_load_attempt", "story_id": story_id, "path": story_path, "exists": os.path.isfile(story_path)})
+    # Try root level first
+    for fname in _story_json_candidates(story_id):
+        candidate = os.path.join(stories_dir, fname)
+        if os.path.isfile(candidate):
+            story_path = candidate
+            break
 
-    # If not found, try subdirectories (e.g., app/stories/1_iu/<story_id>.json)
-    if not os.path.isfile(story_path):
+    jlog({"kind": "story_load_attempt", "story_id": story_id,
+          "path": story_path or os.path.join(stories_dir, f"{story_id}.json"),
+          "exists": story_path is not None})
+
+    # If not found at root, try subdirectories
+    if not story_path:
         try:
             subdirs = [d for d in os.listdir(stories_dir)
                       if os.path.isdir(os.path.join(stories_dir, d)) and not d.startswith("__")]
             for subdir in subdirs:
-                alt_path = os.path.join(stories_dir, subdir, f"{story_id}.json")
-                if os.path.isfile(alt_path):
-                    story_path = alt_path
-                    jlog({"kind": "story_found_in_subdir", "story_id": story_id, "subdir": subdir})
+                for fname in _story_json_candidates(story_id):
+                    alt_path = os.path.join(stories_dir, subdir, fname)
+                    if os.path.isfile(alt_path):
+                        story_path = alt_path
+                        jlog({"kind": "story_found_in_subdir", "story_id": story_id, "subdir": subdir})
+                        break
+                if story_path:
                     break
         except Exception as e:
             jlog({"kind": "story_subdir_scan_error", "story_id": story_id, "error": str(e)})
 
-    if not os.path.isfile(story_path):
-        jlog({"kind": "story_not_found", "story_id": story_id, "path": story_path})
+    if not story_path:
+        jlog({"kind": "story_not_found", "story_id": story_id})
         return {}
 
     try:
