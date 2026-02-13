@@ -73,7 +73,7 @@
       width:340px;
       max-width:90%;
       border-radius:8px;
-      margin:8px 0 12px 0;
+      margin:12px auto 12px auto;
       display:block;
     }
 
@@ -347,11 +347,6 @@ window.addEventListener("error", function(e){
       writeLine("(No map available yet — select a story first.)", "err");
       return;
     }
-    var locs = (meta.known_locations || []);
-    if (locs.length) {
-      var mapLines = locs.map(function(loc){ return loc.name || loc.id; });
-      writeBox("World Map", mapLines.join("\n"));
-    }
     if (meta.world_map_image) {
       var img = document.createElement("img");
       img.className = "map-img";
@@ -364,6 +359,16 @@ window.addEventListener("error", function(e){
       img.src = API_BASE + "/story-image/" + meta.world_map_image;
       term.appendChild(img);
       scrollToBottom(true);
+    }
+
+    var locs = (meta.known_locations || []);
+    if (locs.length) {
+      var mapLines = locs.map(function(loc){
+        var label = loc.name || loc.id;
+        if (loc.description) label += " — " + loc.description;
+        return label;
+      });
+      writeBox("World Map", mapLines.join("\n"));
     }
   }
 

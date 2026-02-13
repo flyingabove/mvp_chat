@@ -11,14 +11,39 @@ router = APIRouter()
 _STORIES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stories")
 
 
-def _discover_map_image(story_id: str) -> str | None:
-    """Auto-discover map image by convention: {folder}/{folder}.png"""
+def _sanitize_path(rel_path: str) -> str | None:
+    """Normalize and reject traversal in map image paths."""
+    if not rel_path:
+        return None
+    safe = os.path.normpath(rel_path)
+    if ".." in safe or safe.startswith(os.sep):
+        return None
+    return safe
+
+
+def _discover_map_image(story_id: str, story_world_cfg: dict | None = None) -> str | None:
+    """Find a map image either from story config or conventional naming."""
+    # First: explicit path from story world config (e.g., world_map_image)
+    world_cfg = story_world_cfg or {}
+    explicit = _sanitize_path(str(world_cfg.get("world_map_image", "")).strip())
+    if explicit:
+        candidate = os.path.join(_STORIES_DIR, explicit)
+        if os.path.isfile(candidate):
+            return explicit
+
+    # Second: conventional naming {folder}/{folder}.png
     subdir = find_story_dir(story_id)
     if not subdir:
         return None
     candidate = os.path.join(_STORIES_DIR, subdir, f"{subdir}.png")
     if os.path.isfile(candidate):
         return f"{subdir}/{subdir}.png"
+
+    # Third: common alternates tied to story_id naming
+    for alt in (f"{story_id}.png", f"{story_id}_wm.png"):
+        candidate = os.path.join(_STORIES_DIR, subdir, alt)
+        if os.path.isfile(candidate):
+            return f"{subdir}/{alt}"
     return None
 
 
@@ -76,7 +101,7 @@ def get_story_meta(story_id: str):
         pass
 
     # Auto-discover map image by convention ({folder}/{folder}.png)
-    world_map_image = _discover_map_image(story_id)
+    world_map_image = _discover_map_image(story_id, world_cfg)
 
     result = {
         "id": story_id,
