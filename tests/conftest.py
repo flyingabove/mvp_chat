@@ -114,6 +114,27 @@ def first_character_id() -> str:
     return dirs[0] if dirs else ""
 
 
+def all_character_ids() -> list[str]:
+    """Return all character directory names from knowledge/characters/ (sorted)."""
+    chars_dir = Path(__file__).parent.parent / "backend" / "app" / "knowledge" / "characters"
+    if not chars_dir.exists():
+        return []
+    return sorted(p.name for p in chars_dir.iterdir() if p.is_dir())
+
+
+def story_knowledge_character_id(story_id: str) -> str:
+    """Return the knowledge_character_id for a given story_id."""
+    for s in _discover_stories():
+        if s["id"] == story_id:
+            return s["config"].get("main_character", {}).get("knowledge_character_id", "")
+    return ""
+
+
+def all_stories() -> list[dict]:
+    """Return all discovered stories."""
+    return _discover_stories()
+
+
 # ---------------------------------------------------------------------------
 # FIXTURES
 # ---------------------------------------------------------------------------

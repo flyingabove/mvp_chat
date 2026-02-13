@@ -12,7 +12,7 @@ def _story_json_candidates(story_id: str) -> list[str]:
 
 def find_story_dir(story_id: str) -> str | None:
     """
-    Return the subdirectory name (e.g. '1_iu_murder_mystery') that contains
+    Return the subdirectory name that contains
     the story JSON for story_id, or None if it lives at root / not found.
     """
     base = os.path.dirname(os.path.dirname(__file__))  # app/

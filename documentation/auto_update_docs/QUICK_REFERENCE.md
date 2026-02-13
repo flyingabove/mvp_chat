@@ -221,7 +221,7 @@ backend/app/knowledge/characters/<character_id>/
 | `FORCE_REBUILD_INDEX` | Force index rebuild (1=yes) | `0` |
 | `DISABLE_INDEX_WARMUP` | Disable startup warmup (1=yes) | `0` |
 | `REQUIRE_INDEXES` | Hard fail if indexes missing (1=yes) | `0` |
-| `CHARACTER_DIRNAME` | Character dir for build_index | `1_iu` |
+| `CHARACTER_DIRNAME` | Character dir for build_index | *(auto-discovered)* |
 
 ---
 
@@ -269,10 +269,10 @@ backend/app/knowledge/characters/<character_id>/
 ### Knowledge Retrieval Flow
 
 ```
-1. retrieve_knowledge("tell me about IU's songs")
-2. IndexService.get("1_iu")
+1. retrieve_knowledge("tell me about the character")
+2. IndexService.get(active_character_id)
    - Check cache → return if exists
-   - Else: load_character_indexes("1_iu")
+   - Else: load_character_indexes(active_character_id)
      * Load chunks.jsonl
      * Load bm25.json → BM25Okapi instance
      * Load faiss.index → FAISS index
@@ -313,7 +313,7 @@ pytest -v tests/
 ### Build Indexes
 
 ```bash
-# Build for character 1_iu
+# Build for first auto-discovered character
 cd backend
 python -m backend.app.knowledge.build.build_index
 
@@ -367,11 +367,11 @@ FORCE_REBUILD_INDEX=1 python -m backend.app.knowledge.build.build_index
 ```python
 # In story JSON:
 "main_character": {
-  "knowledge_character_id": "1_iu"
+  "knowledge_character_id": "<character_dir_name>"
 }
 
 # Or set environment variable:
-KNOWLEDGE_CHARACTER_ID=1_iu
+KNOWLEDGE_CHARACTER_ID=<character_dir_name>
 ```
 
 ### 4. Chinese translation returns English

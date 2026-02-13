@@ -31,7 +31,7 @@ async def list_stories():
     # Root level stories
     story_files.extend(sorted(stories_path.glob("*.json")))
     
-    # Subdirectory stories (e.g., 1_iu/*, 2_other/*, etc.)
+    # Subdirectory stories (e.g., <int>_<slug>/*, etc.)
     for subdir in sorted(stories_path.iterdir()):
         if subdir.is_dir() and not subdir.name.startswith("__"):
             story_files.extend(sorted(subdir.glob("*.json")))

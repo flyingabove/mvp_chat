@@ -1650,11 +1650,11 @@ backend/app/
 ┌─────────────────────────────────────────────────────────────────┐
 │                  BUILD PHASE (Offline, Pre-Deployment)          │
 │                                                                 │
-│  Source: knowledge/characters/1_iu/knowledge.json               │
+│  Source: knowledge/characters/<char_dir>/knowledge.json         │
 │           ↓                                                     │
 │  Manual chunking → chunks.jsonl                                │
 │           ↓                                                     │
-│  build_index.py (CHARACTER_DIRNAME=1_iu)                       │
+│  build_index.py (auto-discovers character dirs)                │
 │           ↓                                                     │
 │  ┌───────────────────────────────────────────────────────────┐ │
 │  │  1. Load chunks.jsonl                                     │ │
@@ -1692,16 +1692,16 @@ backend/app/
 ┌─────────────────────────────────────────────────────────────────┐
 │                  RUNTIME PHASE (Per Request)                    │
 │                                                                 │
-│  User query: "Tell me about IU's songs"                         │
+│  User query: "Tell me about the character"                      │
 │           ↓                                                     │
 │  retrieve_knowledge(query, k_bm25=8, k_faiss=8, k_final=8)     │
 │           ↓                                                     │
 │  ┌───────────────────────────────────────────────────────────┐ │
-│  │  IndexService.get(character_id="1_iu")                    │ │
+│  │  IndexService.get(active_character_id)                    │ │
 │  │           ↓                                                │ │
 │  │  Thread-safe cache lookup                                 │ │
 │  │           ↓                                                │ │
-│  │  Cache miss? → load_character_indexes("1_iu")             │ │
+│  │  Cache miss? → load_character_indexes(character_id)       │ │
 │  │                 • Load chunks.jsonl                        │ │
 │  │                 • Load bm25.json → BM25Okapi instance      │ │
 │  │                 • Load faiss.index → FAISS index           │ │
@@ -1742,10 +1742,10 @@ backend/app/
 │  Retrieved chunks (8):                                         │
 │    [                                                           │
 │      {                                                         │
-│        "chunk_id": "iu_song_01",                               │
-│        "character_id": "1_iu",                                 │
+│        "chunk_id": "char_song_01",                             │
+│        "character_id": "<character_id>",                       │
 │        "type": "discography",                                  │
-│        "text": "Good Day (2010) is IU's breakthrough hit...",  │
+│        "text": "Example song text for character retrieval...", │
 │        "confidence": "high"                                    │
 │      },                                                        │
 │      ...                                                       │

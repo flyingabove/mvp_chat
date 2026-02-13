@@ -2,7 +2,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 import math
 
-out = Path('backend/app/stories/2_jennie/jennie_murder_mini_wm.png')
+out = Path('backend/app/stories/2_jennie_murder_mini/2_jennie_murder_mini.png')
 W, H = 1200, 720
 bg = (14, 16, 24)
 img = Image.new('RGB', (W, H), bg)

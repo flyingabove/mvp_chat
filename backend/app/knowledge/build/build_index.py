@@ -155,7 +155,7 @@ def main(character_dirname: str | None = None) -> None:
     Build knowledge indexes for a given character.
 
     Args:
-        character_dirname: Directory name under knowledge/characters/ (e.g., "1_iu_murder_mystery").
+        character_dirname: Directory name under knowledge/characters/ (auto-discovered if omitted).
                           Defaults to env var CHARACTER_DIRNAME or first discovered directory.
     """
     if character_dirname is None:

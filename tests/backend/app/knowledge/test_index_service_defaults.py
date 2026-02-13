@@ -5,7 +5,7 @@ from backend.app.knowledge.runtime import index_service as isvc
 
 def test_default_picks_first_sorted_entry(monkeypatch):
     """First sorted directory should be chosen as default (deterministic ordering)."""
-    monkeypatch.setattr(isvc.IndexService, "_list_character_dirs", lambda: ["2_beta", "1_alpha", "3_gamma"])
+    monkeypatch.setattr(isvc.IndexService, "_list_character_dirs", lambda: ["1_alpha", "2_beta", "3_gamma"])
     monkeypatch.delenv("KNOWLEDGE_CHARACTER_ID", raising=False)
     isvc.IndexService.reset_for_tests()
     # _list_character_dirs returns sorted, so "1_alpha" is first
