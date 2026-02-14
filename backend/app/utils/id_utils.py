@@ -41,3 +41,19 @@ def build_deterministic_uuid(*, user_id: str = DEFAULT_USER_ID, story_id: str = 
     inst = str(inst_val)
     entity = slug_token(entity_id) or "entity"
     return f"{user}-{story}-{inst}-{entity}"
+
+
+def build_namespace_key(*, user_id: str = DEFAULT_USER_ID, story_id: str = "", instance: int = DEFAULT_INSTANCE) -> str:
+    """Build the `<user>-<story>-<instance>` namespace key used to isolate retrieval.
+
+    All parts are slugged and instance is clamped to >=1.
+    """
+    user = slug_token(user_id) or DEFAULT_USER_ID
+    story = slug_token(story_id) or "unknown_story"
+    try:
+        inst_val = int(instance)
+    except Exception:
+        inst_val = DEFAULT_INSTANCE
+    if inst_val < 1:
+        inst_val = 1
+    return f"{user}-{story}-{inst_val}"

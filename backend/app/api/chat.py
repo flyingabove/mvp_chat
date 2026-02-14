@@ -60,7 +60,7 @@ from backend.app.engine.prompt_builder import (
     build_messages
 
 )
-from backend.app.utils.id_utils import build_deterministic_uuid
+from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace_key
 
 
 router = APIRouter()
@@ -725,7 +725,8 @@ async def chat_handler(data: dict):
         # Route retrieval to the correct character bundle for this story.
         if getattr(state, "knowledge_character_id", ""):
             IndexService.set_active_character(state.knowledge_character_id)
-        retrieved, debug = retrieve_knowledge(msg)
+        namespace = build_namespace_key(user_id=getattr(state, "user_id", ""), story_id=getattr(state, "story", ""), instance=getattr(state, "instance", 1))
+        retrieved, debug = retrieve_knowledge(msg, namespace=namespace)
     except Exception as e:
         _log({"kind": "retrieval_error", "error": str(e)})
         return {"error": "knowledge retrieval failed", "character": "default"}

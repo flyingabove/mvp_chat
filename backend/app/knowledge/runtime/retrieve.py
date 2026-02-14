@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Optional
 
 from backend.app.knowledge.runtime.index_service import IndexService
 
@@ -10,6 +10,7 @@ def retrieve_knowledge(
     k_bm25: int = 8,
     k_faiss: int = 8,
     k_final: int = 8,
+    namespace: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Hybrid BM25 + FAISS retrieval.
@@ -36,22 +37,44 @@ def retrieve_knowledge(
         q_tokens = query.lower().split()
         scores = bm25.get_scores(q_tokens)
 
-        bm25_idxs = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k_bm25]
+        sorted_idxs = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+
+        def _filter_by_namespace(idxs: List[int], limit: int) -> List[int]:
+            out: List[int] = []
+            for i in idxs:
+                if i < 0 or i >= len(chunks):
+                    continue
+                if namespace and (chunks[i].get("namespace") or chunks[i].get("ns")) != namespace:
+                    continue
+                out.append(i)
+                if len(out) >= limit:
+                    break
+            return out
+
+        bm25_idxs = _filter_by_namespace(sorted_idxs, k_bm25)
         bm25_scores = [float(scores[i]) for i in bm25_idxs]
 
         qv = embed_query(query)
-        faiss_idxs, faiss_scores = faiss_search(faiss_index, qv, k=k_faiss)
+        search_k = min(len(chunks), max(k_faiss, k_final, 16))
+        faiss_idxs, faiss_scores = faiss_search(faiss_index, qv, k=search_k)
 
-        fused_idxs = hybrid_retrieve(bm25_idxs, faiss_idxs, top_k=k_final)
+        faiss_filtered = _filter_by_namespace(faiss_idxs, k_faiss)
+        faiss_scores_filtered: List[float] = []
+        for idx, score in zip(faiss_idxs, faiss_scores):
+            if idx in faiss_filtered:
+                faiss_scores_filtered.append(float(score))
+
+        fused_idxs = hybrid_retrieve(bm25_idxs, faiss_filtered, top_k=k_final)
         retrieved_chunks = [chunks[i] for i in fused_idxs if 0 <= i < len(chunks)]
 
         return retrieved_chunks, {
             "bm25_idxs": bm25_idxs,
             "bm25_scores": bm25_scores,
-            "faiss_idxs": faiss_idxs,
-            "faiss_scores": faiss_scores,
+            "faiss_idxs": faiss_filtered,
+            "faiss_scores": faiss_scores_filtered,
             "fused_idxs": fused_idxs,
             "mode": "hybrid",
+            "namespace": namespace,
         }
 
     # Fallback: simple keyword scoring over chunk text.
@@ -73,13 +96,23 @@ def retrieve_knowledge(
     scored = [(i, _score(c.get("text", ""))) for i, c in enumerate(chunks)]
     scored.sort(key=lambda x: x[1], reverse=True)
 
-    top = [i for i, s in scored if s > 0][:k_final]
+    top: List[int] = []
+    for i, s in scored:
+        if s <= 0:
+            continue
+        if namespace and (chunks[i].get("namespace") or chunks[i].get("ns")) != namespace:
+            continue
+        top.append(i)
+        if len(top) >= k_final:
+            break
     if not top:
         # As a last resort, return the first few chunks to avoid empty retrieval.
-        top = list(range(min(k_final, len(chunks))))
+        fallback_idxs = list(range(min(k_final, len(chunks))))
+        top = [i for i in fallback_idxs if not namespace or (chunks[i].get("namespace") or chunks[i].get("ns")) == namespace]
     retrieved_chunks = [chunks[i] for i in top]
 
     return retrieved_chunks, {
         "mode": "fallback",
         "top_idxs": top,
+        "namespace": namespace,
     }

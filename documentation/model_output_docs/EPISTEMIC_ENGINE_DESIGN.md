@@ -1,116 +1,117 @@
-# Epistemic Engine Design (Plain-English Spec)
+# Epistemic Engine Design (Current Design)
 
 ## Purpose
-Build a layered epistemic system that keeps one canonical truth, separates beliefs/observations, preserves a full narrative log, and uses retrieval only for style and recall. The goal is to let the extractor update state safely, keep contradictions survivable, and give the renderer clear guidance on what can be asserted vs what must be hedged.
+Keep one authoritative truth, separate beliefs and observations, preserve a full narrative log, and use retrieval strictly for style/recall. Support many users/sessions by namespacing every entity and index entry so data cannot bleed across `<user>-<story>-<instance>-<entity>`.
 
-## Data Types and Truth Levels (authorities and risk)
-- **Ground truth (validated fact):** observable/validated events, physical state, irreversible flags; authority: highest; hedging: none.
-- **Observed evidence:** player/NPC directly sees/hears something (camera, bruise, shouting); authority: high but time/locale bound; hedging: minimal if timestamped.
-- **Testimony/claim:** spoken statements by a speaker; authority: medium; hedging: "X claims…"; may conflict.
-- **Rumor/inferred:** second-hand or model inference; authority: low; hedging: strong.
-- **Narrative style memory:** phrasing/recall for fluency; authority: lowest; never overwrites higher tiers.
+## Authority Levels (what they mean)
+- **Ground truth (validated fact):** observed/validated physical state and irreversible flags; no hedging.
+- **Observed evidence:** directly seen/heard; high authority but time/locale bound; light hedging with timestamp/location.
+- **Testimony/claim:** spoken statements; medium authority; hedge as "X claims…".
+- **Rumor/inferred:** second-hand or model inference; low authority; strong hedging.
+- **Narrative style memory:** phrasing/recall only; lowest authority; never overwrites higher tiers.
 
-Authority ladder: Ground truth > Observed evidence > Testimony > Rumor/Inferred > Narrative style. Each layer below must never overwrite a higher layer; higher layers may explain or reconcile lower ones.
-Promotion rule: Observed evidence can be promoted to ground truth only after deterministic validation (e.g., evidence registry + chain-of-custody). Inference from model reasoning stays quarantined at low confidence unless independently validated.
+Authority ordering: Ground truth > Observed evidence > Testimony > Rumor/Inferred > Narrative style. Lower tiers cannot overwrite higher tiers. Promotion: Observed evidence can become truth only after deterministic validation (e.g., evidence registry + chain-of-custody).
 
-## Epistemic Layers (jobs, storage, allowed data)
+## Storage and Technology Map
+- **Canonical Truth (structured)**
+  - Stored in memory on `MurderGameState` plus per-story truth graph objects; persisted via backing store (DB or file) keyed by `<user>-<story>-<instance>`.
+  - Not indexed in BM25/FAISS; read via structured APIs.
+- **Beliefs/Observations (structured)**
+  - Belief graphs per character + observation log on `MurderGameState`.
+  - Structured storage only; no BM25/FAISS indexing of raw graphs. Narrative views of claims may be indexed (see retrieval layer).
+- **Narrative Log (text)**
+  - Turn-by-turn transcript stored on `MurderGameState`.
+  - Source for retrieval snippets; also kept in structured history for audit.
+- **Retrieval (BM25 + FAISS)**
+  - Text chunks only (narrative/claims/observations) with provenance labels. Each chunk carries metadata `{user, story, instance, entity_ids, timestamp, type}`.
+  - BM25: per-namespace index (e.g., index name/prefix = `<user>-<story>-<instance>`). Query filters on that namespace.
+  - FAISS: vectors stored with external ids prefixed by `<user>-<story>-<instance>` plus a metadata sidecar to filter before similarity search.
+- **Evidence Registry (structured)**
+  - Structured catalog keyed by deterministic IDs; not put in retrieval.
+- **Quest/Trigger State (structured)**
+  - Structured status flags and conditions; not put in retrieval.
+
+## Identifier and Namespacing Rules
+- Deterministic IDs use `<user>-<story>-<instance>-<entity>`; defaults: `default_user`, story slug, instance `1`.
+- Entities include characters, locations, items, flags, evidence objects.
+- Retrieval docs carry a namespace key `<user>-<story>-<instance>` to isolate users and sessions and to speed filtering. BM25 indexes can be sharded or keyed by this string; FAISS uses the same prefix in vector ids plus metadata filters.
+
+## Layers (jobs, data, storage)
 1) **Canonical World State (Truth Layer)**
-- Holds: ground truth facts, irreversible flags, validated evidence state (exists/destroyed/possessed), authoritative timeline/location relations.
-- Storage: structured state on `MurderGameState` plus per-story truth graph.
-- Allowed data types: Ground truth only (validated facts/irreversible flags). No rumor/testimony here. Observed evidence may be promoted once validated.
-- Updates: only via validated extractor outputs + deterministic rules; never from retrieval or raw testimony.
+- Holds: validated facts, irreversible flags, validated evidence state, authoritative timeline/location relations.
+- Storage: `MurderGameState` fields + truth graph objects; persisted in structured store keyed by namespace.
+- Updates: only via validated extractor outputs and deterministic rules; retrieval never writes here.
 
 2) **Epistemic State (Belief/Observation Layer)**
-- Holds: per-character belief graphs, claims/testimony with provenance, player/NPC observations, confidence scores, contradictions.
-- Storage: belief graph per character + shared observation log on `MurderGameState`.
-- Allowed data types: Testimony/claims, observed evidence (time/location bound), inferred/rumor entries with explicit provenance/confidence. Not authoritative truth.
-- Validation/promotion: Observed evidence can be promoted to truth only after deterministic checks (e.g., evidence registry + chain-of-custody). Model-only inference remains low-confidence and does not promote without external validation.
-- Updates: extractor records exposures; contradictions set contested status; can diverge from truth layer.
+- Holds: per-character belief graphs, claims with provenance, observation log, confidence/contradiction status.
+- Storage: structured on `MurderGameState`; per-character structures keyed by deterministic ids.
+- Updates: extractor records exposures; contradictions set contested status; may diverge from truth.
 
 3) **Narrative Log (Transcript Layer)**
-- Holds: exact turns as spoken/rendered (user + assistant), including stylistic prose.
-- Storage: message log in `MurderGameState`.
-- Allowed data types: Narrative style memory only; no authority. References higher layers but never asserts them implicitly.
-- Purpose: audit trail, forensics, source for retrieval snippets; never a source of truth.
+- Holds: exact turns (user + assistant) with prose.
+- Storage: structured list on `MurderGameState`.
+- Purpose: audit trail, source of retrieval snippets; no authority.
 
 4) **Retrieval Index (Style/Recall Layer)**
-- Holds: labeled snippets of what the player experienced (OBSERVED/TESTIMONY/RUMOR/INFERRED/NARRATION), scene summaries, lore.
-- Storage: retrieval index (BM25/FAISS) keyed by session/story.
-- Allowed data types: Narrative style memory and hedged testimony/rumor labels; must never store or assert ground truth unless marked as validated fact.
-- Purpose: improve phrasing/recall; lowest authority; cannot mutate any other layer.
+- Holds: labeled text snippets (OBSERVED/TESTIMONY/RUMOR/INFERRED/NARRATION), short scene summaries, safe lore.
+- Storage: BM25 corpus + FAISS vectors, both partitioned by namespace `<user>-<story>-<instance>`.
+- Allowed: hedged narrative text only; no raw truth state or registries. Ground truth may be echoed only if explicitly marked validated and still hedged in retrieval prompts.
 
-## Why all four layers
-- Truth layer guards canonical state and prevents narrative/retrieval drift.
-- Belief/observation layer models disagreement, confidence, and provenance without polluting truth.
-- Transcript layer preserves what was said for accountability and for building retrieval snippets.
-- Retrieval layer offers style/recall without authority, keeping prompts lean and hedged.
+## Core Objects (plain English to code)
+- `MurderGameState` ([backend/app/engine/state.py](../../backend/app/engine/state.py)): session container; holds truth graph reference, beliefs, observation log, epistemic log, quest/evidence state, time/location, user/story/instance ids, deterministic UUIDs for characters/locations.
+- `TruthGraph`: authoritative nodes/edges with validation (locations/items/events/flags/relations); confidence defaults to 1.0; provenance "validated".
+- `BeliefGraph`: per-character view mirroring truth shape; holds believed relations + provenance/confidence; can diverge.
+- `ObservationLog`: chronological observations with minute/location/provenance.
+- `EpistemicLog`: normalized claims/observations with pointers into truth/belief graphs for reconciliation.
+- `EvidenceRegistry`: evidence catalog with existence/possession/chain-of-custody.
+- `QuestState`: quest trigger/progress/completion flags tied to truth/belief/observation conditions.
+- `Knowledge/Story config`: story JSON seeds world graph, quests, triggers, and deterministic ids.
 
-## Core Data Structures (Plain English)
-- **TruthGraph** (per story): nodes for characters, locations, items/evidence, events, flags; edges for relations (e.g., saw_at, owns, occurred_at, ordered); attributes for time bounds, confidence (truth defaults to 1.0), provenance (usually "validated").
-- **BeliefGraph** (per character): mirrors truth graph shape but can diverge; stores that character's believed relations, confidence, and provenance (testimony, rumor, inferred).
-- **ObservationLog** (player-facing): chronological list of what the player/NPCs directly observed (e.g., "saw CCTV blinking", "heard Bob claim an alibi"); includes minute, location, provenance.
-- **EpistemicLog**: append-only record of claims/observations with normalized subject/object, confidence, provenance, and pointers into truth/belief graphs for reconciliation.
-- **EvidenceRegistry**: catalog of evidence objects (ids, state: exists/destroyed/hidden, possession, chain-of-custody notes).
-- **QuestState**: trigger status per quest (triggered/progress/completed), with references to conditions in the truth/belief/observation layers.
-- **SessionState (MurderGameState additions)**: references to truth graph, per-character belief graphs, observation log, epistemic log, evidence registry, quest state, plus existing time/location/user/character fields.
-
-## Extractor Outputs (Single Call, Structured)
-- Output object: `ExtractorResult`
-  - `moves`: list of `{destination_id, via: [ids], raw_text}`
-  - `claims`: list of `{speaker: player|npc, content, subject, object, time_ref, location_ref, confidence, provenance: observed|testimony|inferred|rumor}`
-  - `quests`: list of `{id, status: triggered|progress|completed}`
+## Extractor Output (structured input contract)
+- `ExtractorResult`
+  - `moves`: `{destination_id, via: [ids], raw_text}`
+  - `claims`: `{speaker, content, subject, object, time_ref, location_ref, confidence, provenance: observed|testimony|inferred|rumor}`
+  - `quests`: `{id, status: triggered|progress|completed}`
   - `rel_emotion`: `{rel_delta: -1|0|1, emotion}`
-  - `evidence`: list of `{id, action: add|remove, note, confidence, provenance}`
-  - `world_mutations` (optional): list of `{type: add|update|delete, target: location|item|flag, id, fields}` for non-movement state changes
-- Validation expectations:
-  - Location ids must exist in the world graph; unknowns must be flagged (e.g., `unknown_npc_X`).
-  - World mutations must pass graph/state validation and deterministic rules.
-  - Provenance must be present so the renderer can hedge appropriately.
+  - `evidence`: `{id, action: add|remove, note, confidence, provenance}`
+  - `world_mutations` (optional): `{type: add|update|delete, target: location|item|flag, id, fields}`
+- Validation: ids must exist or be flagged (e.g., `unknown_npc_X`); mutations must pass graph rules; provenance required for hedging.
 
-## Update Flow (Per Turn)
-1) **Advance time**: apply time cost; sync world clock if graph active.
-2) **Extractor call** (structured only): returns `ExtractorResult`.
-3) **Validate**: check ids, world rules, quest conditions; drop/flag invalid items.
-4) **Apply to layers**:
-   - Truth graph/state: apply validated world_mutations, movements, evidence state changes, irreversible flags.
-   - Belief graphs: add claims/beliefs per speaker with provenance and confidence.
-   - Observation log: add observations and any player-visible events.
-   - Epistemic log: append normalized claims/observations with time/location.
-   - Quest state: update from quest results.
-   - Relationship/emotion: apply rel_delta/emotion updates.
-5) **Prompt build**: construct narrative prompt with a concise "What the world knows" block drawn from truth (player-visible slice) + contested/claimed items with provenance labels.
-6) **Narrative call**: renderer produces prose; may hedge based on provenance; must not invent state.
-7) **Log**: append to narrative log; do not feed back into truth without extractor validation.
+## Per-Turn Flow (apply and render)
+1) Advance time (state minute) and sync world clock.
+2) Call extractor (structured JSON only) to get `ExtractorResult`.
+3) Validate ids/rules/quests; drop or flag invalid entries.
+4) Apply to layers:
+- Truth: apply validated world_mutations, movements, evidence state, irreversible flags.
+- Beliefs: add claims/beliefs per speaker with provenance/confidence.
+- Observation log: append observations and player-visible events.
+- Epistemic log: append normalized claims/observations with time/location.
+- Quest state: update from quest results.
+- Relationship/emotion: apply rel_delta/emotion updates.
+5) Build prompt: concise "What the world knows" from truth (player-visible slice) + contested/claimed items with provenance labels.
+6) Narrative call: renderer produces prose; hedges based on provenance; does not invent state.
+7) Log: append to narrative log; produce retrieval chunks (labeled) for BM25/FAISS with namespace metadata.
 
-## Class Descriptions (Plain English)
-- `TruthGraph`: authoritative map of world entities and facts; APIs to get/set nodes/edges with validation; backs canonical world state.
-- `BeliefGraph`: per-character view; APIs to record a belief/claim with provenance and confidence; can diverge from `TruthGraph`.
-- `ObservationLog`: ordered records of what was seen/heard; each entry has minute, location, description, provenance.
-- `EpistemicLog`: normalized stream of claims/observations for auditing and prompt inclusion; links to truth/belief entries when reconciled.
-- `EvidenceRegistry`: tracks evidence objects, state (exists/destroyed/hidden), possession, and notes; used by both truth and belief layers for consistency checks.
-- `QuestState`: holds quest trigger/completion statuses and links to conditions; updates from extractor `quests` outputs.
-- `ExtractorResult`: structured container for extractor outputs (as above); produced by `EpistemicExtractor`.
-- `EpistemicExtractor`: orchestrates the single pre-narrative LLM call; builds prompts with world graph ids, knowledge snippets, and recent context; enforces JSON schema.
-- `StateUpdater`: deterministic applier that consumes `ExtractorResult` and updates truth/belief/observation/evidence/quest state safely.
-- `PromptBuilder` (extended): pulls from truth (player-visible slice), belief/claims with provenance, and observation log to produce a "What the world knows" section; tags retrieved snippets by type.
+## Retrieval Rules (BM25/FAISS)
+- Index only player-visible, hedged text (observations, claims, narration, summaries). Each chunk carries `{namespace, type, time, location_id, character_ids, confidence, provenance}`.
+- Namespace key = `<user>-<story>-<instance>`; use it to shard BM25 indexes or as a filter prefix before FAISS similarity search.
+- Do not index raw truth graph or registries; keep them structured-only.
+- Retrieval is read-only; it never mutates truth/belief/observation state.
 
-## Precedence & Rendering Rules
-- Precedence: Truth > Belief/Observation > Narrative Log > Retrieval.
-- Retrieval must be labeled; it never overwrites truth. If it conflicts, treat it as testimony/rumor in the prompt.
-- Renderer assertion rule: assert hard facts only if they are in player-visible truth or direct observations; otherwise hedge ("Bob claimed…", "You heard…").
+## Isolation and Scale
+- Deterministic UUIDs ensure stable joins across layers: `<user>-<story>-<instance>-<entity>`.
+- Default namespace is `default_user-<story>-1` for single-user scenarios; multi-user uses real user id.
+- BM25: separate corpus per namespace (fast filtering) or a shared corpus with namespace field filter.
+- FAISS: store vector ids with namespace prefix and maintain a sidecar mapping for filtering before distance computation.
 
-## Story JSON Extensions (for triggers)
-- Add optional sections for `quests` (id, conditions, rewards), `triggers` (natural-language or structured conditions tied to world/epistemic facts), and `knowledge_graph` seeds (nodes/edges/flags).
-- IU mini-game path: first encode triggers and graph for the IU integration test story; once stable, port patterns into main stories.
-
-## Edge Handling (kept concise)
-- Unknown NPCs: create `unknown_npc_X` with low confidence; do not merge into canonical characters without confirmation.
-- Contradictions: mark conflicts in belief/epistemic logs; do not auto-resolve unless deterministic evidence exists.
-- Missing locations: drop move mutations but keep the claim as intent with a note.
-- Translation/debug/map modes: extractor/narrative must preserve [[STATE]] and remain language-agnostic.
+## Edge Handling
+- Unknown NPCs: create `unknown_npc_X` with low confidence; keep separate from validated characters.
+- Contradictions: mark contested in beliefs/epistemic log; do not auto-resolve without evidence.
+- Missing locations: drop move mutations but keep intent noted.
+- Translation/debug/map modes: preserve [[STATE]] tags and remain language-agnostic.
 
 ## Success Criteria
 - Canonical truth never overwritten by retrieval or narrative.
-- Extractor outputs are validated, typed, and applied deterministically.
-- Renderer sees a clear, labeled summary of facts vs claims vs rumors and hedges appropriately.
-- IU mini-game triggers and epistemic flows pass the integration test (5-turn scenario) with correct logs and conflicts recorded.
+- Extractor outputs stay structured, validated, and deterministic.
+- Renderer receives labeled facts vs claims vs rumors and hedges correctly.
+- Retrieval stays namespaced, read-only, and free of authority bleed across users/sessions.

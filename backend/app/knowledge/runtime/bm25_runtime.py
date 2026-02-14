@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Optional
 
 try:
     from backend.app.knowledge.build.bm25_utils import BM25_SCHEMA
@@ -63,7 +63,26 @@ def load_bm25(path: Path) -> Tuple[Any, list]:
     return bm25, chunks
 
 
-def search_bm25(bm25: Any, chunks: list, query: str, k: int = 5) -> List[dict]:
+def _matches_namespace(chunk: dict, namespace: Optional[str]) -> bool:
+    if not namespace:
+        return True
+    return (chunk.get("namespace") or chunk.get("ns")) == namespace
+
+
+def _take_top_by_namespace(sorted_indices: List[int], chunks: list, namespace: Optional[str], limit: int) -> List[int]:
+    out: List[int] = []
+    for idx in sorted_indices:
+        if idx < 0 or idx >= len(chunks):
+            continue
+        if not _matches_namespace(chunks[idx], namespace):
+            continue
+        out.append(idx)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def search_bm25(bm25: Any, chunks: list, query: str, k: int = 5, namespace: Optional[str] = None) -> List[dict]:
     if not query:
         return []
 
@@ -73,7 +92,8 @@ def search_bm25(bm25: Any, chunks: list, query: str, k: int = 5) -> List[dict]:
     if len(scores) != len(chunks):
         raise RuntimeError(f"BM25 runtime invariant violated: {len(scores)} scores vs {len(chunks)} chunks")
 
-    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
+    sorted_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    top_indices = _take_top_by_namespace(sorted_indices, chunks, namespace, k)
     return [chunks[i] for i in top_indices]
 
 

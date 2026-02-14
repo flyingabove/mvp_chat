@@ -66,7 +66,11 @@ class ChatFiveTurnScenario(IntegrationScenario):
         os.environ["SKIP_KNOWLEDGE_INDEX_BUILD"] = "1"
 
         # Patch retrieval
-        p1 = patch.object(chat_module, "retrieve_knowledge", lambda msg: ([], {"mocked": True}))
+        p1 = patch.object(
+            chat_module,
+            "retrieve_knowledge",
+            lambda msg, namespace=None, **_: ([], {"mocked": True, "namespace": namespace}),
+        )
         p1.start()
         ctx.patchers.append(p1)
 

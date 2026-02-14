@@ -12,14 +12,21 @@ def test_bm25_runtime_load_and_search(tmp_path):
     payload = {
         "schema": BM25_SCHEMA,
         "corpus_tokens": [["iu", "love"], ["random"]],
-        "chunks": [{"chunk_id": "a"}, {"chunk_id": "b"}],
+        "chunks": [
+            {"chunk_id": "a", "namespace": "ns-1"},
+            {"chunk_id": "b", "namespace": "ns-2"},
+        ],
     }
     p = tmp_path / "bm25.json"
     p.write_text(json.dumps(payload), encoding="utf-8")
 
     bm25, chunks = load_bm25(p)
-    results = search_bm25(bm25, chunks, "iu love", k=1)
+    results = search_bm25(bm25, chunks, "iu love", k=1, namespace="ns-1")
     assert results[0]["chunk_id"] == "a"
+
+    # namespace filter excludes other entries
+    results_other = search_bm25(bm25, chunks, "random", k=1, namespace="ns-1")
+    assert all(r["namespace"] == "ns-1" for r in results_other)
 
 
 def test_faiss_runtime_load_and_search(tmp_path):
@@ -36,13 +43,16 @@ def test_faiss_runtime_load_and_search(tmp_path):
 
     faiss.write_index(index, str(idx_path))
 
-    meta = [{"chunk_id": "x"}, {"chunk_id": "y"}]
+    meta = [{"chunk_id": "x", "namespace": "ns-1"}, {"chunk_id": "y", "namespace": "ns-2"}]
     meta_path = tmp_path / "meta.json"
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
 
     loaded, loaded_meta = load_faiss_index(idx_path, meta_path)
-    res = search_faiss(loaded, loaded_meta, [1.0, 0.0], k=1)
+    res = search_faiss(loaded, loaded_meta, [1.0, 0.0], k=1, namespace="ns-1")
     assert res[0]["chunk_id"] == "x"
+
+    res_filtered_out = search_faiss(loaded, loaded_meta, [1.0, 0.0], k=1, namespace="ns-unknown")
+    assert res_filtered_out == []
 
 
 def test_load_character_indexes_raises_when_artifacts_missing(monkeypatch, tmp_path):
