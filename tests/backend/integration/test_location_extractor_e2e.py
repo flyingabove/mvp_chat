@@ -1,9 +1,9 @@
 """Playback scenario for LocationExtractor real OpenAI calls."""
 
-import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
+from backend.app.config.credentials import get_openai_api_key
 from backend.app.engine.extractors.location_extractor import LocationExtractor, LocationIntent
 from backend.app.integration_playback.scenario import IntegrationScenario, step
 
@@ -56,7 +56,7 @@ class LocationExtractorScenario(IntegrationScenario):
             {"text": "IU mentions her time at EDAM with nostalgia when discussing career changes"},
         ]
         self.state = ctx
-        if not os.getenv("OPENAI_API_KEY"):
+        if not get_openai_api_key():
             raise RuntimeError("OPENAI_API_KEY is required for playback")
         return {
             "reply": "*Spinning up the LocationExtractor with a small, easy-to-reason-about world graph.*",

@@ -1,9 +1,10 @@
 # app/config.py
 from __future__ import annotations
-import os
+
+from backend.app.config.credentials import get_openai_api_key
 
 # --- OpenAI / model config ---
-OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_API_KEY: str = get_openai_api_key()
 OPENAI_MODEL: str = "gpt-4o-mini"
 
 MAX_TOKENS: int = 512

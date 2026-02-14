@@ -123,37 +123,9 @@ class IntegrationScenario(ABC):
     # -- Env helpers --
     @staticmethod
     def _ensure_openai_api_key() -> str | None:
-        """Prefer OPENAI_API_KEY env; if missing, attempt to load .env.test once.
-
-        This mirrors test runner expectations for Railway/CI (env var first) and
-        local dev (fallback to .env.test if present). The method is intentionally
-        lightweight and side-effect free if the key already exists.
-        """
-        import os
-        from pathlib import Path
-
-        key = os.environ.get("OPENAI_API_KEY")
-        if key:
-            return key
-
-        env_path = Path(__file__).resolve().parents[3] / ".env.test"
-        if env_path.exists():
-            try:
-                for line in env_path.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" not in line:
-                        continue
-                    k, _, v = line.partition("=")
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    if k and k not in os.environ:
-                        os.environ[k] = v
-                return os.environ.get("OPENAI_API_KEY")
-            except Exception:
-                return None
-        return None
+        """Return OPENAI_API_KEY using centralized credential loading."""
+        from backend.app.config.credentials import get_openai_api_key
+        return get_openai_api_key() or None
 
     # -- Auto-registration on subclass creation --
     def __init_subclass__(cls, **kwargs: Any) -> None:

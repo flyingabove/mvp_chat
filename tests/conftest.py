@@ -26,38 +26,12 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# AUTO-LOAD .env.test IF IT EXISTS
+# CREDENTIAL LOADING (centralized in backend.app.config.credentials)
 # ---------------------------------------------------------------------------
-def _load_env_test():
-    """Load .env.test file if it exists (for local development)."""
-    env_test_path = Path(__file__).parent.parent / ".env.test"
+from backend.app.config.credentials import get_openai_api_key, _load_env_test_once
 
-    if not env_test_path.exists():
-        return
-
-    # Simple .env parser (no external dependency required)
-    with open(env_test_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            # Skip comments and empty lines
-            if not line or line.startswith("#"):
-                continue
-            # Parse KEY=VALUE
-            if "=" in line:
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip()
-                # Remove surrounding quotes if present
-                if (value.startswith('"') and value.endswith('"')) or \
-                   (value.startswith("'") and value.endswith("'")):
-                    value = value[1:-1]
-                # Only set if not already in environment (don't override CI secrets)
-                if key and key not in os.environ:
-                    os.environ[key] = value
-
-
-# Load on import
-_load_env_test()
+# Load .env.test on import (env vars always take priority over .env.test)
+_load_env_test_once()
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +118,7 @@ def openai_api_key() -> str | None:
 
     Returns None if not set (use with pytest.mark.skipif or require_api_key fixture).
     """
-    return os.environ.get("OPENAI_API_KEY") or None
+    return get_openai_api_key() or None
 
 
 @pytest.fixture
