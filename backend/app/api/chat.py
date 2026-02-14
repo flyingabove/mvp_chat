@@ -412,6 +412,14 @@ async def chat_handler(data: dict):
         result = {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
         if map_image:
             result["world_map_image"] = map_image
+            try:
+                from PIL import Image as _PILImage
+                import os as _os
+                _stories_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "stories")
+                with _PILImage.open(_os.path.join(_stories_dir, map_image)) as _im:
+                    result["world_map_image_size"] = {"w": _im.width, "h": _im.height}
+            except Exception:
+                pass
         return result
 
     # TRUTH TOGGLE - Force character to answer honestly (debug tool)

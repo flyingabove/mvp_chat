@@ -70,12 +70,44 @@
     }
 
     .map-img {
-      width:340px;
+      width:850px;
       max-width:90%;
       border-radius:8px;
       margin:12px auto 12px auto;
       display:block;
+      cursor:pointer;
     }
+
+    /* Fullscreen map lightbox */
+    #mapLightbox {
+      display:none; position:fixed;
+      top:0; left:0; right:0; bottom:0;
+      z-index:10; background:rgba(0,0,0,0.92);
+      align-items:center; justify-content:center;
+      padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0)
+              env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);
+      cursor:zoom-out;
+    }
+    #mapLightbox.open { display:flex; }
+    #mapLightbox img {
+      max-width:96vw; max-height:92vh;
+      border-radius:8px;
+      object-fit:contain;
+      cursor:default;
+    }
+    #mapLightboxClose {
+      position:absolute;
+      top:calc(16px + env(safe-area-inset-top,0));
+      right:calc(16px + env(safe-area-inset-right,0));
+      width:44px; height:44px;
+      background:rgba(255,255,255,0.12);
+      border:1px solid rgba(255,255,255,0.25);
+      border-radius:50%; color:#fff;
+      font-size:22px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      -webkit-tap-highlight-color:transparent;
+    }
+    #mapLightboxClose:hover { background:rgba(255,255,255,0.25); }
 
     #inputline { position:relative; }
     #cursor {
@@ -131,6 +163,11 @@
 <div id="term" aria-label="terminal" role="region"></div>
 <input id="ime" type="text" inputmode="text"
        autocapitalize="off" autocorrect="off" spellcheck="false" />
+
+<div id="mapLightbox">
+  <button id="mapLightboxClose">&times;</button>
+  <img id="mapLightboxImg" alt="World Map (fullscreen)">
+</div>
 
 <div id="toolbar">
   <div id="ghostInput" aria-live="polite"></div>
@@ -342,6 +379,26 @@ window.addEventListener("error", function(e){
   var MAP_CMD_RE = /^\[m\]$|^\(m\)$|^\[map\]$|^\(map\)$/i;
   var EXIT_CMD_RE = /^\s*(?:e|exit|\[e\]|\(e\)|\[exit\]|\(exit\))\s*$/i;
 
+  /* ---- map lightbox ---- */
+  function openMapLightbox(src){
+    var lb = document.getElementById("mapLightbox");
+    document.getElementById("mapLightboxImg").src = src;
+    lb.classList.add("open");
+  }
+  function closeMapLightbox(){
+    document.getElementById("mapLightbox").classList.remove("open");
+  }
+  document.getElementById("mapLightboxClose").onclick = closeMapLightbox;
+  document.getElementById("mapLightbox").onclick = function(e){
+    if (e.target === this) closeMapLightbox();
+  };
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && document.getElementById("mapLightbox").classList.contains("open")) {
+      closeMapLightbox();
+      e.preventDefault();
+    }
+  });
+
   function renderWorldMap(meta){
     if (!meta) {
       writeLine("(No map available yet — select a story first.)", "err");
@@ -357,6 +414,7 @@ window.addEventListener("error", function(e){
         writeLine("(Map image failed to load: " + meta.world_map_image + ")", "err");
       };
       img.src = API_BASE + "/story-image/" + meta.world_map_image;
+      img.onclick = function(){ openMapLightbox(img.src); };
       term.appendChild(img);
       scrollToBottom(true);
     }

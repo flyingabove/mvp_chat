@@ -122,4 +122,10 @@ def get_story_meta(story_id: str):
     }
     if world_map_image:
         result["world_map_image"] = world_map_image
+        try:
+            from PIL import Image
+            with Image.open(os.path.join(_STORIES_DIR, world_map_image)) as im:
+                result["world_map_image_size"] = {"w": im.width, "h": im.height}
+        except Exception:
+            pass
     return result
