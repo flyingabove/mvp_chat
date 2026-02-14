@@ -132,6 +132,74 @@ def _is_truth_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in TRUTH_TOGGLE_TOKENS
 
 
+def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
+    """Heuristic location matcher for world-graph travel.
+
+    The LLM-based extractor can miss natural phrasing like "i got to room b".
+    This fallback checks for a movement verb plus a known location name/id.
+    Returns a destination_id or "" if no confident match.
+    """
+
+    text = (msg or "").strip().lower()
+    if not text:
+        return ""
+
+    verbs = ("go", "got", "move", "head", "walk", "switch", "return", "back", "enter", "step", "run")
+    if not any(re.search(rf"\b{v}\b", text) for v in verbs):
+        return ""
+
+    try:
+        locations = getattr(runtime, "world_graph", None).locations if runtime else {}
+    except Exception:
+        locations = {}
+
+    for loc_id, loc in (locations or {}).items():
+        name = (getattr(loc, "name", "") or "").lower()
+        tokens = [name, loc_id.replace("_", " ").lower(), str(loc_id).lower()]
+        if any(tok and tok in text for tok in tokens):
+            if loc_id == current_location_id:
+                return ""  # already there; do nothing
+            return loc_id
+
+    return ""
+
+
+def _debug_speakers(state: MurderGameState) -> list[str]:
+    """Collect speaker names for debug box with location-aware mapping."""
+
+    speakers: list[str] = []
+
+    cfg = getattr(state, "story_cfg", {}) or {}
+    world_cfg = cfg.get("world", {}) or {}
+    loc_speakers = world_cfg.get("location_speakers") or {}
+
+    runtime = getattr(state, "world_runtime", None)
+    loc_id = getattr(state, "location_id", "")
+
+    if runtime is not None and loc_id:
+        try:
+            mapping = loc_speakers.get(loc_id)
+            if isinstance(mapping, str) and mapping.strip():
+                speakers.append(mapping.strip())
+            elif isinstance(mapping, (list, tuple)):
+                speakers.extend([str(x).strip() for x in mapping if str(x).strip()])
+        except Exception:
+            pass
+
+    # Fallback to the characters dictionary if no location-specific mapping exists.
+    if not speakers:
+        chars = list((getattr(state, "characters", {}) or {}).values())
+        for c in chars:
+            try:
+                name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
+            except Exception:
+                name = "(unnamed)"
+            if name:
+                speakers.append(name)
+
+    return [s for s in speakers if s]
+
+
 def _box(title: str, lines: list[str]) -> str:
     """Render a simple pretty ASCII box."""
     title = (title or "").strip()
@@ -593,6 +661,7 @@ async def chat_handler(data: dict):
     # LocationExtractor receives knowledge_chunks to disambiguate implicit location references
     # using LLM calls. Example: "old workplace" → FAISS chunks mention EDAM → LLM extracts EDAM_ID
     runtime = getattr(state, "world_runtime", None)
+    extraction_applied = False
     if runtime is not None and getattr(state, "location_id", ""):
         try:
             _log({
@@ -620,6 +689,7 @@ async def chat_handler(data: dict):
                 if extraction.destination_id in runtime.world_graph.locations:
                     original_msg = msg
                     msg = f"go to {extraction.destination_id}"
+                    extraction_applied = True
                     _log({
                         "kind": "location_extraction_applied",
                         "original_msg": original_msg,
@@ -638,6 +708,20 @@ async def chat_handler(data: dict):
                 "error": str(e),
                 "user_msg": msg,
             })
+
+        # Heuristic fallback when the classifier misses obvious movement phrasing
+        if not extraction_applied:
+            dest = _match_world_destination(msg, runtime, getattr(state, "location_id", ""))
+            if dest:
+                original_msg = msg
+                msg = f"go to {dest}"
+                extraction_applied = True
+                _log({
+                    "kind": "location_extraction_heuristic_applied",
+                    "original_msg": original_msg,
+                    "canonicalized_msg": msg,
+                    "destination_id": dest,
+                })
     else:
         if runtime is None:
             _log({"kind": "location_extraction_skipped", "reason": "no_world_runtime"})
@@ -726,15 +810,7 @@ async def chat_handler(data: dict):
     debug_box = None
     if bool(sess.get("debug_mode", False)):
         user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
-        chars = list((getattr(state, "characters", {}) or {}).values())
-
-        speakers: list[str] = []
-        for c in chars:
-            try:
-                name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
-            except Exception:
-                name = "(unnamed)"
-            speakers.append(name)
+        speakers = _debug_speakers(state)
 
         debug_box = {
             "timestamp": ts,

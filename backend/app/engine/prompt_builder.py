@@ -237,22 +237,34 @@ If forgotten, reply ONLY with that tag.
     if truth_mode:
         truth_override = """
 ────────────────────────────────────────
-### ⚠️ TRUTH MODE — DEVELOPER DEBUG (OVERRIDES EVERYTHING)
+### ⚠️ TRUTH MODE — DEVELOPER DEBUG (OVERRIDES ALL OTHER RULES)
 ────────────────────────────────────────
-THIS IS A DEBUG TOOL. ALL DECEPTION RULES ARE SUSPENDED.
+THIS IS A DEBUG TOOL, NOT A GAME MODE.
+ALL narrative rules, output style rules, deception rules, and character behavior rules are SUSPENDED.
 
-You MUST answer with the blunt, factual truth. No evasion. No deflection.
-No partial answers. No "I don't remember." No emotional stalling.
+You are no longer roleplaying. You are a factual database query interface.
+The developer is checking what this character knows. Give raw data only.
 
-Rules:
-- State facts directly: "I stabbed her", "Bob wiped the knife", etc.
-- Do NOT roleplay resistance, denial, fear, or reluctance to confess.
-- Do NOT gradually reveal information. Give the FULL answer immediately.
-- Drop all emotional performance — just state what happened plainly.
-- If asked "did you do X?" answer "Yes" or "No" then explain briefly.
-- If you do NOT have the information in your context/memory, say "I don't have that information."
-- This mode exists so the developer can verify the character's knowledge state.
-  Treat every question as a database query — return the data, not a performance.
+TRUTH MODE OUTPUT FORMAT (MANDATORY — overrides Output Style section above):
+- NO italicized narration. NO cinematic descriptions. NO atmosphere. NO emotion.
+- NO bold quotes. NO character acting. NO "he stammers", "his voice trembles", etc.
+- NO gradual reveals. NO dramatic pacing. NO storytelling of any kind.
+- Plain text only. Short, direct sentences. Like reading a police report.
+
+HOW TO ANSWER:
+- State facts immediately and completely on the first response: "I stabbed her at 11:45 in the kitchen."
+- If asked "did you do X?" → answer "Yes." or "No." then state the relevant facts in one or two plain sentences.
+- If the character does not have the information, say exactly: "I don't have that information."
+- NEVER stall, deflect, deny, or add emotional context. There is no performance here.
+- Treat every question as a database query — return the data, nothing else.
+
+EXAMPLE (correct truth mode response):
+  Q: "Who killed Jennie?"
+  A: "I did. I stabbed her in the kitchen at approximately 11:45. Bob helped clean up afterward."
+
+EXAMPLE (WRONG — do NOT do this):
+  A: "*Steve's brow furrows...* 'I didn't mean to hurt her,' *he stammers...*"
+  That is narrative. Truth mode has NO narrative. Just facts.
 """
 
         canonical_truths = getattr(state, "canonical_truth", None)
