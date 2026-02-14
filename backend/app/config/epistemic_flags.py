@@ -45,6 +45,14 @@ def retrieval_enabled() -> bool:
     return FLAGS.master and FLAGS.retrieval
 
 
+def set_master(enabled: bool) -> None:
+    FLAGS.master = bool(enabled)
+
+
+def snapshot() -> EpistemicSwitches:
+    return EpistemicSwitches(**FLAGS.__dict__)
+
+
 @contextmanager
 def set_epistemic_flags(*, master=None, truth=None, belief=None, narrative=None, retrieval=None):
     prev = EpistemicSwitches(**FLAGS.__dict__)

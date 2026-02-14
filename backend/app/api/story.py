@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from backend.app.engine.story_loader import load_story, find_story_dir
 from backend.app.engine.world.world_loader import WorldLoader
+from backend.app.config.settings import DEFAULT_USER_ID, DEFAULT_INSTANCE
 
 router = APIRouter()
 
@@ -80,13 +81,29 @@ def get_story_meta(story_id: str):
     world_cfg = story.get("world", {}) or {}
     seed = int(world_cfg.get("seed", 0))
     world_file = str(world_cfg.get("file", "")).strip()
+    try:
+        instance = int(story.get("instance", DEFAULT_INSTANCE))
+    except Exception:
+        instance = DEFAULT_INSTANCE
 
     try:
         if world_file:
-            loaded = WorldLoader.load_from_file(f"backend/app/stories/{world_file}", seed=seed)
+            loaded = WorldLoader.load_from_file(
+                f"backend/app/stories/{world_file}",
+                seed=seed,
+                user_id=DEFAULT_USER_ID,
+                story_id=story_id,
+                instance=instance,
+            )
         else:
             # Try auto-loading from story_id
-            loaded = WorldLoader.try_load_story_world(story_id, stories_dir="backend/app/stories", seed=seed)
+            loaded = WorldLoader.try_load_story_world(
+                story_id,
+                stories_dir="backend/app/stories",
+                seed=seed,
+                user_id=DEFAULT_USER_ID,
+                instance=instance,
+            )
 
         if loaded and loaded.world_graph:
             for loc_id, loc in loaded.world_graph.locations.items():
@@ -94,7 +111,8 @@ def get_story_meta(story_id: str):
                     "id": loc_id,
                     "name": getattr(loc, "name", ""),
                     "description": getattr(loc, "description", ""),
-                    "tags": getattr(loc, "tags", [])
+                    "tags": getattr(loc, "tags", []),
+                    "uuid": getattr(loc, "uuid", ""),
                 })
     except Exception:
         # Silently fail if world loading fails

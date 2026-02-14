@@ -9,6 +9,8 @@ from backend.app.config.settings import (
     EMOTION_START,
     REL_MIN,
     REL_MAX,
+    DEFAULT_USER_ID,
+    DEFAULT_INSTANCE,
 )
 
 from backend.app.engine.epistemic_state import (
@@ -73,6 +75,7 @@ class CharacterState:
     role: str = ""
     emotion: str = EMOTION_START
     relationship: int = REL_START
+    uuid: str = ""
 
 
 # ======================================================================
@@ -93,6 +96,8 @@ class MurderGameState:
     # keeping explicit counter for clarity and "first turn" detection.
     # ==============================================================
     story: Optional[str] = None
+    user_id: str = DEFAULT_USER_ID
+    instance: int = DEFAULT_INSTANCE
     gender: Optional[str] = None
     turns: int = 0
     over: bool = False
@@ -146,9 +151,12 @@ class MurderGameState:
     # ==============================================================
     world_runtime: Optional[object] = None
     location_id: str = ""
+    location_uuid: str = ""
     world_start_datetime: str = ""
     last_travel_from_id: str = ""
     last_travel_to_id: str = ""
+    last_travel_from_uuid: str = ""
+    last_travel_to_uuid: str = ""
     last_travel_exposure: Optional[object] = None
 
     # ==============================================================

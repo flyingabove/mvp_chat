@@ -25,9 +25,11 @@ from backend.app.config.settings import (
 
     OPENAI_API_KEY, OPENAI_MODEL,
 
-    TEMPERATURE, MAX_TOKENS, MEMORY_TURNS
+    TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
+    DEFAULT_USER_ID, DEFAULT_INSTANCE,
 
 )
+from backend.app.config.epistemic_flags import set_epistemic_flags, set_master
 
 
 from backend.app.engine.state import (
@@ -58,6 +60,7 @@ from backend.app.engine.prompt_builder import (
     build_messages
 
 )
+from backend.app.utils.id_utils import build_deterministic_uuid
 
 
 router = APIRouter()
@@ -130,6 +133,18 @@ TRUTH_TOGGLE_TOKENS = {
 
 def _is_truth_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in TRUTH_TOGGLE_TOKENS
+
+
+EPISTEMIC_TOGGLE_TOKENS = {
+    "[ES]",
+    "(ES)",
+    "[EPISTEMICSTATE]",
+    "(EPISTEMICSTATE)",
+}
+
+
+def _is_epistemic_toggle(msg: str) -> bool:
+    return (msg or "").strip().upper() in EPISTEMIC_TOGGLE_TOKENS
 
 
 def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
@@ -298,6 +313,7 @@ def get_session(session_id: str):
             "log": [],
             "debug_mode": False,
             "chinese_mode": False,
+            "epistemic_state": True,
             "truth_mode": False,
         }
     return SESSIONS[session_id]
@@ -407,6 +423,9 @@ async def chat_handler(data: dict):
     state: MurderGameState = sess["state"]
     log = sess["log"]
 
+    # Sync epistemic master flag to this session's toggle.
+    set_master(bool(sess.get("epistemic_state", True)))
+
     # DEBUG TOGGLE must be checked FIRST before any LLM calls
     if _is_debug_toggle(msg):
         currently_on = bool(sess.get("debug_mode", False))
@@ -513,6 +532,31 @@ async def chat_handler(data: dict):
 
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
+    # EPISTEMIC STATE TOGGLE - Enable/disable epistemic layers for this session
+    if _is_epistemic_toggle(msg):
+        new_state = not bool(sess.get("epistemic_state", True))
+        sess["epistemic_state"] = new_state
+        set_master(new_state)
+
+        if new_state:
+            notice = _box(
+                "EPISTEMIC STATE ON",
+                [
+                    "Type [ES] to turn off",
+                    "Epistemic truth/belief layers are active.",
+                ],
+            )
+        else:
+            notice = _box(
+                "EPISTEMIC STATE OFF",
+                [
+                    "Type [ES] to turn on",
+                    "Epistemic truth/belief layers are paused.",
+                ],
+            )
+
+        return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+
     t0 = time.time()
 
     # RESET
@@ -523,6 +567,7 @@ async def chat_handler(data: dict):
             "log": [],
             "debug_mode": False,
             "chinese_mode": False,
+            "epistemic_state": True,
             "truth_mode": False,
         }
         return {"reply": "[memory cleared]", "usage": {"total_tokens": 0}, "character": "default"}
@@ -547,6 +592,11 @@ async def chat_handler(data: dict):
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
         new_state.story_cfg = cfg
+        new_state.user_id = DEFAULT_USER_ID
+        try:
+            new_state.instance = int(cfg.get("instance", DEFAULT_INSTANCE))
+        except Exception:
+            new_state.instance = DEFAULT_INSTANCE
         # Canonical truths (for truth-mode override guidance)
         new_state.canonical_truth = cfg.get("canonical_truth", [])
 
@@ -555,9 +605,21 @@ async def chat_handler(data: dict):
         seed = int(world_cfg.get("seed", 0))
         world_file = str(world_cfg.get("file", "")).strip()
         if world_file:
-            loaded = WorldLoader.load_from_file(f"backend/app/stories/{world_file}", seed=seed)
+            loaded = WorldLoader.load_from_file(
+                f"backend/app/stories/{world_file}",
+                seed=seed,
+                user_id=new_state.user_id,
+                story_id=story_id,
+                instance=new_state.instance,
+            )
         else:
-            loaded = WorldLoader.try_load_story_world(story_id, stories_dir="backend/app/stories", seed=seed)
+            loaded = WorldLoader.try_load_story_world(
+                story_id,
+                stories_dir="backend/app/stories",
+                seed=seed,
+                user_id=new_state.user_id,
+                instance=new_state.instance,
+            )
         if loaded is not None:
             new_state.world_runtime = loaded
             start_id = str(world_cfg.get("start_location_id", "")).strip()
@@ -573,11 +635,14 @@ async def chat_handler(data: dict):
                 new_state.location_id = start_id
                 # Keep a human-readable location string in sync for UI/heuristics.
                 try:
-                    new_state.location = loaded.world_graph.locations[start_id].name
+                    start_loc = loaded.world_graph.locations[start_id]
+                    new_state.location = start_loc.name
+                    new_state.location_uuid = getattr(start_loc, "uuid", "")
                 except Exception:
                     pass
             else:
                 new_state.location_id = ""
+                new_state.location_uuid = ""
 
             # Timestamp start
             new_state.world_start_datetime = str(world_cfg.get("start_datetime", "")).strip()
@@ -601,12 +666,20 @@ async def chat_handler(data: dict):
 
         new_state.knowledge_character_id = str(main_cfg.get("knowledge_character_id") or "").strip()
 
+        main_uuid = str(main_cfg.get("uuid", "")) or build_deterministic_uuid(
+            user_id=new_state.user_id,
+            story_id=story_id,
+            instance=new_state.instance,
+            entity_id=main_key,
+        )
+
         main_char = CharacterState(
             key=main_key,
             name=main_name,
             role=main_role,
             emotion=new_state.emotion,
             relationship=new_state.relationship,
+            uuid=main_uuid,
         )
 
         new_state.characters[main_key] = main_char
@@ -815,6 +888,7 @@ async def chat_handler(data: dict):
         debug_box = {
             "timestamp": ts,
             "location": user_loc,
+            "location_uuid": getattr(state, "location_uuid", ""),
             "speakers": speakers if speakers else None,
         }
 

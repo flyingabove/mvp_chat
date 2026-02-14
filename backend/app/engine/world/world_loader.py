@@ -13,6 +13,8 @@ from .graph import WorldGraph
 from .location import Location
 from .travel_resolver import TravelResolver
 from .travel_rules import TravelRules
+from backend.app.utils.id_utils import build_deterministic_uuid
+from backend.app.config.settings import DEFAULT_USER_ID, DEFAULT_INSTANCE
 
 
 @dataclass(frozen=True)
@@ -28,7 +30,15 @@ class WorldLoader:
     """Loads a flat World JSON into runtime classes."""
 
     @classmethod
-    def load_from_file(cls, filepath: str, seed: int = 0) -> WorldLoadResult:
+    def load_from_file(
+        cls,
+        filepath: str,
+        *,
+        seed: int = 0,
+        user_id: str = DEFAULT_USER_ID,
+        story_id: str = "unknown_story",
+        instance: int = DEFAULT_INSTANCE,
+    ) -> WorldLoadResult:
         p = Path(filepath)
         data = json.loads(p.read_text(encoding="utf-8"))
 
@@ -36,6 +46,13 @@ class WorldLoader:
 
         locs = data.get("locations") or {}
         for loc_id, obj in locs.items():
+            loc_uuid = str(obj.get("uuid", "")) or build_deterministic_uuid(
+                user_id=user_id,
+                story_id=story_id,
+                instance=instance,
+                entity_id=loc_id,
+            )
+
             graph.add_location(
                 Location(
                     id=loc_id,
@@ -44,6 +61,7 @@ class WorldLoader:
                     tags=list(obj.get("tags", [])),
                     allows_phone=bool(obj.get("allows_phone", True)),
                     is_transit=bool(obj.get("is_transit", False)),
+                    uuid=loc_uuid,
                 )
             )
 
@@ -84,7 +102,15 @@ class WorldLoader:
         )
 
     @classmethod
-    def try_load_story_world(cls, story_id: str, stories_dir: str, seed: int = 0) -> Optional[WorldLoadResult]:
+    def try_load_story_world(
+        cls,
+        story_id: str,
+        stories_dir: str,
+        *,
+        seed: int = 0,
+        user_id: str = DEFAULT_USER_ID,
+        instance: int = DEFAULT_INSTANCE,
+    ) -> Optional[WorldLoadResult]:
         """Convenience: load backend/app/stories/<story_id>_world.json or backend/app/stories/<subdir>/<story_id>_world.json if present."""
         p = Path(stories_dir) / f"{story_id}_world.json"
         if not p.exists():
@@ -95,6 +121,18 @@ class WorldLoader:
                     if subdir.is_dir() and not subdir.name.startswith("__"):
                         alt_path = subdir / f"{story_id}_world.json"
                         if alt_path.exists():
-                            return cls.load_from_file(str(alt_path), seed=seed)
+                            return cls.load_from_file(
+                                str(alt_path),
+                                seed=seed,
+                                user_id=user_id,
+                                story_id=story_id,
+                                instance=instance,
+                            )
             return None
-        return cls.load_from_file(str(p), seed=seed)
+        return cls.load_from_file(
+            str(p),
+            seed=seed,
+            user_id=user_id,
+            story_id=story_id,
+            instance=instance,
+        )

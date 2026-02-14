@@ -92,9 +92,17 @@ def advance_time(state, player_text: str):
                     state.location_id = dest_id
                     # Human-readable location string for UI + manifestation heuristics.
                     try:
-                        state.location = runtime.world_graph.get_location(dest_id).name
+                        dest_loc = runtime.world_graph.get_location(dest_id)
+                        state.location = dest_loc.name
+                        state.location_uuid = getattr(dest_loc, "uuid", "")
+                        try:
+                            state.last_travel_from_uuid = getattr(runtime.world_graph.get_location(state.last_travel_from_id), "uuid", "")
+                        except Exception:
+                            state.last_travel_from_uuid = ""
+                        state.last_travel_to_uuid = getattr(dest_loc, "uuid", "")
                     except Exception:
                         state.location = place
+                        state.location_uuid = ""
 
                     # Sync state.minute from world clock (authoritative)
                     state.minute = runtime.world_clock.minute

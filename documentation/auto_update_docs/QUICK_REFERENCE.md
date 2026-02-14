@@ -36,7 +36,7 @@
 |------|-------|---------|---------------|
 | `world/world_loader.py` | 101 | Load world JSON | `load_from_file()`, `try_load_story_world()` |
 | `world/graph.py` | 71 | World graph structure | `add_location()`, `add_edge()`, `get_outgoing()` |
-| `world/location.py` | 37 | Location dataclass | `__post_init__()` |
+| `world/location.py` | 37 | Location dataclass (includes `uuid`) | `__post_init__()` |
 | `world/edge.py` | 34 | Edge dataclass | `__post_init__()` |
 | `world/clock.py` | 41 | Time management | `advance_minutes()` |
 | `world/travel_resolver.py` | 115 | Travel execution | `execute()`, `resolve()` |
@@ -98,6 +98,7 @@
 | `[D]`, `(D)`, `[DEBUG]`, `(DEBUG)` | Toggle debug mode (shows game state) |
 | `[C]`, `(C)`, `[CHINESE]`, `(CHINESE)` | Toggle Chinese translation mode |
 | `[M]`, `(M)`, `[MAP]`, `(MAP)` | Show world map (locations list) |
+| `[ES]`, `(ES)`, `[EPISTEMICSTATE]`, `(EPISTEMICSTATE)` | Toggle epistemic layers on/off |
 | `__cmd_reset__` | Reset session (clear memory) |
 | `__cmd_newgame__:<story_id>|<gender>|<name>` | Start new game |
 | `go to <location>` | Move to location (world graph) |
@@ -114,6 +115,8 @@
 class MurderGameState:
     # Session
     story: Optional[str]
+   user_id: str
+   instance: int  # deterministic-id instance (default 1)
     gender: Optional[str]  # 'M' or 'F'
     turns: int
     over: bool
@@ -122,6 +125,7 @@ class MurderGameState:
     minute: int
     location: str
     location_id: str  # World graph ID
+   location_uuid: str  # deterministic UUID for current location
 
     # Emotion & Relationship
     emotion: str  # e.g., "wary, exhausted"
@@ -142,6 +146,8 @@ class MurderGameState:
     world_start_datetime: str
     last_travel_from_id: str
     last_travel_to_id: str
+   last_travel_from_uuid: str
+   last_travel_to_uuid: str
     last_travel_exposure: Optional[ExposurePacket]
 ```
 
@@ -155,6 +161,7 @@ class CharacterState:
     role: str  # "ghost", "victim", "suspect"
     emotion: str
     relationship: int
+   uuid: str
 ```
 
 ### UserState
@@ -190,6 +197,11 @@ REL_MIN = -5
 REL_MAX = 5
 REL_START = 0
 EMOTION_START = "wary, exhausted"
+DEFAULT_USER_ID = "default_user"
+DEFAULT_INSTANCE = 1
+
+# Deterministic UUID format
+# <user_id>-<story_id>-<instance>-<entity_id>
 ```
 
 ### Knowledge System Paths

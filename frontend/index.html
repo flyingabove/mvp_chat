@@ -530,7 +530,8 @@ window.addEventListener("error", function(e){
       "- Type `[M]`, `(M)`, `[MAP]`, or `(MAP)` to view the world map\n" +
       "- Type `[E]`, `(E)`, `[EXIT]`, or `(EXIT)` to exit to the story menu\n" +
       "- Type `[C]`, `(C)`, `[CHINESE]`, or `(CHINESE)` to toggle Chinese translation mode\n" +
-      "- Type `[T]`, `(T)`, `[TRUTH]`, or `(TRUTH)` to toggle truth mode (forces honest answers)";
+      "- Type `[T]`, `(T)`, `[TRUTH]`, or `(TRUTH)` to toggle truth mode (forces honest answers)\n" +
+      "- Type `[ES]`, `(ES)`, `[EPISTEMICSTATE]`, or `(EPISTEMICSTATE)` to toggle epistemic state layers on/off";
 
     writeBox("Murder Mystery — Rules & Objective", body);
   }
@@ -582,7 +583,8 @@ window.addEventListener("error", function(e){
     /^\[d\]$/i, /^\(d\)$/i, /^\[debug\]$/i, /^\(debug\)$/i,
     /^\[m\]$/i, /^\(m\)$/i, /^\[map\]$/i, /^\(map\)$/i,
     /^\[c\]$/i, /^\(c\)$/i, /^\[chinese\]$/i, /^\(chinese\)$/i,
-    /^\[t\]$/i, /^\(t\)$/i, /^\[truth\]$/i, /^\(truth\)$/i
+    /^\[t\]$/i, /^\(t\)$/i, /^\[truth\]$/i, /^\(truth\)$/i,
+    /^\[es\]$/i, /^\(es\)$/i, /^\[epistemicstate\]$/i, /^\(epistemicstate\)$/i
   ];
 
   function isCommand(line){

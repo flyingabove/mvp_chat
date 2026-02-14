@@ -18,6 +18,10 @@ Story content
 - Map image: `<folder>.png` (convention: folder name = image name). Auto-discovered by _discover_map_image().
   Also supports explicit path via world.world_map_image field in the story JSON.
   Served to the frontend via GET /api/story-image/{path}.
+- Deterministic UUIDs: every character and location includes a `uuid` following `<user>-<story>-<instance>-<entity>`.
+  - `user` defaults to `default_user` until auth is wired.
+  - `story` is the story id (slugged); `instance` defaults to `1` in JSON (increment per save slot/checkpoint if needed later).
+  - `entity` is the character key or location id (slugged, lowercase).
 - IMPORTANT: world.file and world.world_map_image paths in story JSON must use the ACTUAL folder name (e.g., "2_jennie_murder_mini/..."), not short aliases.
 
 Frontend/meta

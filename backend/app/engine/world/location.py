@@ -23,6 +23,7 @@ class Location:
 
     allows_phone: bool = True
     is_transit: bool = False
+    uuid: str = ""
 
     def __post_init__(self) -> None:
         if isinstance(self.id, str):
@@ -31,6 +32,9 @@ class Location:
         # Coerce tags to an immutable tuple for hashing/consistency.
         if not isinstance(self.tags, tuple):
             object.__setattr__(self, "tags", tuple(self.tags))
+
+        if not isinstance(self.uuid, str):
+            object.__setattr__(self, "uuid", str(self.uuid))
 
         if not self.name.strip():
             raise ValueError("Location.name must be non-empty")

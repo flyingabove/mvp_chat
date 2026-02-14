@@ -2,6 +2,7 @@
   "id": "iu_murder_mystery",
   "title": "Echoes of Cheongdam: IU Murder Mystery",
   "theme": "murder",
+  "instance": 1,
   "meta": {
     "disclaimer": "This is a work of fiction. Names of companies, executives, and events are invented for storytelling; do not interpret any content as allegations about real persons or entities."
   },
@@ -24,7 +25,8 @@
     "key": "main",
     "name": "IU",
     "role": "ghost",
-    "knowledge_character_id": "1_iu"
+    "knowledge_character_id": "1_iu",
+    "uuid": "default_user-iu_murder_mystery-1-main"
   },
   "protagonist": {
     "role": "Junior account executive at a boutique PR/creative agency in Cheongdam",
@@ -73,7 +75,8 @@
         "voice tremor on logistics questions",
         "deflects to 'company policy'",
         "late-night call history gaps"
-      ]
+      ],
+      "uuid": "default_user-iu_murder_mystery-1-yoo_min_ho"
     },
     {
       "name": "Han Jae-seo",
@@ -83,7 +86,8 @@
         "lawyered language",
         "redirects to 'mental health' narratives",
         "unblinking when confronted with timelines"
-      ]
+      ],
+      "uuid": "default_user-iu_murder_mystery-1-han_jae_seo"
     },
     {
       "name": "Park So-jin",
@@ -93,7 +97,8 @@
         "over-specific alibis",
         "knows about a missing lyric page",
         "nervous about CCTV near side entrance"
-      ]
+      ],
+      "uuid": "default_user-iu_murder_mystery-1-park_so_jin"
     },
     {
       "name": "Unnamed Rival Trainee",
@@ -102,7 +107,8 @@
       "tells": [
         "repeats rumors verbatim",
         "photos near Apgujeong café aligning with key timeline"
-      ]
+      ],
+      "uuid": "default_user-iu_murder_mystery-1-unnamed_rival_trainee"
     }
   ],
   "opening": {

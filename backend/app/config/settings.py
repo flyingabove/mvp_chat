@@ -25,3 +25,7 @@ REL_MAX: int = 5
 REL_START: int = 0
 
 EMOTION_START: str = "wary, exhausted"
+
+# --- Deterministic IDs ---
+DEFAULT_USER_ID: str = "default_user"
+DEFAULT_INSTANCE: int = 1
