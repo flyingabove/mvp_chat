@@ -1,4 +1,4 @@
-# Epistemic Engine Design (Current Design)
+# Epistemic Engine Design (Current Design + Lessons Learned)
 
 ## Purpose
 Keep one authoritative truth, separate beliefs and observations, preserve a full narrative log, and use retrieval strictly for style/recall. Support many users/sessions by namespacing every entity and index entry so data cannot bleed across `<user>-<story>-<instance>-<entity>`.
@@ -78,19 +78,31 @@ Authority ordering: Ground truth > Observed evidence > Testimony > Rumor/Inferre
 - Validation: ids must exist or be flagged (e.g., `unknown_npc_X`); mutations must pass graph rules; provenance required for hedging.
 
 ## Per-Turn Flow (apply and render)
-1) Advance time (state minute) and sync world clock.
-2) Call extractor (structured JSON only) to get `ExtractorResult`.
-3) Validate ids/rules/quests; drop or flag invalid entries.
-4) Apply to layers:
+1) Run location extraction (LLM classifier + heuristic fallback) to canonicalize movement intent.
+2) Advance time (state minute) and sync world clock — using the canonicalized message so movement regex matches.
+3) Call extractor (structured JSON only) to get `ExtractorResult`.
+4) Validate ids/rules/quests; drop or flag invalid entries.
+5) Apply to layers:
 - Truth: apply validated world_mutations, movements, evidence state, irreversible flags.
 - Beliefs: add claims/beliefs per speaker with provenance/confidence.
 - Observation log: append observations and player-visible events.
 - Epistemic log: append normalized claims/observations with time/location.
 - Quest state: update from quest results.
 - Relationship/emotion: apply rel_delta/emotion updates.
-5) Build prompt: concise "What the world knows" from truth (player-visible slice) + contested/claimed items with provenance labels.
-6) Narrative call: renderer produces prose; hedges based on provenance; does not invent state.
-7) Log: append to narrative log; produce retrieval chunks (labeled) for BM25/FAISS with namespace metadata.
+6) Build prompt: concise "What the world knows" from truth (player-visible slice) + contested/claimed items with provenance labels.
+7) Narrative call: renderer produces prose; hedges based on provenance; does not invent state.
+8) Log: append to narrative log; produce retrieval chunks (labeled) for BM25/FAISS with namespace metadata.
+
+## Speaker Resolution (location-aware)
+The debug panel and prompt builder need to know who is speaking at the current location. Resolution order:
+1. **`location_speakers` map** (story JSON `world.location_speakers`): explicit mapping from `location_id` to speaker name(s). Preferred source.
+2. **Fallback: `state.characters`**: iterate all characters, but **exclude** any character tagged `"victim"` (dead characters never speak).
+3. The player is never listed as a speaker — only NPCs.
+
+This prevents dead characters (e.g., Jennie in the murder mystery) from appearing as active speakers in debug output.
+
+## Location Movement (ordering constraint)
+Location extraction (LLM + heuristic) MUST run before `advance_time()`. The user's natural language (e.g., "one sec, let me get water then I go to room B") does not match the strict movement regex in `advance_time`. The extraction pipeline canonicalizes this to `"go to interview_room_bob"` which the regex can parse. If `advance_time` runs first with the raw message, the movement is missed and the location never updates.
 
 ## Retrieval Rules (BM25/FAISS)
 - Index only player-visible, hedged text (observations, claims, narration, summaries). Each chunk carries `{namespace, type, time, location_id, character_ids, confidence, provenance}`.
@@ -110,8 +122,18 @@ Authority ordering: Ground truth > Observed evidence > Testimony > Rumor/Inferre
 - Missing locations: drop move mutations but keep intent noted.
 - Translation/debug/map modes: preserve [[STATE]] tags and remain language-agnostic.
 
+## Known Gaps (identified during v2 redesign review)
+1. **Identity anchors are not modeled.** Canon facts like "You are IU" are embedded as prompt text, not as structural invariants. This causes identity drift (IU referring to herself in third person). The v2 redesign addresses this with ANCHOR-tier KnowledgeChunks injected every turn.
+2. **Prompt rules are global and mode-conflicting.** Rules like "cinematic narration" and "no player speech" apply to all stories regardless of mode (ghost story vs interrogation). Truth mode must explicitly override output style rules, not just add to them.
+3. **Retrieval returns text, not canonical objects.** Retrieved chunks lack canon tier, access policy, or invariant metadata. This means retrieval can surface text that conflicts with canon because nothing structurally prevents it.
+4. **Single-dimension relationship score.** The current `relationship` integer (-5..+5) collapses trust, fear, affection, and suspicion into one number. The v2 `RelationshipGraph` with multi-dimensional `RelationshipState` is the planned fix, but the prompt builder must be updated to consume all dimensions.
+5. **No post-generation validation.** The engine does not check model output for canon violations before sending it to the player. The v2 `invariant_validator` is the planned fix.
+
 ## Success Criteria
 - Canonical truth never overwritten by retrieval or narrative.
 - Extractor outputs stay structured, validated, and deterministic.
 - Renderer receives labeled facts vs claims vs rumors and hedges correctly.
 - Retrieval stays namespaced, read-only, and free of authority bleed across users/sessions.
+- Identity anchors are never contradicted in model output.
+- Dead/victim characters never appear as active speakers.
+- Location updates are applied before prompt construction and debug rendering.

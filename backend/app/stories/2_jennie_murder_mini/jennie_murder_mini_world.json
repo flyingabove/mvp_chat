@@ -50,6 +50,7 @@
     }
   },
   "edges": [
+    {"from": "interview_room_steve", "to": "interview_room_bob", "minutes": 1},
     {"from": "interview_room_steve", "to": "evidence_lab", "minutes": 2},
     {"from": "interview_room_bob", "to": "evidence_lab", "minutes": 2},
     {"from": "evidence_lab", "to": "apartment_entry", "minutes": 8, "is_transit": true},

@@ -327,9 +327,18 @@ def _debug_speakers(state: MurderGameState) -> list[str]:
             pass
 
     # Fallback to the characters dictionary if no location-specific mapping exists.
+    # Exclude characters tagged as "victim" — they are dead and never speak.
     if not speakers:
         chars = list((getattr(state, "characters", {}) or {}).values())
         for c in chars:
+            try:
+                tags = getattr(c, "tags", []) or []
+                if isinstance(tags, str):
+                    tags = [tags]
+                if "victim" in tags:
+                    continue
+            except Exception:
+                pass
             try:
                 name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
             except Exception:
@@ -857,7 +866,9 @@ async def chat_handler(data: dict):
     if state.over:
         return {"reply": "Game already finished. Type /reset to play again.", "character": "default"}
 
-    advance_time(state, msg)
+    # NOTE: advance_time is called AFTER location extraction (below) so that
+    # the canonicalized movement message (e.g. "go to interview_room_bob") is
+    # used instead of the raw user text which may not match the strict regex.
     handle_name_confirmation(msg, state)
 
     extracted = extract_user_name_from_text(msg)
@@ -950,6 +961,10 @@ async def chat_handler(data: dict):
             _log({"kind": "location_extraction_skipped", "reason": "no_world_runtime"})
         elif not getattr(state, "location_id", ""):
             _log({"kind": "location_extraction_skipped", "reason": "no_location_id"})
+
+    # advance_time runs AFTER location extraction so the canonicalized msg
+    # (e.g. "go to interview_room_bob") matches the strict movement regex.
+    advance_time(state, msg)
 
     messages = build_messages(state, log, msg, retrieved, truth_mode=bool(sess.get("truth_mode", False)))
     state.turns += 1
