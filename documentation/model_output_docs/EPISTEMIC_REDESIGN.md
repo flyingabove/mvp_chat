@@ -546,7 +546,10 @@ Required checks:
 - Third-person self split (“she was trapped”) when anchor implies speaker is that person
 - Contradictions of other anchors (closet, binding locus, etc.)
 
-The initial implementation can be heuristic. It must be deterministic and unit-testable.
+The initial implementation is **best-effort heuristic** — pronoun coreference
+is inherently fuzzy and cannot be solved deterministically with regex alone.
+The validator catches common patterns and is unit-testable, but may miss
+subtle cases. A future LLM-based validation pass can be added as a fallback.
 
 ---
 
@@ -555,17 +558,50 @@ The initial implementation can be heuristic. It must be deterministic and unit-t
 Instead of global prompt rules, structure prompt like:
 
 1) OutputPolicy block (mode-dependent)
-2) IDENTITY ANCHORS (DO NOT CONTRADICT)
-3) KNOWN FACTS YOU MAY USE
-4) SECRETS YOU MUST NOT REVEAL
-5) Scene context (location/time/present)
-6) Conversation history
+2) V1 rules carried forward (no-player-speech, speaker labels)
+3) IDENTITY ANCHORS (DO NOT CONTRADICT)
+4) KNOWN FACTS YOU MAY USE
+5) SECRETS YOU MUST NOT REVEAL
+6) Character traits and motivation
+7) Scene context (location/time/present)
+8) Truth mode override (if active — strips all narrative)
+9) Required tail ([[STATE]] tag)
 
-This is what turns canon from “suggestion” into “contract”.
+This is what turns canon from "suggestion" into "contract".
 
 ---
 
-## 17) Unit tests (robust list)
+## 18) Fixes applied to this redesign
+
+The following issues were identified during review and have been addressed
+in the implementation:
+
+1. **Validator is heuristic, not deterministic.** Acknowledged in code and docs.
+   Pronoun coreference cannot be solved with regex; the validator is best-effort.
+
+2. **`allow_second_person` removed.** Redundant with `allow_player_action_narration`.
+   Second-person indirect references ("your words") are always allowed.
+
+3. **`CharacterHistory` is mutable.** `experienced_chunk_ids` grows at runtime;
+   `frozen=True` was wrong. Fixed to regular dataclass.
+
+4. **V1 prompt rules carried forward.** No-player-speech and speaker label rules
+   are explicitly included in `prompt_builder_v2.py`. Truth mode override is
+   ported from v1.
+
+5. **`RelationshipState.collapse()`** maps multi-dimensional state to legacy
+   integer score (-5..+5) for backward compatibility.
+
+6. **`MemoryTrigger.condition` format specified.** Uses `"type:value"` syntax:
+   `mentions:<keyword>`, `location:<id>`, `minute_gte:<N>`, `chunk_known:<id>`.
+   Parsed by `evaluate_triggers()` in `turn_contract.py`.
+
+7. **`LocationModel.speaker_character_ids`** added for location-aware speaker
+   resolution. Maps directly to the `location_speakers` concept from v1.
+
+---
+
+## 19) Unit tests (robust list)
 
 ### Loader & schema
 - minimal v2 loads
