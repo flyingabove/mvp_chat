@@ -9,6 +9,14 @@ from backend.app.config.settings import (
 from backend.app.utils.logging_utils import jlog as _jlog, truncate as _truncate
 
 
+def _extract_story_cfg(state: MurderGameState):
+    """Return (cfg_dict, story_def_or_None) with backward compatibility."""
+    cfg_obj = getattr(state, "story_cfg", {}) or {}
+    story_def = cfg_obj if hasattr(cfg_obj, "as_dict") else None
+    cfg_dict = story_def.as_dict() if story_def else cfg_obj
+    return cfg_dict, story_def
+
+
 def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> str:
     """
     Inject a concise, high-signal memory section.
@@ -43,7 +51,7 @@ def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> st
 
 
 def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False) -> str:
-    cfg = state.story_cfg or {}
+    cfg, story_def = _extract_story_cfg(state)
 
     # Primary character label for prompts (avoid hardcoding any specific persona)
     main_char = getattr(state, "main_character", None)
@@ -61,8 +69,11 @@ def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_bl
     phrase_list = ", ".join(speech) if speech else \
         "oppa, eotteoke, jinjja?, gwaenchanha, arasseo, mianhae, gomawo"
 
-    suspects = cfg.get("suspects") or []
-    suspect_names = [s.get("name", "unknown") for s in suspects]
+    if story_def and getattr(story_def, "suspects", None) is not None:
+        suspect_names = [c.name for c in story_def.suspects]
+    else:
+        suspects = cfg.get("suspects") or []
+        suspect_names = [s.get("name", "unknown") for s in suspects]
     suspect_line = ", ".join(suspect_names) if suspect_names else \
         "manager, producer, rival idol, obsessed fan, executive"
 
@@ -103,7 +114,13 @@ The character's first reply after the opening scene should:
     victim_public = cfg.get("victim", {}).get("public_name", "the victim")
 
     # Character role determines story flavor (ghost, interrogation, etc.)
-    char_role = (cfg.get("main_character", {}) or {}).get("role", "").lower()
+    if getattr(state, "main_character", None) and state.main_character.role:
+        char_role = state.main_character.role
+    elif story_def and story_def.main_character_role:
+        char_role = story_def.main_character_role
+    else:
+        char_role = (cfg.get("main_character", {}) or {}).get("role", "")
+    char_role = (char_role or "").lower()
     is_ghost = "ghost" in char_role
 
     # Casual Korean usage from the LAST user message
@@ -323,9 +340,14 @@ def build_messages(
     messages.extend(trimmed)
 
     # Build per-turn header; only include manifestation for ghost stories
-    cfg = state.story_cfg or {}
-    char_role = (cfg.get("main_character", {}) or {}).get("role", "").lower()
-    is_ghost = "ghost" in char_role
+    cfg, story_def = _extract_story_cfg(state)
+    if getattr(state, "main_character", None) and state.main_character.role:
+        char_role = state.main_character.role
+    elif story_def and story_def.main_character_role:
+        char_role = story_def.main_character_role
+    else:
+        char_role = (cfg.get("main_character", {}) or {}).get("role", "")
+    is_ghost = "ghost" in (char_role or "").lower()
 
     header_parts = [
         f"Time: {int(state.minute)} min since start.",

@@ -20,13 +20,35 @@
       "Murder weapon missing; scene unusually tidy."
     ]
   },
-  "main_character": {
-    "key": "main",
-    "name": "Jennie",
-    "role": "victim (fictional)",
-    "knowledge_character_id": "2_jennie",
-    "uuid": "default_user-jennie_murder_mini-1-main"
-  },
+  "characters": [
+    {
+      "key": "jennie",
+      "name": "Jennie",
+      "role": "victim (fictional)",
+      "is_main": true,
+      "knowledge_character_id": "2_jennie",
+      "uuid": "default_user-jennie_murder_mini-1-main",
+      "tags": ["victim"]
+    },
+    {
+      "key": "steve",
+      "name": "Steve",
+      "role": "Fictional ex-boyfriend",
+      "motive": "Financial confrontation; wants to erase evidence.",
+      "tells": ["avoids timeline", "minimizes anger", "pushes blame toward Bob"],
+      "is_suspect": true,
+      "uuid": "default_user-jennie_murder_mini-1-steve"
+    },
+    {
+      "key": "bob",
+      "name": "Bob",
+      "role": "Fictional friend/accessory",
+      "motive": "Protect himself from being framed; complicit in cleanup.",
+      "tells": ["downplays presence", "worries about deal timing", "admits to wiping surfaces when cornered"],
+      "is_suspect": true,
+      "uuid": "default_user-jennie_murder_mini-1-bob"
+    }
+  ],
   "protagonist": {
     "role": "Lead detective running back-to-back interrogations",
     "profile": "Direct, patient, focused on contradictions and deal timing."
@@ -59,22 +81,6 @@
   "emotion": {
     "start": "controlled, skeptical"
   },
-  "suspects": [
-    {
-      "name": "Steve",
-      "role": "Fictional ex-boyfriend",
-      "motive": "Financial confrontation; wants to erase evidence.",
-      "tells": ["avoids timeline", "minimizes anger", "pushes blame toward Bob"],
-      "uuid": "default_user-jennie_murder_mini-1-steve"
-    },
-    {
-      "name": "Bob",
-      "role": "Fictional friend/accessory",
-      "motive": "Protect himself from being framed; complicit in cleanup.",
-      "tells": ["downplays presence", "worries about deal timing", "admits to wiping surfaces when cornered"],
-      "uuid": "default_user-jennie_murder_mini-1-bob"
-    }
-  ],
   "opening": {
     "text": "You sit between two rooms, switching back and forth. Steve and Bob keep insisting no one was there. The lab has almost nothing—no weapon, no prints, a too-clean kitchen. The only leverage is logic: the phone ping, the neighbor at 11:50, a single smudged shoeprint. And the standing rule: first full cooperator gets the deal.\n\nThey know it. You know it. The question is who breaks first."
   },

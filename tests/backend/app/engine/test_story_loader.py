@@ -4,13 +4,17 @@ from tests.conftest import first_story_id
 STORY_ID = first_story_id()
 
 
-def test_load_story_returns_dict_for_existing_story():
+def test_load_story_returns_definition_for_existing_story():
     story = load_story(STORY_ID)
-    assert isinstance(story, dict)
+    assert story is not None
+    assert hasattr(story, "characters")
+    assert story.characters  # normalized list
+
+    story_dict = story.as_dict()
     # Basic sanity: required keys in your story format
-    assert story.get("title")
-    assert "opening" in story
+    assert story_dict.get("title")
+    assert "opening" in story_dict
 
 
-def test_load_story_returns_empty_for_missing_story():
-    assert load_story("does_not_exist") == {}
+def test_load_story_returns_none_for_missing_story():
+    assert load_story("does_not_exist") is None

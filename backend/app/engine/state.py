@@ -1,6 +1,6 @@
 # app/engine/state.py
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from backend.app.config.settings import (
     START_LOCATION,
@@ -126,7 +126,8 @@ class MurderGameState:
     # ==============================================================
     # Story metadata
     # ==============================================================
-    story_cfg: Optional[dict] = None
+    # StoryDefinition (preferred) or plain dict for legacy/tests
+    story_cfg: Optional[Any] = None
 
     # Meta “nametag” name — not what the character necessarily says in dialogue.
     player_name: Optional[str] = None

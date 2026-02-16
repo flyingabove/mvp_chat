@@ -73,16 +73,21 @@ def get_story_meta(story_id: str):
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Story not found")
 
-    goal = story.get("goal", {}) or {}
-    rules = story.get("rules", {}) or {}
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    story_cfg = story.as_dict() if hasattr(story, "as_dict") else (story or {})
+
+    goal = story_cfg.get("goal", {}) or {}
+    rules = story_cfg.get("rules", {}) or {}
 
     # Load known locations from world if available
     known_locations = []
-    world_cfg = story.get("world", {}) or {}
+    world_cfg = story_cfg.get("world", {}) or {}
     seed = int(world_cfg.get("seed", 0))
     world_file = str(world_cfg.get("file", "")).strip()
     try:
-        instance = int(story.get("instance", DEFAULT_INSTANCE))
+        instance = int(story_cfg.get("instance", DEFAULT_INSTANCE))
     except Exception:
         instance = DEFAULT_INSTANCE
 
@@ -123,7 +128,7 @@ def get_story_meta(story_id: str):
 
     result = {
         "id": story_id,
-        "title": story.get("title", story_id),
+        "title": story_cfg.get("title", story_id),
         "goal": {
             "win_text_rule": goal.get("win_text_rule", "")
         },

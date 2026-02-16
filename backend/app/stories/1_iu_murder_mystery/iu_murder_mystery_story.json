@@ -21,13 +21,68 @@
       "Phone and a handwritten lyric notebook were missing from the scene."
     ]
   },
-  "main_character": {
-    "key": "main",
-    "name": "IU",
-    "role": "ghost",
-    "knowledge_character_id": "1_iu",
-    "uuid": "default_user-iu_murder_mystery-1-main"
-  },
+  "characters": [
+    {
+      "key": "iu",
+      "name": "IU",
+      "role": "ghost",
+      "is_main": true,
+      "knowledge_character_id": "1_iu",
+      "uuid": "default_user-iu_murder_mystery-1-main",
+      "tags": ["victim", "supernatural"]
+    },
+    {
+      "key": "yoo_min_ho",
+      "name": "Yoo Min-ho",
+      "role": "Day-to-day manager",
+      "motive": "Job survival; feared being blacklisted. Claimed it was a 'cool-down' confinement.",
+      "tells": [
+        "voice tremor on logistics questions",
+        "deflects to 'company policy'",
+        "late-night call history gaps"
+      ],
+      "is_suspect": true,
+      "uuid": "default_user-iu_murder_mystery-1-yoo_min_ho"
+    },
+    {
+      "key": "han_jae_seo",
+      "name": "Han Jae-seo",
+      "role": "CEO of fictional 'Aster Media'",
+      "motive": "Protect brand and investors from contract dispute and rumored artistic independence.",
+      "tells": [
+        "lawyered language",
+        "redirects to 'mental health' narratives",
+        "unblinking when confronted with timelines"
+      ],
+      "is_suspect": true,
+      "uuid": "default_user-iu_murder_mystery-1-han_jae_seo"
+    },
+    {
+      "key": "park_so_jin",
+      "name": "Park So-jin",
+      "role": "Producer and close collaborator",
+      "motive": "Resented creative vetoes and schedule pressure; has mixed loyalty.",
+      "tells": [
+        "over-specific alibis",
+        "knows about a missing lyric page",
+        "nervous about CCTV near side entrance"
+      ],
+      "is_suspect": true,
+      "uuid": "default_user-iu_murder_mystery-1-park_so_jin"
+    },
+    {
+      "key": "rival_trainee",
+      "name": "Unnamed Rival Trainee",
+      "role": "Ambitious idol trainee at a different (fictional) label",
+      "motive": "Petty rivalry amplified by social buzz; likely manipulated rather than central.",
+      "tells": [
+        "repeats rumors verbatim",
+        "photos near Apgujeong café aligning with key timeline"
+      ],
+      "is_suspect": true,
+      "uuid": "default_user-iu_murder_mystery-1-unnamed_rival_trainee"
+    }
+  ],
   "protagonist": {
     "role": "Junior account executive at a boutique PR/creative agency in Cheongdam",
     "profile": "Early-career professional, often on messenger apps with clients, long commutes, ramen dinners, tight finances.",
@@ -66,51 +121,104 @@
   "emotion": {
     "start": "wary, exhausted"
   },
-  "suspects": [
-    {
-      "name": "Yoo Min-ho",
-      "role": "Day-to-day manager",
-      "motive": "Job survival; feared being blacklisted. Claimed it was a 'cool-down' confinement.",
-      "tells": [
-        "voice tremor on logistics questions",
-        "deflects to 'company policy'",
-        "late-night call history gaps"
+  "epistemic_seed": {
+    "canonical_facts": [
+      {
+        "id": "death_occurs_prior_tenant",
+        "text": "IU died the prior week in the Nonhyeon-dong officetel closet; she is now the ghost in the apartment.",
+        "known_by": ["iu"],
+        "confidence": 1.0
+      },
+      {
+        "id": "death_method_strangulation",
+        "text": "After hours of confinement, IU was strangled inside the bedroom closet; no sexual assault occurred.",
+        "known_by": ["iu"],
+        "confidence": 1.0
+      },
+      {
+        "id": "death_time_window",
+        "text": "The fatal attack happened overnight on 2025-01-14, before dawn on 2025-01-15.",
+        "known_by": ["iu"],
+        "confidence": 0.9
+      },
+      {
+        "id": "items_missing",
+        "text": "IU's phone and a handwritten lyric notebook went missing from the scene after the killing.",
+        "known_by": ["iu"],
+        "confidence": 0.9
+      },
+      {
+        "id": "lease_disclosure",
+        "text": "The apartment's cheap rent was due to the undisclosed prior tenant death in the closet.",
+        "known_by": ["player"],
+        "confidence": 0.7
+      }
+    ],
+    "belief_seeds": {
+      "iu": [
+        {
+          "text": "I am dead and bound to the apartment as a ghost after being strangled in the closet.",
+          "confidence": 1.0,
+          "source": "memory"
+        },
+        {
+          "text": "I was trapped for hours before the killing and could not reach my phone.",
+          "confidence": 0.8,
+          "source": "memory"
+        },
+        {
+          "text": "Someone removed my phone and lyric notebook after I died.",
+          "confidence": 0.8,
+          "source": "memory"
+        }
       ],
-      "uuid": "default_user-iu_murder_mystery-1-yoo_min_ho"
-    },
-    {
-      "name": "Han Jae-seo",
-      "role": "CEO of fictional 'Aster Media'",
-      "motive": "Protect brand and investors from contract dispute and rumored artistic independence.",
-      "tells": [
-        "lawyered language",
-        "redirects to 'mental health' narratives",
-        "unblinking when confronted with timelines"
+      "player": [
+        {
+          "text": "The rent was low because a previous tenant died in the closet of this unit.",
+          "confidence": 0.6,
+          "source": "lease_disclosure"
+        }
       ],
-      "uuid": "default_user-iu_murder_mystery-1-han_jae_seo"
-    },
-    {
-      "name": "Park So-jin",
-      "role": "Producer and close collaborator",
-      "motive": "Resented creative vetoes and schedule pressure; has mixed loyalty.",
-      "tells": [
-        "over-specific alibis",
-        "knows about a missing lyric page",
-        "nervous about CCTV near side entrance"
+      "yoo_min_ho": [
+        {
+          "text": "Confining IU in the closet was meant as a cool-down, not to kill her.",
+          "confidence": 0.5,
+          "source": "self_justification"
+        },
+        {
+          "text": "If IU died, it was an accident during that confinement.",
+          "confidence": 0.4,
+          "source": "self_justification"
+        }
       ],
-      "uuid": "default_user-iu_murder_mystery-1-park_so_jin"
-    },
-    {
-      "name": "Unnamed Rival Trainee",
-      "role": "Ambitious idol trainee at a different (fictional) label",
-      "motive": "Petty rivalry amplified by social buzz; likely manipulated rather than central.",
-      "tells": [
-        "repeats rumors verbatim",
-        "photos near Apgujeong café aligning with key timeline"
+      "han_jae_seo": [
+        {
+          "text": "Publicly frame IU's death as stress-induced or mental health related, not foul play.",
+          "confidence": 0.7,
+          "source": "pr_spin"
+        }
       ],
-      "uuid": "default_user-iu_murder_mystery-1-unnamed_rival_trainee"
+      "park_so_jin": [
+        {
+          "text": "Someone tampered with the side entrance CCTV near the time IU disappeared.",
+          "confidence": 0.6,
+          "source": "observation"
+        },
+        {
+          "text": "A missing lyric page is connected to pressure from management.",
+          "confidence": 0.6,
+          "source": "observation"
+        }
+      ],
+      "rival_trainee": [
+        {
+          "text": "Rumors say IU locked herself away after a fight about a song release.",
+          "confidence": 0.5,
+          "source": "rumor"
+        }
+      ]
     }
-  ],
+  },
   "opening": {
     "text": "it’s so cold..\\n\\nYou’d only just moved into a small, surprisingly nice apartment in Cheongdam. Sleek building, decent view, even smelled faintly like new paint and coffee from the lobby café. Rent was lower than it should’ve been for this area. The agent had mentioned something offhand about a former tenant—how she was found inside the closet. You didn’t ask for details. You just needed a place close to work. It felt safe enough. A little dim in the hallway, a few lights buzzing out, but manageable. Your company badge still hangs off your bag—{{PLAYER_NAME}}, accountant, EDAM Entertainment, part of Kakao Entertainment. Brand-new, shining like a promise. The kind they hand to rookies they can underpay.\\n\\nMost nights, though, something about the place felt wrong. When you turned off the lights, the air got heavier, colder. The closet faced your bed, and you couldn’t help glancing at it before sleeping. You’d started sleeping pressed against the wall, pretending you didn’t feel watched.\\n\\nThen came the dreams—too vivid, too long. And the paralysis. You’d wake up frozen, eyes open, body stone. Something dark moving from the closet, slow, deliberate. It would climb onto the mattress, stop at your chest. Its face was nothing. Just black air pretending to have eyes.\\n\\nLater, a young woman began to appear instead. Pale skin, quiet breath. She never spoke, just hovered at the edge of your dreams like she was deciding whether to come closer. Sometimes you’d see her reflection before her body. Once, she reached for your hand—and it felt real.\\n\\nTonight, the cold hit deeper than usual. You got up to check the thermostat. The hallway light hummed faintly. And for half a heartbeat, there was someone there—standing by the window. Long hair, still posture. Her eyes almost meeting yours.\\n\\nYou didn’t move. Didn’t breathe. You turned away, went back to bed, blanket tight around your shoulders. The silence stretched thin.\\n\\nThen came the sound—soft fabric dragging, a hinge sighing open. The closet door. You couldn’t move, not even to blink.\\n\\n“Why are you so scared?”\\n\\nAnd suddenly your body obeyed you again. But you didn’t move. You couldn’t.\\n\\n*(The room hangs silent, waiting for whatever happens next.)*"
   },

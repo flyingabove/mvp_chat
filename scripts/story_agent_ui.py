@@ -88,6 +88,14 @@ Format your response as JSON:
 }
 """
 
+EVAL_PERSONAS = {
+    "curious_rookie": "Curious Rookie: polite, exploratory questions.",
+    "confrontational_cop": "Confrontational Cop: direct, pressure-testing and skeptical.",
+    "empathetic_confidant": "Empathetic Confidant: warm, rapport-first, feelings/context seeking.",
+    "chaos_gremlin": "Chaos Gremlin: edge-case breaker, non sequiturs, stress-tests scripts.",
+  "first_time_user": "First-time User: new to chatbots, tentative, asks basic or clarifying questions.",
+}
+
 FALLBACK_MESSAGES = [
     "Hello, where am I? What happened?",
     "Can you tell me more about yourself?",
@@ -187,6 +195,7 @@ async def ws_run(ws: WebSocket):
         use_llm = config.get("use_llm", True)
         model = config.get("model", DEFAULT_MODEL)
         do_eval = config.get("evaluate", True)
+        eval_persona = config.get("eval_persona", "curious_rookie")
 
         session_id = f"ui_{story_id}_{int(time.time())}"
 
@@ -281,9 +290,11 @@ async def ws_run(ws: WebSocket):
                         f"{'PLAYER' if m['role'] == 'player' else 'NPC'}: {m['content']}"
                         for m in conversation
                     )
+                    persona_desc = EVAL_PERSONAS.get(eval_persona, eval_persona)
                     prompt = (
                         f"Story: {story_id}\n"
                         f"Total turns: {len([m for m in conversation if m['role'] == 'player'])}\n\n"
+                        f"Player persona (assumed for evaluation): {persona_desc}\n\n"
                         f"=== CONVERSATION ===\n{transcript}\n=== END ===\n\n"
                         f"Provide your evaluation as JSON."
                     )
@@ -789,7 +800,19 @@ HTML_PAGE = """<!DOCTYPE html>
 
       <div class="hint">
         Eval personas: Curious Rookie (polite), Confrontational Cop (direct),
-        Empathetic Confidant (warm), Chaos Gremlin (edge-case breaker).
+        Empathetic Confidant (warm), Chaos Gremlin (edge-case breaker),
+        First-time User (new to chatbots, tentative).
+      </div>
+
+      <div class="control-group" style="margin-top:6px">
+        <label style="font-size:12px;color:var(--text-dim)">Eval persona</label>
+        <select id="personaSelect">
+          <option value="curious_rookie">Curious Rookie</option>
+          <option value="confrontational_cop">Confrontational Cop</option>
+          <option value="empathetic_confidant">Empathetic Confidant</option>
+          <option value="chaos_gremlin">Chaos Gremlin</option>
+          <option value="first_time_user">First-time User</option>
+        </select>
       </div>
 
       <div class="control-group" style="margin-top:4px">
@@ -916,6 +939,7 @@ HTML_PAGE = """<!DOCTYPE html>
     const turns = parseInt(document.getElementById('turnsInput').value) || 12;
     const useLlm = document.getElementById('llmToggle').classList.contains('on');
     const evaluate = document.getElementById('evalToggle').classList.contains('on');
+    const evalPersona = document.getElementById('personaSelect').value || 'curious_rookie';
     const model = document.getElementById('modelSelect').value;
 
     // Reset
@@ -945,6 +969,7 @@ HTML_PAGE = """<!DOCTYPE html>
         use_llm: useLlm,
         model: model,
         evaluate: evaluate,
+        eval_persona: evalPersona,
       }));
     };
     ws.onmessage = (e) => {

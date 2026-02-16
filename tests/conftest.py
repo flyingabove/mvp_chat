@@ -52,6 +52,18 @@ def _discover_stories() -> list[dict]:
                 continue
             try:
                 cfg = _json.loads(p.read_text(encoding="utf-8"))
+
+                # Backfill legacy main_character for tests when using characters list.
+                if "main_character" not in cfg and cfg.get("characters"):
+                    chars = cfg.get("characters") or []
+                    main = next((c for c in chars if c.get("is_main")), chars[0] if chars else {})
+                    cfg["main_character"] = {
+                        "key": main.get("key", "main"),
+                        "name": main.get("name", ""),
+                        "role": main.get("role", ""),
+                        "knowledge_character_id": main.get("knowledge_character_id", ""),
+                        "uuid": main.get("uuid", ""),
+                    }
             except Exception:
                 continue
             results.append({

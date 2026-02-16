@@ -31,8 +31,9 @@ def test_jennie_story_uses_isolated_indexes(monkeypatch):
     # Load target story config
     story = load_story(target_story_id)
     assert story, "Story config should load"
-    assert story.get("id") == target_story_id
-    assert story.get("main_character", {}).get("knowledge_character_id") == target_char_id
+    story_cfg = story.as_dict() if hasattr(story, "as_dict") else story
+    assert story_cfg.get("id") == target_story_id
+    assert story_cfg.get("main_character", {}).get("knowledge_character_id") == target_char_id
 
     # Load target bundle and ensure chunks are scoped
     bundle_target = IndexService.get(target_char_id)

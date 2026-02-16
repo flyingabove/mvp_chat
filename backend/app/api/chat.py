@@ -45,7 +45,8 @@ from backend.app.engine.state import (
     CharacterState,
 
 )
-from backend.app.engine.story_loader import load_story
+from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim
+from backend.app.engine.story_loader import load_story, StoryDefinition, StoryCharacter
 from backend.app.engine.gameplay import (
 
     advance_time,
@@ -64,6 +65,130 @@ from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace
 
 
 router = APIRouter()
+
+
+def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
+    """Seed canonical facts and initial beliefs from story config.
+
+    Expected shape in story JSON:
+    {
+      "epistemic_seed": {
+        "canonical_facts": [
+          {"id": "fact_1", "content": "...", "subject": "...", "object": "...",
+           "provenance": "validated", "confidence": 1.0, "location_ref": "iu_apartment_room",
+           "timestamp_minute": 0, "known_by": ["main", "player"], "source": "system"}
+        ],
+        "belief_seeds": [
+          {"character_id": "player", "claims": [{...EpistemicClaim fields...}]}
+        ]
+      }
+    }
+    """
+
+    seed_cfg = (cfg.get("epistemic_seed") or {})
+
+    # Canonical facts (truth layer)
+    canonical_facts = seed_cfg.get("canonical_facts") or []
+    seeded_texts = []
+    for fact_cfg in canonical_facts:
+        try:
+            fact = EpistemicFact(
+                id=str(fact_cfg.get("id") or uuid.uuid4()),
+                content=str(
+                    fact_cfg.get("content")
+                    or fact_cfg.get("text")
+                    or ""
+                ).strip(),
+                subject=fact_cfg.get("subject"),
+                object=fact_cfg.get("object"),
+                source=fact_cfg.get("source", "system"),
+                timestamp_minute=fact_cfg.get("timestamp_minute"),
+                location_ref=fact_cfg.get("location_ref"),
+                confidence=fact_cfg.get("confidence", 1.0),
+                provenance=fact_cfg.get("provenance", "validated"),
+            )
+            if fact.content:
+                state.add_canonical_fact(fact)
+                seeded_texts.append(fact.content)
+
+                # Mirror as beliefs for characters who already know this fact
+                known_by = fact_cfg.get("known_by") or []
+                for char_id in known_by:
+                    claim = EpistemicClaim(
+                        id=f"seed_{fact.id}_{char_id}",
+                        content=fact.content,
+                        subject=fact.subject,
+                        object=fact.object,
+                        source=fact.source,
+                        timestamp_minute=fact.timestamp_minute,
+                        location_ref=fact.location_ref,
+                        confidence=fact.confidence,
+                        provenance=fact.provenance,
+                    )
+                    state.get_belief_state(char_id).add_claim(claim)
+                    state.add_epistemic_claims(claim)
+        except Exception:
+            continue
+
+    # Additional belief seeds (claims/observations per character)
+    belief_seeds_raw = seed_cfg.get("belief_seeds") or []
+    # Support both list-of-dicts and mapping-of-character-to-claims shapes
+    if isinstance(belief_seeds_raw, dict):
+        belief_seeds = [
+            {"character_id": cid, "claims": claims}
+            for cid, claims in belief_seeds_raw.items()
+        ]
+    else:
+        belief_seeds = belief_seeds_raw
+
+    for bseed in belief_seeds:
+        char_id = bseed.get("character_id") or ""
+        if not char_id:
+            continue
+        bs = state.get_belief_state(char_id)
+        for claim_cfg in bseed.get("claims", []) or []:
+            try:
+                claim = EpistemicClaim(
+                    id=str(claim_cfg.get("id") or uuid.uuid4()),
+                    content=str(
+                        claim_cfg.get("content")
+                        or claim_cfg.get("text")
+                        or ""
+                    ).strip(),
+                    subject=claim_cfg.get("subject"),
+                    object=claim_cfg.get("object"),
+                    source=claim_cfg.get("source", char_id),
+                    timestamp_minute=claim_cfg.get("timestamp_minute"),
+                    location_ref=claim_cfg.get("location_ref"),
+                    confidence=claim_cfg.get("confidence", 0.7),
+                    provenance=claim_cfg.get("provenance", "testimony"),
+                )
+                if claim.content:
+                    bs.add_claim(claim)
+                    state.add_epistemic_claims(claim)
+            except Exception:
+                continue
+        for obs_cfg in bseed.get("observations", []) or []:
+            try:
+                obs = bs.record_observation(
+                    id=str(obs_cfg.get("id") or uuid.uuid4()),
+                    content=str(obs_cfg.get("content") or "").strip(),
+                    timestamp_minute=obs_cfg.get("timestamp_minute"),
+                    location_ref=obs_cfg.get("location_ref"),
+                    subject=obs_cfg.get("subject"),
+                    object=obs_cfg.get("object"),
+                    source=obs_cfg.get("source", char_id),
+                    provenance=obs_cfg.get("provenance", "observed"),
+                    confidence=obs_cfg.get("confidence", 0.7),
+                )
+                if obs_cfg.get("log_to_state", True):
+                    state.record_observation(**obs.__dict__)
+            except Exception:
+                continue
+
+    # Backfill canonical_truth strings for truth-mode prompt if not present
+    if not cfg.get("canonical_truth") and seeded_texts:
+        state.canonical_truth = seeded_texts
 
 
 # In-memory session store (session-scoped: lost on server restart)
@@ -583,25 +708,28 @@ async def chat_handler(data: dict):
 
         player_name = re.sub(r"[^A-Za-z\s\-']","", player_name)[:40] or "Player"
 
-        cfg = load_story(story_id)
-        if not cfg:
+        story_def = load_story(story_id)
+        if not story_def:
             return {"error": f"story not found: {story_id}"}
 
         new_state: MurderGameState = init_state()
         new_state.story = story_id
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
-        new_state.story_cfg = cfg
+        new_state.story_cfg = story_def
         new_state.user_id = DEFAULT_USER_ID
         try:
-            new_state.instance = int(cfg.get("instance", DEFAULT_INSTANCE))
+            new_state.instance = int(getattr(story_def, "instance", DEFAULT_INSTANCE))
         except Exception:
             new_state.instance = DEFAULT_INSTANCE
         # Canonical truths (for truth-mode override guidance)
-        new_state.canonical_truth = cfg.get("canonical_truth", [])
+        new_state.canonical_truth = story_def.get("canonical_truth", [])
+
+        # Seed epistemic base truths and per-character knowledge
+        _seed_epistemic_from_story(story_def, new_state)
 
         # Optional world graph runtime (does not change gameplay unless movement occurs)
-        world_cfg = cfg.get("world", {}) or {}
+        world_cfg = story_def.get("world", {}) or {}
         seed = int(world_cfg.get("seed", 0))
         world_file = str(world_cfg.get("file", "")).strip()
         if world_file:
@@ -651,41 +779,62 @@ async def chat_handler(data: dict):
         # Keep a human-readable location. If the world graph is active we prefer
         # the graph's display name; otherwise fall back to the story's setting string.
         if not getattr(new_state, "location_id", ""):
-            new_state.location = cfg.get("setting", {}).get("start_location", new_state.location)
-        new_state.emotion = cfg.get("emotion", {}).get("start", new_state.emotion)
+            new_state.location = story_def.get("setting", {}).get("start_location", new_state.location)
+        new_state.emotion = story_def.get("emotion", {}).get("start", new_state.emotion)
 
-        # Main character identity is story-driven (no hardcoded persona).
-        main_cfg = (cfg.get("main_character", {}) or {})
-        # Fallback naming comes from victim/public label in the story file.
-        public_label = str((cfg.get("victim", {}) or {}).get("public_name", "")).strip()
+        # Main/character roster comes from StoryDefinition (fallbacks handle legacy stories)
+        public_label = str((story_def.get("victim", {}) or {}).get("public_name", "")).strip()
         fallback_name = public_label.split(",")[0].strip() if public_label else "the character"
 
-        main_key = str(main_cfg.get("key") or "MAIN").strip() or "MAIN"
-        main_name = str(main_cfg.get("name") or fallback_name).strip() or fallback_name
-        main_role = str(main_cfg.get("role") or "npc").strip() or "npc"
+        main_char_def = story_def.main_character if isinstance(story_def, StoryDefinition) else None
+        characters = list(story_def.characters) if isinstance(story_def, StoryDefinition) else []
 
-        new_state.knowledge_character_id = str(main_cfg.get("knowledge_character_id") or "").strip()
+        # Legacy fallback: main_character/suspects fields
+        if not characters:
+            legacy_main = (story_def.get("main_character", {}) or {}) if hasattr(story_def, "get") else {}
+            if legacy_main:
+                main_char_def = StoryCharacter.from_dict({**legacy_main, "is_main": True})
+                characters.append(main_char_def)
+            for sus in (story_def.get("suspects", []) or []) if hasattr(story_def, "get") else []:
+                characters.append(StoryCharacter.from_dict({**sus, "is_suspect": True}))
 
-        main_uuid = str(main_cfg.get("uuid", "")) or build_deterministic_uuid(
-            user_id=new_state.user_id,
-            story_id=story_id,
-            instance=new_state.instance,
-            entity_id=main_key,
-        )
+        if not characters:
+            main_char_def = StoryCharacter.from_dict({"key": "MAIN", "name": fallback_name, "role": "npc", "is_main": True})
+            characters.append(main_char_def)
 
-        main_char = CharacterState(
-            key=main_key,
-            name=main_name,
-            role=main_role,
-            emotion=new_state.emotion,
-            relationship=new_state.relationship,
-            uuid=main_uuid,
-        )
+        # Finalize main pointer
+        if not main_char_def and characters:
+            main_char_def = next((c for c in characters if c.is_main), characters[0])
 
-        new_state.characters[main_key] = main_char
-        new_state.main_character_id = main_key
+        for ch in characters:
+            ch_uuid = ch.uuid or build_deterministic_uuid(
+                user_id=new_state.user_id,
+                story_id=story_id,
+                instance=new_state.instance,
+                entity_id=ch.key,
+            )
+            cs = CharacterState(
+                key=ch.key,
+                name=ch.name,
+                role=ch.role or "npc",
+                emotion=new_state.emotion,
+                relationship=new_state.relationship,
+                uuid=ch_uuid,
+            )
+            new_state.characters[ch.key] = cs
+            if ch.is_main:
+                new_state.main_character_id = ch.key
+            if ch.is_main and ch.knowledge_character_id and not new_state.knowledge_character_id:
+                new_state.knowledge_character_id = ch.knowledge_character_id
 
-        opening = cfg.get("opening", {}).get("text", "The room is quiet. A story begins.")
+        if not new_state.main_character_id and main_char_def:
+            new_state.main_character_id = main_char_def.key
+
+        # Fallback knowledge bundle for main
+        if not new_state.knowledge_character_id and main_char_def:
+            new_state.knowledge_character_id = main_char_def.knowledge_character_id
+
+        opening = story_def.get("opening", {}).get("text", "The room is quiet. A story begins.")
         opening = apply_placeholders(opening, new_state)
 
         sess["state"] = new_state
