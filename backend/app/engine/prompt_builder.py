@@ -1,4 +1,6 @@
 # app/engine/prompt_builder.py
+from dataclasses import dataclass, field
+
 from backend.app.engine.gameplay import manifest_mode
 from backend.app.engine.state import MurderGameState
 from backend.app.config.settings import (
@@ -7,6 +9,24 @@ from backend.app.config.settings import (
     MEMORY_TURNS,
 )
 from backend.app.utils.logging_utils import jlog as _jlog, truncate as _truncate
+
+
+# ---------------------------------------------------------------------------
+# PromptInput — single source of truth for all model-bound inputs
+# ---------------------------------------------------------------------------
+@dataclass
+class PromptInput:
+    state: MurderGameState
+    log: list
+    user_msg: str
+    knowledge_chunks: list
+    truth_mode: bool = False
+    retrieval_debug: dict | list | None = None
+    canonicalized_user_msg: str | None = None
+    extras: dict = field(default_factory=dict)
+
+    def canonical_msg(self) -> str:
+        return self.canonicalized_user_msg or self.user_msg
 
 
 def _extract_story_cfg(state: MurderGameState):
@@ -333,23 +353,39 @@ EXAMPLE (WRONG — do NOT do this):
 
 
 def build_messages(
-    state: MurderGameState,
-    log: list,
-    user_msg: str,
-    knowledge_chunks: list,
+    state_or_input,
+    log: list | None = None,
+    user_msg: str | None = None,
+    knowledge_chunks: list | None = None,
     truth_mode: bool = False,
+    return_debug: bool = False,
 ):
     """
     Build the chat completion messages for the model.
 
-    IMPORTANT:
-    - Knowledge retrieval is performed upstream in api/chat.py.
-    - This function MUST NOT load indexes or perform retrieval.
-    - Pass knowledge_chunks=[] explicitly when nothing is retrieved.
+    Accepts either a PromptInput or the legacy args for backward compatibility.
+    When return_debug is True, returns (messages, debug_snapshot).
     """
-    if knowledge_chunks is None:
-        # Guardrail: make failures obvious rather than silently retrieving.
+
+    # Normalize into PromptInput
+    if isinstance(state_or_input, PromptInput):
+        pi = state_or_input
+    else:
+        pi = PromptInput(
+            state=state_or_input,
+            log=log or [],
+            user_msg=user_msg or "",
+            knowledge_chunks=knowledge_chunks if knowledge_chunks is not None else [],
+            truth_mode=truth_mode,
+        )
+
+    if pi.knowledge_chunks is None:
         raise ValueError("build_messages requires knowledge_chunks (pass [] if none).")
+
+    state = pi.state
+    log = pi.log or []
+    user_msg = pi.canonical_msg()
+    truth_mode = pi.truth_mode
 
     # First actual user turn (after opening text)
     is_first_turn = state.turns == 0
@@ -367,7 +403,7 @@ def build_messages(
     # ---------------------------
     main_char = getattr(state, "main_character", None)
     char_name = (getattr(main_char, "name", "") or "the character").strip() or "the character"
-    memory_block = _format_memory_block(knowledge_chunks, char_name)
+    memory_block = _format_memory_block(pi.knowledge_chunks, char_name)
 
     sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block, truth_mode=truth_mode)
     messages = [{"role": "system", "content": sysmsg}]
@@ -404,16 +440,39 @@ def build_messages(
         "content": header + "\n" + user_msg
     })
 
+    debug_snapshot = {
+        "story": getattr(state, "story", None),
+        "instance": getattr(state, "instance", None),
+        "turn": getattr(state, "turns", None),
+        "truth_mode": truth_mode,
+        "user_msg": user_msg,
+        "knowledge_chunks": [
+            {
+                "chunk_id": c.get("chunk_id"),
+                "type": c.get("type"),
+                "source": c.get("source"),
+                "text": _truncate(c.get("text", ""), 400),
+            }
+            for c in pi.knowledge_chunks
+        ],
+        "retrieval_debug": pi.retrieval_debug,
+        "system_prompt_preview": _truncate(sysmsg, 2000),
+        "header": header,
+        "trimmed_history": len(trimmed),
+    }
+
     # Log the final system prompt + last user message (deploy logs)
     _jlog(
         {
             "kind": "final_prompt_built",
             "story": getattr(state, "story", None),
             "turn": getattr(state, "turns", None),
-            "knowledge_chunks": len(knowledge_chunks),
+            "knowledge_chunks": len(pi.knowledge_chunks),
             "system_prompt_preview": _truncate(sysmsg, 2000),
             "user_msg_preview": _truncate(user_msg, 400),
         }
     )
 
+    if return_debug:
+        return messages, debug_snapshot
     return messages

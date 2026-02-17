@@ -978,7 +978,19 @@ async def chat_handler(data: dict):
     # (e.g. "go to interview_room_bob") matches the strict movement regex.
     advance_time(state, msg)
 
-    messages = build_messages(state, log, msg, retrieved, truth_mode=bool(sess.get("truth_mode", False)))
+    from backend.app.engine.prompt_builder import PromptInput
+
+    prompt_input = PromptInput(
+        state=state,
+        log=log,
+        user_msg=msg,
+        knowledge_chunks=retrieved,
+        truth_mode=bool(sess.get("truth_mode", False)),
+        retrieval_debug=debug,
+        canonicalized_user_msg=msg,
+    )
+
+    messages, prompt_debug = build_messages(prompt_input, return_debug=True)
     state.turns += 1
 
     payload = {
@@ -995,6 +1007,7 @@ async def chat_handler(data: dict):
         "turn": state.turns,
         "user_msg": msg,
         "retrieval_debug": debug,
+        "prompt_debug": prompt_debug,
         "retrieved_chunk_ids": [c.get("chunk_id") for c in retrieved],
     })
 
@@ -1073,7 +1086,8 @@ async def chat_handler(data: dict):
     if bool(sess.get("chinese_mode", False)):
         reply = await _translate_to_chinese(reply)
 
-    result = {"reply": reply, "usage": data.get("usage"), "character": "default"}
+    result = {"reply": reply, "usage": data.get("usage"), "character": "default", "prompt_debug": prompt_debug}
     if debug_box is not None:
+        debug_box["prompt"] = prompt_debug
         result["debug_box"] = debug_box
     return result
