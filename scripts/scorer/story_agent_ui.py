@@ -258,6 +258,15 @@ async def ws_run(ws: WebSocket):
         async def send(event: str, data: dict):
             await ws.send_json({"event": event, **data})
 
+        async def emit_debug(turn: int, result: dict):
+          if not isinstance(result, dict):
+            return
+          debug_box = result.get("debug_box")
+          prompt_debug = result.get("prompt_debug")
+          if debug_box is None and prompt_debug is None:
+            return
+          await send("debug", {"turn": turn, "debug_box": debug_box, "prompt_debug": prompt_debug})
+
         # Build agent persona with strategy/persona if provided
         persona_desc = CHATTER_PERSONAS.get(chatter_persona, chatter_persona)
         agent_system = AGENT_PERSONA + f"\n\nPLAYER PERSONA: {persona_desc}"
@@ -282,7 +291,18 @@ async def ws_run(ws: WebSocket):
             result = r.json()
             opening = result.get("reply", "")
 
+            # Force backend debug on so we always receive full prompt context
+            try:
+              await api.post(f"{API_BASE}/api/chat", json={
+                "session_id": session_id,
+                "message": "[D]",
+              })
+              await send("status", {"text": "Debug mode enabled (backend)"})
+            except Exception:
+              await send("warning", {"text": "Could not auto-enable debug; proceeding"})
+
             await send("message", {"role": "npc", "content": opening, "turn": 0})
+            await emit_debug(0, result)
             conversation = [{"role": "npc", "content": opening, "turn": 0}]
 
             # --- Play turns ---
@@ -327,6 +347,7 @@ async def ws_run(ws: WebSocket):
                     result = r.json()
                     npc_reply = result.get("reply", "")
                     tokens = (result.get("usage") or {}).get("total_tokens", 0)
+                    await emit_debug(turn, result)
                 except Exception as e:
                     await send("error", {"text": f"API error: {e}"})
                     conversation.append({"role": "npc", "content": f"[ERROR: {e}]", "turn": turn})
@@ -905,6 +926,54 @@ HTML_PAGE = r"""<!DOCTYPE html>
     border: 1px solid var(--border);
   }
 
+  /* Debug panel */
+  .debug-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .debug-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .debug-header .title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .debug-toggle-btn {
+    background: var(--surface3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .debug-toggle-btn.on { border-color: var(--accent); color: var(--accent); }
+  .debug-body {
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    max-height: 220px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+  .debug-muted { color: var(--text-dim); font-size: 11px; }
+
   .eval-placeholder {
     display: flex;
     align-items: center;
@@ -1153,6 +1222,15 @@ HTML_PAGE = r"""<!DOCTYPE html>
   <!-- Right: Evaluation -->
   <div class="right-panel" id="rightPanel-tester">
     <div class="right-panel-content">
+      <div class="section-label">Debug</div>
+      <div class="debug-card">
+        <div class="debug-header">
+          <div class="title">Prompt + Game Debug</div>
+          <button class="debug-toggle-btn on" id="debugToggleBtn" onclick="toggleDebugView()">Hide</button>
+        </div>
+        <div id="debugBody" class="debug-body"><div class="debug-muted">Waiting for debug payload…</div></div>
+      </div>
+
       <div class="section-label">Evaluation</div>
       <div class="eval-placeholder" id="evalPlaceholder">
         Run a test with "Auto-evaluate" enabled<br>to see scorer results here.
@@ -1210,6 +1288,8 @@ HTML_PAGE = r"""<!DOCTYPE html>
   let testCases = [];
   let editingTestCaseIdx = -1;
   let currentTab = 'tester';
+  let showDebug = true;
+  let lastDebugPayload = null;
 
   // ---- Tab switching ----
   function switchTab(tab) {
@@ -1313,10 +1393,12 @@ HTML_PAGE = r"""<!DOCTYPE html>
     latencies = [];
     totalTokens = 0;
     turnCount = 0;
+    lastDebugPayload = null;
     document.getElementById('chatMessages').innerHTML = '';
     document.getElementById('evalContent').style.display = 'none';
     document.getElementById('evalPlaceholder').style.display = 'flex';
     document.getElementById('progressBar').style.width = '0%';
+    renderDebugPayload(null);
     updateStats();
 
     running = true;
@@ -1368,6 +1450,51 @@ HTML_PAGE = r"""<!DOCTYPE html>
     };
   }
 
+  function formatJson(obj) {
+    try { return JSON.stringify(obj, null, 2); }
+    catch (e) { return '<<unserializable: ' + e.message + '>>'; }
+  }
+
+  function renderDebugPayload(payload) {
+    const body = document.getElementById('debugBody');
+    lastDebugPayload = payload || null;
+    if (!body) return;
+
+    if (!showDebug) {
+      body.innerHTML = '<div class="debug-muted">Debug hidden (still collecting)</div>';
+      return;
+    }
+
+    if (!payload || (!payload.debug_box && !payload.prompt_debug)) {
+      body.innerHTML = '<div class="debug-muted">Waiting for debug payload…</div>';
+      return;
+    }
+
+    const parts = [];
+    if (payload.debug_box) {
+      parts.push('<div><strong>debug_box</strong></div><pre>' + escapeHtml(formatJson(payload.debug_box)) + '</pre>');
+    }
+    if (payload.prompt_debug) {
+      parts.push('<div><strong>prompt_debug</strong></div><pre>' + escapeHtml(formatJson(payload.prompt_debug)) + '</pre>');
+    }
+
+    if (!parts.length) {
+      body.innerHTML = '<div class="debug-muted">No debug payload present.</div>';
+    } else {
+      body.innerHTML = parts.join('<div style="height:8px"></div>');
+    }
+  }
+
+  function toggleDebugView() {
+    showDebug = !showDebug;
+    const btn = document.getElementById('debugToggleBtn');
+    if (btn) {
+      btn.classList.toggle('on', showDebug);
+      btn.textContent = showDebug ? 'Hide' : 'Show';
+    }
+    renderDebugPayload(lastDebugPayload);
+  }
+
   function stopRun() {
     if (ws) ws.close();
     running = false;
@@ -1387,6 +1514,9 @@ HTML_PAGE = r"""<!DOCTYPE html>
         }
         if (msg.role === 'player') turnCount++;
         updateStats();
+        break;
+      case 'debug':
+        handleDebug(msg);
         break;
       case 'progress':
         const pct = (msg.turn / msg.total) * 100;
@@ -1409,6 +1539,14 @@ HTML_PAGE = r"""<!DOCTYPE html>
         document.getElementById('progressBar').style.width = '100%';
         break;
     }
+  }
+
+  function handleDebug(msg) {
+    renderDebugPayload({
+      turn: msg.turn,
+      debug_box: msg.debug_box,
+      prompt_debug: msg.prompt_debug
+    });
   }
 
   function addChatMsg(msg) {
