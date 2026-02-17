@@ -149,7 +149,7 @@ CSV_COLUMNS = [
   "canon_fidelity", "character_voice", "player_agency_respect",
   "responsiveness", "mystery_mechanics", "immersion_quality",
   "edge_case_resilience", "overall_score", "critical_failures",
-  "bugs", "summary",
+  "bugs", "summary", "deduction_notes",
 ]
 
 
@@ -398,11 +398,32 @@ async def ws_run(ws: WebSocket):
                         v = scores.get(key, {})
                         return v.get("score", "") if isinstance(v, dict) else v
 
+                    def _score_note(key):
+                        v = scores.get(key, {})
+                        return v.get("notes", "") if isinstance(v, dict) else ""
+
+                    # Aggregate deduction notes: only categories < 5
+                    deduction_parts = []
+                    for cat_key in [
+                        "canon_fidelity", "character_voice", "player_agency_respect",
+                        "responsiveness", "mystery_mechanics", "immersion_quality",
+                        "edge_case_resilience",
+                    ]:
+                        s = _score_val(cat_key)
+                        n = _score_note(cat_key)
+                        try:
+                            s_int = int(s)
+                        except (ValueError, TypeError):
+                            s_int = 0
+                        if s_int < 5 and n:
+                            label = cat_key.replace("_", " ").title()
+                            deduction_parts.append(f"[{label} {s}/5] {n}")
+
                     csv_row = {
                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                         "run_id": run_id,
                         "story_id": story_id,
-                      "player_name": PLAYER_NAME,
+                        "player_name": PLAYER_NAME,
                         "chatter_model": chatter_model,
                         "rater_model": rater_model,
                         "chatter_persona": chatter_persona,
@@ -422,6 +443,7 @@ async def ws_run(ws: WebSocket):
                         "critical_failures": "; ".join(evaluation.get("critical_failures", [])),
                         "bugs": "; ".join(evaluation.get("bugs", [])),
                         "summary": evaluation.get("summary", ""),
+                        "deduction_notes": " | ".join(deduction_parts),
                     }
                     _append_score_csv(csv_row)
                     await send("status", {"text": f"Score saved to {SCORES_CSV.name}"})
@@ -1586,12 +1608,14 @@ HTML_PAGE = r"""<!DOCTYPE html>
       let html = '<table class="lb-table"><thead><tr>';
       html += '<th>#</th><th>Time</th><th>Story</th><th>Chatter</th><th>Chatter Persona</th><th>Rater</th><th>Rater Persona</th><th>Turns</th>';
       html += '<th>Canon</th><th>Voice</th><th>Agency</th><th>Resp.</th><th>Mystery</th><th>Immers.</th><th>Edge</th>';
-      html += '<th>Overall</th><th>Latency</th>';
+      html += '<th>Overall</th><th>Latency</th><th>Notes</th>';
       html += '</tr></thead><tbody>';
 
       rows.forEach((row, i) => {
         const os = parseFloat(row.overall_score) || 0;
         const scoreClass = os >= 4 ? 'score-4' : os >= 3 ? 'score-3' : 'score-2';
+        const notes = row.deduction_notes || row.summary || '';
+        const hasNotes = notes.length > 0;
         html += '<tr>';
         html += '<td class="lb-rank">' + (i + 1) + '</td>';
         html += '<td>' + escapeHtml(row.timestamp || '') + '</td>';
@@ -1610,6 +1634,13 @@ HTML_PAGE = r"""<!DOCTYPE html>
         html += '<td>' + (row.edge_case_resilience || '-') + '</td>';
         html += '<td class="lb-score ' + scoreClass + '">' + (row.overall_score || '-') + '</td>';
         html += '<td>' + (row.avg_latency_ms || '-') + 'ms</td>';
+        if (hasNotes) {
+          html += '<td style="max-width:300px"><details><summary style="cursor:pointer;font-size:11px;color:var(--accent)">View</summary>';
+          html += '<div style="font-size:11px;color:var(--text);margin-top:4px;white-space:pre-wrap;line-height:1.4">' + escapeHtml(notes) + '</div>';
+          html += '</details></td>';
+        } else {
+          html += '<td style="color:var(--text-dim);font-size:11px">-</td>';
+        }
         html += '</tr>';
       });
 

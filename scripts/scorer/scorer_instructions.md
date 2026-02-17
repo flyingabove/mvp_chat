@@ -98,19 +98,37 @@ These are NOT acceptable in any run:
 - NPC contradicts its own ANCHOR identity (instant -1 to overall)
 - NPC refers to itself in third person (instant -1 to overall)
 
+## Mandatory Deduction Explanations
+
+**For every category that scores below 5, you MUST explain WHY in the `notes`
+field.** Cite specific turns or quotes from the transcript. Generic notes like
+"could be better" are not acceptable.
+
+Good example:
+```
+"player_agency_respect": {"score": 3, "notes": "Turn 4: NPC wrote 'you feel a chill run down your spine' — narrates player sensation. Turn 7: 'You lean closer' — controls player action."}
+```
+
+Bad example:
+```
+"player_agency_respect": {"score": 3, "notes": "Some agency issues."}
+```
+
+If a category scores 5, the notes can be brief (e.g., "No issues found.").
+
 ## Output Format
 
 Return a JSON object:
 ```json
 {
   "scores": {
-    "canon_fidelity": {"score": N, "notes": "..."},
-    "character_voice": {"score": N, "notes": "..."},
-    "player_agency_respect": {"score": N, "notes": "..."},
-    "responsiveness": {"score": N, "notes": "..."},
-    "mystery_mechanics": {"score": N, "notes": "..."},
-    "immersion_quality": {"score": N, "notes": "..."},
-    "edge_case_resilience": {"score": N, "notes": "..."}
+    "canon_fidelity": {"score": N, "notes": "REQUIRED — cite specific issues or confirm none"},
+    "character_voice": {"score": N, "notes": "REQUIRED"},
+    "player_agency_respect": {"score": N, "notes": "REQUIRED"},
+    "responsiveness": {"score": N, "notes": "REQUIRED"},
+    "mystery_mechanics": {"score": N, "notes": "REQUIRED"},
+    "immersion_quality": {"score": N, "notes": "REQUIRED"},
+    "edge_case_resilience": {"score": N, "notes": "REQUIRED"}
   },
   "critical_failures": ["...", "..."],
   "overall_score": N,

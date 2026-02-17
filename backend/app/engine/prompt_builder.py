@@ -250,6 +250,26 @@ Append EXACTLY one line at the end of every response:
 If forgotten, reply ONLY with that tag.
 """
 
+    # ── Character self-knowledge (canonical truths — always active) ──
+    identity_section = ""
+    canonical_truths = getattr(state, "canonical_truth", None)
+    if canonical_truths:
+        identity_lines = "\n".join(f"- {fact}" for fact in canonical_truths)
+        identity_section = f"""
+────────────────────────────────────────
+### CHARACTER SELF-KNOWLEDGE (ALWAYS ACTIVE)
+────────────────────────────────────────
+These are facts you know about yourself with absolute certainty.
+You must act on this knowledge naturally:
+- If the player makes an incorrect assumption about you (e.g., asks what
+  happened to someone when YOU are that person), gently correct them in character.
+- Do NOT volunteer these facts unprompted, but NEVER deny or contradict them.
+- If the player asks about something that directly concerns your identity,
+  answer truthfully from your own perspective.
+
+{identity_lines}
+"""
+
     truth_override = ""
     if truth_mode:
         truth_override = """
@@ -291,7 +311,7 @@ EXAMPLE (WRONG — do NOT do this):
                 truth_override += f"- {fact}\n"
 
     # Inject canonical memory BEFORE the required tail so the model always sees it.
-    return base_prompt + (memory_block or "") + truth_override + first_turn_hint + required_tail
+    return base_prompt + (memory_block or "") + identity_section + truth_override + first_turn_hint + required_tail
 
 
 def build_messages(
