@@ -16,7 +16,9 @@ Optional (for LLM-powered play + evaluation):
 """
 
 import asyncio
+import csv
 import json
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -24,16 +26,26 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 API_BASE = "https://beta-api.storieschat.ai"
-DEFAULT_MODEL = "llama3.1:8b"
+DEFAULT_CHATTER_MODEL = "llama3.1:8b"
+DEFAULT_RATER_MODEL = "gemma3:12b"
 PLAYER_NAME = "Alex"
 PLAYER_GENDER = "M"
 PORT = 8899
+
+SCRIPTS_DIR = Path(__file__).parent
+SAVE_DIR = SCRIPTS_DIR.parent / "saves"
+SCORES_CSV = SAVE_DIR / "scores.csv"
+TEST_CASES_FILE = SCRIPTS_DIR / "test_cases.json"
+SCORER_INSTRUCTIONS_FILE = SCRIPTS_DIR / "scorer_instructions.md"
+
+# Ensure save dir exists
+SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # Agent persona & evaluator prompts
@@ -50,50 +62,19 @@ You are chatting with an NPC character. Your goal is to:
 Respond with ONLY your next message to the character. No commentary or meta-text.
 """
 
-EVALUATOR_PROMPT = """\
-You are a QA evaluator for a text-based murder mystery chat game.
-Analyze the following conversation between a player and an NPC character.
-
-Assume one player persona while evaluating (and state which you used):
-- Curious Rookie: polite, exploratory questions.
-- Confrontational Cop: direct, pressure-testing and skeptical.
-- Empathetic Confidant: warm, rapport-first, looking for feelings/context.
-- Chaos Gremlin: edge cases, non sequiturs, tries to break scripts.
-
-Rate each category 1-5 and provide brief notes:
-
-1. **Character Consistency** — Does the NPC stay in character? Consistent personality/voice?
-2. **Narrative Quality** — Are responses engaging, atmospheric, well-written?
-3. **Responsiveness** — Does the NPC actually address what the player says?
-4. **Mystery Mechanics** — Does the NPC appropriately reveal/withhold clues?
-5. **Edge Case Handling** — How does the NPC handle odd or unexpected inputs?
-6. **Immersion Breaking** — Any moments where the NPC breaks character or feels robotic?
-
-Also list any specific BUGS or ISSUES you noticed.
-
-Format your response as JSON:
-{
-    "scores": {
-        "character_consistency": {"score": N, "notes": "..."},
-        "narrative_quality": {"score": N, "notes": "..."},
-        "responsiveness": {"score": N, "notes": "..."},
-        "mystery_mechanics": {"score": N, "notes": "..."},
-        "edge_case_handling": {"score": N, "notes": "..."},
-        "immersion_breaking": {"score": N, "notes": "..."}
-    },
-    "overall_score": N,
-    "bugs": ["...", "..."],
-    "highlights": ["...", "..."],
-    "summary": "..."
-}
-"""
+# Load scorer instructions from file
+def _load_scorer_instructions() -> str:
+    try:
+        return SCORER_INSTRUCTIONS_FILE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
 
 EVAL_PERSONAS = {
     "curious_rookie": "Curious Rookie: polite, exploratory questions.",
     "confrontational_cop": "Confrontational Cop: direct, pressure-testing and skeptical.",
     "empathetic_confidant": "Empathetic Confidant: warm, rapport-first, feelings/context seeking.",
     "chaos_gremlin": "Chaos Gremlin: edge-case breaker, non sequiturs, stress-tests scripts.",
-  "first_time_user": "First-time User: new to chatbots, tentative, asks basic or clarifying questions.",
+    "first_time_user": "First-time User: new to chatbots, tentative, asks basic or clarifying questions.",
 }
 
 FALLBACK_MESSAGES = [
@@ -155,6 +136,55 @@ async def check_ollama() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# CSV scores helper
+# ---------------------------------------------------------------------------
+CSV_COLUMNS = [
+  "timestamp", "run_id", "story_id", "player_name",
+  "chatter_model", "rater_model", "eval_persona", "turns",
+  "avg_latency_ms", "total_tokens",
+  "canon_fidelity", "character_voice", "player_agency_respect",
+  "responsiveness", "mystery_mechanics", "immersion_quality",
+  "edge_case_resilience", "overall_score", "critical_failures",
+  "bugs", "summary",
+]
+
+
+def _append_score_csv(row: dict):
+    """Append a score row to the CSV. Creates the file + header if needed."""
+    file_exists = SCORES_CSV.exists() and SCORES_CSV.stat().st_size > 0
+    with open(SCORES_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS, extrasaction="ignore")
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+
+def _read_scores_csv() -> list[dict]:
+    """Read all score rows from the CSV."""
+    if not SCORES_CSV.exists():
+        return []
+    with open(SCORES_CSV, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return list(reader)
+
+
+# ---------------------------------------------------------------------------
+# Test cases helper
+# ---------------------------------------------------------------------------
+def _load_test_cases() -> list[dict]:
+    try:
+        data = json.loads(TEST_CASES_FILE.read_text(encoding="utf-8"))
+        return data.get("test_cases", [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+def _save_test_cases(cases: list[dict]):
+    data = {"version": 1, "test_cases": cases}
+    TEST_CASES_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
 @asynccontextmanager
@@ -182,6 +212,23 @@ async def status():
     return {"ollama": ollama, "stories": stories, "api_base": API_BASE}
 
 
+@app.get("/api/scores")
+async def get_scores():
+    return JSONResponse(_read_scores_csv())
+
+
+@app.get("/api/test-cases")
+async def get_test_cases():
+    return JSONResponse(_load_test_cases())
+
+
+@app.post("/api/test-cases")
+async def save_test_cases_endpoint(body: dict):
+    cases = body.get("test_cases", [])
+    _save_test_cases(cases)
+    return {"ok": True}
+
+
 @app.websocket("/ws/run")
 async def ws_run(ws: WebSocket):
     await ws.accept()
@@ -193,14 +240,23 @@ async def ws_run(ws: WebSocket):
         story_id = config.get("story_id", "iu_murder_mystery")
         num_turns = int(config.get("turns", 12))
         use_llm = config.get("use_llm", True)
-        model = config.get("model", DEFAULT_MODEL)
+        chatter_model = config.get("chatter_model", DEFAULT_CHATTER_MODEL)
+        rater_model = config.get("rater_model", DEFAULT_RATER_MODEL)
         do_eval = config.get("evaluate", True)
         eval_persona = config.get("eval_persona", "curious_rookie")
+        # Test case mode: use scripted messages instead of LLM/fallback
+        test_case_messages = config.get("test_case_messages", None)
+        test_case_strategy = config.get("test_case_strategy", "")
 
         session_id = f"ui_{story_id}_{int(time.time())}"
 
         async def send(event: str, data: dict):
             await ws.send_json({"event": event, **data})
+
+        # Build agent persona with strategy if provided
+        agent_system = AGENT_PERSONA
+        if test_case_strategy:
+            agent_system += f"\n\nSTRATEGY: {test_case_strategy}"
 
         # --- Start game ---
         await send("status", {"text": f"Starting {story_id}..."})
@@ -224,20 +280,26 @@ async def ws_run(ws: WebSocket):
             conversation = [{"role": "npc", "content": opening, "turn": 0}]
 
             # --- Play turns ---
-            for turn in range(1, num_turns + 1):
+            effective_turns = num_turns
+            if test_case_messages:
+                effective_turns = len(test_case_messages)
+
+            for turn in range(1, effective_turns + 1):
                 if active_runs.get(run_id, {}).get("status") == "stopped":
                     await send("status", {"text": "Stopped by user."})
                     break
 
                 # Get player message
-                if use_llm:
+                if test_case_messages:
+                    player_msg = test_case_messages[turn - 1] if turn - 1 < len(test_case_messages) else ""
+                elif use_llm:
                     try:
                         history = "\n".join(
                             f"{'PLAYER' if m['role'] == 'player' else 'NPC'}: {m['content']}"
                             for m in conversation[-6:]
                         )
-                        prompt = f"Conversation so far:\n{history}\n\nTurn {turn}/{num_turns}. What do you say next?"
-                        player_msg = await ollama_generate(model, AGENT_PERSONA, prompt)
+                        prompt = f"Conversation so far:\n{history}\n\nTurn {turn}/{effective_turns}. What do you say next?"
+                        player_msg = await ollama_generate(chatter_model, agent_system, prompt)
                         player_msg = player_msg.strip().strip('"').strip("'")
                     except Exception as e:
                         player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
@@ -276,29 +338,40 @@ async def ws_run(ws: WebSocket):
                     "latency_ms": int(latency * 1000), "tokens": tokens,
                 })
 
-                await send("progress", {"turn": turn, "total": num_turns})
+                await send("progress", {"turn": turn, "total": effective_turns})
 
                 if "Game already finished" in npc_reply or "END GAME" in npc_reply:
                     await send("status", {"text": "Game over!"})
                     break
 
-            # --- Evaluate ---
+            # --- Evaluate (scorer runs AFTER conversation is done) ---
             if do_eval:
-                await send("status", {"text": "Evaluating conversation quality..."})
+                await send("status", {"text": f"Scoring with {rater_model}..."})
                 try:
+                    scorer_instructions = _load_scorer_instructions()
                     transcript = "\n".join(
                         f"{'PLAYER' if m['role'] == 'player' else 'NPC'}: {m['content']}"
                         for m in conversation
                     )
                     persona_desc = EVAL_PERSONAS.get(eval_persona, eval_persona)
-                    prompt = (
-                        f"Story: {story_id}\n"
-                        f"Total turns: {len([m for m in conversation if m['role'] == 'player'])}\n\n"
-                        f"Player persona (assumed for evaluation): {persona_desc}\n\n"
-                        f"=== CONVERSATION ===\n{transcript}\n=== END ===\n\n"
-                        f"Provide your evaluation as JSON."
+
+                    system_prompt = scorer_instructions if scorer_instructions else (
+                        "You are a QA scorer for a narrative game. "
+                        "Rate the conversation and return JSON."
                     )
-                    raw = await ollama_generate(model, EVALUATOR_PROMPT, prompt)
+
+                    prompt = (
+                      f"Story: {story_id}\n"
+                      f"Total turns: {len([m for m in conversation if m['role'] == 'player'])}\n"
+                      f"Chatter model: {chatter_model}\n\n"
+                      f"Player persona (assumed for evaluation): {persona_desc}\n\n"
+                      "Score ONLY the NPC (LLM) replies. Use player lines strictly as context."
+                      " Focus on canon fidelity, voice, agency respect, responsiveness, mystery pacing,"
+                      " immersion, and edge-case handling."
+                      f"\n\n=== CONVERSATION ===\n{transcript}\n=== END ===\n\n"
+                      f"Provide your evaluation as JSON per the output format above."
+                    )
+                    raw = await ollama_generate(rater_model, system_prompt, prompt)
                     start = raw.find("{")
                     end = raw.rfind("}") + 1
                     if start >= 0 and end > start:
@@ -306,6 +379,45 @@ async def ws_run(ws: WebSocket):
                     else:
                         evaluation = {"raw_response": raw, "parse_error": "No JSON found"}
                     await send("evaluation", evaluation)
+
+                    # --- Record to CSV ---
+                    scores = evaluation.get("scores", {})
+                    npc_msgs = [m for m in conversation if m.get("latency_ms")]
+                    avg_lat = 0
+                    if npc_msgs:
+                        avg_lat = int(sum(m["latency_ms"] for m in npc_msgs) / len(npc_msgs))
+                    tot_tokens = sum(m.get("tokens", 0) for m in npc_msgs)
+
+                    def _score_val(key):
+                        v = scores.get(key, {})
+                        return v.get("score", "") if isinstance(v, dict) else v
+
+                    csv_row = {
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "run_id": run_id,
+                        "story_id": story_id,
+                      "player_name": PLAYER_NAME,
+                        "chatter_model": chatter_model,
+                        "rater_model": rater_model,
+                        "eval_persona": eval_persona,
+                        "turns": len([m for m in conversation if m["role"] == "player"]),
+                        "avg_latency_ms": avg_lat,
+                        "total_tokens": tot_tokens,
+                        "canon_fidelity": _score_val("canon_fidelity"),
+                        "character_voice": _score_val("character_voice"),
+                        "player_agency_respect": _score_val("player_agency_respect"),
+                        "responsiveness": _score_val("responsiveness"),
+                        "mystery_mechanics": _score_val("mystery_mechanics"),
+                        "immersion_quality": _score_val("immersion_quality"),
+                        "edge_case_resilience": _score_val("edge_case_resilience"),
+                        "overall_score": evaluation.get("overall_score", ""),
+                        "critical_failures": "; ".join(evaluation.get("critical_failures", [])),
+                        "bugs": "; ".join(evaluation.get("bugs", [])),
+                        "summary": evaluation.get("summary", ""),
+                    }
+                    _append_score_csv(csv_row)
+                    await send("status", {"text": f"Score saved to {SCORES_CSV.name}"})
+
                 except Exception as e:
                     await send("error", {"text": f"Evaluation failed: {e}"})
 
@@ -325,7 +437,7 @@ async def ws_run(ws: WebSocket):
 # ---------------------------------------------------------------------------
 # HTML / CSS / JS — single-file browser UI
 # ---------------------------------------------------------------------------
-HTML_PAGE = """<!DOCTYPE html>
+HTML_PAGE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -367,7 +479,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
   .app {
     display: grid;
-    grid-template-columns: 320px 1fr 340px;
+    grid-template-columns: 320px 1fr 360px;
     grid-template-rows: 56px 1fr;
     height: 100vh;
     gap: 1px;
@@ -403,6 +515,27 @@ HTML_PAGE = """<!DOCTYPE html>
     color: var(--text-dim);
     font-family: var(--font-mono);
   }
+  .header .tab-bar {
+    margin-left: auto;
+    display: flex;
+    gap: 2px;
+  }
+  .header .tab-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .header .tab-btn:hover { color: var(--text); background: var(--surface2); }
+  .header .tab-btn.active { color: var(--accent); background: var(--surface2); }
 
   /* ---- Sidebar (controls) ---- */
   .sidebar {
@@ -426,7 +559,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
   .control-group { display: flex; flex-direction: column; gap: 8px; }
 
-  select, input[type="number"] {
+  select, input[type="number"], input[type="text"], textarea {
     width: 100%;
     padding: 10px 12px;
     background: var(--surface2);
@@ -438,8 +571,9 @@ HTML_PAGE = """<!DOCTYPE html>
     outline: none;
     transition: border-color 0.2s;
   }
-  select:focus, input:focus { border-color: var(--accent); }
+  select:focus, input:focus, textarea:focus { border-color: var(--accent); }
   select option { background: var(--surface2); }
+  textarea { resize: vertical; min-height: 60px; font-family: var(--font-sans); }
 
   .toggle-row {
     display: flex;
@@ -505,6 +639,11 @@ HTML_PAGE = """<!DOCTYPE html>
     border: 1px solid var(--border);
   }
   .btn-secondary:hover { border-color: var(--accent); color: var(--text-bright); }
+
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
 
   .btn-row { display: flex; gap: 8px; }
   .btn-row .btn { flex: 1; }
@@ -629,16 +768,26 @@ HTML_PAGE = """<!DOCTYPE html>
   .chat-input-bar button:hover { filter: brightness(1.15); }
   .chat-input-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* ---- Eval panel ---- */
-  .eval-panel {
+  /* ---- Right panel ---- */
+  .right-panel {
     background: var(--surface);
-    padding: 20px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+  }
+  .right-panel-content {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
     gap: 16px;
+    flex: 1;
   }
 
+  /* Tab content visibility */
+  .tab-page { display: none; flex-direction: column; height: 100%; }
+  .tab-page.active { display: flex; }
+
+  /* ---- Eval panel ---- */
   .score-card {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -722,7 +871,7 @@ HTML_PAGE = """<!DOCTYPE html>
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    flex: 1;
     color: var(--text-dim);
     font-size: 13px;
     text-align: center;
@@ -762,6 +911,79 @@ HTML_PAGE = """<!DOCTYPE html>
     line-height: 1.4;
     margin-top: 8px;
   }
+
+  /* ---- Leaderboard ---- */
+  .lb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .lb-table th {
+    text-align: left;
+    padding: 8px 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+  .lb-table td {
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .lb-table tr:hover td { background: var(--surface2); }
+  .lb-rank {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--accent);
+    width: 30px;
+  }
+  .lb-score {
+    font-family: var(--font-mono);
+    font-weight: 700;
+  }
+
+  /* ---- Test case designer ---- */
+  .tc-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 8px;
+  }
+  .tc-card .tc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .tc-card .tc-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-bright);
+  }
+  .tc-card .tc-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .tc-card .tc-msgs {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+    background: var(--surface3);
+    padding: 8px;
+    border-radius: 6px;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+  .tc-actions { display: flex; gap: 6px; }
 </style>
 </head>
 <body>
@@ -771,15 +993,35 @@ HTML_PAGE = """<!DOCTYPE html>
     <h1>&#x1F9EA; STORIESCHAT TESTER</h1>
     <div class="dot" id="statusDot"></div>
     <span class="status-text" id="statusText">Connecting...</span>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('tester')">Tester</button>
+      <button class="tab-btn" onclick="switchTab('leaderboard')">Leaderboard</button>
+      <button class="tab-btn" onclick="switchTab('test-cases')">Test Cases</button>
+    </div>
   </div>
 
+  <!-- ================= TAB: TESTER ================= -->
+  <div class="tab-page active" id="tab-tester" style="display:contents">
   <!-- Left sidebar: Controls -->
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar-tester">
     <div>
       <div class="section-label">Story</div>
       <div class="control-group">
         <select id="storySelect"><option value="">Loading stories...</option></select>
       </div>
+    </div>
+
+    <div>
+      <div class="section-label">Models</div>
+      <div class="control-group">
+        <label style="font-size:12px;color:var(--text-dim)">Chatter (player agent)</label>
+        <select id="chatterModelSelect"><option value="">Loading...</option></select>
+      </div>
+      <div class="control-group" style="margin-top:6px">
+        <label style="font-size:12px;color:var(--text-dim)">Rater (scorer)</label>
+        <select id="raterModelSelect"><option value="">Loading...</option></select>
+      </div>
+      <div class="hint">Chatter and rater should be different models to avoid self-bias.</div>
     </div>
 
     <div>
@@ -798,12 +1040,6 @@ HTML_PAGE = """<!DOCTYPE html>
         <div class="toggle on" id="evalToggle" onclick="this.classList.toggle('on')"></div>
       </div>
 
-      <div class="hint">
-        Eval personas: Curious Rookie (polite), Confrontational Cop (direct),
-        Empathetic Confidant (warm), Chaos Gremlin (edge-case breaker),
-        First-time User (new to chatbots, tentative).
-      </div>
-
       <div class="control-group" style="margin-top:6px">
         <label style="font-size:12px;color:var(--text-dim)">Eval persona</label>
         <select id="personaSelect">
@@ -813,11 +1049,6 @@ HTML_PAGE = """<!DOCTYPE html>
           <option value="chaos_gremlin">Chaos Gremlin</option>
           <option value="first_time_user">First-time User</option>
         </select>
-      </div>
-
-      <div class="control-group" style="margin-top:4px">
-        <label style="font-size:12px;color:var(--text-dim)">Ollama model</label>
-        <select id="modelSelect"><option value="llama3.1:8b">llama3.1:8b</option></select>
       </div>
     </div>
 
@@ -840,7 +1071,7 @@ HTML_PAGE = """<!DOCTYPE html>
           <div class="stat-label">Turns</div>
         </div>
         <div class="stat-box">
-          <div class="stat-val" id="statLatency">—</div>
+          <div class="stat-val" id="statLatency">--</div>
           <div class="stat-label">Avg ms</div>
         </div>
         <div class="stat-box">
@@ -857,7 +1088,7 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 
   <!-- Center: Chat -->
-  <div class="chat-panel">
+  <div class="chat-panel" id="chatPanel-tester">
     <div class="chat-messages" id="chatMessages">
       <div class="system-msg">Select a story and click Run to begin.</div>
     </div>
@@ -868,13 +1099,52 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 
   <!-- Right: Evaluation -->
-  <div class="eval-panel" id="evalPanel">
-    <div class="section-label">Evaluation</div>
-    <div class="eval-placeholder" id="evalPlaceholder">
-      Run a test with "Auto-evaluate" enabled<br>and an Ollama model to see results here.
+  <div class="right-panel" id="rightPanel-tester">
+    <div class="right-panel-content">
+      <div class="section-label">Evaluation</div>
+      <div class="eval-placeholder" id="evalPlaceholder">
+        Run a test with "Auto-evaluate" enabled<br>to see scorer results here.
+      </div>
+      <div id="evalContent" style="display:none"></div>
     </div>
-    <div id="evalContent" style="display:none"></div>
   </div>
+  </div><!-- /tab-tester -->
+
+  <!-- ================= TAB: LEADERBOARD ================= -->
+  <div class="tab-page" id="tab-leaderboard">
+    <div style="grid-column: 1 / -1; padding: 20px; overflow-y: auto;">
+      <div style="max-width: 1100px; margin: 0 auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+          <div class="section-label" style="margin:0">Scores Leaderboard</div>
+          <button class="btn btn-secondary btn-sm" onclick="loadLeaderboard()">&#x1F504; Refresh</button>
+        </div>
+        <div id="leaderboardContent">
+          <div class="eval-placeholder">Loading scores...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TAB: TEST CASES ================= -->
+  <div class="tab-page" id="tab-test-cases">
+    <div style="grid-column: 1 / -1; display: grid; grid-template-columns: 380px 1fr; height: 100%; gap: 1px; background: var(--border);">
+      <!-- Test case list -->
+      <div style="background: var(--surface); padding: 20px; overflow-y: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+          <div class="section-label" style="margin:0">Test Cases</div>
+          <button class="btn btn-primary btn-sm" onclick="newTestCase()">+ New</button>
+        </div>
+        <div id="testCaseList"></div>
+      </div>
+      <!-- Test case editor -->
+      <div style="background: var(--bg); padding: 20px; overflow-y: auto;">
+        <div id="testCaseEditor">
+          <div class="eval-placeholder">Select or create a test case to edit it.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -884,10 +1154,39 @@ HTML_PAGE = """<!DOCTYPE html>
   let latencies = [];
   let totalTokens = 0;
   let turnCount = 0;
-  // For manual message mode
   let manualSession = null;
+  let testCases = [];
+  let editingTestCaseIdx = -1;
+  let currentTab = 'tester';
 
-  // Init
+  // ---- Tab switching ----
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-page').forEach(p => {
+      p.classList.remove('active');
+      p.style.display = 'none';
+    });
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+    const page = document.getElementById('tab-' + tab);
+    if (page) {
+      page.classList.add('active');
+      page.style.display = tab === 'tester' ? 'contents' : 'flex';
+    }
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      if (b.textContent.toLowerCase().replace(/\s/g, '-') === tab ||
+          (tab === 'tester' && b.textContent === 'Tester') ||
+          (tab === 'leaderboard' && b.textContent === 'Leaderboard') ||
+          (tab === 'test-cases' && b.textContent === 'Test Cases')) {
+        b.classList.add('active');
+      }
+    });
+
+    if (tab === 'leaderboard') loadLeaderboard();
+    if (tab === 'test-cases') loadTestCases();
+  }
+
+  // ---- Init ----
   async function init() {
     const r = await fetch('/api/status');
     const data = await r.json();
@@ -909,30 +1208,43 @@ HTML_PAGE = """<!DOCTYPE html>
       sel.innerHTML = '<option value="">No stories found</option>';
     }
 
-    // Populate models
-    const msel = document.getElementById('modelSelect');
-    msel.innerHTML = '';
+    // Populate model selects (both chatter and rater)
+    const chatterSel = document.getElementById('chatterModelSelect');
+    const raterSel = document.getElementById('raterModelSelect');
+    chatterSel.innerHTML = '';
+    raterSel.innerHTML = '';
+
     if (data.ollama.available && data.ollama.models.length) {
-      data.ollama.models.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m;
-        opt.textContent = m;
-        msel.appendChild(opt);
+      const models = data.ollama.models;
+      models.forEach((m, i) => {
+        const opt1 = document.createElement('option');
+        opt1.value = m; opt1.textContent = m;
+        chatterSel.appendChild(opt1);
+
+        const opt2 = document.createElement('option');
+        opt2.value = m; opt2.textContent = m;
+        raterSel.appendChild(opt2);
       });
+      // Default: rater is a different model if possible
+      if (models.length >= 2) {
+        raterSel.selectedIndex = 1;
+      }
       dot.classList.add('connected');
       txt.textContent = 'API + Ollama ready';
     } else {
-      msel.innerHTML = '<option value="">No models (Ollama offline)</option>';
+      chatterSel.innerHTML = '<option value="">No models (Ollama offline)</option>';
+      raterSel.innerHTML = '<option value="">No models (Ollama offline)</option>';
       if (data.stories.length) {
         dot.classList.add('connected');
-        txt.textContent = 'API ready (Ollama offline — scripted mode only)';
+        txt.textContent = 'API ready (Ollama offline)';
       } else {
         txt.textContent = 'API unreachable';
       }
     }
   }
 
-  function startRun() {
+  // ---- Run ----
+  function startRun(testCaseOverride) {
     const storyId = document.getElementById('storySelect').value;
     if (!storyId) return;
 
@@ -940,7 +1252,8 @@ HTML_PAGE = """<!DOCTYPE html>
     const useLlm = document.getElementById('llmToggle').classList.contains('on');
     const evaluate = document.getElementById('evalToggle').classList.contains('on');
     const evalPersona = document.getElementById('personaSelect').value || 'curious_rookie';
-    const model = document.getElementById('modelSelect').value;
+    const chatterModel = document.getElementById('chatterModelSelect').value;
+    const raterModel = document.getElementById('raterModelSelect').value;
 
     // Reset
     conversation = [];
@@ -959,18 +1272,31 @@ HTML_PAGE = """<!DOCTYPE html>
     document.getElementById('manualInput').disabled = true;
     document.getElementById('sendBtn').disabled = true;
 
+    // Switch to tester tab if not already
+    if (currentTab !== 'tester') switchTab('tester');
+
     addSystemMsg('Starting ' + storyId + '...');
+
+    const wsConfig = {
+      story_id: storyId,
+      turns: turns,
+      use_llm: useLlm,
+      chatter_model: chatterModel,
+      rater_model: raterModel,
+      evaluate: evaluate,
+      eval_persona: evalPersona,
+    };
+
+    // Test case override
+    if (testCaseOverride) {
+      wsConfig.test_case_messages = testCaseOverride.messages || [];
+      wsConfig.test_case_strategy = testCaseOverride.strategy || '';
+      addSystemMsg('Running test case: ' + (testCaseOverride.name || 'unnamed'));
+    }
 
     ws = new WebSocket('ws://' + location.host + '/ws/run');
     ws.onopen = () => {
-      ws.send(JSON.stringify({
-        story_id: storyId,
-        turns: turns,
-        use_llm: useLlm,
-        model: model,
-        evaluate: evaluate,
-        eval_persona: evalPersona,
-      }));
+      ws.send(JSON.stringify(wsConfig));
     };
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
@@ -1016,10 +1342,10 @@ HTML_PAGE = """<!DOCTYPE html>
         addSystemMsg(msg.text);
         break;
       case 'warning':
-        addSystemMsg('⚠ ' + msg.text);
+        addSystemMsg('\u26A0 ' + msg.text);
         break;
       case 'error':
-        addSystemMsg('✗ ' + msg.text);
+        addSystemMsg('\u2717 ' + msg.text);
         break;
       case 'evaluation':
         renderEval(msg);
@@ -1037,7 +1363,7 @@ HTML_PAGE = """<!DOCTYPE html>
     let html = '<div class="role-tag">' + (msg.role === 'npc' ? 'NPC' : 'Player') + '</div>';
     html += '<div>' + escapeHtml(msg.content) + '</div>';
     if (msg.latency_ms) {
-      html += '<div class="meta">' + msg.latency_ms + 'ms · ' + (msg.tokens || 0) + ' tok</div>';
+      html += '<div class="meta">' + msg.latency_ms + 'ms \u00B7 ' + (msg.tokens || 0) + ' tok</div>';
     }
     el.innerHTML = html;
     document.getElementById('chatMessages').appendChild(el);
@@ -1071,7 +1397,7 @@ HTML_PAGE = """<!DOCTYPE html>
     let html = '';
 
     // Overall score
-    if (ev.overall_score) {
+    if (ev.overall_score != null) {
       html += '<div class="overall-score"><div class="number">' + ev.overall_score + '</div><div class="label">Overall Score / 5</div></div>';
     }
 
@@ -1079,26 +1405,33 @@ HTML_PAGE = """<!DOCTYPE html>
     if (ev.scores) {
       html += '<div class="score-card"><h3>Category Scores</h3>';
       for (const [key, val] of Object.entries(ev.scores)) {
-        const label = key.replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
+        const label = key.replace(/_/g, ' ');
         const score = typeof val === 'object' ? val.score : val;
         const notes = typeof val === 'object' ? val.notes : '';
-        html += '<div class="score-row"><span class="score-label">' + label + '</span>';
+        html += '<div class="score-row"><span class="score-label">' + escapeHtml(label) + '</span>';
         html += '<span class="score-value score-' + score + '">' + score + '/5</span></div>';
         if (notes) html += '<div style="font-size:11px;color:var(--text-dim);padding:2px 0 6px">' + escapeHtml(notes) + '</div>';
       }
       html += '</div>';
     }
 
+    // Critical failures
+    if (ev.critical_failures && ev.critical_failures.length) {
+      html += '<div class="score-card"><h3>\u26A0 Critical Failures</h3><ul class="eval-list">';
+      ev.critical_failures.forEach(f => { html += '<li class="bug">' + escapeHtml(f) + '</li>'; });
+      html += '</ul></div>';
+    }
+
     // Bugs
     if (ev.bugs && ev.bugs.length) {
-      html += '<div class="score-card"><h3>&#x1F41B; Bugs</h3><ul class="eval-list">';
+      html += '<div class="score-card"><h3>\uD83D\uDC1B Bugs</h3><ul class="eval-list">';
       ev.bugs.forEach(b => { html += '<li class="bug">' + escapeHtml(b) + '</li>'; });
       html += '</ul></div>';
     }
 
     // Highlights
     if (ev.highlights && ev.highlights.length) {
-      html += '<div class="score-card"><h3>&#x2728; Highlights</h3><ul class="eval-list">';
+      html += '<div class="score-card"><h3>\u2728 Highlights</h3><ul class="eval-list">';
       ev.highlights.forEach(h => { html += '<li class="highlight">' + escapeHtml(h) + '</li>'; });
       html += '</ul></div>';
     }
@@ -1111,26 +1444,26 @@ HTML_PAGE = """<!DOCTYPE html>
     container.innerHTML = html;
   }
 
-  // Manual send
+  // ---- Manual send ----
   async function sendManual() {
     const input = document.getElementById('manualInput');
     const msg = input.value.trim();
     if (!msg) return;
     input.value = '';
 
-    // If no session, start one
     if (!manualSession) {
       const storyId = document.getElementById('storySelect').value;
       if (!storyId) { addSystemMsg('Select a story first.'); return; }
       manualSession = 'manual_' + Date.now();
       addSystemMsg('Starting manual session for ' + storyId + '...');
-      // Reset + newgame
-      await fetch('https://beta-api.storieschat.ai/api/chat', {
+      await fetch('/api/status'); // just to get API_BASE
+      const apiBase = 'https://beta-api.storieschat.ai';
+      await fetch(apiBase + '/api/chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ session_id: manualSession, message: '__cmd_reset__' }),
       });
-      const r = await fetch('https://beta-api.storieschat.ai/api/chat', {
+      const r = await fetch(apiBase + '/api/chat', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ session_id: manualSession, message: '__cmd_newgame__:' + storyId + '|M|Player' }),
@@ -1166,6 +1499,7 @@ HTML_PAGE = """<!DOCTYPE html>
     if (e.key === 'Enter') sendManual();
   });
 
+  // ---- Export ----
   function exportLog() {
     if (!conversation.length) { alert('No conversation to export.'); return; }
     const blob = new Blob([JSON.stringify(conversation, null, 2)], { type: 'application/json' });
@@ -1177,9 +1511,205 @@ HTML_PAGE = """<!DOCTYPE html>
     URL.revokeObjectURL(url);
   }
 
+  // ---- Leaderboard ----
+  async function loadLeaderboard() {
+    const container = document.getElementById('leaderboardContent');
+    try {
+      const r = await fetch('/api/scores');
+      const rows = await r.json();
+      if (!rows.length) {
+        container.innerHTML = '<div class="eval-placeholder">No scores recorded yet. Run a test with Auto-evaluate enabled.</div>';
+        return;
+      }
+
+      // Sort by overall_score descending
+      rows.sort((a, b) => (parseFloat(b.overall_score) || 0) - (parseFloat(a.overall_score) || 0));
+
+      let html = '<table class="lb-table"><thead><tr>';
+      html += '<th>#</th><th>Time</th><th>Story</th><th>Chatter</th><th>Rater</th><th>Persona</th><th>Turns</th>';
+      html += '<th>Canon</th><th>Voice</th><th>Agency</th><th>Resp.</th><th>Mystery</th><th>Immers.</th><th>Edge</th>';
+      html += '<th>Overall</th><th>Latency</th>';
+      html += '</tr></thead><tbody>';
+
+      rows.forEach((row, i) => {
+        const os = parseFloat(row.overall_score) || 0;
+        const scoreClass = os >= 4 ? 'score-4' : os >= 3 ? 'score-3' : 'score-2';
+        html += '<tr>';
+        html += '<td class="lb-rank">' + (i + 1) + '</td>';
+        html += '<td>' + escapeHtml(row.timestamp || '') + '</td>';
+        html += '<td>' + escapeHtml(row.story_id || '') + '</td>';
+        html += '<td style="font-size:11px">' + escapeHtml(row.chatter_model || '') + '</td>';
+        html += '<td style="font-size:11px">' + escapeHtml(row.rater_model || '') + '</td>';
+        html += '<td style="font-size:11px">' + escapeHtml(row.eval_persona || '') + '</td>';
+        html += '<td>' + (row.turns || '') + '</td>';
+        html += '<td>' + (row.canon_fidelity || '-') + '</td>';
+        html += '<td>' + (row.character_voice || '-') + '</td>';
+        html += '<td>' + (row.player_agency_respect || '-') + '</td>';
+        html += '<td>' + (row.responsiveness || '-') + '</td>';
+        html += '<td>' + (row.mystery_mechanics || '-') + '</td>';
+        html += '<td>' + (row.immersion_quality || '-') + '</td>';
+        html += '<td>' + (row.edge_case_resilience || '-') + '</td>';
+        html += '<td class="lb-score ' + scoreClass + '">' + (row.overall_score || '-') + '</td>';
+        html += '<td>' + (row.avg_latency_ms || '-') + 'ms</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    } catch (e) {
+      container.innerHTML = '<div class="eval-placeholder">Failed to load scores: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  // ---- Test Cases ----
+  async function loadTestCases() {
+    try {
+      const r = await fetch('/api/test-cases');
+      testCases = await r.json();
+    } catch (e) {
+      testCases = [];
+    }
+    renderTestCaseList();
+  }
+
+  function renderTestCaseList() {
+    const container = document.getElementById('testCaseList');
+    if (!testCases.length) {
+      container.innerHTML = '<div class="eval-placeholder" style="padding:20px">No test cases yet. Click + New to create one.</div>';
+      return;
+    }
+    let html = '';
+    testCases.forEach((tc, i) => {
+      const isActive = i === editingTestCaseIdx;
+      html += '<div class="tc-card" style="' + (isActive ? 'border-color:var(--accent)' : '') + '">';
+      html += '<div class="tc-header">';
+      html += '<span class="tc-name">' + escapeHtml(tc.name || 'Untitled') + '</span>';
+      html += '<div class="tc-actions">';
+      html += '<button class="btn btn-primary btn-sm" onclick="runTestCase(' + i + ')" title="Run this test case">\u25B6</button>';
+      html += '<button class="btn btn-secondary btn-sm" onclick="editTestCase(' + i + ')">Edit</button>';
+      html += '<button class="btn btn-danger btn-sm" onclick="deleteTestCase(' + i + ')">\u2717</button>';
+      html += '</div></div>';
+      html += '<div class="tc-desc">' + escapeHtml(tc.description || '') + '</div>';
+      html += '<div class="tc-msgs">' + (tc.messages || []).map(m => escapeHtml(m)).join('<br>') + '</div>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  function newTestCase() {
+    testCases.push({
+      id: 'tc_' + Date.now(),
+      name: 'New Test Case',
+      description: '',
+      story_id: '',
+      strategy: '',
+      messages: ['Hello, who are you?'],
+    });
+    editingTestCaseIdx = testCases.length - 1;
+    renderTestCaseList();
+    renderTestCaseEditor();
+  }
+
+  function editTestCase(idx) {
+    editingTestCaseIdx = idx;
+    renderTestCaseList();
+    renderTestCaseEditor();
+  }
+
+  function deleteTestCase(idx) {
+    if (!confirm('Delete "' + (testCases[idx]?.name || 'Untitled') + '"?')) return;
+    testCases.splice(idx, 1);
+    if (editingTestCaseIdx === idx) editingTestCaseIdx = -1;
+    else if (editingTestCaseIdx > idx) editingTestCaseIdx--;
+    saveTestCasesToServer();
+    renderTestCaseList();
+    renderTestCaseEditor();
+  }
+
+  function renderTestCaseEditor() {
+    const container = document.getElementById('testCaseEditor');
+    if (editingTestCaseIdx < 0 || editingTestCaseIdx >= testCases.length) {
+      container.innerHTML = '<div class="eval-placeholder">Select or create a test case to edit it.</div>';
+      return;
+    }
+    const tc = testCases[editingTestCaseIdx];
+    let html = '<div style="display:flex;flex-direction:column;gap:12px">';
+    html += '<div class="section-label">Edit Test Case</div>';
+
+    html += '<div class="control-group">';
+    html += '<label style="font-size:12px;color:var(--text-dim)">Name</label>';
+    html += '<input type="text" id="tcName" value="' + escapeAttr(tc.name || '') + '" onchange="updateTC()" />';
+    html += '</div>';
+
+    html += '<div class="control-group">';
+    html += '<label style="font-size:12px;color:var(--text-dim)">Description</label>';
+    html += '<input type="text" id="tcDesc" value="' + escapeAttr(tc.description || '') + '" onchange="updateTC()" />';
+    html += '</div>';
+
+    html += '<div class="control-group">';
+    html += '<label style="font-size:12px;color:var(--text-dim)">Strategy (instructions for the player agent)</label>';
+    html += '<textarea id="tcStrategy" rows="3" onchange="updateTC()">' + escapeHtml(tc.strategy || '') + '</textarea>';
+    html += '</div>';
+
+    html += '<div class="control-group">';
+    html += '<label style="font-size:12px;color:var(--text-dim)">Messages (one per line)</label>';
+    html += '<textarea id="tcMessages" rows="8" onchange="updateTC()">' + escapeHtml((tc.messages || []).join('\n')) + '</textarea>';
+    html += '</div>';
+
+    html += '<div class="btn-row">';
+    html += '<button class="btn btn-primary" onclick="runTestCase(' + editingTestCaseIdx + ')">\u25B6 Run This Test</button>';
+    html += '<button class="btn btn-secondary" onclick="saveTestCasesToServer()">Save All</button>';
+    html += '</div>';
+
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  function updateTC() {
+    if (editingTestCaseIdx < 0) return;
+    const tc = testCases[editingTestCaseIdx];
+    tc.name = document.getElementById('tcName')?.value || '';
+    tc.description = document.getElementById('tcDesc')?.value || '';
+    tc.strategy = document.getElementById('tcStrategy')?.value || '';
+    const msgsRaw = document.getElementById('tcMessages')?.value || '';
+    tc.messages = msgsRaw.split('\n').filter(l => l.trim() !== '');
+    renderTestCaseList();
+  }
+
+  async function saveTestCasesToServer() {
+    try {
+      await fetch('/api/test-cases', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ test_cases: testCases }),
+      });
+    } catch (e) {
+      alert('Failed to save: ' + e.message);
+    }
+  }
+
+  function runTestCase(idx) {
+    const tc = testCases[idx];
+    if (!tc) return;
+    // If test case has a story_id, set it
+    if (tc.story_id) {
+      document.getElementById('storySelect').value = tc.story_id;
+    }
+    startRun({
+      name: tc.name,
+      messages: tc.messages || [],
+      strategy: tc.strategy || '',
+    });
+  }
+
+  // ---- Utility ----
   function escapeHtml(s) {
     if (!s) return '';
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function escapeAttr(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   init();
@@ -1194,6 +1724,6 @@ HTML_PAGE = """<!DOCTYPE html>
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    print(f"\n  🧪 StoriesChat Agent Tester")
+    print(f"\n  \U0001F9EA StoriesChat Agent Tester")
     print(f"  Open http://localhost:{PORT} in your browser\n")
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
