@@ -8,6 +8,10 @@ ENV KNOWLEDGE_CACHE_DIR=/data/knowledge_cache
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Build-time secrets — Railway passes these as build args
+ARG OPENAI_API_KEY=""
+ENV OPENAI_API_KEY=${OPENAI_API_KEY}
+
 # ------------------------------------------------------------
 # Copy code (clean, deterministic)
 # ------------------------------------------------------------
@@ -22,6 +26,7 @@ WORKDIR /srv
 
 COPY backend/ /srv/backend/
 COPY tests/ /srv/tests/
+COPY scripts/ /srv/scripts/
 
 # ------------------------------------------------------------
 # Install dependencies

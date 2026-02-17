@@ -81,6 +81,29 @@ Delay = lambda ms=400: Step(kind="delay", payload={"ms": ms})
 4) Migrate remaining integration tests into scenarios; add cached outputs where feasible to avoid live calls.
 5) Add cache refresh script and docs on providing API keys when running live.
 
+## CI / Docker Environment Notes
+
+### OPENAI_API_KEY in CI
+The `OPENAI_API_KEY` environment variable **is set** as a Railway build-time secret.
+However, Docker `RUN` commands only see build args declared with `ARG`, not runtime
+env vars. The Dockerfile must include:
+
+```dockerfile
+ARG OPENAI_API_KEY=""
+ENV OPENAI_API_KEY=${OPENAI_API_KEY}
+```
+
+Without this, build-time `pytest` runs will skip any test guarded by
+`require_openai_api_key` even though the key is available in Railway's
+environment. Railway passes build args automatically when they match
+configured env var names.
+
+### scripts/ directory in Docker
+The Dockerfile must `COPY scripts/ /srv/scripts/` alongside `backend/` and
+`tests/`. Tests under `tests/scripts/` import from `scripts.scorer.story_agent_ui`
+and will fail with `ModuleNotFoundError` if the `scripts/` tree is not present
+in the Docker image.
+
 ## Acceptance
 - All integration tests run via scenario runner with existing assertions unchanged in spirit.
 - UI can list scenarios and auto-play transcripts using cached data.
