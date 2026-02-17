@@ -75,6 +75,7 @@ EVAL_PERSONAS = {
     "empathetic_confidant": "Empathetic Confidant: warm, rapport-first, feelings/context seeking.",
     "chaos_gremlin": "Chaos Gremlin: edge-case breaker, non sequiturs, stress-tests scripts.",
     "first_time_user": "First-time User: new to chatbots, tentative, asks basic or clarifying questions.",
+  "expert_llm_grader": "Expert and Thoughtful LLM Grader: experienced evaluator, balances rigor with fairness.",
 }
 
 FALLBACK_MESSAGES = [
@@ -1048,6 +1049,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
           <option value="empathetic_confidant">Empathetic Confidant</option>
           <option value="chaos_gremlin">Chaos Gremlin</option>
           <option value="first_time_user">First-time User</option>
+          <option value="expert_llm_grader">Expert and Thoughtful LLM Grader</option>
         </select>
       </div>
     </div>
