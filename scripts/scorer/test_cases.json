@@ -67,6 +67,16 @@
         "I believe you. What do you need?"
       ],
       "strategy": "Be warm and empathetic. Test if the NPC responds to emotional engagement and reveals more through trust-building."
+    },
+    {
+      "id": "tc_1771346937391",
+      "name": "Confusing IU #1",
+      "description": "",
+      "story_id": "",
+      "strategy": "",
+      "messages": [
+        "what happened to the previous tenant?"
+      ]
     }
   ]
 }
