@@ -57,6 +57,8 @@ def test_append_and_read_scores(ui_module):
         "player_name": "Alex",
         "chatter_model": "chat-a",
         "rater_model": "rate-b",
+        "chatter_persona": "curious_rookie",
+        "rater_persona": "expert_llm_grader",
         "eval_persona": "curious_rookie",
         "turns": 3,
         "canon_fidelity": 5,
@@ -66,6 +68,8 @@ def test_append_and_read_scores(ui_module):
     assert len(rows) == 1
     assert rows[0]["run_id"] == "run1"
     assert rows[0]["canon_fidelity"] == "5"
+    assert rows[0]["chatter_persona"] == "curious_rookie"
+    assert rows[0]["rater_persona"] == "expert_llm_grader"
 
 
 def test_save_and_load_test_cases(ui_module):
@@ -104,6 +108,8 @@ def test_scores_endpoint_reads_csv(ui_module, client):
         "player_name": "Alex",
         "chatter_model": "chat-a",
         "rater_model": "rate-b",
+        "chatter_persona": "curious_rookie",
+        "rater_persona": "curious_rookie",
         "eval_persona": "curious_rookie",
         "turns": 2,
         "canon_fidelity": 4,
@@ -115,3 +121,5 @@ def test_scores_endpoint_reads_csv(ui_module, client):
     assert len(rows) == 1
     assert rows[0]["run_id"] == "run2"
     assert rows[0]["canon_fidelity"] == "4"
+    assert rows[0]["chatter_persona"] == "curious_rookie"
+    assert rows[0]["rater_persona"] == "curious_rookie"

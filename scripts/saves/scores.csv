@@ -1,0 +1,2 @@
+timestamp,run_id,story_id,player_name,chatter_model,rater_model,eval_persona,turns,avg_latency_ms,total_tokens,canon_fidelity,character_voice,player_agency_respect,responsiveness,mystery_mechanics,immersion_quality,edge_case_resilience,overall_score,critical_failures,bugs,summary
+2026-02-16 16:18:40,7e9d0600,iu_murder_mystery,Alex,mistral:latest,llama3.1:8b,expert_llm_grader,12,6972,28381,,,,,,,,,,,

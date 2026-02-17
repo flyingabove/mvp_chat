@@ -69,14 +69,17 @@ def _load_scorer_instructions() -> str:
     except FileNotFoundError:
         return ""
 
-EVAL_PERSONAS = {
-    "curious_rookie": "Curious Rookie: polite, exploratory questions.",
-    "confrontational_cop": "Confrontational Cop: direct, pressure-testing and skeptical.",
-    "empathetic_confidant": "Empathetic Confidant: warm, rapport-first, feelings/context seeking.",
-    "chaos_gremlin": "Chaos Gremlin: edge-case breaker, non sequiturs, stress-tests scripts.",
-    "first_time_user": "First-time User: new to chatbots, tentative, asks basic or clarifying questions.",
+PERSONAS = {
+  "curious_rookie": "Curious Rookie: polite, exploratory questions.",
+  "confrontational_cop": "Confrontational Cop: direct, pressure-testing and skeptical.",
+  "empathetic_confidant": "Empathetic Confidant: warm, rapport-first, feelings/context seeking.",
+  "chaos_gremlin": "Chaos Gremlin: edge-case breaker, non sequiturs, stress-tests scripts.",
+  "first_time_user": "First-time User: new to chatbots, tentative, asks basic or clarifying questions.",
   "expert_llm_grader": "Expert and Thoughtful LLM Grader: experienced evaluator, balances rigor with fairness.",
 }
+
+EVAL_PERSONAS = PERSONAS
+CHATTER_PERSONAS = PERSONAS
 
 FALLBACK_MESSAGES = [
     "Hello, where am I? What happened?",
@@ -141,7 +144,7 @@ async def check_ollama() -> dict:
 # ---------------------------------------------------------------------------
 CSV_COLUMNS = [
   "timestamp", "run_id", "story_id", "player_name",
-  "chatter_model", "rater_model", "eval_persona", "turns",
+  "chatter_model", "rater_model", "chatter_persona", "rater_persona", "eval_persona", "turns",
   "avg_latency_ms", "total_tokens",
   "canon_fidelity", "character_voice", "player_agency_respect",
   "responsiveness", "mystery_mechanics", "immersion_quality",
@@ -245,6 +248,7 @@ async def ws_run(ws: WebSocket):
         rater_model = config.get("rater_model", DEFAULT_RATER_MODEL)
         do_eval = config.get("evaluate", True)
         eval_persona = config.get("eval_persona", "curious_rookie")
+        chatter_persona = config.get("chatter_persona", "curious_rookie")
         # Test case mode: use scripted messages instead of LLM/fallback
         test_case_messages = config.get("test_case_messages", None)
         test_case_strategy = config.get("test_case_strategy", "")
@@ -254,8 +258,9 @@ async def ws_run(ws: WebSocket):
         async def send(event: str, data: dict):
             await ws.send_json({"event": event, **data})
 
-        # Build agent persona with strategy if provided
-        agent_system = AGENT_PERSONA
+        # Build agent persona with strategy/persona if provided
+        persona_desc = CHATTER_PERSONAS.get(chatter_persona, chatter_persona)
+        agent_system = AGENT_PERSONA + f"\n\nPLAYER PERSONA: {persona_desc}"
         if test_case_strategy:
             agent_system += f"\n\nSTRATEGY: {test_case_strategy}"
 
@@ -400,6 +405,8 @@ async def ws_run(ws: WebSocket):
                       "player_name": PLAYER_NAME,
                         "chatter_model": chatter_model,
                         "rater_model": rater_model,
+                        "chatter_persona": chatter_persona,
+                        "rater_persona": eval_persona,
                         "eval_persona": eval_persona,
                         "turns": len([m for m in conversation if m["role"] == "player"]),
                         "avg_latency_ms": avg_lat,
@@ -785,7 +792,13 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
 
   /* Tab content visibility */
-  .tab-page { display: none; flex-direction: column; height: 100%; }
+  .tab-page {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    grid-column: 1 / -1;
+    grid-row: 2 / -1;
+  }
   .tab-page.active { display: flex; }
 
   /* ---- Eval panel ---- */
@@ -1042,8 +1055,20 @@ HTML_PAGE = r"""<!DOCTYPE html>
       </div>
 
       <div class="control-group" style="margin-top:6px">
-        <label style="font-size:12px;color:var(--text-dim)">Eval persona</label>
-        <select id="personaSelect">
+        <label style="font-size:12px;color:var(--text-dim)">Chatter persona (player agent)</label>
+        <select id="chatterPersonaSelect">
+          <option value="curious_rookie">Curious Rookie</option>
+          <option value="confrontational_cop">Confrontational Cop</option>
+          <option value="empathetic_confidant">Empathetic Confidant</option>
+          <option value="chaos_gremlin">Chaos Gremlin</option>
+          <option value="first_time_user">First-time User</option>
+          <option value="expert_llm_grader">Expert and Thoughtful LLM Grader</option>
+        </select>
+      </div>
+
+      <div class="control-group" style="margin-top:6px">
+        <label style="font-size:12px;color:var(--text-dim)">Rater persona (scorer)</label>
+        <select id="raterPersonaSelect">
           <option value="curious_rookie">Curious Rookie</option>
           <option value="confrontational_cop">Confrontational Cop</option>
           <option value="empathetic_confidant">Empathetic Confidant</option>
@@ -1120,7 +1145,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
           <div class="section-label" style="margin:0">Scores Leaderboard</div>
           <button class="btn btn-secondary btn-sm" onclick="loadLeaderboard()">&#x1F504; Refresh</button>
         </div>
-        <div id="leaderboardContent">
+        <div id="leaderboardContent" style="overflow-x:auto">
           <div class="eval-placeholder">Loading scores...</div>
         </div>
       </div>
@@ -1253,7 +1278,8 @@ HTML_PAGE = r"""<!DOCTYPE html>
     const turns = parseInt(document.getElementById('turnsInput').value) || 12;
     const useLlm = document.getElementById('llmToggle').classList.contains('on');
     const evaluate = document.getElementById('evalToggle').classList.contains('on');
-    const evalPersona = document.getElementById('personaSelect').value || 'curious_rookie';
+    const chatterPersona = document.getElementById('chatterPersonaSelect').value || 'curious_rookie';
+    const evalPersona = document.getElementById('raterPersonaSelect').value || 'curious_rookie';
     const chatterModel = document.getElementById('chatterModelSelect').value;
     const raterModel = document.getElementById('raterModelSelect').value;
 
@@ -1287,6 +1313,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
       rater_model: raterModel,
       evaluate: evaluate,
       eval_persona: evalPersona,
+      chatter_persona: chatterPersona,
     };
 
     // Test case override
@@ -1528,7 +1555,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
       rows.sort((a, b) => (parseFloat(b.overall_score) || 0) - (parseFloat(a.overall_score) || 0));
 
       let html = '<table class="lb-table"><thead><tr>';
-      html += '<th>#</th><th>Time</th><th>Story</th><th>Chatter</th><th>Rater</th><th>Persona</th><th>Turns</th>';
+      html += '<th>#</th><th>Time</th><th>Story</th><th>Chatter</th><th>Chatter Persona</th><th>Rater</th><th>Rater Persona</th><th>Turns</th>';
       html += '<th>Canon</th><th>Voice</th><th>Agency</th><th>Resp.</th><th>Mystery</th><th>Immers.</th><th>Edge</th>';
       html += '<th>Overall</th><th>Latency</th>';
       html += '</tr></thead><tbody>';
@@ -1541,8 +1568,9 @@ HTML_PAGE = r"""<!DOCTYPE html>
         html += '<td>' + escapeHtml(row.timestamp || '') + '</td>';
         html += '<td>' + escapeHtml(row.story_id || '') + '</td>';
         html += '<td style="font-size:11px">' + escapeHtml(row.chatter_model || '') + '</td>';
+        html += '<td style="font-size:11px">' + escapeHtml(row.chatter_persona || row.eval_persona || '') + '</td>';
         html += '<td style="font-size:11px">' + escapeHtml(row.rater_model || '') + '</td>';
-        html += '<td style="font-size:11px">' + escapeHtml(row.eval_persona || '') + '</td>';
+        html += '<td style="font-size:11px">' + escapeHtml(row.rater_persona || row.eval_persona || '') + '</td>';
         html += '<td>' + (row.turns || '') + '</td>';
         html += '<td>' + (row.canon_fidelity || '-') + '</td>';
         html += '<td>' + (row.character_voice || '-') + '</td>';
