@@ -798,6 +798,8 @@ HTML_PAGE = r"""<!DOCTYPE html>
     height: 100%;
     grid-column: 1 / -1;
     grid-row: 2 / -1;
+    overflow: hidden;
+    min-height: 0;
   }
   .tab-page.active { display: flex; }
 
@@ -1140,7 +1142,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
   <!-- ================= TAB: LEADERBOARD ================= -->
   <div class="tab-page" id="tab-leaderboard">
-    <div style="grid-column: 1 / -1; padding: 20px; overflow-y: auto;">
+    <div style="flex:1; padding: 20px; overflow-y: auto; min-height: 0;">
       <div style="max-width: 1100px; margin: 0 auto;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
           <div class="section-label" style="margin:0">Scores Leaderboard</div>
@@ -1155,9 +1157,9 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
   <!-- ================= TAB: TEST CASES ================= -->
   <div class="tab-page" id="tab-test-cases">
-    <div style="grid-column: 1 / -1; display: grid; grid-template-columns: 380px 1fr; height: 100%; gap: 1px; background: var(--border);">
+    <div style="flex:1; display: grid; grid-template-columns: 380px 1fr; min-height: 0; gap: 1px; background: var(--border);">
       <!-- Test case list -->
-      <div style="background: var(--surface); padding: 20px; overflow-y: auto;">
+      <div style="background: var(--surface); padding: 20px; overflow-y: auto; min-height: 0;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
           <div class="section-label" style="margin:0">Test Cases</div>
           <button class="btn btn-primary btn-sm" onclick="newTestCase()">+ New</button>
@@ -1165,7 +1167,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
         <div id="testCaseList"></div>
       </div>
       <!-- Test case editor -->
-      <div style="background: var(--bg); padding: 20px; overflow-y: auto;">
+      <div style="background: var(--bg); padding: 20px; overflow-y: auto; min-height: 0;">
         <div id="testCaseEditor">
           <div class="eval-placeholder">Select or create a test case to edit it.</div>
         </div>
