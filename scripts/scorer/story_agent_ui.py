@@ -247,7 +247,7 @@ async def ws_run(ws: WebSocket):
         chatter_model = config.get("chatter_model", DEFAULT_CHATTER_MODEL)
         rater_model = config.get("rater_model", DEFAULT_RATER_MODEL)
         do_eval = config.get("evaluate", True)
-        eval_persona = config.get("eval_persona", "curious_rookie")
+        eval_persona = config.get("eval_persona", "expert_llm_grader")
         chatter_persona = config.get("chatter_persona", "curious_rookie")
         # Test case mode: use scripted messages instead of LLM/fallback
         test_case_messages = config.get("test_case_messages", None)
@@ -1074,7 +1074,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
           <option value="empathetic_confidant">Empathetic Confidant</option>
           <option value="chaos_gremlin">Chaos Gremlin</option>
           <option value="first_time_user">First-time User</option>
-          <option value="expert_llm_grader">Expert and Thoughtful LLM Grader</option>
+          <option value="expert_llm_grader" selected>Expert and Thoughtful LLM Grader</option>
         </select>
       </div>
     </div>
@@ -1111,6 +1111,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     <div>
       <div class="section-label">Export</div>
       <button class="btn btn-secondary" style="width:100%" onclick="exportLog()">&#x1F4BE; Save conversation</button>
+      <button class="btn btn-secondary" style="width:100%; margin-top:8px" onclick="createTestCaseFromConversation()">+ Create Test Case</button>
     </div>
   </div>
 
@@ -1540,6 +1541,32 @@ HTML_PAGE = r"""<!DOCTYPE html>
     URL.revokeObjectURL(url);
   }
 
+  // ---- Capture to test case ----
+  function createTestCaseFromConversation() {
+    if (!conversation.length) { alert('No conversation to capture.'); return; }
+    const playerMsgs = conversation.filter(m => m.role === 'player').map(m => m.content || '').filter(Boolean);
+    if (!playerMsgs.length) { alert('No player messages found to capture.'); return; }
+
+    const storyId = document.getElementById('storySelect').value || '';
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const tc = {
+      id: 'tc_capture_' + ts,
+      name: 'Captured run ' + ts,
+      description: 'Replay of captured player inputs from UI run.',
+      story_id: storyId,
+      strategy: 'Captured automatically from UI. Replay these exact player messages to reproduce.',
+      messages: playerMsgs,
+    };
+
+    if (!Array.isArray(testCases)) testCases = [];
+    testCases.push(tc);
+    editingTestCaseIdx = testCases.length - 1;
+    saveTestCasesToServer();
+    renderTestCaseList();
+    renderTestCaseEditor();
+    switchTab('test-cases');
+  }
+
   // ---- Leaderboard ----
   async function loadLeaderboard() {
     const container = document.getElementById('leaderboardContent');
@@ -1708,6 +1735,22 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
   async function saveTestCasesToServer() {
     try {
+      if (!Array.isArray(testCases)) testCases = [];
+
+      const seen = new Set();
+      const normalized = testCases.map((tc, idx) => {
+        const copy = { ...tc };
+        if (!copy.id) copy.id = 'tc_' + Date.now() + '_' + idx;
+        // If duplicate id, mint a new one
+        if (seen.has(copy.id)) {
+          copy.id = copy.id + '_' + Math.random().toString(36).slice(2, 8);
+        }
+        seen.add(copy.id);
+        return copy;
+      });
+
+      testCases = normalized;
+
       await fetch('/api/test-cases', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
