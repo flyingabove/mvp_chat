@@ -1644,9 +1644,9 @@ HTML_PAGE = r"""<!DOCTYPE html>
       html += '<div class="tc-header">';
       html += '<span class="tc-name">' + escapeHtml(tc.name || 'Untitled') + '</span>';
       html += '<div class="tc-actions">';
-      html += '<button class="btn btn-primary btn-sm" onclick="runTestCase(' + i + ')" title="Run this test case">\u25B6</button>';
-      html += '<button class="btn btn-secondary btn-sm" onclick="editTestCase(' + i + ')">Edit</button>';
-      html += '<button class="btn btn-danger btn-sm" onclick="deleteTestCase(' + i + ')">\u2717</button>';
+      html += '<button class="btn btn-primary btn-sm" onclick="runTestCase(' + i + ')" title="Run">\u25B6</button>';
+      html += '<button class="btn btn-secondary btn-sm" onclick="editTestCase(' + i + ')" title="Edit">Edit</button>';
+      html += '<button class="btn btn-danger btn-sm" onclick="deleteTestCase(' + i + ')" title="Delete">Del</button>';
       html += '</div></div>';
       html += '<div class="tc-desc">' + escapeHtml(tc.description || '') + '</div>';
       html += '<div class="tc-msgs">' + (tc.messages || []).map(m => escapeHtml(m)).join('<br>') + '</div>';
@@ -1676,11 +1676,13 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
 
   function deleteTestCase(idx) {
-    if (!confirm('Delete "' + (testCases[idx]?.name || 'Untitled') + '"?')) return;
+    const name = testCases[idx]?.name || 'Untitled';
+    if (!confirm('Delete "' + name + '"?')) return;
     testCases.splice(idx, 1);
     if (editingTestCaseIdx === idx) editingTestCaseIdx = -1;
     else if (editingTestCaseIdx > idx) editingTestCaseIdx--;
-    saveTestCasesToServer();
+    saveTestCasesToServer(true);
+    showSaveToast('Deleted "' + name + '"');
     renderTestCaseList();
     renderTestCaseEditor();
   }
@@ -1735,7 +1737,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     renderTestCaseList();
   }
 
-  async function saveTestCasesToServer() {
+  async function saveTestCasesToServer(silent) {
     try {
       if (!Array.isArray(testCases)) testCases = [];
 
@@ -1743,7 +1745,6 @@ HTML_PAGE = r"""<!DOCTYPE html>
       const normalized = testCases.map((tc, idx) => {
         const copy = { ...tc };
         if (!copy.id) copy.id = 'tc_' + Date.now() + '_' + idx;
-        // If duplicate id, mint a new one
         if (seen.has(copy.id)) {
           copy.id = copy.id + '_' + Math.random().toString(36).slice(2, 8);
         }
@@ -1753,14 +1754,30 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
       testCases = normalized;
 
-      await fetch('/api/test-cases', {
+      const resp = await fetch('/api/test-cases', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ test_cases: testCases }),
       });
+      if (resp.ok && !silent) {
+        showSaveToast('Saved ' + testCases.length + ' test case(s)');
+      }
     } catch (e) {
       alert('Failed to save: ' + e.message);
     }
+  }
+
+  function showSaveToast(text) {
+    let toast = document.getElementById('saveToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'saveToast';
+      toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    setTimeout(() => { toast.style.opacity = '0'; }, 2000);
   }
 
   function runTestCase(idx) {
@@ -1788,6 +1805,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
 
   init();
+  loadTestCases();
 </script>
 </body>
 </html>
