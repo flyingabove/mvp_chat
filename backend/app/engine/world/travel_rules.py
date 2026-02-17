@@ -171,7 +171,7 @@ LOCATIONS IN GRAPH:
   {', '.join(f'{loc_id}' for loc_id in sorted(graph.locations.keys()))}
 
 ACTION REQUIRED:
-  1. Review iu_murder_mystery_world.json
+  1. Review the story's world JSON file
   2. Verify all locations are reachable from start_location
   3. Add missing edges to connect islands
   4. Redeploy

@@ -50,6 +50,34 @@ def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> st
     )
 
 
+def _language_honorific_block(cfg: dict, casual_used_str: str, honorific_unlocked: bool) -> str:
+    """Build language/honorific rules from story config. Returns empty if no language config."""
+    lang = cfg.get("language", {}) or {}
+    forbidden = lang.get("forbidden_honorifics") or []
+    casual_terms = lang.get("casual_terms") or []
+
+    if not forbidden and not casual_terms:
+        return "- If unsure, the character must choose neutral English."
+
+    lines = []
+    if forbidden:
+        terms_str = ", ".join(f'"{t}"' for t in forbidden)
+        lines.append(f"- Intimacy honorifics ({terms_str}) are NOT allowed unless:")
+        lines.append("    • relationship score ≥ 2, AND")
+        lines.append("    • the emotional tone clearly supports closeness.")
+        lines.append("- Even when unlocked, honorifics must be used **sparingly**: max once per reply.")
+
+    if casual_terms:
+        lines.append(f"\n- Casual language usage in the player's LAST message: {casual_used_str}")
+        first_term = casual_terms[0] if casual_terms else ""
+        if first_term:
+            lines.append(f'    • The word **"{first_term}"** MUST NOT be used unless the player used it.')
+        lines.append("    • Other casual phrases should appear only occasionally, ideally when the player uses them first.")
+
+    lines.append("\n- If unsure, the character must choose neutral English and avoid honorifics.")
+    return "\n".join(lines)
+
+
 def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False) -> str:
     cfg, story_def = _extract_story_cfg(state)
 
@@ -66,16 +94,14 @@ def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_bl
 
     style = cfg.get("style", {}) or {}
     speech = style.get("korean_phrases") or []
-    phrase_list = ", ".join(speech) if speech else \
-        "oppa, eotteoke, jinjja?, gwaenchanha, arasseo, mianhae, gomawo"
+    phrase_list = ", ".join(speech) if speech else ""
 
     if story_def and getattr(story_def, "suspects", None) is not None:
         suspect_names = [c.name for c in story_def.suspects]
     else:
         suspects = cfg.get("suspects") or []
         suspect_names = [s.get("name", "unknown") for s in suspects]
-    suspect_line = ", ".join(suspect_names) if suspect_names else \
-        "manager, producer, rival idol, obsessed fan, executive"
+    suspect_line = ", ".join(suspect_names) if suspect_names else "(none defined)"
 
     goal_line = (
         cfg.get("goal", {}).get("win_text_rule")
@@ -198,21 +224,11 @@ The character must obey ALL of the following:
 ────────────────────────────────────────
 ### LANGUAGE & HONORIFIC RULES (STRICT)
 ────────────────────────────────────────
-- Intimacy honorifics ("oppa", "unnie", "eonnie") are NOT allowed unless:
-    • relationship score ≥ 2, AND
-    • the emotional tone clearly supports closeness.
-- Even when unlocked, honorifics must be used **sparingly**: max once per reply.
-
 - Name knowledge:
     • Story meta player name / nametag: "{pname}".
     • Character_has_learned_name: {has_learned_name}
     • The character must NOT speak any version of the player's name unless Character_has_learned_name is True.
-
-- Casual Korean usage in the player's LAST message: {casual_used_str}
-    • The word **"ya"** MUST NOT be used unless the player used it.
-    • Other casual phrases should appear only occasionally, ideally when the player uses Korean first.
-
-- If unsure, the character must choose neutral English and avoid honorifics.
+{_language_honorific_block(cfg, casual_used_str, honorific_unlocked)}
 
 ────────────────────────────────────────
 ### PASSIVE WORLD CONTEXT (ONLY IF PLAYER ASKS)
@@ -230,7 +246,7 @@ The character must obey ALL of the following:
 - User.formal_name: "{formal_name}"
 - Honorific eligible (relationship ≥ 2): {honorific_unlocked}
 - Setting: {setting_desc}
-- Korean phrases list (for optional flavor): {phrase_list}
+{"- Flavor phrases list: " + phrase_list if phrase_list else ""}
 {manifestation_line}
 
 ────────────────────────────────────────
@@ -250,11 +266,13 @@ Append EXACTLY one line at the end of every response:
 If forgotten, reply ONLY with that tag.
 """
 
-    # ── Character self-knowledge (canonical truths — always active) ──
+    # ── Character self-knowledge (identity facts from story config — always active) ──
+    # Only identity-safe facts go here (NOT full canonical truths which may contain
+    # plot spoilers, murder details, etc.). Story authors curate this list explicitly.
     identity_section = ""
-    canonical_truths = getattr(state, "canonical_truth", None)
-    if canonical_truths:
-        identity_lines = "\n".join(f"- {fact}" for fact in canonical_truths)
+    self_knowledge = cfg.get("character_self_knowledge") or []
+    if self_knowledge:
+        identity_lines = "\n".join(f"- {fact}" for fact in self_knowledge)
         identity_section = f"""
 ────────────────────────────────────────
 ### CHARACTER SELF-KNOWLEDGE (ALWAYS ACTIVE)
@@ -296,11 +314,11 @@ HOW TO ANSWER:
 - Treat every question as a database query — return the data, nothing else.
 
 EXAMPLE (correct truth mode response):
-  Q: "Who killed Jennie?"
-  A: "I did. I stabbed her in the kitchen at approximately 11:45. Bob helped clean up afterward."
+  Q: "Who did it?"
+  A: "I did. It happened at approximately 11:45. The other person helped cover it up."
 
 EXAMPLE (WRONG — do NOT do this):
-  A: "*Steve's brow furrows...* 'I didn't mean to hurt her,' *he stammers...*"
+  A: "*Their brow furrows...* 'I didn't mean to...' *they stammer...*"
   That is narrative. Truth mode has NO narrative. Just facts.
 """
 
@@ -336,9 +354,11 @@ def build_messages(
     # First actual user turn (after opening text)
     is_first_turn = state.turns == 0
 
-    # Detect casual Korean usage by the user in THIS message.
+    # Detect casual language usage by the user in THIS message (terms from story config).
+    cfg_for_lang, _ = _extract_story_cfg(state)
+    lang_cfg = (cfg_for_lang.get("language", {}) or {})
+    casual_terms = lang_cfg.get("casual_terms") or []
     lower = user_msg.lower()
-    casual_terms = ["ya", "eotteoke", "jinjja", "gwaenchanha", "ani"]
     used = [term for term in casual_terms if term in lower]
     state.casual_korean_used = used
 

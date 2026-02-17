@@ -217,13 +217,15 @@ def test_debug_box_rendering_structured(client):
 # ============================================================================
 
 
-def test_apply_placeholders_and_sanitize_korean_terms():
+def test_apply_placeholders_and_sanitize_honorific_terms():
     from backend.app.engine.state import init_state
     import backend.app.api.chat as chat_mod
 
     st = init_state()
     st.player_name = "Chris"
     st.gender = "M"
+    # Language config lives in story_cfg — provide it like a real story would
+    st.story_cfg = {"language": {"honorifics": {"M": "oppa", "F": "unnie"}, "forbidden_honorifics": ["oppa", "unni", "unnie", "eonnie"]}}
     out = chat_mod.apply_placeholders("Hi {{PLAYER_NAME}} {{HONORIFIC}}", st)
     assert "Chris" in out
     assert "oppa" in out  # honorific placeholder is meta-only for opening
@@ -231,9 +233,18 @@ def test_apply_placeholders_and_sanitize_korean_terms():
     # At low relationship, sanitize should strip forbidden terms
     st.relationship = 0
     st.user.display_name = "Chris"
-    cleaned = chat_mod.sanitize_korean_terms("hello oppa unnie", st)
+    cleaned = chat_mod.sanitize_honorific_terms("hello oppa unnie", st)
     assert "oppa" not in cleaned.lower()
     assert "unnie" not in cleaned.lower()
+
+    # Without language config, placeholders produce empty honorific and sanitize is a no-op
+    st2 = init_state()
+    st2.player_name = "Chris"
+    st2.gender = "M"
+    st2.story_cfg = {}
+    out2 = chat_mod.apply_placeholders("Hi {{PLAYER_NAME}} {{HONORIFIC}}", st2)
+    assert "Chris" in out2
+    assert "{{HONORIFIC}}" not in out2  # placeholder replaced even if empty
 
 
 def test_name_extraction_and_confirmation():

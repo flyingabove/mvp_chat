@@ -458,7 +458,13 @@ def get_session(session_id: str):
 # ---------------------------------------------------------------------------
 def apply_placeholders(text: str, state: MurderGameState) -> str:
     name = state.player_name or "Player"
-    honorific = "unnie" if (state.gender == "F") else "oppa"
+    cfg = getattr(state, "story_cfg", {}) or {}
+    if hasattr(cfg, "get"):
+        lang = cfg.get("language", {}) or {}
+    else:
+        lang = {}
+    honorific_map = lang.get("honorifics", {}) or {}
+    honorific = honorific_map.get(state.gender, "")
     return (
         text.replace("{{PLAYER_NAME}}", name)
             .replace("{{HONORIFIC}}", honorific)
@@ -468,15 +474,21 @@ def apply_placeholders(text: str, state: MurderGameState) -> str:
 # ---------------------------------------------------------------------------
 # KOREAN HONORIFIC SANITIZER
 # ---------------------------------------------------------------------------
-def sanitize_korean_terms(text: str, state: MurderGameState) -> str:
+def sanitize_honorific_terms(text: str, state: MurderGameState) -> str:
+    """Strip forbidden honorifics when relationship is too low. Terms from story config."""
     rel = state.relationship or 0
     display_name = (state.user.display_name or "").strip()
 
-    forbidden = ["oppa", "unni", "unnie", "eonnie"]
+    cfg = getattr(state, "story_cfg", {}) or {}
+    if hasattr(cfg, "get"):
+        lang = cfg.get("language", {}) or {}
+    else:
+        lang = {}
+    forbidden = lang.get("forbidden_honorifics") or []
 
     if rel < 2:
         for term in forbidden:
-            pattern = rf"(?i)(?<![A-Za-z]){term}(?![A-Za-z])"
+            pattern = rf"(?i)(?<![A-Za-z]){re.escape(term)}(?![A-Za-z])"
             repl = display_name if display_name else ""
             text = re.sub(pattern, repl, text)
 
@@ -1014,7 +1026,7 @@ async def chat_handler(data: dict):
         state.last_assistant_guess_name = clean_name(guess_match.group(1))
 
     clean, tag = extract_state_tag(reply)
-    clean = sanitize_korean_terms(clean, state)
+    clean = sanitize_honorific_terms(clean, state)
 
     if not isinstance(tag, dict):
         tag = {"emotion": state.emotion, "rel_delta": 0}

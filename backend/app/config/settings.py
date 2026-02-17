@@ -14,7 +14,7 @@ EXTRACTOR_TURNS: int = 8
 
 # --- Game constants ---
 GAME_TITLE: str = "storieschat.ai (beta)"
-START_LOCATION: str = "Nonhyeon-dong officetel"
+START_LOCATION: str = "unknown"
 START_MINUTE: int = 0
 MINS_PER_WORD: float = 1.0 / 4.0
 BASE_TURN_MINS: int = 1
@@ -24,7 +24,7 @@ REL_MIN: int = -5
 REL_MAX: int = 5
 REL_START: int = 0
 
-EMOTION_START: str = "wary, exhausted"
+EMOTION_START: str = "neutral"
 
 # --- Deterministic IDs ---
 DEFAULT_USER_ID: str = "default_user"

@@ -41,7 +41,7 @@ PORT = 8899
 SCRIPTS_DIR = Path(__file__).parent
 SAVE_DIR = SCRIPTS_DIR.parent / "saves"
 SCORES_CSV = SAVE_DIR / "scores.csv"
-TEST_CASES_FILE = SCRIPTS_DIR / "test_cases.json"
+TEST_CASES_FILE = SAVE_DIR / "test_cases.json"
 SCORER_INSTRUCTIONS_FILE = SCRIPTS_DIR / "scorer_instructions.md"
 
 # Ensure save dir exists
@@ -241,7 +241,7 @@ async def ws_run(ws: WebSocket):
         run_id = str(uuid.uuid4())[:8]
         active_runs[run_id] = {"status": "running"}
 
-        story_id = config.get("story_id", "iu_murder_mystery")
+        story_id = config.get("story_id", "")
         num_turns = int(config.get("turns", 12))
         use_llm = config.get("use_llm", True)
         chatter_model = config.get("chatter_model", DEFAULT_CHATTER_MODEL)

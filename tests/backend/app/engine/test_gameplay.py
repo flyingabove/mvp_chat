@@ -17,12 +17,19 @@ def test_word_count_and_sanitize_location():
 
 def test_manifest_mode_defaults_and_inside_apartment():
     st = init_state()
-    st.story_cfg = {}
+    # With manifestation rules from story config
+    st.story_cfg = {"rules": {"manifestation": {"apartment_location_contains": ["officetel", "studio"]}}}
     st.location = "Nonhyeon-dong officetel"
     assert manifest_mode(st) == "materialize"
 
     st.location = "Outside Park"
     assert manifest_mode(st) == "whisper"
+
+    # Without rules (empty story_cfg), always materialize as safe default
+    st2 = init_state()
+    st2.story_cfg = {}
+    st2.location = "Anywhere"
+    assert manifest_mode(st2) == "materialize"
 
 
 def test_advance_time_increments_and_moves_location():

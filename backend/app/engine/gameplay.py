@@ -22,27 +22,27 @@ def sanitize_location(loc: str) -> str:
 
 def manifest_mode(state) -> str:
     """
-    Determines IU's manifestation state.
-    Previously relied on dict.get(); now works with MurderGameState objects.
+    Determines the character's manifestation state based on story config rules.
+    Works with MurderGameState objects.
     """
 
     # Safe access to story_cfg
     cfg = getattr(state, "story_cfg", {}) or {}
 
-    # Manifestation rules from story JSON
+    # Manifestation rules from story JSON (empty list = always manifest)
     manifest_rules = (
         cfg.get("rules", {})
            .get("manifestation", {})
-           .get("apartment_location_contains", [
-                "unit 302", "baeknam villa", "nonhyeon-dong",
-                "officetel", "hakdong", "studio"
-           ])
+           .get("apartment_location_contains", [])
     )
 
     # Player location (string or None)
     loc = getattr(state, "location", "") or ""
     loc = loc.lower()
 
+    # No rules defined = always materialize (safe default for new stories)
+    if not manifest_rules:
+        return "materialize"
     inside = any(k.lower() in loc for k in manifest_rules)
     return "materialize" if inside else "whisper"
 
