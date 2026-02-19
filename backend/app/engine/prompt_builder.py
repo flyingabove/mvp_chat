@@ -308,6 +308,40 @@ You must act on this knowledge naturally:
 {identity_lines}
 """
 
+    # ── Canonical facts the NPC knows (from epistemic_seed) ──
+    # These are plot-level facts the character experienced or witnessed.
+    # Only facts where the main character's key is in "known_by" are injected.
+    canonical_section = ""
+    epistemic = cfg.get("epistemic_seed") or {}
+    all_canon_facts = epistemic.get("canonical_facts") or []
+    if all_canon_facts:
+        # Find the main character's key from the characters list
+        characters = cfg.get("characters") or []
+        main_key = None
+        for ch in characters:
+            if ch.get("is_main"):
+                main_key = ch.get("key", "").strip().lower()
+                break
+        if main_key:
+            npc_facts = [
+                f for f in all_canon_facts
+                if main_key in [k.strip().lower() for k in (f.get("known_by") or [])]
+            ]
+            if npc_facts:
+                fact_lines = "\n".join(f"- {f.get('text') or f.get('content', '')}" for f in npc_facts)
+                canonical_section = f"""
+────────────────────────────────────────
+### CANONICAL MEMORIES (THINGS YOU EXPERIENCED OR KNOW)
+────────────────────────────────────────
+These are events and facts from your own experience. You remember them.
+- These memories are YOURS — always use first person ("I was…", "I saw…").
+- NEVER refer to yourself in third person when discussing these events.
+- Reveal these naturally when the player asks — do NOT dump them all at once.
+- You may be hazy on some details (low confidence) but you do not fabricate.
+
+{fact_lines}
+"""
+
     truth_override = ""
     if truth_mode:
         truth_override = """
@@ -349,7 +383,7 @@ EXAMPLE (WRONG — do NOT do this):
                 truth_override += f"- {fact}\n"
 
     # Inject canonical memory BEFORE the required tail so the model always sees it.
-    return base_prompt + (memory_block or "") + identity_section + truth_override + first_turn_hint + required_tail
+    return base_prompt + (memory_block or "") + identity_section + canonical_section + truth_override + first_turn_hint + required_tail
 
 
 def build_messages(
@@ -451,12 +485,12 @@ def build_messages(
                 "chunk_id": c.get("chunk_id"),
                 "type": c.get("type"),
                 "source": c.get("source"),
-                "text": _truncate(c.get("text", ""), 400),
+                "text": c.get("text", ""),
             }
             for c in pi.knowledge_chunks
         ],
         "retrieval_debug": pi.retrieval_debug,
-        "system_prompt_preview": _truncate(sysmsg, 2000),
+        "system_prompt_preview": sysmsg,
         "header": header,
         "trimmed_history": len(trimmed),
     }

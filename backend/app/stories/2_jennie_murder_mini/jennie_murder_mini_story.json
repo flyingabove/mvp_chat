@@ -81,6 +81,52 @@
   "emotion": {
     "start": "controlled, skeptical"
   },
+  "character_self_knowledge": [
+    "Jennie Kim was found dead in Steve's apartment kitchen.",
+    "Time of death is estimated between 11:40 and 12:15.",
+    "The murder weapon (a knife) is missing from the scene.",
+    "The kitchen was wiped clean — no prints, unusually tidy."
+  ],
+  "epistemic_seed": {
+    "canonical_facts": [
+      {
+        "id": "stabbing_by_steve",
+        "text": "Steve stabbed Jennie in his apartment kitchen around 11:45 after a financial confrontation.",
+        "known_by": ["steve"],
+        "confidence": 1.0
+      },
+      {
+        "id": "cleanup_by_bob",
+        "text": "Bob helped Steve clean up the scene afterward: wiped surfaces, removed the knife, tidied the kitchen.",
+        "known_by": ["steve", "bob"],
+        "confidence": 1.0
+      },
+      {
+        "id": "tod_window",
+        "text": "Jennie died between 11:40 and 12:15 in Steve's apartment kitchen.",
+        "known_by": ["steve", "bob", "player"],
+        "confidence": 1.0
+      },
+      {
+        "id": "phone_ping_evidence",
+        "text": "Jennie's phone pinged near Steve's building close to midnight, placing her at the scene.",
+        "known_by": ["player"],
+        "confidence": 1.0
+      },
+      {
+        "id": "neighbor_witness",
+        "text": "A neighbor heard a woman crying around 11:50, consistent with the time of the attack.",
+        "known_by": ["player"],
+        "confidence": 1.0
+      },
+      {
+        "id": "missing_weapon",
+        "text": "The murder weapon (a knife) was removed from the scene by Bob during cleanup.",
+        "known_by": ["bob"],
+        "confidence": 1.0
+      }
+    ]
+  },
   "opening": {
     "text": "You sit between two rooms, switching back and forth. Steve and Bob keep insisting no one was there. The lab has almost nothing—no weapon, no prints, a too-clean kitchen. The only leverage is logic: the phone ping, the neighbor at 11:50, a single smudged shoeprint. And the standing rule: first full cooperator gets the deal.\n\nThey know it. You know it. The question is who breaks first."
   },

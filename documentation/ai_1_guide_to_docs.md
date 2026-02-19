@@ -1,8 +1,13 @@
 Documentation map (what to read for which need)
+Instructions to AI:
+- Use this doc (\documentation\ai_1_guide_to_docs.md) to find which docs document what. update this doc if ever needed
+- Update this doc as neded
+- Update all docs as needed, except any docs under human_north_star_docs
+- Don't be lazy and always rememember to update docs with any changes or learnings 
 
 - [documentation/ai_learnings_mistakes/ai_create_new_flag.txt](documentation/ai_learnings_mistakes/ai_create_new_flag.txt): How to add new bracket commands ([H]/[HINT]) across backend + frontend with testing notes.
 - [documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt](documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt): Postmortem on blank-page incident; guards to avoid orphaned frontend code and how to recover.
-- [documentation/ai_learnings_mistakes/ai_game_structure.txt](documentation/ai_learnings_mistakes/ai_game_structure.txt): Story/game asset layout (story folders, knowledge indexes, maps, UUID rules) and steps to author a new case.
+- [documentation/ai_learnings_mistakes/ai_game_structure.txt](documentation/ai_learnings_mistakes/ai_game_structure.txt): Story/game asset layout (story folders, knowledge indexes, maps, UUID rules), **canonical facts rules** (confidence always 1.0, known_by filtering, character_self_knowledge vs epistemic_seed distinction), and steps to author a new case.
 - [documentation/ai_learnings_mistakes/ai_learnings_integration_requirements.txt](documentation/ai_learnings_mistakes/ai_learnings_integration_requirements.txt): Integration test requirements—conda env, .env.test/OPENAI_API_KEY, commands for Windows/Railway, scenario expectations.
 - [documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt](documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt): How AI pushes code (git auth, safe staging/commits, branch norms main/beta/prod).
 - [documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt](documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt): Known-good pytest commands (full/unit/integration) for Windows with get_output_via_markers wrapper; pre-flight checklist.
@@ -23,3 +28,4 @@ Documentation map (what to read for which need)
 - [documentation/model_output_docs/EPISTEMIC_REDESIGN.md](documentation/model_output_docs/EPISTEMIC_REDESIGN.md): Story JSON v2 proposal with canon tiers (ANCHOR/CANON/SECRET_CANON/CLAIM/RUMOR), knowledge chunks, and invariants.
 - [documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md](documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md): Scenario/step registry + UI playback design for integration tests (cached vs live LLM, assertions).
 - [documentation/model_output_docs/layer_coverage_mapping.md](documentation/model_output_docs/layer_coverage_mapping.md): Mapping of IU scenario segments to epistemic layers and how toggle tests assert them.
+![alt text](image.png)

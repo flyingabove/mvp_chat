@@ -149,19 +149,19 @@
         "id": "death_time_window",
         "text": "The fatal attack happened overnight on 2025-01-14, before dawn on 2025-01-15.",
         "known_by": ["iu"],
-        "confidence": 0.9
+        "confidence": 1.0
       },
       {
         "id": "items_missing",
         "text": "IU's phone and a handwritten lyric notebook went missing from the scene after the killing.",
         "known_by": ["iu"],
-        "confidence": 0.9
+        "confidence": 1.0
       },
       {
         "id": "lease_disclosure",
         "text": "The apartment's cheap rent was due to the undisclosed prior tenant death in the closet.",
         "known_by": ["player"],
-        "confidence": 0.7
+        "confidence": 1.0
       }
     ],
     "belief_seeds": {

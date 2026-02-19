@@ -69,6 +69,58 @@ def _load_scorer_instructions() -> str:
     except FileNotFoundError:
         return ""
 
+
+def _build_scorer_context(ctx: dict) -> str:
+    """Build a story-context block for the scorer prompt.
+
+    Gives the grader the canonical facts, character identities, and rules
+    it needs to properly evaluate canon fidelity (e.g. detecting when an NPC
+    refers to itself in third person or contradicts its identity).
+    """
+    parts = []
+
+    title = ctx.get("title", "")
+    if title:
+        parts.append(f"STORY TITLE: {title}")
+
+    # Character identity — who the main NPC IS
+    self_knowledge = ctx.get("character_self_knowledge") or []
+    if self_knowledge:
+        lines = "\n".join(f"  - {fact}" for fact in self_knowledge)
+        parts.append(f"NPC IDENTITY (the NPC must always know and embody these facts):\n{lines}")
+
+    # Characters in the story
+    characters = ctx.get("characters") or []
+    if characters:
+        char_lines = []
+        for ch in characters:
+            tags = ", ".join(ch.get("tags") or [])
+            role = ch.get("role", "")
+            main = " [MAIN NPC]" if ch.get("is_main") else ""
+            suspect = " [SUSPECT]" if ch.get("is_suspect") else ""
+            char_lines.append(f"  - {ch.get('name', '?')} — {role}{main}{suspect}" + (f" (tags: {tags})" if tags else ""))
+        parts.append(f"CHARACTERS IN STORY:\n" + "\n".join(char_lines))
+
+    # Protagonist (the player character)
+    protagonist = ctx.get("protagonist") or {}
+    if protagonist.get("name"):
+        parts.append(f"PROTAGONIST (player character): {protagonist['name']} — {protagonist.get('role', '')}")
+
+    # Canonical facts — ground truth the scorer should verify against
+    canonical_facts = ctx.get("canonical_facts") or []
+    if canonical_facts:
+        fact_lines = []
+        for f in canonical_facts:
+            text = f.get("text", "")
+            known = ", ".join(f.get("known_by") or [])
+            fact_lines.append(f"  - {text}" + (f" (known by: {known})" if known else ""))
+        parts.append(f"CANONICAL FACTS (ground truth — NPC must never contradict these):\n" + "\n".join(fact_lines))
+
+    if not parts:
+        return ""
+
+    return "=== STORY CONTEXT FOR SCORING ===\n" + "\n\n".join(parts) + "\n=== END STORY CONTEXT ==="
+
 PERSONAS = {
   "curious_rookie": "Curious Rookie: polite, exploratory questions.",
   "confrontational_cop": "Confrontational Cop: direct, pressure-testing and skeptical.",
@@ -387,12 +439,24 @@ async def ws_run(ws: WebSocket):
                         "Rate the conversation and return JSON."
                     )
 
+                    # Fetch story context so scorer can evaluate canon fidelity
+                    story_context_block = ""
+                    try:
+                        ctx_r = await api.get(f"{API_BASE}/api/stories/{story_id}/context")
+                        if ctx_r.status_code == 200:
+                            ctx = ctx_r.json()
+                            story_context_block = _build_scorer_context(ctx)
+                            await send("status", {"text": "Story context loaded for scorer"})
+                    except Exception as ctx_err:
+                        await send("warning", {"text": f"Could not load story context: {ctx_err}"})
+
                     prompt = (
                       f"Story: {story_id}\n"
                       f"Total turns: {len([m for m in conversation if m['role'] == 'player'])}\n"
                       f"Chatter model: {chatter_model}\n\n"
                       f"Player persona (assumed for evaluation): {persona_desc}\n\n"
-                      "Score ONLY the NPC (LLM) replies. Use player lines strictly as context."
+                      + (story_context_block + "\n\n" if story_context_block else "")
+                      + "Score ONLY the NPC (LLM) replies. Use player lines strictly as context."
                       " Focus on canon fidelity, voice, agency respect, responsiveness, mystery pacing,"
                       " immersion, and edge-case handling."
                       f"\n\n=== CONVERSATION ===\n{transcript}\n=== END ===\n\n"
@@ -926,7 +990,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     border: 1px solid var(--border);
   }
 
-  /* Debug panel */
+  /* Debug panel — layered table */
   .debug-card {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -962,17 +1026,171 @@ HTML_PAGE = r"""<!DOCTYPE html>
   .debug-toggle-btn.on { border-color: var(--accent); color: var(--accent); }
   .debug-body {
     background: var(--bg);
-    border: 1px dashed var(--border);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 10px;
-    max-height: 220px;
+    padding: 0;
+    max-height: 400px;
     overflow: auto;
+  }
+  .debug-muted { color: var(--text-dim); font-size: 11px; padding: 10px; }
+
+  /* Debug layered table */
+  .debug-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .debug-table th {
+    text-align: left;
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .debug-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
     font-family: var(--font-mono);
     font-size: 11px;
     line-height: 1.5;
-    color: var(--text);
   }
-  .debug-muted { color: var(--text-dim); font-size: 11px; }
+  .debug-table tr:hover td { background: var(--surface2); }
+  .debug-layer-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .layer-game { background: #6c5ce720; color: #a29bfe; }
+  .layer-prompt { background: #00b89420; color: #55efc4; }
+  .layer-knowledge { background: #fdcb6e20; color: #fdcb6e; }
+  .layer-retrieval { background: #e1705620; color: #fab1a0; }
+  .layer-meta { background: #636e7220; color: #b2bec3; }
+
+  /* Context modal */
+  .context-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s ease-out;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .context-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: 90vw;
+    max-width: 1000px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.2s ease-out;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .context-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .context-modal-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-bright);
+    font-family: var(--font-mono);
+  }
+  .context-modal-close {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .context-modal-close:hover { border-color: var(--red); color: var(--red); }
+  .context-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .context-section {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .context-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface3);
+    cursor: pointer;
+    user-select: none;
+  }
+  .context-section-header:hover { background: var(--border); }
+  .context-section-header .arrow { font-size: 10px; color: var(--text-dim); transition: transform 0.2s; }
+  .context-section-header.open .arrow { transform: rotate(90deg); }
+  .context-section-header .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+  .context-section-body {
+    padding: 12px 14px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    display: none;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  .context-section-body.open { display: block; }
+
+  /* Scrollbar styling for modal */
+  .context-modal-body::-webkit-scrollbar,
+  .context-section-body::-webkit-scrollbar { width: 6px; }
+  .context-modal-body::-webkit-scrollbar-track,
+  .context-section-body::-webkit-scrollbar-track { background: transparent; }
+  .context-modal-body::-webkit-scrollbar-thumb,
+  .context-section-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .context-modal-body::-webkit-scrollbar-thumb:hover,
+  .context-section-body::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  /* Clickable chat messages */
+  .msg.clickable { cursor: pointer; }
+  .msg.clickable:hover { outline: 1px solid var(--accent); outline-offset: 2px; }
 
   .eval-placeholder {
     display: flex;
@@ -1222,13 +1440,16 @@ HTML_PAGE = r"""<!DOCTYPE html>
   <!-- Right: Evaluation -->
   <div class="right-panel" id="rightPanel-tester">
     <div class="right-panel-content">
-      <div class="section-label">Debug</div>
+      <div class="section-label">Debug — Turn Context</div>
       <div class="debug-card">
         <div class="debug-header">
-          <div class="title">Prompt + Game Debug</div>
-          <button class="debug-toggle-btn on" id="debugToggleBtn" onclick="toggleDebugView()">Hide</button>
+          <div class="title">Layered Debug View</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:10px;color:var(--text-dim);font-family:var(--font-mono)" id="debugTurnLabel">—</span>
+            <button class="debug-toggle-btn on" id="debugToggleBtn" onclick="toggleDebugView()">Hide</button>
+          </div>
         </div>
-        <div id="debugBody" class="debug-body"><div class="debug-muted">Waiting for debug payload…</div></div>
+        <div id="debugBody" class="debug-body"><div class="debug-muted">Click any NPC message to inspect its full context, or wait for debug payloads during a run.</div></div>
       </div>
 
       <div class="section-label">Evaluation</div>
@@ -1290,6 +1511,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
   let currentTab = 'tester';
   let showDebug = true;
   let lastDebugPayload = null;
+  let debugPayloads = {};  // turn -> {debug_box, prompt_debug}
 
   // ---- Tab switching ----
   function switchTab(tab) {
@@ -1394,6 +1616,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     totalTokens = 0;
     turnCount = 0;
     lastDebugPayload = null;
+    debugPayloads = {};
     document.getElementById('chatMessages').innerHTML = '';
     document.getElementById('evalContent').style.display = 'none';
     document.getElementById('evalPlaceholder').style.display = 'flex';
@@ -1457,6 +1680,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
   function renderDebugPayload(payload) {
     const body = document.getElementById('debugBody');
+    const turnLabel = document.getElementById('debugTurnLabel');
     lastDebugPayload = payload || null;
     if (!body) return;
 
@@ -1466,23 +1690,76 @@ HTML_PAGE = r"""<!DOCTYPE html>
     }
 
     if (!payload || (!payload.debug_box && !payload.prompt_debug)) {
-      body.innerHTML = '<div class="debug-muted">Waiting for debug payload…</div>';
+      body.innerHTML = '<div class="debug-muted">Click any NPC message to inspect its full context, or wait for debug payloads during a run.</div>';
+      if (turnLabel) turnLabel.textContent = '—';
       return;
     }
 
-    const parts = [];
-    if (payload.debug_box) {
-      parts.push('<div><strong>debug_box</strong></div><pre>' + escapeHtml(formatJson(payload.debug_box)) + '</pre>');
-    }
-    if (payload.prompt_debug) {
-      parts.push('<div><strong>prompt_debug</strong></div><pre>' + escapeHtml(formatJson(payload.prompt_debug)) + '</pre>');
+    if (turnLabel) turnLabel.textContent = 'Turn ' + (payload.turn ?? '?');
+
+    // Build layered table rows
+    const rows = [];
+    const db = payload.debug_box || {};
+    const pd = payload.prompt_debug || {};
+
+    // Game state layer
+    if (db.timestamp) rows.push({layer: 'game', key: 'Time', value: db.timestamp});
+    if (db.location) rows.push({layer: 'game', key: 'Location', value: db.location + (db.location_uuid ? ' (' + db.location_uuid + ')' : '')});
+    if (db.speakers && db.speakers.length) rows.push({layer: 'game', key: 'Active Speakers', value: db.speakers.join(', ')});
+    if (pd.story) rows.push({layer: 'game', key: 'Story', value: pd.story});
+    if (pd.instance) rows.push({layer: 'game', key: 'Instance', value: pd.instance});
+    if (pd.turn != null) rows.push({layer: 'game', key: 'Turn #', value: String(pd.turn)});
+
+    // Prompt layer
+    if (pd.truth_mode != null) rows.push({layer: 'prompt', key: 'Truth Mode', value: pd.truth_mode ? 'ON' : 'OFF'});
+    if (pd.header) rows.push({layer: 'prompt', key: 'Header', value: pd.header});
+    if (pd.system_prompt_preview) rows.push({layer: 'prompt', key: 'System Prompt', value: pd.system_prompt_preview});
+    if (pd.user_msg) rows.push({layer: 'prompt', key: 'User Message', value: pd.user_msg});
+    if (pd.trimmed_history != null) rows.push({layer: 'prompt', key: 'History Turns', value: String(pd.trimmed_history)});
+
+    // Knowledge layer
+    if (pd.knowledge_chunks && pd.knowledge_chunks.length) {
+      pd.knowledge_chunks.forEach((c, i) => {
+        const label = (c.type || 'chunk') + (c.chunk_id ? ' [' + c.chunk_id + ']' : '');
+        rows.push({layer: 'knowledge', key: label, value: c.text || '(empty)'});
+      });
     }
 
-    if (!parts.length) {
-      body.innerHTML = '<div class="debug-muted">No debug payload present.</div>';
-    } else {
-      body.innerHTML = parts.join('<div style="height:8px"></div>');
+    // Retrieval debug layer
+    if (pd.retrieval_debug) {
+      const rd = pd.retrieval_debug;
+      if (typeof rd === 'object' && !Array.isArray(rd)) {
+        for (const [k, v] of Object.entries(rd)) {
+          rows.push({layer: 'retrieval', key: k, value: typeof v === 'object' ? formatJson(v) : String(v)});
+        }
+      } else if (Array.isArray(rd)) {
+        rows.push({layer: 'retrieval', key: 'Debug', value: formatJson(rd)});
+      }
     }
+
+    if (!rows.length) {
+      body.innerHTML = '<div class="debug-muted">No structured debug data in this payload.</div>';
+      return;
+    }
+
+    const layerNames = {game: 'Game', prompt: 'Prompt', knowledge: 'Knowledge', retrieval: 'Retrieval', meta: 'Meta'};
+    const layerClasses = {game: 'layer-game', prompt: 'layer-prompt', knowledge: 'layer-knowledge', retrieval: 'layer-retrieval', meta: 'layer-meta'};
+
+    let html = '<table class="debug-table"><thead><tr><th>Layer</th><th>Field</th><th>Value</th></tr></thead><tbody>';
+    for (const row of rows) {
+      const cls = layerClasses[row.layer] || 'layer-meta';
+      const lbl = layerNames[row.layer] || row.layer;
+      const val = row.value.length > 300
+        ? '<details><summary style="cursor:pointer;color:var(--accent);font-size:10px">Expand (' + row.value.length + ' chars)</summary><div style="margin-top:4px">' + escapeHtml(row.value) + '</div></details>'
+        : escapeHtml(row.value);
+      html += '<tr>';
+      html += '<td><span class="debug-layer-tag ' + cls + '">' + escapeHtml(lbl) + '</span></td>';
+      html += '<td style="color:var(--text-bright);white-space:nowrap">' + escapeHtml(row.key) + '</td>';
+      html += '<td style="white-space:pre-wrap;word-break:break-word">' + val + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    body.innerHTML = html;
   }
 
   function toggleDebugView() {
@@ -1542,22 +1819,39 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
 
   function handleDebug(msg) {
-    renderDebugPayload({
+    const payload = {
       turn: msg.turn,
       debug_box: msg.debug_box,
       prompt_debug: msg.prompt_debug
-    });
+    };
+    debugPayloads[msg.turn] = payload;
+    renderDebugPayload(payload);
   }
 
   function addChatMsg(msg) {
     const el = document.createElement('div');
     el.className = 'msg ' + msg.role;
-    let html = '<div class="role-tag">' + (msg.role === 'npc' ? 'NPC' : 'Player') + '</div>';
+    var turn = (msg.turn != null) ? msg.turn : 0;
+
+    // NPC messages are clickable to show full context
+    if (msg.role === 'npc') {
+      el.classList.add('clickable');
+      el.title = 'Click to inspect full context for turn ' + turn;
+      el.setAttribute('data-turn', turn);
+    }
+
+    let html = '<div class="role-tag">' + (msg.role === 'npc' ? 'NPC' : 'Player') + ' &middot; T' + turn + '</div>';
     html += '<div>' + escapeHtml(msg.content) + '</div>';
     if (msg.latency_ms) {
       html += '<div class="meta">' + msg.latency_ms + 'ms \u00B7 ' + (msg.tokens || 0) + ' tok</div>';
     }
     el.innerHTML = html;
+
+    // Attach click handler AFTER innerHTML (belt-and-suspenders)
+    if (msg.role === 'npc') {
+      el.onclick = function() { openContextModal(turn); };
+    }
+
     document.getElementById('chatMessages').appendChild(el);
     el.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }
@@ -1963,12 +2257,144 @@ HTML_PAGE = r"""<!DOCTYPE html>
     });
   }
 
+  // ---- Context Modal ----
+  function openContextModal(turn) {
+   try {
+    const payload = debugPayloads[turn];
+    const npcMsg = conversation.find(m => m.role === 'npc' && m.turn === turn);
+    const playerMsg = conversation.find(m => m.role === 'player' && m.turn === turn);
+
+    // Also render in the side debug panel
+    if (payload) renderDebugPayload(payload);
+
+    // Build modal
+    const overlay = document.createElement('div');
+    overlay.className = 'context-modal-overlay';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const db = (payload && payload.debug_box) || {};
+    const pd = (payload && payload.prompt_debug) || {};
+
+    // Build sections
+    const sections = [];
+
+    // 1. Game State
+    const gameLines = [];
+    if (db.timestamp) gameLines.push('Time:      ' + db.timestamp);
+    if (db.location) gameLines.push('Location:  ' + db.location + (db.location_uuid ? ' (' + db.location_uuid + ')' : ''));
+    if (db.speakers && db.speakers.length) gameLines.push('Speakers:  ' + db.speakers.join(', '));
+    if (pd.story) gameLines.push('Story:     ' + pd.story);
+    if (pd.instance) gameLines.push('Instance:  ' + String(pd.instance));
+    if (pd.turn != null) gameLines.push('Turn:      ' + String(pd.turn));
+    if (pd.truth_mode != null) gameLines.push('Truth:     ' + (pd.truth_mode ? 'ON' : 'OFF'));
+    if (pd.trimmed_history != null) gameLines.push('History:   ' + pd.trimmed_history + ' turns');
+    if (gameLines.length) sections.push({title: 'Game State', content: gameLines.join('\n'), open: true});
+
+    // 2. Player Input
+    if (playerMsg) {
+      sections.push({title: 'Player Message (T' + turn + ')', content: String(playerMsg.content || '(empty)'), open: true});
+    }
+
+    // 3. NPC Response
+    if (npcMsg) {
+      let npcContent = String(npcMsg.content || '(empty)');
+      if (npcMsg.latency_ms) npcContent += '\n\n--- Stats ---\nLatency: ' + npcMsg.latency_ms + 'ms\nTokens: ' + (npcMsg.tokens || 0);
+      sections.push({title: 'NPC Response (T' + turn + ')', content: npcContent, open: true});
+    }
+
+    // 4. System Prompt
+    if (pd.system_prompt_preview) {
+      sections.push({title: 'System Prompt (full)', content: String(pd.system_prompt_preview), open: false});
+    }
+
+    // 5. Header
+    if (pd.header) {
+      sections.push({title: 'User Message Header', content: String(pd.header), open: false});
+    }
+
+    // 6. Knowledge Chunks
+    if (pd.knowledge_chunks && pd.knowledge_chunks.length) {
+      const kText = pd.knowledge_chunks.map(function(c, i) {
+        return '[' + (i+1) + '] ' + (c.type || 'chunk') + (c.chunk_id ? ' (' + c.chunk_id + ')' : '') + (c.source ? ' src=' + c.source : '') + '\n' + (c.text || '(empty)');
+      }).join('\n\n');
+      sections.push({title: 'Knowledge Chunks (' + pd.knowledge_chunks.length + ')', content: kText, open: false});
+    }
+
+    // 7. Retrieval Debug
+    if (pd.retrieval_debug) {
+      sections.push({title: 'Retrieval Debug', content: formatJson(pd.retrieval_debug), open: false});
+    }
+
+    // 8. Raw debug_box (fallback if no structured data)
+    if (payload && !gameLines.length) {
+      sections.push({title: 'Raw Debug Box', content: formatJson(db), open: true});
+    }
+
+    // No data at all
+    if (!payload) {
+      sections.push({title: 'No Debug Data', content: 'No debug payload was captured for turn ' + turn + '. Make sure debug mode is enabled (the tester auto-enables it).', open: true});
+    }
+
+    let sectionsHtml = '';
+    for (let si = 0; si < sections.length; si++) {
+      var s = sections[si];
+      var openClass = s.open ? ' open' : '';
+      var safeContent = escapeHtml(String(s.content || ''));
+      sectionsHtml += '<div class="context-section">';
+      sectionsHtml += '<div class="context-section-header' + openClass + '" data-idx="' + si + '">';
+      sectionsHtml += '<span class="arrow">&#9654;</span>';
+      sectionsHtml += '<span class="section-title">' + escapeHtml(String(s.title)) + '</span>';
+      sectionsHtml += '</div>';
+      sectionsHtml += '<div class="context-section-body' + openClass + '">' + safeContent + '</div>';
+      sectionsHtml += '</div>';
+    }
+
+    var modalHtml = '<div class="context-modal">';
+    modalHtml += '<div class="context-modal-header">';
+    modalHtml += '<h2>Turn ' + turn + ' \u2014 Full Context</h2>';
+    modalHtml += '<button class="context-modal-close" id="ctxModalClose">&times;</button>';
+    modalHtml += '</div>';
+    modalHtml += '<div class="context-modal-body">' + sectionsHtml + '</div>';
+    modalHtml += '</div>';
+
+    overlay.innerHTML = modalHtml;
+    document.body.appendChild(overlay);
+
+    // Attach close button handler
+    var closeBtn = document.getElementById('ctxModalClose');
+    if (closeBtn) closeBtn.addEventListener('click', function() { overlay.remove(); });
+
+    // Attach section toggle handlers (no inline onclick needed)
+    overlay.querySelectorAll('.context-section-header').forEach(function(hdr) {
+      hdr.addEventListener('click', function() {
+        hdr.classList.toggle('open');
+        var body = hdr.nextElementSibling;
+        if (body) body.classList.toggle('open');
+      });
+    });
+
+    // ESC to close
+    var escHandler = function(e) {
+      if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escHandler); }
+    };
+    document.addEventListener('keydown', escHandler);
+
+   } catch (err) {
+    console.error('openContextModal error:', err);
+    alert('Debug modal error: ' + err.message);
+   }
+  }
+
   // ---- Utility ----
   function escapeHtml(s) {
+    if (s == null) return '';
+    s = String(s);
     if (!s) return '';
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
   function escapeAttr(s) {
+    if (s == null) return '';
+    s = String(s);
     if (!s) return '';
     return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }

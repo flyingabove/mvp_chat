@@ -24,6 +24,31 @@ Story content
   - `entity` is the character key or location id (slugged, lowercase).
 - IMPORTANT: world.file and world.world_map_image paths in story JSON must use the ACTUAL folder name (e.g., "2_jennie_murder_mini/..."), not short aliases.
 
+Character identity & canonical facts (REQUIRED in every story JSON)
+- `character_self_knowledge`: array of strings. Identity-level facts the main NPC always knows
+  about itself. Injected into system prompt under CHARACTER SELF-KNOWLEDGE section.
+  Example: ["You are the ghost of the previous tenant — you died here."]
+- `epistemic_seed.canonical_facts`: array of fact objects. These are authoritative game-world
+  truths. The engine injects facts into the NPC prompt where the main character's key appears
+  in `known_by`. Facts with `known_by: ["player"]` are NOT given to the NPC.
+  Required fields per fact:
+    - `id`: unique string identifier (snake_case)
+    - `text`: the canonical truth as a plain sentence
+    - `known_by`: array of character keys who know this fact (e.g., ["iu"], ["steve", "bob"])
+    - `confidence`: ALWAYS 1.0. These are canonical (authoritative) facts, not beliefs.
+      Beliefs with varying confidence belong in `epistemic_seed.belief_seeds`, not here.
+  Rules:
+    - Every story MUST have at least one canonical fact.
+    - confidence is always 1.0 — never use 0.9, 0.7, etc. for canonical facts.
+    - `known_by` controls which NPCs get the fact in their prompt. Use character keys
+      (lowercase, matching the `key` field in the characters array).
+    - The prompt builder finds the main character via `is_main: true` in the characters array,
+      then filters canonical_facts by that character's key appearing in `known_by`.
+- `epistemic_seed.belief_seeds`: dict keyed by character key. These are subjective beliefs
+  characters hold (not authoritative truth). Confidence CAN vary here (0.0–1.0) because
+  beliefs may be wrong, uncertain, or self-serving. Not currently injected into prompts
+  (reserved for future epistemic engine expansion).
+
 Frontend/meta
 - index.html fetches /api/stories and uses world_map_image from story meta to render map + location list.
 - version.json bumps to bust cache when assets change.

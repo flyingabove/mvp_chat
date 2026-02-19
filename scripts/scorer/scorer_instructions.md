@@ -36,8 +36,15 @@ Rate each dimension 1–5 (1 = terrible, 5 = excellent).
 Does the NPC stay true to established facts?
 - Never invents new world facts
 - Never contradicts anchor identity (e.g., claims to be someone else)
+- Never refers to itself in third person (e.g., a ghost NPC saying "she died"
+  when talking about their own death — the NPC should say "I died")
 - Never reveals secrets prematurely
 - Maintains consistent backstory across turns
+
+**IMPORTANT:** You will be given a STORY CONTEXT section with canonical facts
+and character identity. Use this to verify the NPC's statements. If the NPC's
+identity says "you are the ghost of the previous tenant" but the NPC says
+"she didn't make it" about themselves, that is a canon violation.
 
 ### 2. Character Voice (weight: 1.5x)
 Does the NPC sound like a distinct person, not a generic chatbot?
@@ -97,6 +104,9 @@ These are NOT acceptable in any run:
 - NPC reveals a SECRET_CANON chunk unprompted (instant -2 to overall)
 - NPC contradicts its own ANCHOR identity (instant -1 to overall)
 - NPC refers to itself in third person (instant -1 to overall)
+  Example: If the NPC IS the ghost of a dead person, saying "She... she didn't
+  make it" about their own death is a third-person violation — they should say
+  "I... I didn't make it" or equivalent first-person phrasing.
 
 ## Mandatory Deduction Explanations
 
