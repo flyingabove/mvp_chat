@@ -4,6 +4,7 @@ Instructions to AI:
 - Update this doc as neded
 - Update all docs as needed, except any docs under human_north_star_docs
 - Don't be lazy and always rememember to update docs with any changes or learnings 
+- After making code changes always add a descriptive comment and push the code.
 
 - [documentation/ai_learnings_mistakes/ai_create_new_flag.txt](documentation/ai_learnings_mistakes/ai_create_new_flag.txt): How to add new bracket commands ([H]/[HINT]) across backend + frontend with testing notes.
 - [documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt](documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt): Postmortem on blank-page incident; guards to avoid orphaned frontend code and how to recover.
@@ -12,6 +13,7 @@ Instructions to AI:
 - [documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt](documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt): How AI pushes code (git auth, safe staging/commits, branch norms main/beta/prod).
 - [documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt](documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt): Known-good pytest commands (full/unit/integration) for Windows with get_output_via_markers wrapper; pre-flight checklist.
 - [documentation/ai_learnings_mistakes/ai_ui_workflow.txt](documentation/ai_learnings_mistakes/ai_ui_workflow.txt): Frontend single-file architecture and state machine (menu→name→gender→chat, commands, map rendering, error guards, API calls).
+- [documentation/ai_learnings_mistakes/ai_scorer_system.txt](documentation/ai_learnings_mistakes/ai_scorer_system.txt): Scorer/grader system — file locations, architecture (FastAPI+embedded UI), WebSocket run flow, 7 scoring dimensions with weights, critical failures, context modal, leaderboard, test cases, personas, story context API, and common gotchas (3rd-person self-ref, player agency violations, debugPayloads dependency).
 
 - [documentation/auto_update_docs/ARCHITECTURE_DIAGRAM.mmd](documentation/auto_update_docs/ARCHITECTURE_DIAGRAM.mmd): Mermaid architecture diagram covering client/API/engine/knowledge layers.
 - [documentation/auto_update_docs/COMPREHENSIVE_DOCUMENTATION.md](documentation/auto_update_docs/COMPREHENSIVE_DOCUMENTATION.md): Full generated system manual with file-by-file notes and architecture narrative.

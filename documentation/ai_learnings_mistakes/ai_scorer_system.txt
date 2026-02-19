@@ -1,0 +1,180 @@
+Scorer System — AI Learnings & Reference
+==========================================
+
+Overview
+--------
+The scorer is a self-contained FastAPI + embedded HTML/JS app that tests NPC quality
+by running automated conversations and grading them with a separate LLM.
+
+File Locations
+--------------
+- Main app:           scripts/scorer/story_agent_ui.py  (FastAPI + full UI in one file)
+- Scoring rubric:     scripts/scorer/scorer_instructions.md
+- Score history CSV:  scripts/saves/scores.csv
+- Test case library:  scripts/saves/test_cases.json
+- Package marker:     scripts/scorer/__init__.py
+
+Related backend files:
+- Story context API:  backend/app/api/stories.py  → GET /api/stories/{story_id}/context
+- Story JSONs:        backend/app/stories/<folder>/<story_id>_story.json
+
+Architecture
+------------
+Browser (HTML/CSS/JS)  ←→  FastAPI backend (story_agent_ui.py)  ←→  Main API + Ollama
+
+Three tabs in the UI:
+1. Tester  — run conversations, view chat + evaluation
+2. Leaderboard — ranked score history from CSV
+3. Test Cases — design & run scripted test scenarios
+
+Key Constants
+-------------
+- API_BASE = "https://beta-api.storieschat.ai"
+- OLLAMA_BASE = "http://127.0.0.1:11434"
+- Scorer port = 8899
+- Session ID format: "ui_{story_id}_{timestamp}"
+- Run ID: first 8 chars of uuid4
+
+How a Run Works (WebSocket /ws/run)
+-----------------------------------
+1. Client sends config JSON (story_id, turns, models, personas, etc.)
+2. Backend sends __cmd_reset__ → __cmd_newgame__:story_id|gender|name → [D] (enable debug)
+3. Loop for N turns:
+   a. Generate player message (LLM via Ollama, or test case messages, or fallback list)
+   b. POST to /api/chat with player message
+   c. Emit "message", "progress", "debug" events over WebSocket
+4. After conversation ends:
+   a. Fetch /api/stories/{story_id}/context (story canon for scorer)
+   b. Run scorer LLM with transcript + scorer_instructions.md + story context
+   c. Parse JSON response, append row to scores.csv
+   d. Emit "evaluation" event
+
+WebSocket Events
+----------------
+- "status"     — system status text
+- "message"    — chat message (role, content, turn, latency_ms, tokens)
+- "debug"      — turn-level debug info (debug_box, prompt_debug) — stored in debugPayloads{}
+- "progress"   — turn X / total turns
+- "warning"    — non-fatal warning
+- "error"      — error message
+- "evaluation" — final scorer JSON
+- "done"       — run complete
+
+Player Personas (chatter agent)
+-------------------------------
+- curious_rookie       — polite, exploratory questions (default)
+- confrontational_cop  — direct, pressure-testing, skeptical
+- empathetic_confidant — warm, rapport-first, feelings-seeking
+- chaos_gremlin        — edge-case breaker, non-sequiturs, stress-tests
+- first_time_user      — tentative, basic/clarifying questions
+- expert_llm_grader    — experienced evaluator (default for rater)
+
+Scoring Dimensions (7 dimensions, weighted)
+--------------------------------------------
+| Dimension              | Weight | What it measures                                    |
+|------------------------|--------|-----------------------------------------------------|
+| Canon Fidelity         | 2.0x   | Never invents facts, contradicts identity, 3rd-person self-ref |
+| Character Voice        | 1.5x   | Distinct personality, consistent tone, authentic emotion |
+| Player Agency Respect  | 2.0x   | Never narrates player actions/feelings/thoughts     |
+| Responsiveness         | 1.0x   | Answers questions, reacts to tone                   |
+| Mystery Mechanics      | 1.5x   | Clues when earned, believable withholding           |
+| Immersion Quality      | 1.0x   | Atmospheric but not overwhelming, clear speaker labels |
+| Edge Case Resilience   | 0.5x   | Handles gibberish, empty input, prompt injection    |
+
+Overall score formula:
+  weighted_total = sum(score * weight for each dimension)
+  max_possible = 5 * sum(all_weights) = 47.5
+  overall = round(weighted_total / max_possible * 5, 1)
+
+Critical Failures (auto-deductions from overall)
+-------------------------------------------------
+- NPC speaks as player          → -2.0
+- NPC reveals SECRET_CANON unprompted → -2.0
+- NPC contradicts ANCHOR identity → -1.0
+- NPC refers to itself in 3rd person → -1.0
+  Example: ghost NPC saying "She died" about herself → should be "I died"
+
+Every category scoring <5 MUST have notes citing specific turns/quotes.
+
+Context Modal (click NPC message)
+---------------------------------
+When user clicks an NPC message, a full-context modal opens with collapsible sections:
+1. Game State (time, location, speakers, story, turn, truth_mode)
+2. Player Message
+3. NPC Response + latency/tokens
+4. System Prompt (full, collapsed)
+5. User Message Header (collapsed)
+6. Knowledge Chunks (retrieved facts, collapsed)
+7. Retrieval Debug (collapsed)
+8. Raw Debug Box (fallback)
+
+Debug data is stored in JS variable debugPayloads[turn] — populated via "debug" WebSocket events.
+The side debug panel was REMOVED (only the modal remains).
+
+Leaderboard
+-----------
+- Reads scripts/saves/scores.csv
+- Shows all runs ranked by overall_score descending
+- Color-coded: Red (1-2), Yellow (3), Green (4-5)
+- Deduction notes aggregated (only dimensions scoring <5)
+- 26 columns including model names, personas, latency, tokens
+
+Test Cases
+----------
+Structure: { id, name, description, story_id, strategy, messages[] }
+6 built-in test cases (greeting, pressure, edge-case, location, empathy, confusing).
+User can create/edit/delete/run test cases. Saved to scripts/saves/test_cases.json.
+When a test case runs, its messages replace LLM-generated player messages.
+Strategy field is injected into chatter agent's system prompt.
+
+Story Context for Scoring
+-------------------------
+The scorer fetches GET /api/stories/{story_id}/context which returns:
+- character_self_knowledge (identity facts NPC must embody)
+- canonical_facts (ground truth with known_by attribution)
+- characters (key, name, role, is_main, is_suspect, tags)
+- protagonist (player character details)
+- rules
+
+This is formatted into a STORY CONTEXT block prepended to the scorer prompt so the
+rater LLM can verify canon fidelity.
+
+Gotchas & Common Mistakes
+--------------------------
+1. The scorer UI is ONE file (story_agent_ui.py) — HTML, CSS, JS all embedded.
+   Do NOT split it into multiple files without understanding the full structure.
+
+2. Debug data collection (debugPayloads) must stay even though the side panel was removed.
+   The context modal depends on it. If you remove debugPayloads or handleDebug(), the
+   click-to-inspect feature breaks.
+
+3. The scorer auto-enables debug mode by sending "[D]" after newgame. If this is removed,
+   no debug data flows and context modals will be empty.
+
+4. Ollama must be running locally for LLM-based chatter/rater. If offline, the UI
+   gracefully degrades — can still run with fallback messages but no evaluation.
+
+5. CSV appends — never overwrite scores.csv. Each run adds one row.
+
+6. Third-person self-reference is a CRITICAL FAILURE. If the NPC IS the dead person
+   (ghost), it must say "I died" not "She died." This is the most common canon violation.
+
+7. Player agency violations: NPC saying "You feel scared" or "You lean forward" is wrong.
+   NPC can say "I sense you're lying" (NPC's perception) but not "You think I'm lying"
+   (narrating player thought).
+
+8. Turn numbering: Turn 0 = opening/game state. Turn 1+ = actual exchanges.
+   Game ends if NPC says "Game already finished" or "END GAME".
+
+9. Timeouts: Ollama calls have 120s timeout. API calls have 60s. If timeout occurs,
+   fallback message is used and a warning is emitted. Run continues.
+
+10. Session ID isolation: each run gets a unique session_id. Don't reuse across runs
+    or game state will leak between tests.
+
+CSS Conventions
+---------------
+- Dark theme with CSS custom properties (--bg, --surface, --text, --accent, etc.)
+- Background: #0c0e14, accent: #6c5ce7 (purple)
+- NPC color: orange (#fab1a0), Player color: blue (#74b9ff)
+- All in :root block at top of embedded <style>

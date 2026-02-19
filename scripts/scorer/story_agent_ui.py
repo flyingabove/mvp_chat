@@ -990,97 +990,6 @@ HTML_PAGE = r"""<!DOCTYPE html>
     border: 1px solid var(--border);
   }
 
-  /* Debug panel — layered table */
-  .debug-card {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .debug-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .debug-header .title {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .debug-toggle-btn {
-    background: var(--surface3);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 11px;
-    cursor: pointer;
-    font-weight: 600;
-  }
-  .debug-toggle-btn.on { border-color: var(--accent); color: var(--accent); }
-  .debug-body {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0;
-    max-height: 400px;
-    overflow: auto;
-  }
-  .debug-muted { color: var(--text-dim); font-size: 11px; padding: 10px; }
-
-  /* Debug layered table */
-  .debug-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 11px;
-  }
-  .debug-table th {
-    text-align: left;
-    padding: 6px 10px;
-    font-family: var(--font-mono);
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-dim);
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-  .debug-table td {
-    padding: 5px 10px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    vertical-align: top;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    line-height: 1.5;
-  }
-  .debug-table tr:hover td { background: var(--surface2); }
-  .debug-layer-tag {
-    display: inline-block;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-  }
-  .layer-game { background: #6c5ce720; color: #a29bfe; }
-  .layer-prompt { background: #00b89420; color: #55efc4; }
-  .layer-knowledge { background: #fdcb6e20; color: #fdcb6e; }
-  .layer-retrieval { background: #e1705620; color: #fab1a0; }
-  .layer-meta { background: #636e7220; color: #b2bec3; }
-
   /* Context modal */
   .context-modal-overlay {
     position: fixed;
@@ -1440,18 +1349,6 @@ HTML_PAGE = r"""<!DOCTYPE html>
   <!-- Right: Evaluation -->
   <div class="right-panel" id="rightPanel-tester">
     <div class="right-panel-content">
-      <div class="section-label">Debug — Turn Context</div>
-      <div class="debug-card">
-        <div class="debug-header">
-          <div class="title">Layered Debug View</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <span style="font-size:10px;color:var(--text-dim);font-family:var(--font-mono)" id="debugTurnLabel">—</span>
-            <button class="debug-toggle-btn on" id="debugToggleBtn" onclick="toggleDebugView()">Hide</button>
-          </div>
-        </div>
-        <div id="debugBody" class="debug-body"><div class="debug-muted">Click any NPC message to inspect its full context, or wait for debug payloads during a run.</div></div>
-      </div>
-
       <div class="section-label">Evaluation</div>
       <div class="eval-placeholder" id="evalPlaceholder">
         Run a test with "Auto-evaluate" enabled<br>to see scorer results here.
@@ -1509,8 +1406,6 @@ HTML_PAGE = r"""<!DOCTYPE html>
   let testCases = [];
   let editingTestCaseIdx = -1;
   let currentTab = 'tester';
-  let showDebug = true;
-  let lastDebugPayload = null;
   let debugPayloads = {};  // turn -> {debug_box, prompt_debug}
 
   // ---- Tab switching ----
@@ -1615,13 +1510,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
     latencies = [];
     totalTokens = 0;
     turnCount = 0;
-    lastDebugPayload = null;
     debugPayloads = {};
     document.getElementById('chatMessages').innerHTML = '';
     document.getElementById('evalContent').style.display = 'none';
     document.getElementById('evalPlaceholder').style.display = 'flex';
     document.getElementById('progressBar').style.width = '0%';
-    renderDebugPayload(null);
     updateStats();
 
     running = true;
@@ -1678,100 +1571,6 @@ HTML_PAGE = r"""<!DOCTYPE html>
     catch (e) { return '<<unserializable: ' + e.message + '>>'; }
   }
 
-  function renderDebugPayload(payload) {
-    const body = document.getElementById('debugBody');
-    const turnLabel = document.getElementById('debugTurnLabel');
-    lastDebugPayload = payload || null;
-    if (!body) return;
-
-    if (!showDebug) {
-      body.innerHTML = '<div class="debug-muted">Debug hidden (still collecting)</div>';
-      return;
-    }
-
-    if (!payload || (!payload.debug_box && !payload.prompt_debug)) {
-      body.innerHTML = '<div class="debug-muted">Click any NPC message to inspect its full context, or wait for debug payloads during a run.</div>';
-      if (turnLabel) turnLabel.textContent = '—';
-      return;
-    }
-
-    if (turnLabel) turnLabel.textContent = 'Turn ' + (payload.turn ?? '?');
-
-    // Build layered table rows
-    const rows = [];
-    const db = payload.debug_box || {};
-    const pd = payload.prompt_debug || {};
-
-    // Game state layer
-    if (db.timestamp) rows.push({layer: 'game', key: 'Time', value: db.timestamp});
-    if (db.location) rows.push({layer: 'game', key: 'Location', value: db.location + (db.location_uuid ? ' (' + db.location_uuid + ')' : '')});
-    if (db.speakers && db.speakers.length) rows.push({layer: 'game', key: 'Active Speakers', value: db.speakers.join(', ')});
-    if (pd.story) rows.push({layer: 'game', key: 'Story', value: pd.story});
-    if (pd.instance) rows.push({layer: 'game', key: 'Instance', value: pd.instance});
-    if (pd.turn != null) rows.push({layer: 'game', key: 'Turn #', value: String(pd.turn)});
-
-    // Prompt layer
-    if (pd.truth_mode != null) rows.push({layer: 'prompt', key: 'Truth Mode', value: pd.truth_mode ? 'ON' : 'OFF'});
-    if (pd.header) rows.push({layer: 'prompt', key: 'Header', value: pd.header});
-    if (pd.system_prompt_preview) rows.push({layer: 'prompt', key: 'System Prompt', value: pd.system_prompt_preview});
-    if (pd.user_msg) rows.push({layer: 'prompt', key: 'User Message', value: pd.user_msg});
-    if (pd.trimmed_history != null) rows.push({layer: 'prompt', key: 'History Turns', value: String(pd.trimmed_history)});
-
-    // Knowledge layer
-    if (pd.knowledge_chunks && pd.knowledge_chunks.length) {
-      pd.knowledge_chunks.forEach((c, i) => {
-        const label = (c.type || 'chunk') + (c.chunk_id ? ' [' + c.chunk_id + ']' : '');
-        rows.push({layer: 'knowledge', key: label, value: c.text || '(empty)'});
-      });
-    }
-
-    // Retrieval debug layer
-    if (pd.retrieval_debug) {
-      const rd = pd.retrieval_debug;
-      if (typeof rd === 'object' && !Array.isArray(rd)) {
-        for (const [k, v] of Object.entries(rd)) {
-          rows.push({layer: 'retrieval', key: k, value: typeof v === 'object' ? formatJson(v) : String(v)});
-        }
-      } else if (Array.isArray(rd)) {
-        rows.push({layer: 'retrieval', key: 'Debug', value: formatJson(rd)});
-      }
-    }
-
-    if (!rows.length) {
-      body.innerHTML = '<div class="debug-muted">No structured debug data in this payload.</div>';
-      return;
-    }
-
-    const layerNames = {game: 'Game', prompt: 'Prompt', knowledge: 'Knowledge', retrieval: 'Retrieval', meta: 'Meta'};
-    const layerClasses = {game: 'layer-game', prompt: 'layer-prompt', knowledge: 'layer-knowledge', retrieval: 'layer-retrieval', meta: 'layer-meta'};
-
-    let html = '<table class="debug-table"><thead><tr><th>Layer</th><th>Field</th><th>Value</th></tr></thead><tbody>';
-    for (const row of rows) {
-      const cls = layerClasses[row.layer] || 'layer-meta';
-      const lbl = layerNames[row.layer] || row.layer;
-      const val = row.value.length > 300
-        ? '<details><summary style="cursor:pointer;color:var(--accent);font-size:10px">Expand (' + row.value.length + ' chars)</summary><div style="margin-top:4px">' + escapeHtml(row.value) + '</div></details>'
-        : escapeHtml(row.value);
-      html += '<tr>';
-      html += '<td><span class="debug-layer-tag ' + cls + '">' + escapeHtml(lbl) + '</span></td>';
-      html += '<td style="color:var(--text-bright);white-space:nowrap">' + escapeHtml(row.key) + '</td>';
-      html += '<td style="white-space:pre-wrap;word-break:break-word">' + val + '</td>';
-      html += '</tr>';
-    }
-    html += '</tbody></table>';
-    body.innerHTML = html;
-  }
-
-  function toggleDebugView() {
-    showDebug = !showDebug;
-    const btn = document.getElementById('debugToggleBtn');
-    if (btn) {
-      btn.classList.toggle('on', showDebug);
-      btn.textContent = showDebug ? 'Hide' : 'Show';
-    }
-    renderDebugPayload(lastDebugPayload);
-  }
-
   function stopRun() {
     if (ws) ws.close();
     running = false;
@@ -1819,13 +1618,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
 
   function handleDebug(msg) {
-    const payload = {
+    debugPayloads[msg.turn] = {
       turn: msg.turn,
       debug_box: msg.debug_box,
       prompt_debug: msg.prompt_debug
     };
-    debugPayloads[msg.turn] = payload;
-    renderDebugPayload(payload);
   }
 
   function addChatMsg(msg) {
@@ -2263,9 +2060,6 @@ HTML_PAGE = r"""<!DOCTYPE html>
     const payload = debugPayloads[turn];
     const npcMsg = conversation.find(m => m.role === 'npc' && m.turn === turn);
     const playerMsg = conversation.find(m => m.role === 'player' && m.turn === turn);
-
-    // Also render in the side debug panel
-    if (payload) renderDebugPayload(payload);
 
     // Build modal
     const overlay = document.createElement('div');
