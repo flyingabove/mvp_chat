@@ -163,5 +163,5 @@ class LocationExtractorScenario(IntegrationScenario):
 import pytest  # noqa: E402
 
 @pytest.mark.integration
-def test_location_extractor_playback(require_openai_api_key):
+def test_location_extractor_playback():
     LocationExtractorScenario.run_as_test()

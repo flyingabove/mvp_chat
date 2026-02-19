@@ -2,21 +2,28 @@
 """
 Pytest configuration for the test suite.
 
+POLICY: NO TESTS MAY BE SKIPPED — EVER.
+========================================
+All tests must run and pass in every environment (local, CI, Railway).
+If a test needs an API key, the key MUST be available. If it isn't,
+the test MUST fail (not skip). pytest.skip() is banned.
+
 This module:
 1. Auto-loads .env.test for integration tests (if it exists)
-2. Provides fixtures for API key checking
+2. Provides fixtures for API key checking (hard fail, never skip)
 3. Configures async test support
+4. Enforces the no-skip policy via a pytest hook
 
 USAGE:
 ------
-For local integration testing:
+For local development:
 1. Copy .env.test.example to .env.test
 2. Fill in your API keys
-3. Run: pytest -m integration
+3. Run: pytest
 
-For CI/CD:
-- Set OPENAI_API_KEY as a repository secret
-- The tests will auto-detect and use it
+For CI/CD (Railway, GitHub Actions):
+- Set OPENAI_API_KEY as an environment variable / secret
+- All tests run unconditionally — no skips allowed
 """
 
 import os
@@ -125,25 +132,30 @@ def all_stories() -> list[dict]:
 # FIXTURES
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")
-def openai_api_key() -> str | None:
-    """Get the OpenAI API key if available.
+def openai_api_key() -> str:
+    """Get the OpenAI API key. Fails hard if not available.
 
-    Returns None if not set (use with pytest.mark.skipif or require_api_key fixture).
+    POLICY: No skipping. If the key is missing, the test fails.
     """
-    return get_openai_api_key() or None
+    key = get_openai_api_key()
+    if not key:
+        raise RuntimeError(
+            "OPENAI_API_KEY is required but not set. "
+            "Set it via environment variable or .env.test file. "
+            "Tests are NEVER allowed to skip."
+        )
+    return key
 
 
 @pytest.fixture
 def require_openai_api_key(openai_api_key):
-    """Skip test if OPENAI_API_KEY is not available.
+    """Require OPENAI_API_KEY — fails hard if missing (never skips).
 
     Usage:
         def test_something(require_openai_api_key):
-            # This test only runs if API key is set
+            # This test will FAIL (not skip) if API key is missing
             ...
     """
-    if not openai_api_key:
-        pytest.skip("OPENAI_API_KEY not set - skipping integration test")
     return openai_api_key
 
 
@@ -162,17 +174,29 @@ def pytest_configure(config):
     )
 
 
-def pytest_collection_modifyitems(config, items):
-    """Auto-skip integration tests if no API key is set (unless explicitly requested)."""
-    # Check if integration tests are explicitly requested
-    running_integration = config.getoption("-m", default="") == "integration"
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Enforce NO-SKIP policy: convert any skip into a hard failure.
 
-    if running_integration:
-        # User explicitly wants integration tests - don't auto-skip
-        return
+    This hook runs after every test phase (setup, call, teardown).
+    If any test tries to skip itself (via pytest.skip(), @pytest.mark.skip,
+    @pytest.mark.skipif, or unittest.skip), it will be converted to a
+    FAILURE with a clear error message.
 
-    # For normal test runs, integration tests are skipped via their own skipif decorators
-    # This hook could add additional behavior if needed
+    POLICY: No test may be skipped for any reason in any environment.
+    """
+    outcome = yield
+    report = outcome.get_result()
+
+    if report.skipped:
+        report.outcome = "failed"
+        report.longrepr = (
+            f"POLICY VIOLATION: Test '{item.nodeid}' attempted to skip.\n"
+            f"Reason: {report.longrepr}\n\n"
+            f"NO TESTS MAY BE SKIPPED — EVER.\n"
+            f"All tests must run and pass in every environment (local, CI, Railway).\n"
+            f"Fix the test or fix the environment, but do not skip."
+        )
 
 
 # ---------------------------------------------------------------------------

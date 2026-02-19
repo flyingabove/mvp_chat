@@ -1,32 +1,45 @@
 AI learnings: running tests on this repo
 =======================================
 
+POLICY: NO TESTS MAY BE SKIPPED — EVER
+---------------------------------------
+All 233 tests must run and pass in every environment (local, CI, Railway).
+pytest.skip(), @pytest.mark.skip, and @pytest.mark.skipif are BANNED.
+The conftest.py hook converts any skip attempt into a hard FAILURE.
+If a test needs an API key, the key MUST be available — never gate on it.
+
 Context
 - OS: Windows (PowerShell terminals). Environment: conda env at C:\Users\Christian\Miniconda3.
-- .env.test exists and is auto-loaded by tests/conftest.py; it provides OPENAI_API_KEY for integration tests (e.g., location extractor scenario).
+- .env.test exists and is auto-loaded by tests/conftest.py; it provides OPENAI_API_KEY.
 - Integration playback scenarios are discovered after adding tests/backend/integration/__init__.py.
+- Railway must have OPENAI_API_KEY set as an environment variable.
 
 Commands that reliably work
-1) Integration tests only
-   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -m integration -r s
-   Expected: 5 tests run, ~36-41s, uses .env.test OPENAI_API_KEY.
+1) Full suite (default — run everything, always)
+   python -m pytest tests/ -v
+   Expected: 233 tests, ~50-55s, all pass, 0 skipped.
 
-2) Unit tests (exclude integration)
-   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -m "not integration" -r s
-   Expected: 111 tests run, ~10s, no API key needed.
+2) Quick run
+   python -m pytest tests/ -x -q
+   Expected: 233 passed, stops on first failure.
 
-3) Full suite (if ever needed)
-   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -r s
+3) Via conda/VSCode wrapper (if needed)
+   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -v
+
+4) Integration tests only
+   python -m pytest tests/ -m integration -v
 
 Pitfalls observed
 - Plain `conda run ... pytest -m "not integration"` from PowerShell often failed due to quoting; the get_output_via_markers wrapper avoided this.
 - Background runs with redirection sometimes produced empty logs; prefer foreground with the commands above.
 - KeyboardInterrupts were seen when commands were re-invoked mid-run; wait for completion or rerun cleanly.
+- NEVER add pytest.skip() to any test — the conftest hook will convert it to a failure.
 
 Pre-flight checklist before running
 - Ensure .env.test exists with OPENAI_API_KEY (already present) or set env var directly.
-- Use the exact commands above (copy/paste) from repo root.
+- If running on Railway/CI, ensure OPENAI_API_KEY is set as an environment variable.
 - If scenarios are missing, confirm tests/backend/integration/__init__.py exists (already added) and loader uses ensure_scenarios_loaded.
 
 Reminder
 - Read this note before running tests. If a command fails, re-use the exact working forms above.
+- NEVER skip tests. Fix the test or fix the environment.
