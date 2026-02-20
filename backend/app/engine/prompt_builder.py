@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.gameplay import manifest_mode
-from backend.app.engine.state import MurderGameState
+from backend.app.engine.state import GameState
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -17,7 +17,7 @@ from backend.app.utils.logging_utils import jlog as _jlog, truncate as _truncate
 # ---------------------------------------------------------------------------
 @dataclass
 class PromptInput:
-    state: MurderGameState
+    state: GameState
     log: list
     user_msg: str
     knowledge_chunks: list
@@ -30,7 +30,7 @@ class PromptInput:
         return self.canonicalized_user_msg or self.user_msg
 
 
-def _extract_story_cfg(state: MurderGameState):
+def _extract_story_cfg(state: GameState):
     """Return (cfg_dict, story_def_or_None) with backward compatibility."""
     cfg_obj = getattr(state, "story_cfg", {}) or {}
     story_def = cfg_obj if hasattr(cfg_obj, "as_dict") else None
@@ -99,7 +99,16 @@ def _language_honorific_block(cfg: dict, casual_used_str: str, honorific_unlocke
     return "\n".join(lines)
 
 
-def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False, return_layers: bool = False):
+def _resolve_char_role(state: GameState, cfg: dict, story_def) -> str:
+    """Extract the main character's role string from state/config/story_def."""
+    if getattr(state, "main_character", None) and state.main_character.role:
+        return (state.main_character.role or "").lower()
+    if story_def and story_def.main_character_role:
+        return (story_def.main_character_role or "").lower()
+    return ((cfg.get("main_character", {}) or {}).get("role", "") or "").lower()
+
+
+def system_prompt(state: GameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False, return_layers: bool = False):
     cfg, story_def = _extract_story_cfg(state)
 
     # Primary character label for prompts (avoid hardcoding any specific persona)
@@ -116,18 +125,6 @@ def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_bl
     style = cfg.get("style", {}) or {}
     speech = style.get("korean_phrases") or []
     phrase_list = ", ".join(speech) if speech else ""
-
-    if story_def and getattr(story_def, "suspects", None) is not None:
-        suspect_names = [c.name for c in story_def.suspects]
-    else:
-        suspects = cfg.get("suspects") or []
-        suspect_names = [s.get("name", "unknown") for s in suspects]
-    suspect_line = ", ".join(suspect_names) if suspect_names else "(none defined)"
-
-    goal_line = (
-        cfg.get("goal", {}).get("win_text_rule")
-        or "The game ends ONLY when the mastermind verbally admits ordering the death. Do NOT end the game yourself."
-    )
 
     # FIRST TURN GUIDANCE (optional, per-story — no hardcoded examples)
     prompt_suggestions = cfg.get("prompt_suggestions") or []
@@ -157,18 +154,9 @@ The character's first reply after the opening scene should:
 
     setting_cfg = cfg.get("setting", {}) or {}
     setting_desc = setting_cfg.get("start_location", "") or f"{setting_cfg.get('apartment_area', 'unknown')}, {setting_cfg.get('district', 'unknown')}"
-    work_context = setting_cfg.get("work_context", "")
-    victim_public = cfg.get("victim", {}).get("public_name", "the victim")
 
-    # Character role determines story flavor (ghost, interrogation, etc.)
-    if getattr(state, "main_character", None) and state.main_character.role:
-        char_role = state.main_character.role
-    elif story_def and story_def.main_character_role:
-        char_role = story_def.main_character_role
-    else:
-        char_role = (cfg.get("main_character", {}) or {}).get("role", "")
-    char_role = (char_role or "").lower()
-    is_ghost = "ghost" in char_role
+    # Character role (data-driven from state/config/story_def)
+    char_role = _resolve_char_role(state, cfg, story_def)
 
     # Casual Korean usage from the LAST user message
     casual_used = state.casual_korean_used or []
@@ -176,22 +164,20 @@ The character's first reply after the opening scene should:
 
     honorific_unlocked = rel >= 2
 
-    # Build world context based on story type
-    if is_ghost:
-        world_context = """- The character was once alive; now they appear as a ghostlike presence.
-- Their death is only faintly remembered and they never push the topic.
-- Suspects exist but are NEVER referenced unless the user asks."""
-        manifestation_line = "- Manifestation: inside apartment → visible; outside → faint."
-        emotion_label = "Ghost emotion"
+    # Build world context from story config (data-driven, not role-based)
+    world_lines = cfg.get("world_context") or []
+    if world_lines:
+        world_context = "\n".join(f"- {l}" for l in world_lines)
     else:
-        # Data-driven world context from story config
-        world_lines = cfg.get("world_context") or []
-        if world_lines:
-            world_context = "\n".join(f"- {l}" for l in world_lines)
-        else:
-            world_context = "- Suspects exist but are NEVER referenced unless the user asks."
-        manifestation_line = ""
-        emotion_label = "Character emotion"
+        world_context = "- The character reacts naturally to the player's actions and words."
+
+    # Manifestation description from story config (optional)
+    manifest_rules = cfg.get("rules", {}).get("manifestation", {})
+    manifestation_line = ""
+    if manifest_rules:
+        manifest_desc = manifest_rules.get("description", "")
+        if manifest_desc:
+            manifestation_line = f"- Manifestation: {manifest_desc}"
 
     # Protagonist context (player role description)
     protagonist = cfg.get("protagonist", {}) or {}
@@ -273,7 +259,7 @@ The character must obey ALL of the following:
 ────────────────────────────────────────
 ### INTERNAL GAME STATE
 ────────────────────────────────────────
-- {emotion_label}: {emotion}
+- Character emotion: {emotion}
 - Relationship score: {rel}
 """
 
@@ -548,8 +534,8 @@ def build_messages(
     is_first_turn = state.turns == 0
 
     # Detect casual language usage by the user in THIS message (terms from story config).
-    cfg_for_lang, _ = _extract_story_cfg(state)
-    lang_cfg = (cfg_for_lang.get("language", {}) or {})
+    cfg, story_def = _extract_story_cfg(state)
+    lang_cfg = (cfg.get("language", {}) or {})
     casual_terms = lang_cfg.get("casual_terms") or []
     lower = user_msg.lower()
     used = [term for term in casual_terms if term in lower]
@@ -577,21 +563,14 @@ def build_messages(
         trimmed = trimmed[-limit:]
     messages.extend(trimmed)
 
-    # Build per-turn header; only include manifestation for ghost stories
-    cfg, story_def = _extract_story_cfg(state)
-    if getattr(state, "main_character", None) and state.main_character.role:
-        char_role = state.main_character.role
-    elif story_def and story_def.main_character_role:
-        char_role = story_def.main_character_role
-    else:
-        char_role = (cfg.get("main_character", {}) or {}).get("role", "")
-    is_ghost = "ghost" in (char_role or "").lower()
+    # Build per-turn header; only include manifestation when story config defines rules
+    has_manifestation = bool(cfg.get("rules", {}).get("manifestation"))
 
     header_parts = [
         f"Time: {int(state.minute)} min since start.",
         f"Location: {state.location}.",
     ]
-    if is_ghost:
+    if has_manifestation:
         header_parts.append(f"Manifestation: {manifest_mode(state)}.")
     header_parts.append(f"Current Emotion: {state.emotion}.")
     header_parts.append(f"Relationship: {state.relationship}.")

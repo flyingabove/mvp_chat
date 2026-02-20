@@ -23,7 +23,7 @@ def sanitize_location(loc: str) -> str:
 def manifest_mode(state) -> str:
     """
     Determines the character's manifestation state based on story config rules.
-    Works with MurderGameState objects.
+    Works with GameState objects.
     """
 
     # Safe access to story_cfg
@@ -50,7 +50,7 @@ def manifest_mode(state) -> str:
 def advance_time(state, player_text: str):
     """
     Updates the state's minute counter based on message length and movement.
-    Works with MurderGameState.
+    Works with GameState.
     """
 
     cfg = getattr(state, "story_cfg", {}) or {}
@@ -157,20 +157,16 @@ def _resolve_destination_id(world_graph, place: str) -> Optional[str]:
     return None
 
 
-def confession_detected(text: str, state) -> bool:
+def win_condition_detected(text: str, state) -> bool:
     """
     Detects win conditions based on regex patterns from story config.
-    Works with MurderGameState.
+    Returns False if no win_detection patterns are configured.
     """
 
     cfg = getattr(state, "story_cfg", {}) or {}
 
-    patterns = cfg.get("win_detection", {}).get("regex", [
-        r"\bi am (the )?mastermind\b",
-        r"\bi (ordered|arranged|hired|paid).*(kill|murder)\b",
-        r"\bit was me (who )?(planned|orchestrated)( it| the murder)\b",
-        r"\bi told .* to do it\b",
-        r"\bi made .* (kill|strangle) (her|him|them)\b",
-    ])
+    patterns = (cfg.get("win_detection") or {}).get("regex") or []
+    if not patterns:
+        return False
 
     return any(re.search(p, text, re.I) for p in patterns)

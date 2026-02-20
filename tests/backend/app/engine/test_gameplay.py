@@ -4,7 +4,7 @@ from backend.app.engine.gameplay import (
     sanitize_location,
     manifest_mode,
     advance_time,
-    confession_detected,
+    win_condition_detected,
 )
 from backend.app.engine.state import init_state
 
@@ -57,11 +57,16 @@ def test_advance_time_does_not_move_on_natural_language_question():
     assert st.minute == 1
 
 
-def test_confession_detected_with_default_patterns():
+def test_win_condition_detected_with_config_patterns():
     st = init_state()
+    # No win_detection config → always False
     st.story_cfg = {}
-    assert confession_detected("I am the mastermind", st) is True
-    assert confession_detected("just chatting", st) is False
+    assert win_condition_detected("I am the mastermind", st) is False
+
+    # With config patterns → matches work
+    st.story_cfg = {"win_detection": {"regex": [r"\bi am (the )?mastermind\b"]}}
+    assert win_condition_detected("I am the mastermind", st) is True
+    assert win_condition_detected("just chatting", st) is False
 
 
 def test_advance_time_handles_no_valid_route_error():

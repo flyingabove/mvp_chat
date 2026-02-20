@@ -11,7 +11,7 @@ The graph serves three purposes:
 
 ## Current State (what exists today)
 
-Today the engine has a single integer `relationship` field on `MurderGameState` (range -5 to +5). Every turn, the AI outputs a `rel_delta` of -1, 0, or +1, and the engine adds it. This score is global — it represents the player's relationship with "the character" as a whole, not between specific character pairs.
+Today the engine has a single integer `relationship` field on `GameState` (range -5 to +5). Every turn, the AI outputs a `rel_delta` of -1, 0, or +1, and the engine adds it. This score is global — it represents the player's relationship with "the character" as a whole, not between specific character pairs.
 
 Problems:
 - **One dimension collapses everything.** A suspect can fear the detective AND trust them simultaneously (classic interrogation dynamic). A single score can't represent this.
@@ -188,7 +188,7 @@ Characters exist at specific locations. The `location_speakers` map in the world
 - **`backend/app/engine/character_graph.py`** — Production module with `RelationshipType`, `RelationshipState`, `RelationshipEdge`, and `CharacterGraph` classes.
 - **Story JSONs** — Both `iu_murder_mystery_story.json` and `jennie_murder_mini_story.json` have `"relationships": { "edges": [...] }` sections with initial character-to-character edges.
 - **`backend/app/engine/story_loader.py`** — Parses `relationships` into `CharacterGraph` as part of `StoryDefinition`.
-- **`backend/app/engine/state.py`** — `MurderGameState.character_graph` field; `apply_state_tag()` routes `rel_delta` through `CharacterGraph.apply_rel_delta()` (maps to affection delta).
+- **`backend/app/engine/state.py`** — `GameState.character_graph` field; `apply_state_tag()` routes `rel_delta` through `CharacterGraph.apply_rel_delta()` (maps to affection delta).
 - **`backend/app/engine/prompt_builder.py`** — Injects "YOUR FEELINGS ABOUT THE PEOPLE YOU KNOW" section into the system prompt from the character graph.
 - **`scripts/scorer/story_agent_ui.py`** — Scorer context modal shows relationship layer with color-coded tag.
 

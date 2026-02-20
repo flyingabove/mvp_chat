@@ -40,7 +40,7 @@ from backend.app.engine.state import (
 
     extract_state_tag,
 
-    MurderGameState,
+    GameState,
 
     CharacterState,
 
@@ -51,7 +51,7 @@ from backend.app.engine.gameplay import (
 
     advance_time,
 
-    confession_detected
+    win_condition_detected
 
 )
 from backend.app.engine.time_utils import WorldTimeFormatter
@@ -67,7 +67,7 @@ from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace
 router = APIRouter()
 
 
-def _namespace_for_state(state: MurderGameState) -> str:
+def _namespace_for_state(state: GameState) -> str:
     return build_namespace_key(
         user_id=getattr(state, "user_id", ""),
         story_id=getattr(state, "story", ""),
@@ -75,7 +75,7 @@ def _namespace_for_state(state: MurderGameState) -> str:
     )
 
 
-def _log_epistemic_event(state: MurderGameState, event: str, **extra) -> None:
+def _log_epistemic_event(state: GameState, event: str, **extra) -> None:
     payload = {
         "kind": "epistemic_event",
         "event": event,
@@ -87,7 +87,7 @@ def _log_epistemic_event(state: MurderGameState, event: str, **extra) -> None:
     _log(payload)
 
 
-def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
+def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
     """Seed canonical facts and initial beliefs from story config.
 
     Expected shape in story JSON:
@@ -244,7 +244,7 @@ def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
 
 
 # In-memory session store (session-scoped: lost on server restart)
-# Keys: state (MurderGameState), log (list), debug_mode (bool), chinese_mode (bool)
+# Keys: state (GameState), log (list), debug_mode (bool), chinese_mode (bool)
 SESSIONS = {}
 
 
@@ -356,7 +356,7 @@ def _match_world_destination(msg: str, runtime, current_location_id: str = "") -
     return ""
 
 
-def _debug_speakers(state: MurderGameState) -> list[str]:
+def _debug_speakers(state: GameState) -> list[str]:
     """Collect speaker names for debug box with location-aware mapping."""
 
     speakers: list[str] = []
@@ -508,7 +508,7 @@ def get_session(session_id: str):
 # ---------------------------------------------------------------------------
 # PLACEHOLDERS FOR OPENING TEXT ONLY
 # ---------------------------------------------------------------------------
-def apply_placeholders(text: str, state: MurderGameState) -> str:
+def apply_placeholders(text: str, state: GameState) -> str:
     name = state.player_name or "Player"
     cfg = getattr(state, "story_cfg", {}) or {}
     if hasattr(cfg, "get"):
@@ -526,7 +526,7 @@ def apply_placeholders(text: str, state: MurderGameState) -> str:
 # ---------------------------------------------------------------------------
 # KOREAN HONORIFIC SANITIZER
 # ---------------------------------------------------------------------------
-def sanitize_honorific_terms(text: str, state: MurderGameState) -> str:
+def sanitize_honorific_terms(text: str, state: GameState) -> str:
     """Strip forbidden honorifics when relationship is too low. Terms from story config."""
     rel = state.relationship or 0
     display_name = (state.user.display_name or "").strip()
@@ -589,7 +589,7 @@ CONFIRM_WORDS = [
 ]
 
 
-def handle_name_confirmation(user_msg: str, state: MurderGameState):
+def handle_name_confirmation(user_msg: str, state: GameState):
     guess = (state.last_assistant_guess_name or "").strip()
     if not guess:
         return
@@ -618,7 +618,7 @@ async def chat_handler(data: dict):
     msg = str(raw_msg).strip()
 
     sess = get_session(session_id)
-    state: MurderGameState = sess["state"]
+    state: GameState = sess["state"]
     log = sess["log"]
 
     # Sync epistemic master flag to this session's toggle.
@@ -672,7 +672,7 @@ async def chat_handler(data: dict):
 
     # MAP TOGGLE - Show available locations
     if _is_map_toggle(msg):
-        state: MurderGameState = sess.get("state")
+        state: GameState = sess.get("state")
         if not state or not state.world_runtime:
             notice = _box(
                 "World Map",
@@ -789,7 +789,7 @@ async def chat_handler(data: dict):
         if not story_def:
             return {"error": f"story not found: {story_id}"}
 
-        new_state: MurderGameState = init_state()
+        new_state: GameState = init_state()
         new_state.story = story_id
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
@@ -1143,7 +1143,7 @@ async def chat_handler(data: dict):
     except Exception:
         pass
 
-    if confession_detected(clean, state):
+    if win_condition_detected(clean, state):
         state.over = True
         clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
 

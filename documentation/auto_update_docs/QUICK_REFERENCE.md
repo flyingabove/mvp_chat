@@ -19,7 +19,7 @@
 | File | Lines | Purpose | Key Functions |
 |------|-------|---------|---------------|
 | `engine/state.py` | 239 | State dataclasses | `init_state()`, `apply_state_tag()`, `extract_state_tag()` |
-| `engine/gameplay.py` | 160 | Game mechanics | `advance_time()`, `manifest_mode()`, `confession_detected()` |
+| `engine/gameplay.py` | 160 | Game mechanics | `advance_time()`, `manifest_mode()`, `win_condition_detected()` |
 | `engine/prompt_builder.py` | 318 | AI prompt construction | `system_prompt()`, `build_messages()` |
 | `engine/story_loader.py` | 63 | Story JSON loading | `load_story()` |
 | `engine/time_utils.py` | 50 | Time formatting | `WorldTimeFormatter.compute()` |
@@ -70,7 +70,7 @@
 - Difficulty changes forgiveness, not facts.
 
 ## Class Cheat Sheet
-- `MurderGameState` — the session ledger: time, location, player identity, world runtime, NPC roster, mood/relationship.
+- `GameState` — the session ledger: time, location, player identity, world runtime, NPC roster, mood/relationship.
 - `UserState` — what NPCs think your name/gender are (display vs formal).
 - `CharacterState` — per-NPC card with role, emotion, relationship.
 - `PromptBuilder` — shapes the system prompt + header and injects retrieved memory.
@@ -108,11 +108,11 @@
 
 ## Data Structures
 
-### MurderGameState (Main Game State)
+### GameState (Main Game State)
 
 ```python
 @dataclass
-class MurderGameState:
+class GameState:
     # Session
     story: Optional[str]
    user_id: str
@@ -254,7 +254,7 @@ backend/app/knowledge/characters/<character_id>/
 10. extract_state_tag() - parse [[STATE]] metadata
 11. sanitize_korean_terms() - enforce relationship rules
 12. apply_state_tag() - update emotion/relationship
-13. confession_detected() - check win condition
+13. win_condition_detected() - check win condition
 14. _translate_to_chinese() - optional translation
 15. Update session log, return response
 ```

@@ -85,12 +85,12 @@ class CharacterState:
 # ======================================================================
 
 @dataclass
-class MurderGameState:
+class GameState:
     """
     Main state container for the entire game session.
 
-    Replaces the old dict-based state. This class is future-proof:
-    new story types, multiple characters, dynamic memory, etc.
+    Generic and story-type agnostic: supports multiple characters,
+    dynamic memory, epistemic layers, world graphs, etc.
     """
     # ==============================================================
     # Basic session progression
@@ -109,12 +109,6 @@ class MurderGameState:
     # ==============================================================
     minute: int = START_MINUTE
     location: str = START_LOCATION
-
-    # ==============================================================
-    # Evidence (TODO: implement evidence collection system)
-    # Reserved for future feature: tracking clues/evidence the player discovers.
-    # ==============================================================
-    evidence: List[str] = field(default_factory=list)
 
     # ==============================================================
     # Emotion & relationship
@@ -280,18 +274,18 @@ class MurderGameState:
 # FACTORY
 # ======================================================================
 
-def init_state() -> MurderGameState:
+def init_state() -> GameState:
     """
     Create a brand-new game state with all defaults.
     """
-    return MurderGameState()
+    return GameState()
 
 
 # ======================================================================
 # STATE TAG APPLICATION
 # ======================================================================
 
-def apply_state_tag(state: MurderGameState, tag: dict):
+def apply_state_tag(state: GameState, tag: dict):
     """
     Apply [[STATE]] tag returned by the model.
 
@@ -361,3 +355,7 @@ def extract_state_tag(reply: str):
 
     clean = reply.replace(m.group(0), "").strip()
     return clean, tag
+
+
+# Backward-compat alias (deprecated — use GameState directly)
+MurderGameState = GameState

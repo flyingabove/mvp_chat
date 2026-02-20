@@ -84,7 +84,7 @@ backend/app/
 
 ## North Star Snapshot (Plain English)
 
-- One shared ground truth: locations, characters, time, and evidence live in a single state container, not in the model’s head.
+- One shared ground truth: locations, characters, time, and game state live in a single state container, not in the model's head.
 - Time is the engine: every message costs minutes; travel advances the world clock; NPC actions should be driven by elapsed time and incentives.
 - No plotted branches: instead of hand-scripted scenes, the system should react to incentives, constraints, and player choices.
 - Two-call ambition: first a structured extractor updates state, then the main LLM renders dialogue without inventing new facts. (Currently, only a location extractor exists; quest/extractor split is still to build.)
@@ -92,7 +92,7 @@ backend/app/
 
 ## Class Quick Guide (Plain English)
 
-- `MurderGameState`: the entire game ledger—tracks player identity, time, location, relationship/emotion, story config, and optional world runtime.
+- `GameState`: the entire game ledger—tracks player identity, time, location, relationship/emotion, story config, and optional world runtime.
 - `UserState`: what the NPC thinks your name and gender are; separates “display name” (what they call you) from “formal name”.
 - `CharacterState`: a lightweight card for each NPC (id, name, role, current emotion, relationship score).
 - `PromptBuilder`: assembles the system prompt and user message header, injects retrieved memory, enforces style/[[STATE]] tag rules.
@@ -203,10 +203,10 @@ backend/app/
   - Retrieve or create session from in-memory store
   - Initializes with default state/log/modes
 
-- **`apply_placeholders(text: str, state: MurderGameState) -> str`** (lines 239-245)
+- **`apply_placeholders(text: str, state: GameState) -> str`** (lines 239-245)
   - Replace `{{PLAYER_NAME}}` and `{{HONORIFIC}}` in opening text
 
-- **`sanitize_korean_terms(text: str, state: MurderGameState) -> str`** (lines 251-263)
+- **`sanitize_korean_terms(text: str, state: GameState) -> str`** (lines 251-263)
   - Remove Korean honorifics ("oppa", "unnie") if relationship < 2
   - Uses regex with word boundaries
 
@@ -218,7 +218,7 @@ backend/app/
   - Extract user name from natural language using regex patterns
   - Patterns: "my name is X", "call me X", "it's X", "I am X", "I'm X"
 
-- **`handle_name_confirmation(user_msg: str, state: MurderGameState)`** (lines 310-320)
+- **`handle_name_confirmation(user_msg: str, state: GameState)`** (lines 310-320)
   - Confirm guessed name if user says "yes", "yeah", "correct", etc.
 
 - **`chat_handler(data: dict)`** (lines 326-728) **[ASYNC]**
@@ -349,7 +349,7 @@ backend/app/
     - `emotion: str` - Emotional descriptor
     - `relationship: int` - Relationship score with player
 
-- **`MurderGameState`** (lines 72-158) **[DATACLASS]**
+- **`GameState`** (lines 72-158) **[DATACLASS]**
   - Main game state container
   - **Fields:** (30+ fields including session, time, location, emotion, characters, world runtime, etc.)
   - **Methods:**
@@ -359,10 +359,10 @@ backend/app/
 
 **Functions:**
 
-- **`init_state() -> MurderGameState`** (lines 164-168)
+- **`init_state() -> GameState`** (lines 164-168)
   - Factory function to create new game state with defaults
 
-- **`apply_state_tag(state: MurderGameState, tag: dict)`** (lines 175-214)
+- **`apply_state_tag(state: GameState, tag: dict)`** (lines 175-214)
   - Apply `[[STATE]]` tags from AI responses
   - Updates emotion and relationship (+/-1 delta)
   - Syncs with main character state
@@ -408,7 +408,7 @@ backend/app/
   - Resolve user-provided place string to location ID
   - Tries exact ID match, then name match (normalized)
 
-- **`confession_detected(text: str, state) -> bool`** (lines 143-159)
+- **`win_condition_detected(text: str, state) -> bool`** (lines 143-159)
   - Win condition detection using regex patterns from story config
   - Default patterns: "i am the mastermind", "i ordered/arranged/hired", etc.
 
@@ -449,7 +449,7 @@ backend/app/
   - Injects at top of system prompt with authority markers
   - Format: `- (type) [chunk_id] text`
 
-- **`system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "") -> str`** (lines 71-244)
+- **`system_prompt(state: GameState, is_first_turn: bool = False, memory_block: str = "") -> str`** (lines 71-244)
   - **CRITICAL FUNCTION** - Build system prompt for AI
   - **Sections:**
     1. Output style rules (italics, bold, quotes)
@@ -464,7 +464,7 @@ backend/app/
   - **Name handling:** Never speaks player name unless `Character_has_learned_name: True`
   - **Honorifics:** Only allowed if relationship ≥ 2
 
-- **`build_messages(state: MurderGameState, log: list, user_msg: str, knowledge_chunks: list)`** (lines 247-317)
+- **`build_messages(state: GameState, log: list, user_msg: str, knowledge_chunks: list)`** (lines 247-317)
   - **CRITICAL FUNCTION** - Build full chat completion message array
   - **Steps:**
     1. Detect casual Korean usage in user message
@@ -1270,13 +1270,10 @@ backend/app/
 #### 4. **Redundant Turkish i handling in `frontend/index.html`**
    - **Location:** Lines 8-13 (Firefox-only global stub)
    - **Issue:** `window.__firefox__.playlistLongPress` stub has no actual usage
-   - **Evidence:** Never referenced again in the code
-   - **Recommendation:** **Remove** unless there's a hidden dependency
+   - **Status:** Removed in generic cleanup refactor.
 
-#### 5. **Unused `state.evidence` field**
-   - **Location:** `backend/app/engine/state.py` line 96
-   - **Issue:** Marked as "unused but future-ready", never populated or accessed
-   - **Recommendation:** Keep for future, but **document** in README as TODO
+#### 5. **`state.evidence` field — REMOVED**
+   - **Status:** Removed. Was murder-mystery-specific dead code, never populated or accessed.
 
 #### 6. **Potentially redundant `normalizeNewlines()` in frontend**
    - **Location:** `frontend/index.html` lines 242-246
@@ -1288,7 +1285,7 @@ backend/app/
    - **Issue:** Set in `prompt_builder.py` but never actually read/used anywhere
    - **Recommendation:** **Remove** or implement the feature
 
-#### 8. **Backward compatibility dict methods in MurderGameState**
+#### 8. **Backward compatibility dict methods in GameState**
    - **Location:** `backend/app/engine/state.py` lines 146-150
    - **Methods:** `__getitem__`, `__setitem__`
    - **Issue:** Maintained for "backward compatibility" but no legacy code actually uses dict access
@@ -1514,7 +1511,7 @@ backend/app/
 │     │   → Remove "oppa"/"unnie" if rel < 2              │   │
 │     │ • apply_state_tag(state, tag)                     │   │
 │     │   → Update state.emotion, state.relationship      │   │
-│     │ • confession_detected()                           │   │
+│     │ • win_condition_detected()                           │   │
 │     │   → Check win condition regex patterns            │   │
 │     │ • _translate_to_chinese() (if mode enabled)       │   │
 │     └──────────────────────────────────────────────────┘   │
@@ -1797,7 +1794,7 @@ backend/app/
 2. **CONSOLIDATE** duplicate logging functions into `backend/app/utils/logging.py`
 3. **REPLACE** DEBUG print statements with proper logging
 4. **REMOVE** unused `router.php` if no longer deploying with PHP
-5. **DOCUMENT** unused `state.evidence` field as future TODO
+5. ~~**DOCUMENT** unused `state.evidence` field~~ — DONE (removed)
 
 ### Medium Priority
 
@@ -1832,7 +1829,7 @@ This MVP Chat codebase is **well-structured** with clear separation of concerns:
 
 **Main issues** are:
 - Minor code duplication (logging, truncation)
-- Some unused/dead code (game_logic.py, evidence field)
+- Dead v2 modules and evidence field removed; codebase is now generic
 - Inconsistent error handling patterns
 - Debug print statements mixed with production code
 

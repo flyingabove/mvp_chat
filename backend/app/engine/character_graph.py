@@ -154,7 +154,7 @@ class CharacterGraph:
             target = characters.get(e.to_id)
             name = getattr(target, "name", None) or e.to_id
             if e.to_id == "player":
-                name = "The Player (detective)"
+                name = "The Player"
 
             type_label = e.type.value.lower().replace("_", " ")
             s = e.state
