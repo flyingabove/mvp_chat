@@ -1,9 +1,5 @@
 # tests/backend/app/engine/test_invariant_validator.py
-"""Obsolete v2 tests disabled after production simplification."""
-
-import pytest
-
-pytest.skip("invariant validator v2 path removed from active product design", allow_module_level=True)
+"""v2 invariant validator tests — kept active per no-skip policy."""
 
 from backend.app.engine.story_schema_v2 import (
     AccessPolicy,
