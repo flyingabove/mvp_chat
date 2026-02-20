@@ -139,6 +139,7 @@ class GameState:
     # Epistemic structures
     # ==============================================================
     canonical_facts: List[EpistemicFact] = field(default_factory=list)
+    canonical_truth: List[str] = field(default_factory=list)
     epistemic_log: List[EpistemicClaim] = field(default_factory=list)
     observation_log: List[Observation] = field(default_factory=list)
     beliefs: Dict[str, BeliefState] = field(default_factory=dict)
@@ -297,8 +298,6 @@ def apply_state_tag(state: GameState, tag: dict):
     # -----------------------
     # Accept neutral key "emotion", legacy "emotion", or any "<name>_emotion" key.
     emotion = tag.get("emotion")
-    if emotion is None:
-        emotion = tag.get("emotion")
     if emotion is None:
         for k, v in tag.items():
             if isinstance(k, str) and k.endswith("_emotion") and isinstance(v, str):

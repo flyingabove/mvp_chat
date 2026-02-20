@@ -8,7 +8,7 @@
 |------|-------|---------|---------------|
 | `main.py` | 113 | FastAPI app entry point | `warm_indexes()`, `_startup_event()`, `version()` |
 | `config/settings.py` | 26 | Global configuration | Constants only |
-| `api/chat.py` | 728 | Main gameplay API | `chat_handler()`, `get_session()`, `_translate_to_chinese()` |
+| `api/chat.py` | 1477 | Main gameplay API | `chat_handler()`, `get_session()`, `_translate_to_chinese()` |
 | `api/health.py` | 28 | Health check | `health()` |
 | `api/echo.py` | 28 | Debug echo | `echo()` |
 | `api/stories.py` | 53 | List stories | `list_stories()` |
@@ -18,10 +18,10 @@
 
 | File | Lines | Purpose | Key Functions |
 |------|-------|---------|---------------|
-| `engine/state.py` | 239 | State dataclasses | `init_state()`, `apply_state_tag()`, `extract_state_tag()` |
-| `engine/gameplay.py` | 160 | Game mechanics | `advance_time()`, `manifest_mode()`, `win_condition_detected()` |
-| `engine/prompt_builder.py` | 318 | AI prompt construction | `system_prompt()`, `build_messages()` |
-| `engine/story_loader.py` | 63 | Story JSON loading | `load_story()` |
+| `engine/state.py` | 360 | State dataclasses | `init_state()`, `apply_state_tag()`, `extract_state_tag()` |
+| `engine/gameplay.py` | 172 | Game mechanics | `advance_time()`, `manifest_mode()`, `win_condition_detected()` |
+| `engine/prompt_builder.py` | 628 | AI prompt construction | `system_prompt()`, `build_messages()` |
+| `engine/story_loader.py` | 280 | Story JSON loading | `load_story()` |
 | `engine/time_utils.py` | 50 | Time formatting | `WorldTimeFormatter.compute()` |
 
 ### Extractors

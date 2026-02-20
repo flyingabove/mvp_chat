@@ -163,7 +163,7 @@ backend/app/
 
 ---
 
-#### `backend/app/api/chat.py` (728 lines)
+#### `backend/app/api/chat.py` (1477 lines)
 
 **Purpose:** Main gameplay loop and chat API endpoint
 
@@ -327,54 +327,67 @@ backend/app/
 
 ---
 
-#### `backend/app/engine/state.py` (239 lines)
+#### `backend/app/engine/state.py` (360 lines)
 
 **Purpose:** Game state management dataclasses
 
 **Classes:**
 
-- **`UserState`** (lines 23-42) **[DATACLASS]**
+- **`UserState`** **[DATACLASS]**
   - Stores player information perceived in-story
   - **Fields:**
     - `formal_name: str` - Full name learned by character
     - `display_name: str` - What character calls the user
     - `gender: Optional[str]` - 'M' or 'F'
 
-- **`CharacterState`** (lines 50-64) **[DATACLASS]**
+- **`CharacterState`** **[DATACLASS]**
   - Represents any NPC in the story
   - **Fields:**
     - `key: str` - Internal ID (e.g., "main")
     - `name: str` - Display name (e.g., "IU")
-    - `role: str` - "ghost", "victim", "suspect"
+    - `role: str` - Character archetype/role
     - `emotion: str` - Emotional descriptor
     - `relationship: int` - Relationship score with player
+    - `uuid: str` - Deterministic UUID
 
-- **`GameState`** (lines 72-158) **[DATACLASS]**
-  - Main game state container
-  - **Fields:** (30+ fields including session, time, location, emotion, characters, world runtime, etc.)
+- **`GameState`** **[DATACLASS]**
+  - Main game state container (generic, story-type agnostic)
+  - **Session fields:** `story`, `user_id`, `instance`, `gender`, `turns`, `over`
+  - **Time & location:** `minute`, `location`
+  - **Emotion & relationship:** `emotion`, `relationship`
+  - **Knowledge:** `knowledge_character_id`
+  - **Story metadata:** `story_cfg`, `player_name`
+  - **Structured objects:** `user` (UserState), `characters` (Dict), `main_character_id`
+  - **Epistemic structures:** `canonical_facts`, `canonical_truth`, `epistemic_log`, `observation_log`, `beliefs`
+  - **Character graph:** `character_graph` (Optional[CharacterGraph])
+  - **Transient buffer:** `transient_entries` (List[TransientEntry])
+  - **World runtime:** `world_runtime`, `location_id`, `location_uuid`, `world_start_datetime`, `last_travel_from_id`, `last_travel_to_id`, `last_travel_from_uuid`, `last_travel_to_uuid`, `last_travel_exposure`
+  - **Korean controls:** `casual_korean_used`
+  - **Name helpers:** `last_assistant_guess_name`
   - **Methods:**
-    - `__getitem__(key)` - Dict-like access for backward compatibility
-    - `__setitem__(key, value)` - Dict-like setters
+    - `__getitem__(key)` / `__setitem__` - Dict-like access for backward compat
     - `main_character` property - Returns primary NPC
+    - `get_belief_state(character_id)` - Get or create belief state for character
+    - `add_transient_entry(...)` / `expire_transient_entries(turn)` / `clear_all_transient_entries()`
 
 **Functions:**
 
-- **`init_state() -> GameState`** (lines 164-168)
+- **`init_state() -> GameState`**
   - Factory function to create new game state with defaults
 
-- **`apply_state_tag(state: GameState, tag: dict)`** (lines 175-214)
+- **`apply_state_tag(state: GameState, tag: dict)`**
   - Apply `[[STATE]]` tags from AI responses
   - Updates emotion and relationship (+/-1 delta)
   - Syncs with main character state
 
-- **`extract_state_tag(reply: str)`** (lines 221-238)
+- **`extract_state_tag(reply: str)`**
   - Extract and remove `[[STATE]]{...}[[/STATE]]` from AI reply
   - Returns: `(clean_text, dict or None)`
   - Uses regex + JSON parsing
 
 ---
 
-#### `backend/app/engine/gameplay.py` (160 lines)
+#### `backend/app/engine/gameplay.py` (172 lines)
 
 **Purpose:** Gameplay mechanics (time, movement, win detection)
 
@@ -414,7 +427,7 @@ backend/app/
 
 ---
 
-#### `backend/app/engine/story_loader.py` (63 lines)
+#### `backend/app/engine/story_loader.py` (280 lines)
 
 **Purpose:** Load story JSON files from disk
 
@@ -431,7 +444,7 @@ backend/app/
 
 ---
 
-#### `backend/app/engine/prompt_builder.py` (318 lines)
+#### `backend/app/engine/prompt_builder.py` (628 lines)
 
 **Purpose:** Construct AI prompts with game context
 
