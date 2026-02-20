@@ -1,10 +1,12 @@
 # tests/backend/app/engine/test_story_loader_v2.py
-"""Tests for story_loader_v2 — loading and validation."""
+"""Obsolete v2 tests disabled after production simplification."""
+
+import pytest
+
+pytest.skip("v2 story loader path removed from active product design", allow_module_level=True)
 import json
 import os
 import tempfile
-
-import pytest
 
 from backend.app.engine.story_loader_v2 import (
     StoryLoadError,

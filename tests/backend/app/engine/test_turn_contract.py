@@ -1,6 +1,9 @@
 # tests/backend/app/engine/test_turn_contract.py
-"""Tests for turn_contract — contract building and trigger evaluation."""
+"""Obsolete v2 tests disabled after production simplification."""
+
 import pytest
+
+pytest.skip("turn contract v2 path removed from active product design", allow_module_level=True)
 
 from backend.app.engine.story_schema_v2 import (
     CanonTier,

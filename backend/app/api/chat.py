@@ -67,6 +67,26 @@ from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace
 router = APIRouter()
 
 
+def _namespace_for_state(state: MurderGameState) -> str:
+    return build_namespace_key(
+        user_id=getattr(state, "user_id", ""),
+        story_id=getattr(state, "story", ""),
+        instance=getattr(state, "instance", 1),
+    )
+
+
+def _log_epistemic_event(state: MurderGameState, event: str, **extra) -> None:
+    payload = {
+        "kind": "epistemic_event",
+        "event": event,
+        "namespace": _namespace_for_state(state),
+        "minute": int(getattr(state, "minute", 0) or 0),
+        "location_id": str(getattr(state, "location_id", "") or ""),
+    }
+    payload.update(extra)
+    _log(payload)
+
+
 def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
     """Seed canonical facts and initial beliefs from story config.
 
@@ -110,6 +130,13 @@ def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
             if fact.content:
                 state.add_canonical_fact(fact)
                 seeded_texts.append(fact.content)
+                _log_epistemic_event(
+                    state,
+                    "seed_canonical_fact",
+                    fact_id=fact.id,
+                    source=fact.source,
+                    provenance=fact.provenance,
+                )
 
                 # Mirror as beliefs for characters who already know this fact
                 known_by = fact_cfg.get("known_by") or []
@@ -127,6 +154,15 @@ def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
                     )
                     state.get_belief_state(char_id).add_claim(claim)
                     state.add_epistemic_claims(claim)
+                    _log_epistemic_event(
+                        state,
+                        "seed_claim_from_canonical",
+                        fact_id=fact.id,
+                        claim_id=claim.id,
+                        character_id=char_id,
+                        source=claim.source,
+                        provenance=claim.provenance,
+                    )
         except Exception:
             continue
 
@@ -166,6 +202,14 @@ def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
                 if claim.content:
                     bs.add_claim(claim)
                     state.add_epistemic_claims(claim)
+                    _log_epistemic_event(
+                        state,
+                        "seed_claim",
+                        character_id=char_id,
+                        claim_id=claim.id,
+                        source=claim.source,
+                        provenance=claim.provenance,
+                    )
             except Exception:
                 continue
         for obs_cfg in bseed.get("observations", []) or []:
@@ -183,6 +227,14 @@ def _seed_epistemic_from_story(cfg: dict, state: MurderGameState) -> None:
                 )
                 if obs_cfg.get("log_to_state", True):
                     state.record_observation(**obs.__dict__)
+                _log_epistemic_event(
+                    state,
+                    "seed_observation",
+                    character_id=char_id,
+                    observation_id=obs.id,
+                    source=obs.source,
+                    provenance=obs.provenance,
+                )
             except Exception:
                 continue
 
@@ -716,6 +768,10 @@ async def chat_handler(data: dict):
             "epistemic_state": True,
             "truth_mode": False,
         }
+        try:
+            SESSIONS[session_id]["state"].clear_all_transient_entries()
+        except Exception:
+            pass
         return {"reply": "[memory cleared]", "usage": {"total_tokens": 0}, "character": "default"}
 
     # NEW GAME
@@ -748,6 +804,7 @@ async def chat_handler(data: dict):
 
         # Seed epistemic base truths and per-character knowledge
         _seed_epistemic_from_story(story_def, new_state)
+        new_state.clear_all_transient_entries()
 
         # Optional world graph runtime (does not change gameplay unless movement occurs)
         world_cfg = story_def.get("world", {}) or {}
@@ -878,6 +935,9 @@ async def chat_handler(data: dict):
     if state.over:
         return {"reply": "Game already finished. Type /reset to play again.", "character": "default"}
 
+    # Keep transient scene memory bounded.
+    state.purge_transient_entries()
+
     # NOTE: advance_time is called AFTER location extraction (below) so that
     # the canonicalized movement message (e.g. "go to interview_room_bob") is
     # used instead of the raw user text which may not match the strict regex.
@@ -978,6 +1038,21 @@ async def chat_handler(data: dict):
     # (e.g. "go to interview_room_bob") matches the strict movement regex.
     advance_time(state, msg)
 
+    # Record short-lived conversational scene context for current turn.
+    try:
+        state.add_transient_entry(
+            id=str(uuid.uuid4()),
+            namespace=_namespace_for_state(state),
+            scope="conversation",
+            text=f"Player said: {msg}",
+            expires_after_turns=2,
+            expires_after_minutes=30,
+            promotable=False,
+            meta={"source": "player"},
+        )
+    except Exception:
+        pass
+
     from backend.app.engine.prompt_builder import PromptInput
 
     prompt_input = PromptInput(
@@ -1050,6 +1125,20 @@ async def chat_handler(data: dict):
     log.append({"role": "assistant", "content": clean})
     sess["log"] = log[-MEMORY_TURNS:]
 
+    try:
+        state.add_transient_entry(
+            id=str(uuid.uuid4()),
+            namespace=_namespace_for_state(state),
+            scope="conversation",
+            text=f"NPC replied: {clean}",
+            expires_after_turns=2,
+            expires_after_minutes=30,
+            promotable=False,
+            meta={"source": "npc"},
+        )
+    except Exception:
+        pass
+
     if confession_detected(clean, state):
         state.over = True
         clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
@@ -1080,6 +1169,7 @@ async def chat_handler(data: dict):
             "location": user_loc,
             "location_uuid": getattr(state, "location_uuid", ""),
             "speakers": speakers if speakers else None,
+            "transient_count": len(getattr(state, "transient_entries", []) or []),
         }
 
     # Apply Chinese translation if chinese_mode is enabled

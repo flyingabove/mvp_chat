@@ -1,10 +1,14 @@
 Documentation map (what to read for which need)
 Instructions to AI:
 - Use this doc (\documentation\ai_1_guide_to_docs.md) to find which docs document what. update this doc if ever needed
-- Update this doc as neded
+- Update this doc as needed (There is a line which says "Only Update Material After This LINE ", only update this doc AFTER that line, leave these instructions)
 - Update all docs as needed, except any docs under human_north_star_docs
 - Don't be lazy and always rememember to update docs with any changes or learnings 
 - After making code changes always add a descriptive comment and push the code.
+- Always boldly disagree with me when you feel like something doesnt make sense, dont be shy. and always ask questions if something is unclear.
+
+
+==== Only Update Material After This LINE ====
 
 - [documentation/ai_learnings_mistakes/ai_create_new_flag.txt](documentation/ai_learnings_mistakes/ai_create_new_flag.txt): How to add new bracket commands ([H]/[HINT]) across backend + frontend with testing notes.
 - [documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt](documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt): Postmortem on blank-page incident; guards to avoid orphaned frontend code and how to recover.
@@ -23,11 +27,12 @@ Instructions to AI:
 - [documentation/human_north_star_docs/StoriesChatNorthStar.txt](documentation/human_north_star_docs/StoriesChatNorthStar.txt): One-paragraph north star summary of the game’s intent.
 - [documentation/human_north_star_docs/epistemic_state/EpistemicStateJennieIntegrationTestExample.md](documentation/human_north_star_docs/epistemic_state/EpistemicStateJennieIntegrationTestExample.md): Detailed IU/Bob/Steve interrogation script used for epistemic tests and layer mapping.
 
-- [documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md](documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md): Proposed multi-dimensional character relationship graph (trust/fear/affection/suspicion) for prompts and gating.
-- [documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md](documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md): Epistemic architecture (truth vs belief vs retrieval) with namespacing rules `<user>-<story>-<instance>`.
-- [documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md](documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md): Implementation todo list for epistemic data model, extractor schema, prompt lift, and tests.
+- [documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md](documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md): Retired character-graph proposal kept as historical context.
+- [documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md](documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md): North-star-aligned epistemic design with strict in-memory contract (only retrieval indexes, objects, graphs), belief clarification, and runtime guardrails.
+- [documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md](documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md): Simplified phased implementation plan (truth vs belief enforcement, transient buffer integration, and tests).
+- [documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md](documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md): Scene-memory policy for vivid short-lived details, reset/TTL rules, and promotion criteria into canonical state.
 - [documentation/model_output_docs/epistemic_harness_plan.md](documentation/model_output_docs/epistemic_harness_plan.md): Harness status/plan for epistemic layer toggles and scenario coverage.
-- [documentation/model_output_docs/EPISTEMIC_REDESIGN.md](documentation/model_output_docs/EPISTEMIC_REDESIGN.md): Story JSON v2 proposal with canon tiers (ANCHOR/CANON/SECRET_CANON/CLAIM/RUMOR), knowledge chunks, and invariants.
+- [documentation/model_output_docs/old designs/EPISTEMIC_REDESIGN.md](documentation/model_output_docs/old%20designs/EPISTEMIC_REDESIGN.md): Archived redesign notes (historical context only; superseded by current epistemic design/todo docs).
 - [documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md](documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md): Scenario/step registry + UI playback design for integration tests (cached vs live LLM, assertions).
 - [documentation/model_output_docs/layer_coverage_mapping.md](documentation/model_output_docs/layer_coverage_mapping.md): Mapping of IU scenario segments to epistemic layers and how toggle tests assert them.
 ![alt text](image.png)

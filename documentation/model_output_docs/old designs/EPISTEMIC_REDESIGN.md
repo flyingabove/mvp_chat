@@ -1,18 +1,21 @@
-# Story JSON v2 Redesign (Engine‑First Canon + Epistemic Enforcement)
+# Epistemic Redesign (Archived, Simplified)
 
-**Repository context:** `mvp_chat.zip` (this project)  
-**Primary pain:** the model can drift on *core identity canon* (e.g., IU ghost speaking about “her” as if IU is a different entity), because canonical anchors are not represented or enforced as a first‑class concept.
+This file is historical context only.
 
-This document specifies a **complete story package format** (JSON) and a **Python implementation plan** (dataclasses + loader + turn contract + invariant validation) that supports:
+## Minimum takeaways (what still matters)
+1. Model identity drift is real; anchors/invariants are required.
+2. Truth, belief, and retrieval must be separated.
+3. Retrieval is recall/style only, never authority.
+4. Namespace isolation is mandatory: `<user>-<story>-<instance>`.
+5. Relationship graph is useful, but should be adopted incrementally.
 
-- Any story / any number of characters / arbitrary attributes
-- Clean JSON → Python object translation (Java‑ish OOP style)
-- Canon tiers (**ANCHOR** vs **CANON** vs **SECRET_CANON** vs **CLAIM** vs **RUMOR**)
-- Character epistemics (known / believed / forgotten) with trigger‑based memory unlock
-- A **universal KnowledgeChunk** class compatible with FAISS retrieval
-- A first‑class **RelationshipGraph** (character graph)
-- Win conditions / objectives
-- A robust unit test suite
+## Current source of truth
+- `documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md`
+- `documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md`
+- `documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md`
+
+## Note
+The remaining sections in this file are legacy exploratory material and may include superseded detail.
 
 ---
 

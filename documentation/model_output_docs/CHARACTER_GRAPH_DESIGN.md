@@ -1,4 +1,13 @@
-# Character Graph Design
+# Character Graph Design (Retired)
+
+This design is retired from the active production direction.
+
+Current production direction keeps epistemic runtime minimal:
+- retrieval indexes
+- objects
+- graphs required for movement/truth constraints
+
+If relationship graph work resumes later, this file is historical context only.
 
 ## What Is the Character Graph?
 

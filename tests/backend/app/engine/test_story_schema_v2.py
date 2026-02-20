@@ -1,6 +1,9 @@
 # tests/backend/app/engine/test_story_schema_v2.py
-"""Tests for story_schema_v2 — enums, dataclasses, from_dict parsing."""
+"""Obsolete v2 tests disabled after production simplification."""
+
 import pytest
+
+pytest.skip("v2 schema path removed from active product design", allow_module_level=True)
 
 from backend.app.engine.story_schema_v2 import (
     AccessPolicy,

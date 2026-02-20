@@ -1,6 +1,9 @@
 # tests/backend/app/engine/test_prompt_builder_v2.py
-"""Tests for prompt_builder_v2 — contract-driven prompt construction."""
+"""Obsolete v2 tests disabled after production simplification."""
+
 import pytest
+
+pytest.skip("v2 contract prompt path removed from active product design", allow_module_level=True)
 
 from backend.app.engine.story_schema_v2 import StoryPackageV2
 from backend.app.engine.turn_contract import build_contract

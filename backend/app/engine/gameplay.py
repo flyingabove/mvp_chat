@@ -106,6 +106,11 @@ def advance_time(state, player_text: str):
 
                     # Sync state.minute from world clock (authoritative)
                     state.minute = runtime.world_clock.minute
+                    # Location-scoped transient scene details do not persist across travel.
+                    try:
+                        state.clear_location_transient_entries()
+                    except Exception:
+                        pass
                     return
                 except Exception:
                     # Travel resolution failed (no route, invalid locations, etc.)
@@ -120,6 +125,10 @@ def advance_time(state, player_text: str):
             # Fallback: legacy free-text location
             setattr(state, "location", place)
             delta += travel
+            try:
+                state.clear_location_transient_entries()
+            except Exception:
+                pass
 
     # Update minute (legacy path)
     setattr(state, "minute", getattr(state, "minute", 0) + delta)

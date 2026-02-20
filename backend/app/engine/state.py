@@ -19,6 +19,7 @@ from backend.app.engine.epistemic_state import (
     EpistemicFact,
     Observation,
 )
+from backend.app.engine.transient_buffer import TransientEntry, prune_expired
 from backend.app.config.epistemic_flags import (
     belief_enabled,
     truth_enabled,
@@ -148,6 +149,11 @@ class MurderGameState:
     beliefs: Dict[str, BeliefState] = field(default_factory=dict)
 
     # ==============================================================
+    # Transient scene buffer (non-authoritative, short-lived)
+    # ==============================================================
+    transient_entries: List[TransientEntry] = field(default_factory=list)
+
+    # ==============================================================
     # Optional world runtime (graph-based movement)
     # ==============================================================
     world_runtime: Optional[object] = None
@@ -216,6 +222,52 @@ class MurderGameState:
         """Append claims to epistemic log if belief layer is enabled."""
         if belief_enabled():
             self.epistemic_log.extend(claims)
+
+    # ==============================================================
+    # Transient buffer helpers
+    # ==============================================================
+    def add_transient_entry(
+        self,
+        *,
+        id: str,
+        namespace: str,
+        scope: str,
+        text: str,
+        expires_after_turns: int | None = 2,
+        expires_after_minutes: int | None = None,
+        promotable: bool = False,
+        meta: Optional[Dict[str, str]] = None,
+    ) -> None:
+        if not text or not text.strip():
+            return
+        self.transient_entries.append(
+            TransientEntry(
+                id=id,
+                namespace=namespace,
+                scope=scope,
+                text=text.strip(),
+                created_turn=int(self.turns),
+                created_minute=int(self.minute),
+                location_id=str(getattr(self, "location_id", "") or ""),
+                expires_after_turns=expires_after_turns,
+                expires_after_minutes=expires_after_minutes,
+                promotable=promotable,
+                meta=dict(meta or {}),
+            )
+        )
+
+    def purge_transient_entries(self) -> None:
+        self.transient_entries = prune_expired(
+            self.transient_entries,
+            current_turn=int(self.turns),
+            current_minute=int(self.minute),
+        )
+
+    def clear_location_transient_entries(self) -> None:
+        self.transient_entries = [e for e in self.transient_entries if e.scope != "location"]
+
+    def clear_all_transient_entries(self) -> None:
+        self.transient_entries = []
 
 
 # ======================================================================
