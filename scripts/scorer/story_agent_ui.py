@@ -1022,6 +1022,22 @@ HTML_PAGE = r"""<!DOCTYPE html>
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
   }
+  .context-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .context-copy-btn {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+  .context-copy-btn:hover { border-color: var(--accent); color: var(--text-bright); }
   .context-modal-header h2 {
     font-size: 14px;
     font-weight: 600;
@@ -2219,7 +2235,10 @@ HTML_PAGE = r"""<!DOCTYPE html>
     var modalHtml = '<div class="context-modal">';
     modalHtml += '<div class="context-modal-header">';
     modalHtml += '<h2>Turn ' + turn + ' \u2014 Full Context</h2>';
+    modalHtml += '<div class="context-modal-actions">';
+    modalHtml += '<button class="context-copy-btn" id="ctxModalCopy">Copy Context JSON</button>';
     modalHtml += '<button class="context-modal-close" id="ctxModalClose">&times;</button>';
+    modalHtml += '</div>';
     modalHtml += '</div>';
     modalHtml += '<div class="context-modal-body">' + sectionsHtml + '</div>';
     modalHtml += '</div>';
@@ -2230,6 +2249,59 @@ HTML_PAGE = r"""<!DOCTYPE html>
     // Attach close button handler
     var closeBtn = document.getElementById('ctxModalClose');
     if (closeBtn) closeBtn.addEventListener('click', function() { overlay.remove(); });
+
+    var copyBtn = document.getElementById('ctxModalCopy');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async function() {
+        var exportObj = {
+          turn: turn,
+          player_message: playerMsg ? {
+            role: playerMsg.role,
+            turn: playerMsg.turn,
+            content: playerMsg.content || ''
+          } : null,
+          npc_response: npcMsg ? {
+            role: npcMsg.role,
+            turn: npcMsg.turn,
+            content: npcMsg.content || '',
+            latency_ms: npcMsg.latency_ms || null,
+            tokens: npcMsg.tokens || 0
+          } : null,
+          debug_payload: payload || null,
+          debug_box: db || null,
+          prompt_debug: pd || null,
+          sections: sections.map(function(s) {
+            return {
+              title: s.title,
+              tag: s.tag || null,
+              content: s.content || ''
+            };
+          })
+        };
+
+        var jsonText = formatJson(exportObj);
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(jsonText);
+          } else {
+            var ta = document.createElement('textarea');
+            ta.value = jsonText;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'absolute';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function() { copyBtn.textContent = 'Copy Context JSON'; }, 1200);
+        } catch (copyErr) {
+          alert('Copy failed: ' + copyErr.message);
+        }
+      });
+    }
 
     // Attach section toggle handlers (no inline onclick needed)
     overlay.querySelectorAll('.context-section-header').forEach(function(hdr) {

@@ -107,6 +107,7 @@ When user clicks an NPC message, a full-context modal opens with collapsible sec
 6. Knowledge Chunks (retrieved facts, collapsed)
 7. Retrieval Debug (collapsed)
 8. Raw Debug Box (fallback)
+9. Copy Context JSON button (copies a neat full-turn context object including player/npc messages, debug payloads, prompt debug, and rendered sections)
 
 Debug data is stored in JS variable debugPayloads[turn] — populated via "debug" WebSocket events.
 The side debug panel was REMOVED (only the modal remains).
