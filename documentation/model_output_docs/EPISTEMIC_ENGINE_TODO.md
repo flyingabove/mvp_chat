@@ -9,10 +9,16 @@ Keep implementation inside the in-memory contract from `EPISTEMIC_ENGINE_DESIGN.
 No extra long-lived memory categories.
 
 ## Phase 1 — Stabilize Current Live Path
-- [ ] Keep `BeliefState` as the live epistemic container (claims + observations).
-- [ ] Ensure all epistemic writes include `source`, `provenance`, `minute`, `location_ref` when available.
-- [ ] Enforce reset hygiene: `__cmd_reset__` clears epistemic state and session-local transient scene data.
-- [ ] Add logging for every epistemic mutation (`kind=epistemic_event`).
+- [x] Keep `BeliefState` as the live epistemic container (claims + observations).
+- [x] Ensure seeded epistemic writes include provenance/source fields.
+- [x] Enforce reset hygiene: `__cmd_reset__` clears epistemic state and session-local transient scene data.
+- [x] Add logging for seeded epistemic mutations (`kind=epistemic_event`).
+
+## Phase 1.5 — Unknown Knowledge Resolution (Implemented)
+- [x] Add extractor pass after each reply for unknown chunks (`KnowledgeResolutionExtractor`).
+- [x] Resolve per chunk into explicit `knows`/`does_not_know` updates with confidence.
+- [x] Upsert resolved chunk knowledge into character belief graph (`EpistemicClaim`).
+- [x] Store resolved chunk objects in transient buffer for 8 turns (`meta.source=knowledge_resolution`).
 
 ## Phase 2 — Truth vs Belief Enforcement
 - [ ] Add a single comparator utility: `truth_overrides_belief()`.
@@ -32,10 +38,11 @@ No extra long-lived memory categories.
 - [ ] Do not create a second source of truth; projection remains derived from belief objects.
 
 ## Phase 5 — Transient Scene Buffer Integration
-- [ ] Introduce transient scene buffer policy from `TRANSIENT_BUFFER_DESIGN.md`.
-- [ ] Clear location-scoped transient entries on travel.
-- [ ] Auto-expire stale scene flavor entries by TTL/turn budget.
+- [x] Introduce transient scene buffer policy from `TRANSIENT_BUFFER_DESIGN.md`.
+- [x] Clear location-scoped transient entries on travel.
+- [x] Auto-expire stale scene flavor entries by TTL/turn budget.
 - [ ] Promote only gameplay-relevant facts from transient -> objects/graphs.
+- [ ] Add optional promotion path from repeated knowledge-resolution claims to canonical truth review queue.
 
 ## Phase 6 — Tests (Must-Have)
 - [ ] Unit: contradiction marking, truth precedence, namespace isolation, prompt slices.

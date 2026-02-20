@@ -2,10 +2,15 @@
 # app/api/chat.py
 
 from backend.app.engine.extractors.location_extractor import LocationExtractor, LocationIntent
+from backend.app.engine.extractors.knowledge_resolution_extractor import (
+    KnowledgeResolutionExtractor,
+    KnowledgeResolution,
+)
 
 from fastapi import APIRouter
 
 import httpx
+import json
 
 import re
 
@@ -46,6 +51,7 @@ from backend.app.engine.state import (
 
 )
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim
+from backend.app.engine.knowledge_chunks import normalize_parties
 from backend.app.engine.story_loader import load_story, StoryDefinition, StoryCharacter
 from backend.app.engine.gameplay import (
 
@@ -126,6 +132,11 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
                 location_ref=fact_cfg.get("location_ref"),
                 confidence=fact_cfg.get("confidence", 1.0),
                 provenance=fact_cfg.get("provenance", "validated"),
+                known_by=normalize_parties(
+                    ["all_characters"] if fact_cfg.get("common_knowledge") else (fact_cfg.get("known_by") or [])
+                ),
+                not_known_by=normalize_parties(fact_cfg.get("not_known_by") or []),
+                maybe_known_by=normalize_parties(fact_cfg.get("maybe_known_by") or []),
             )
             if fact.content:
                 state.add_canonical_fact(fact)
@@ -139,8 +150,12 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
                 )
 
                 # Mirror as beliefs for characters who already know this fact
-                known_by = fact_cfg.get("known_by") or []
+                known_by = normalize_parties(
+                    ["all_characters"] if fact_cfg.get("common_knowledge") else (fact_cfg.get("known_by") or [])
+                )
                 for char_id in known_by:
+                    if char_id == "all_characters":
+                        continue
                     claim = EpistemicClaim(
                         id=f"seed_{fact.id}_{char_id}",
                         content=fact.content,
@@ -151,6 +166,7 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
                         location_ref=fact.location_ref,
                         confidence=fact.confidence,
                         provenance=fact.provenance,
+                        known_by=[char_id],
                     )
                     state.get_belief_state(char_id).add_claim(claim)
                     state.add_epistemic_claims(claim)
@@ -198,6 +214,9 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
                     location_ref=claim_cfg.get("location_ref"),
                     confidence=claim_cfg.get("confidence", 0.7),
                     provenance=claim_cfg.get("provenance", "testimony"),
+                    known_by=normalize_parties(claim_cfg.get("known_by") or [char_id]),
+                    not_known_by=normalize_parties(claim_cfg.get("not_known_by") or []),
+                    maybe_known_by=normalize_parties(claim_cfg.get("maybe_known_by") or []),
                 )
                 if claim.content:
                     bs.add_claim(claim)
@@ -243,6 +262,93 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
         state.canonical_truth = seeded_texts
 
 
+_BASIC_CHARACTER_KEYS = {
+    "key",
+    "id",
+    "name",
+    "role",
+    "is_main",
+    "is_suspect",
+    "suspect",
+    "knowledge_character_id",
+    "uuid",
+    "tags",
+}
+
+
+def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
+    src = story_obj.as_dict() if hasattr(story_obj, "as_dict") else (story_obj or {})
+    characters = []
+    for ch in src.get("characters") or []:
+        if not isinstance(ch, dict):
+            continue
+        characters.append({
+            "key": ch.get("key") or ch.get("id") or "",
+            "name": ch.get("name") or "",
+            "role": ch.get("role") or "",
+            "is_main": bool(ch.get("is_main")),
+            "is_suspect": bool(ch.get("is_suspect") or ch.get("suspect")),
+            "knowledge_character_id": ch.get("knowledge_character_id") or "",
+            "uuid": ch.get("uuid") or "",
+            "tags": list(ch.get("tags") or []),
+        })
+
+    return {
+        "id": src.get("id") or "",
+        "title": src.get("title") or "",
+        "theme": src.get("theme") or "",
+        "instance": src.get("instance", DEFAULT_INSTANCE),
+        "opening": src.get("opening") or {},
+        "world": src.get("world") or {},
+        "time": src.get("time") or {},
+        "emotion": src.get("emotion") or {},
+        "goal": src.get("goal") or {},
+        "win_detection": src.get("win_detection") or {},
+        "epistemic_seed": src.get("epistemic_seed") or {},
+        "canonical_truth": src.get("canonical_truth") or [],
+        "characters": characters,
+        "relationships": src.get("relationships") or {},
+    }
+
+
+def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | dict, state: GameState) -> None:
+    src = story_obj.as_dict() if hasattr(story_obj, "as_dict") else (story_obj or {})
+    canonical_top_keys = {
+        "id", "title", "theme", "instance", "opening", "world", "time", "emotion",
+        "goal", "win_detection", "epistemic_seed", "canonical_truth", "characters", "relationships",
+    }
+
+    details: list[str] = []
+
+    for key, value in src.items():
+        if key in canonical_top_keys:
+            continue
+        details.append(f"story.{key}: {json.dumps(value, ensure_ascii=False)}")
+
+    for ch in src.get("characters") or []:
+        if not isinstance(ch, dict):
+            continue
+        ch_key = str(ch.get("key") or ch.get("id") or ch.get("name") or "character")
+        extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS}
+        if extras:
+            details.append(f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}")
+
+    for i, detail in enumerate(details[:20]):
+        text = detail.strip()
+        if not text:
+            continue
+        state.add_transient_entry(
+            id=f"story_extra_{i}",
+            namespace=_namespace_for_state(state),
+            scope="scene",
+            text=text[:600],
+            expires_after_turns=12,
+            expires_after_minutes=240,
+            promotable=False,
+            meta={"source": "story_noncanonical"},
+        )
+
+
 # In-memory session store (session-scoped: lost on server restart)
 # Keys: state (GameState), log (list), debug_mode (bool), chinese_mode (bool)
 SESSIONS = {}
@@ -250,6 +356,167 @@ SESSIONS = {}
 
 # Shared extractor instance (stateless).
 _LOCATION_EXTRACTOR = LocationExtractor()
+_KNOWLEDGE_RESOLUTION_EXTRACTOR = KnowledgeResolutionExtractor()
+
+
+def _chunk_text(chunk: dict) -> str:
+    return str(chunk.get("text") or chunk.get("content") or "").strip()
+
+
+def _canonical_fact_visibility_for_speaker(state: GameState, speaker_id: str, text: str) -> str:
+    txt = (text or "").strip().lower()
+    if not txt:
+        return "unknown"
+    for fact in getattr(state, "canonical_facts", []) or []:
+        ftxt = str(getattr(fact, "content", "") or "").strip().lower()
+        if not ftxt or ftxt != txt:
+            continue
+        known_by = normalize_parties(getattr(fact, "known_by", []) or [])
+        not_known_by = normalize_parties(getattr(fact, "not_known_by", []) or [])
+        if speaker_id in known_by or "all_characters" in known_by:
+            return "known"
+        if speaker_id in not_known_by:
+            return "not_known"
+        return "unknown"
+    return "unknown"
+
+
+def _unknown_knowledge_chunks_for_speaker(state: GameState, chunks: list[dict]) -> list[dict]:
+    speaker_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
+    out: list[dict] = []
+    seen = set()
+    for c in chunks or []:
+        cid = str(c.get("chunk_id") or "").strip()
+        text = _chunk_text(c)
+        if not cid or not text:
+            continue
+        if cid in seen:
+            continue
+        seen.add(cid)
+        visibility = _canonical_fact_visibility_for_speaker(state, speaker_id, text)
+        if visibility == "unknown":
+            out.append({
+                "chunk_id": cid,
+                "text": text,
+                "type": c.get("type"),
+                "source": c.get("source"),
+            })
+    return out
+
+
+def _upsert_belief_claim_for_resolution(
+    *,
+    state: GameState,
+    speaker_id: str,
+    chunk_id: str,
+    chunk_text: str,
+    knows: bool,
+    confidence: float,
+    reason: str,
+) -> None:
+    claim_id = f"kr::{speaker_id}::{chunk_id}"
+    bs = state.get_belief_state(speaker_id)
+
+    existing = None
+    for c in getattr(bs, "claims", []) or []:
+        if getattr(c, "id", "") == claim_id:
+            existing = c
+            break
+
+    content = (
+        f"Knowledge chunk {chunk_id}: speaker {'knows' if knows else 'does_not_know'} this information. "
+        f"Chunk text: {chunk_text}"
+    )
+    if reason:
+        content += f" Reason: {reason}"
+
+    if existing is None:
+        claim = EpistemicClaim(
+            id=claim_id,
+            content=content,
+            source="knowledge_resolution_extractor",
+            confidence=confidence,
+            provenance="inferred_dialogue",
+            known_by=[speaker_id] if knows else [],
+            not_known_by=[speaker_id] if not knows else [],
+            maybe_known_by=[],
+        )
+        bs.add_claim(claim)
+        state.add_epistemic_claims(claim)
+    else:
+        existing.content = content
+        existing.source = "knowledge_resolution_extractor"
+        existing.confidence = confidence
+        existing.provenance = "inferred_dialogue"
+        existing.known_by = [speaker_id] if knows else []
+        existing.not_known_by = [speaker_id] if not knows else []
+        existing.maybe_known_by = []
+
+
+def _apply_knowledge_resolution_updates(
+    *,
+    state: GameState,
+    updates: list[KnowledgeResolution],
+    candidate_chunks: list[dict],
+) -> list[dict]:
+    speaker_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
+    if not speaker_id:
+        return []
+
+    by_id = {str(c.get("chunk_id") or "").strip(): c for c in (candidate_chunks or [])}
+    applied: list[dict] = []
+
+    for u in updates or []:
+        chunk_id = str(getattr(u, "chunk_id", "") or "").strip()
+        if not chunk_id:
+            continue
+        chunk = by_id.get(chunk_id) or {}
+        chunk_text = _chunk_text(chunk)
+        if not chunk_text:
+            continue
+
+        knows = bool(getattr(u, "knows", False))
+        confidence = float(getattr(u, "confidence", 0.0) or 0.0)
+        reason = str(getattr(u, "reason", "") or "").strip()
+
+        _upsert_belief_claim_for_resolution(
+            state=state,
+            speaker_id=speaker_id,
+            chunk_id=chunk_id,
+            chunk_text=chunk_text,
+            knows=knows,
+            confidence=confidence,
+            reason=reason,
+        )
+
+        state.add_transient_entry(
+            id=f"kr_transient::{speaker_id}::{chunk_id}",
+            namespace=_namespace_for_state(state),
+            scope="conversation",
+            text=(
+                f"KnowledgeResolution chunk={chunk_id} speaker={speaker_id} "
+                f"knows={str(knows).lower()} conf={confidence:.2f} text={chunk_text}"
+            ),
+            expires_after_turns=8,
+            expires_after_minutes=None,
+            promotable=False,
+            meta={
+                "source": "knowledge_resolution",
+                "speaker": speaker_id,
+                "chunk_id": chunk_id,
+                "knows": str(knows).lower(),
+            },
+        )
+
+        applied.append({
+            "chunk_id": chunk_id,
+            "speaker": speaker_id,
+            "knows": knows,
+            "confidence": confidence,
+            "reason": reason,
+        })
+
+    return applied
 
 
 # ---------------------------------------------------------------------------
@@ -793,7 +1060,7 @@ async def chat_handler(data: dict):
         new_state.story = story_id
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
-        new_state.story_cfg = story_def
+        new_state.story_cfg = _canonicalize_story_cfg(story_def)
         new_state.user_id = DEFAULT_USER_ID
         try:
             new_state.instance = int(getattr(story_def, "instance", DEFAULT_INSTANCE))
@@ -803,8 +1070,9 @@ async def chat_handler(data: dict):
         new_state.canonical_truth = story_def.get("canonical_truth", [])
 
         # Seed epistemic base truths and per-character knowledge
-        _seed_epistemic_from_story(story_def, new_state)
+        _seed_epistemic_from_story(new_state.story_cfg, new_state)
         new_state.clear_all_transient_entries()
+        _seed_noncanonical_story_details_to_transient(story_def, new_state)
 
         # Optional world graph runtime (does not change gameplay unless movement occurs)
         world_cfg = story_def.get("world", {}) or {}
@@ -857,12 +1125,11 @@ async def chat_handler(data: dict):
         # Keep a human-readable location. If the world graph is active we prefer
         # the graph's display name; otherwise fall back to the story's setting string.
         if not getattr(new_state, "location_id", ""):
-            new_state.location = story_def.get("setting", {}).get("start_location", new_state.location)
+            new_state.location = new_state.location or "start"
         new_state.emotion = story_def.get("emotion", {}).get("start", new_state.emotion)
 
         # Main/character roster comes from StoryDefinition (fallbacks handle legacy stories)
-        public_label = str((story_def.get("victim", {}) or {}).get("public_name", "")).strip()
-        fallback_name = public_label.split(",")[0].strip() if public_label else "the character"
+        fallback_name = "the character"
 
         main_char_def = story_def.main_character if isinstance(story_def, StoryDefinition) else None
         characters = list(story_def.characters) if isinstance(story_def, StoryDefinition) else []
@@ -1147,6 +1414,26 @@ async def chat_handler(data: dict):
         state.over = True
         clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
 
+    # Resolve unknown knowledge-chunk epistemics after each completed turn.
+    knowledge_resolution_updates: list[dict] = []
+    try:
+        candidates = _unknown_knowledge_chunks_for_speaker(state, retrieved)
+        if candidates:
+            extracted_updates = await _KNOWLEDGE_RESOLUTION_EXTRACTOR.extract(
+                speaker_id=str(getattr(state, "main_character_id", "") or ""),
+                user_msg=msg,
+                assistant_reply=clean,
+                candidate_chunks=candidates,
+                conversation_log=log[-8:],
+            )
+            knowledge_resolution_updates = _apply_knowledge_resolution_updates(
+                state=state,
+                updates=extracted_updates,
+                candidate_chunks=candidates,
+            )
+    except Exception as e:
+        _log({"kind": "knowledge_resolution_error", "error": str(e)})
+
     _log({
         "kind": "chat_response",
         "req_id": req_id,
@@ -1181,7 +1468,11 @@ async def chat_handler(data: dict):
         reply = await _translate_to_chinese(reply)
 
     result = {"reply": reply, "usage": data.get("usage"), "character": "default", "prompt_debug": prompt_debug}
+    if knowledge_resolution_updates:
+        result["knowledge_resolution_updates"] = knowledge_resolution_updates
     if debug_box is not None:
         debug_box["prompt"] = prompt_debug
+        if knowledge_resolution_updates:
+            debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
         result["debug_box"] = debug_box
     return result

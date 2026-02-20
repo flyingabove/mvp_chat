@@ -18,15 +18,15 @@ Problems:
 - **No character-to-character relationships.** Steve's opinion of Bob matters for interrogation strategy (can you play them against each other?) but isn't modeled.
 - **No typed edges.** The system doesn't know if two characters are friends, enemies, family, or co-conspirators. The prompt builder can't use this information because it doesn't exist structurally.
 
-## Proposed Design
+## Implemented Runtime Design
 
-### Nodes: CharacterModel
+### Nodes: CharacterModel (generic)
 
 Each character in the story becomes a `CharacterModel` node in the graph. A character has:
 
 - **Identity**: display name, archetype (e.g., "nervous suspect"), tags (e.g., `["suspect", "ex-boyfriend"]`).
-- **Traits**: tone of voice, speech style, behavioral quirks. Used by the prompt builder to differentiate how characters talk.
-- **Motivation**: primary goal, secondary goals, fears, needs. Drives the AI's decision-making about what the character reveals or conceals.
+- **Traits/Motivation**: can exist in authoring JSON, but runtime canonical character objects keep only basic attributes (`key,name,role,is_main,is_suspect,knowledge_character_id,uuid,tags`).
+  Non-canonical details are routed to transient/retrieval context, not stored as canonical character fields.
 - **Epistemic profile**: what this character knows (chunk IDs), believes, and has forgotten. Determines what information they can share.
 - **Anchors**: identity anchors that must never be contradicted (e.g., "You are IU. You are a ghost."). These are injected into the prompt every turn.
 - **Location binding**: which locations this character appears at (if any). A character in Interview Room A is not available in Interview Room B.
@@ -84,6 +84,11 @@ When building the prompt for a turn, the engine:
      You're terrified but trying not to show it.
    ```
 4. The `supporting_chunk_ids` can optionally pull in the specific events that shaped the relationship, giving the AI concrete memories to reference.
+
+Prompt input source boundaries (enforced):
+- Canonical runtime sources: character basics, story canonical truths, character graph, belief graph, places graph.
+- Retrieval/runtime context sources: BM25/FAISS chunks and transient buffer.
+- No other free-form story JSON fields are injected directly into the prompt.
 
 ### 2. Behavior gating
 

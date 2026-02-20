@@ -11,9 +11,6 @@ def test_system_prompt_includes_required_tail_and_memory_block(monkeypatch):
     st = init_state()
     st.story_cfg = {
         "meta": {"disclaimer": "fiction"},
-        "setting": {},
-        "victim": {},
-        "rules": {"manifestation": {"apartment_location_contains": ["officetel"]}},
     }
     st.characters["IU"] = CharacterState(key="IU", name="IU", role="ghost")
     st.main_character_id = "IU"
@@ -23,8 +20,7 @@ def test_system_prompt_includes_required_tail_and_memory_block(monkeypatch):
     ])
     sysmsg = pb.system_prompt(st, is_first_turn=True, memory_block=memory)
 
-    assert "CANONICAL CHARACTER MEMORY" in sysmsg
-    assert "Love Poem" in sysmsg
+    assert "EPISTEMIC KNOWLEDGE STACK" in sysmsg
     assert "[[STATE]]" in sysmsg and "[[/STATE]]" in sysmsg
 
 
@@ -35,7 +31,7 @@ def test_build_messages_trims_history_and_adds_header(monkeypatch):
     monkeypatch.setattr(pb, "retrieve_knowledge", lambda *a, **k: ([], {}), raising=False)
 
     st = init_state()
-    st.story_cfg = {"rules": {"manifestation": {"apartment_location_contains": ["officetel"]}}}
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
     st.characters["IU"] = CharacterState(key="IU", name="IU", role="ghost")
     st.main_character_id = "IU"
 
@@ -83,27 +79,26 @@ def test_prompt_includes_relationship_section():
     assert "detective" in sysmsg.lower()
 
 
-def test_prompt_includes_character_details():
+def test_prompt_ignores_story_specific_fields_and_uses_canonical_facts():
     from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicFact
 
     st = init_state()
     st.story_cfg = {
         "meta": {"disclaimer": "fiction"},
-        "setting": {},
-        "victim": {},
-        "characters": [
-            {"key": "iu", "name": "IU", "is_main": True,
-             "motive": "Job survival; feared being blacklisted",
-             "tells": ["voice tremor on logistics questions"]},
-        ],
+        "world_context": ["this should not appear"],
+        "prompt_suggestions": ["this should not appear"],
+        "characters": [{"key": "iu", "name": "IU", "motive": "hidden motive"}],
     }
     st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
+    st.add_canonical_fact(EpistemicFact(id="f1", content="Canonical fact for IU", known_by=["iu"]))
 
     sysmsg = pb.system_prompt(st)
-    assert "CHARACTER DETAILS" in sysmsg
-    assert "Job survival" in sysmsg
-    assert "voice tremor" in sysmsg
+    assert "EPISTEMIC KNOWLEDGE STACK" in sysmsg
+    assert "Canonical fact for IU" in sysmsg
+    assert "this should not appear" not in sysmsg
+    assert "hidden motive" not in sysmsg
 
 
 def test_prompt_layers_dict_has_new_keys():
@@ -120,6 +115,53 @@ def test_prompt_layers_dict_has_new_keys():
 
     sysmsg, layers = pb.system_prompt(st, return_layers=True)
     assert "relationship_context" in layers
-    assert "location_description" in layers
-    assert "belief_context" in layers
-    assert "character_details" in layers
+    assert "knowledge_stack" in layers
+    assert "knowledge_chunks" in layers
+    assert "transient_buffer" in layers
+
+
+def test_prompt_labels_canonical_truths_with_known_by_visibility():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicFact
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+
+    st.add_canonical_fact(EpistemicFact(id="visible", content="IU known fact", known_by=["iu"]))
+    st.add_canonical_fact(EpistemicFact(id="hidden", content="Player-only fact", known_by=["player"], not_known_by=["iu"]))
+
+    sysmsg = pb.system_prompt(st)
+    assert "IU known fact" in sysmsg
+    assert "Player-only fact" in sysmsg
+    assert "not_known_by=iu" in sysmsg
+
+
+def test_prompt_knowledge_stack_renders_visibility_labels():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicFact
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+
+    st.add_canonical_fact(EpistemicFact(
+        id="common",
+        content="Common fact visible to all.",
+        known_by=["all_characters"],
+    ))
+    st.add_canonical_fact(EpistemicFact(
+        id="hidden",
+        content="Hidden fact not known by IU.",
+        known_by=["player"],
+        not_known_by=["iu"],
+        maybe_known_by=["bob"],
+    ))
+
+    sysmsg = pb.system_prompt(st)
+    assert "EPISTEMIC KNOWLEDGE STACK" in sysmsg
+    assert "known_by=ALL_CHARACTERS" in sysmsg
+    assert "not_known_by=iu" in sysmsg
+    assert "maybe_known_by=bob" in sysmsg

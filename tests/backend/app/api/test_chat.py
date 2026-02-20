@@ -31,6 +31,10 @@ def client(monkeypatch):
         return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text=None)
     monkeypatch.setattr(chat_mod._LOCATION_EXTRACTOR, "extract", _mock_extract, raising=False)
 
+    async def _mock_knowledge_extract(*args, **kwargs):
+        return []
+    monkeypatch.setattr(chat_mod._KNOWLEDGE_RESOLUTION_EXTRACTOR, "extract", _mock_knowledge_extract, raising=False)
+
     # Mock httpx.AsyncClient so /api/chat never hits OpenAI.
 
     class _FakeResp:
@@ -541,3 +545,41 @@ def test_file_consolidation_single_location(client):
     # Verify a map image exists ({folder}.png convention)
     map_png = os.path.join(full_dir, f"{story_dir}.png")
     assert os.path.isfile(map_png), f"Map image should exist at {map_png}"
+
+
+def test_knowledge_resolution_updates_belief_and_transient(client, monkeypatch):
+    from backend.app.api import chat as chat_mod
+    from backend.app.engine.extractors.knowledge_resolution_extractor import KnowledgeResolution
+
+    async def _mock_resolution(*args, **kwargs):
+        return [KnowledgeResolution(chunk_id="c_unknown", knows=True, confidence=0.88, reason="dialogue indicates familiarity")]
+
+    monkeypatch.setattr(
+        chat_mod,
+        "retrieve_knowledge",
+        lambda *args, **kwargs: ([{"chunk_id": "c_unknown", "text": "The hidden hallway has a red door.", "type": "scene"}], {}),
+        raising=False,
+    )
+    monkeypatch.setattr(chat_mod._KNOWLEDGE_RESOLUTION_EXTRACTOR, "extract", _mock_resolution, raising=False)
+
+    sid = "kr1"
+    r0 = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
+    assert r0.status_code == 200
+
+    r1 = client.post("/api/chat", json={"session_id": sid, "message": "tell me about the hallway"})
+    assert r1.status_code == 200
+    body = r1.json()
+    assert "knowledge_resolution_updates" in body
+    assert body["knowledge_resolution_updates"][0]["chunk_id"] == "c_unknown"
+    assert body["knowledge_resolution_updates"][0]["knows"] is True
+
+    st = chat_mod.SESSIONS[sid]["state"]
+    speaker = (st.main_character_id or "").strip().lower()
+
+    claims = st.get_belief_state(speaker).claims
+    assert any(getattr(c, "id", "") == f"kr::{speaker}::c_unknown" for c in claims)
+
+    entries = st.transient_entries
+    matched = [e for e in entries if (e.meta or {}).get("source") == "knowledge_resolution" and (e.meta or {}).get("chunk_id") == "c_unknown"]
+    assert matched
+    assert matched[-1].expires_after_turns == 8

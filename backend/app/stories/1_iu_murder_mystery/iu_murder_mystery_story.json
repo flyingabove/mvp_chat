@@ -137,30 +137,48 @@
         "id": "death_occurs_prior_tenant",
         "text": "IU died the prior week in the Nonhyeon-dong officetel closet; she is now the ghost in the apartment.",
         "known_by": ["iu"],
+        "not_known_by": ["player"],
+        "maybe_known_by": ["han_jae_seo", "park_so_jin", "rival_trainee", "yoo_min_ho"],
         "confidence": 1.0
       },
       {
         "id": "death_method_strangulation",
         "text": "After hours of confinement, IU was strangled inside the bedroom closet; no sexual assault occurred.",
-        "known_by": ["iu"],
+        "known_by": ["iu", "yoo_min_ho"],
+        "not_known_by": ["player", "rival_trainee"],
+        "maybe_known_by": ["han_jae_seo", "park_so_jin"],
         "confidence": 1.0
       },
       {
         "id": "death_time_window",
         "text": "The fatal attack happened overnight on 2025-01-14, before dawn on 2025-01-15.",
-        "known_by": ["iu"],
+        "known_by": ["iu", "yoo_min_ho"],
+        "not_known_by": ["player", "rival_trainee"],
+        "maybe_known_by": ["han_jae_seo", "park_so_jin"],
         "confidence": 1.0
       },
       {
         "id": "items_missing",
         "text": "IU's phone and a handwritten lyric notebook went missing from the scene after the killing.",
-        "known_by": ["iu"],
+        "known_by": ["iu", "yoo_min_ho"],
+        "not_known_by": ["player", "rival_trainee"],
+        "maybe_known_by": ["han_jae_seo", "park_so_jin"],
+        "confidence": 1.0
+      },
+      {
+        "id": "apartment_prior_death_common_context",
+        "text": "A prior tenant death occurred in the unit and is now part of building rumor context.",
+        "known_by": ["all_characters"],
+        "not_known_by": [],
+        "maybe_known_by": [],
         "confidence": 1.0
       },
       {
         "id": "lease_disclosure",
         "text": "The apartment's cheap rent was due to the undisclosed prior tenant death in the closet.",
-        "known_by": ["player"],
+        "known_by": ["player", "park_so_jin"],
+        "not_known_by": ["rival_trainee"],
+        "maybe_known_by": ["han_jae_seo", "yoo_min_ho"],
         "confidence": 1.0
       }
     ],
@@ -169,62 +187,92 @@
         {
           "text": "I am dead and bound to the apartment as a ghost after being strangled in the closet.",
           "confidence": 1.0,
-          "source": "memory"
+          "source": "memory",
+          "known_by": ["iu"],
+          "not_known_by": ["player"],
+          "maybe_known_by": ["han_jae_seo", "park_so_jin"]
         },
         {
           "text": "I was trapped for hours before the killing and could not reach my phone.",
           "confidence": 0.8,
-          "source": "memory"
+          "source": "memory",
+          "known_by": ["iu"],
+          "not_known_by": ["player", "rival_trainee"],
+          "maybe_known_by": ["han_jae_seo", "park_so_jin", "yoo_min_ho"]
         },
         {
           "text": "Someone removed my phone and lyric notebook after I died.",
           "confidence": 0.8,
-          "source": "memory"
+          "source": "memory",
+          "known_by": ["iu"],
+          "not_known_by": ["player", "rival_trainee"],
+          "maybe_known_by": ["han_jae_seo", "park_so_jin", "yoo_min_ho"]
         }
       ],
       "player": [
         {
           "text": "The rent was low because a previous tenant died in the closet of this unit.",
           "confidence": 0.6,
-          "source": "lease_disclosure"
+          "source": "lease_disclosure",
+          "known_by": ["player"],
+          "not_known_by": ["rival_trainee"],
+          "maybe_known_by": ["han_jae_seo", "park_so_jin", "yoo_min_ho"]
         }
       ],
       "yoo_min_ho": [
         {
           "text": "Confining IU in the closet was meant as a cool-down, not to kill her.",
           "confidence": 0.5,
-          "source": "self_justification"
+          "source": "self_justification",
+          "known_by": ["yoo_min_ho"],
+          "not_known_by": ["player"],
+          "maybe_known_by": ["han_jae_seo"]
         },
         {
           "text": "If IU died, it was an accident during that confinement.",
           "confidence": 0.4,
-          "source": "self_justification"
+          "source": "self_justification",
+          "known_by": ["yoo_min_ho"],
+          "not_known_by": ["player", "park_so_jin"],
+          "maybe_known_by": ["han_jae_seo"]
         }
       ],
       "han_jae_seo": [
         {
           "text": "Publicly frame IU's death as stress-induced or mental health related, not foul play.",
           "confidence": 0.7,
-          "source": "pr_spin"
+          "source": "pr_spin",
+          "known_by": ["han_jae_seo"],
+          "not_known_by": ["player"],
+          "maybe_known_by": ["park_so_jin", "yoo_min_ho"]
         }
       ],
       "park_so_jin": [
         {
           "text": "Someone tampered with the side entrance CCTV near the time IU disappeared.",
           "confidence": 0.6,
-          "source": "observation"
+          "source": "observation",
+          "known_by": ["park_so_jin"],
+          "not_known_by": ["player", "rival_trainee"],
+          "maybe_known_by": ["han_jae_seo", "yoo_min_ho"]
         },
         {
           "text": "A missing lyric page is connected to pressure from management.",
           "confidence": 0.6,
-          "source": "observation"
+          "source": "observation",
+          "known_by": ["park_so_jin"],
+          "not_known_by": ["player", "rival_trainee"],
+          "maybe_known_by": ["han_jae_seo", "yoo_min_ho"]
         }
       ],
       "rival_trainee": [
         {
           "text": "Rumors say IU locked herself away after a fight about a song release.",
           "confidence": 0.5,
-          "source": "rumor"
+          "source": "rumor",
+          "known_by": ["rival_trainee"],
+          "not_known_by": ["iu"],
+          "maybe_known_by": ["player", "han_jae_seo", "park_so_jin"]
         }
       ]
     }

@@ -22,6 +22,9 @@ class EpistemicEntry:
     location_ref: Optional[str] = None
     confidence: float = 1.0
     provenance: str = "system"
+    known_by: List[str] = field(default_factory=list)
+    not_known_by: List[str] = field(default_factory=list)
+    maybe_known_by: List[str] = field(default_factory=list)
     status: EpistemicStatus = EpistemicStatus.ASSERTED
     resolution: Optional[str] = None
 

@@ -17,8 +17,6 @@ class StoryCharacter:
     is_suspect: bool = False
     knowledge_character_id: str = ""
     uuid: str = ""
-    motive: str = ""
-    tells: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     meta: Dict[str, Any] = field(default_factory=dict)
 
@@ -32,8 +30,6 @@ class StoryCharacter:
         is_suspect = bool(data.get("is_suspect") or data.get("suspect"))
         knowledge_character_id = str(data.get("knowledge_character_id") or "").strip()
         uuid = str(data.get("uuid") or "").strip()
-        motive = str(data.get("motive") or "").strip()
-        tells = list(data.get("tells") or [])
         tags = list(data.get("tags") or [])
 
         # Preserve any extra attributes for forward-compatibility.
@@ -47,8 +43,6 @@ class StoryCharacter:
             "suspect",
             "knowledge_character_id",
             "uuid",
-            "motive",
-            "tells",
             "tags",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
@@ -61,8 +55,6 @@ class StoryCharacter:
             is_suspect=is_suspect,
             knowledge_character_id=knowledge_character_id,
             uuid=uuid,
-            motive=motive,
-            tells=tells,
             tags=tags,
             meta=meta,
         )
@@ -76,8 +68,6 @@ class StoryCharacter:
             "is_suspect": self.is_suspect,
             "knowledge_character_id": self.knowledge_character_id,
             "uuid": self.uuid,
-            "motive": self.motive,
-            "tells": self.tells,
             "tags": self.tags,
             **(self.meta or {}),
         }

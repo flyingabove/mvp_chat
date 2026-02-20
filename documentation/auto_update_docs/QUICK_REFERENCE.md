@@ -78,6 +78,16 @@
 - World graph set (`WorldGraph`, `Location`, `PathEdge`, `WorldClock`, `TravelRules`, `TravelResolver`, `ExposureResolver`) — map + clock that decide routes, minutes spent, and what travel details are exposed.
 - Knowledge layer (`IndexService`, `CharacterIndexBundle`, `retrieve_knowledge`) — loads/caches BM25+FAISS bundles per character.
 
+## Prompt Source Contract
+- Prompt context is limited to: BM25/FAISS retrieval chunks, character basics, canonical truths (`epistemic_seed.canonical_facts`), character graph, belief graph, places graph, and transient buffer.
+- Free-form story JSON fields are not injected directly into prompt; non-canonical story/character extras are serialized into transient context.
+- Canonical story projection at new-game time keeps only generic runtime keys (`id,title,theme,instance,opening,world,time,emotion,goal,win_detection,epistemic_seed,canonical_truth,characters,relationships`).
+- Each prompt knowledge item is labeled with certainty + epistemic visibility (`known_by`, `not_known_by`, `maybe_known_by`).
+- Common knowledge must be represented as `known_by: ["all_characters"]`.
+- Runtime stack order is: `CANONICAL_CORE` → `CANONICAL_GRAPH` → `SUBJECTIVE_BELIEF` → `RETRIEVED_MEMORY` → `TRANSIENT_CONTEXT`.
+- Unknown visibility handling: if a chunk has no explicit known/not-known marker for the active speaker, model makes a best reasonable determination from dialogue context.
+- Post-reply extractor pass (`KnowledgeResolutionExtractor`) converts those determinations into explicit belief updates and stores transient knowledge objects for 8 turns.
+
 ## API Endpoints
 
 | Method | Endpoint | Purpose | Request | Response |

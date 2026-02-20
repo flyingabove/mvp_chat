@@ -50,8 +50,24 @@ Lower layers can inform dialogue, but cannot overwrite higher layers.
 5. Render reply.
 6. Persist durable records asynchronously/synchronously per environment.
 
+## Unknown Knowledge Resolution (Implemented)
+When a chunk is not explicitly marked `known_by` and not explicitly marked `not_known_by` for the active speaker:
+
+1. Prompt instructions require the LLM to make a best reasonable determination (with hedging if uncertain).
+2. After the reply, a dedicated extractor (`KnowledgeResolutionExtractor`) evaluates the latest dialogue window (up to 8 turns) plus candidate chunks.
+3. Extractor outputs deterministic updates per chunk: `chunk_id`, `knows`, `confidence`, `reason`.
+4. Engine writes these to the speaker's belief graph as `EpistemicClaim` entries (`source=knowledge_resolution_extractor`, `provenance=inferred_dialogue`).
+5. Engine writes a mirrored knowledge object into transient buffer with TTL = 8 turns (`meta.source=knowledge_resolution`).
+
+This means ambiguous retrieval memory is converted into explicit epistemic state over time using dialogue evidence.
+
+## Where Updates Are Stored
+- Primary authority for these updates is character-local belief graph (`BeliefState`).
+- Short-lived transport/debug copy is stored in transient buffer for 8 turns.
+- No direct on-the-fly mutation of packaged FAISS/BM25 artifacts occurs at runtime.
+
 ## What Is Live vs Planned
-- **Live now:** object state, place graph travel, retrieval namespaces, per-character belief logs (`BeliefState`), and transient scene buffering.
+- **Live now:** object state, place graph travel, retrieval namespaces, per-character belief logs (`BeliefState`), unknown-knowledge extractor resolution, and transient scene buffering (including 8-turn knowledge objects).
 - **Planned:** stronger invariant validator + full belief graph projection.
 
 ## Design Guardrails

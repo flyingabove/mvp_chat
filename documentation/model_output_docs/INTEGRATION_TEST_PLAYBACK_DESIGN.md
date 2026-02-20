@@ -47,6 +47,10 @@ Delay = lambda ms=400: Step(kind="delay", payload={"ms": ms})
 - **test_location_extractor_e2e**: Steps include UserMessage with movement text, LLMCall(kind="extractor", mode="live" or `cached` when provided), Assertion on extracted destination. Could provide cached response to allow offline playback.
 - **test_hybrid_retrieval**: SystemAction to load indexes, LLMCall for embedder (live/cached), Assertions on recall thresholds. UI playback can skip heavy compute by using cached results.
 - **test_epistemic_state_iu_flow**: Cached (no API). Steps are SystemAction(init), multiple UserMessage/LLMCall pairs if we later add extractor/renderer, Assertions on epistemic log state.
+- **knowledge-resolution flow (new)**: UserMessage + renderer LLMCall + post-reply knowledge extractor LLMCall + Assertions on:
+  - belief graph claim upsert (`kr::<speaker>::<chunk_id>`),
+  - transient knowledge object existence,
+  - 8-turn TTL expiration behavior.
 
 ## Playback Engine (UI)
 - Menu entry: "Integration Playback" → list scenarios (id, title, tags, live/cached badges, needs API key). Filter by tag.
@@ -108,3 +112,4 @@ in the Docker image.
 - All integration tests run via scenario runner with existing assertions unchanged in spirit.
 - UI can list scenarios and auto-play transcripts using cached data.
 - Live runs remain possible for scenarios tagged `live-llm` when API key is present.
+- Playback model includes extractor-after-render phases (location extraction pre-render and knowledge-resolution extraction post-render).

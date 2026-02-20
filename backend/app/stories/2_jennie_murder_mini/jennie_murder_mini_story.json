@@ -93,47 +93,59 @@
         "id": "stabbing_by_steve",
         "text": "Steve stabbed Jennie in his apartment kitchen around 11:45 after a financial confrontation.",
         "known_by": ["steve"],
+        "not_known_by": ["player", "bob"],
+        "maybe_known_by": [],
         "confidence": 1.0
       },
       {
         "id": "cleanup_by_bob",
         "text": "Bob helped Steve clean up the scene afterward: wiped surfaces, removed the knife, tidied the kitchen.",
         "known_by": ["steve", "bob"],
+        "not_known_by": ["player"],
+        "maybe_known_by": [],
         "confidence": 1.0
       },
       {
         "id": "tod_window",
         "text": "Jennie died between 11:40 and 12:15 in Steve's apartment kitchen.",
-        "known_by": ["steve", "bob", "player"],
+        "known_by": ["all_characters"],
+        "not_known_by": [],
+        "maybe_known_by": [],
         "confidence": 1.0
       },
       {
         "id": "phone_ping_evidence",
         "text": "Jennie's phone pinged near Steve's building close to midnight, placing her at the scene.",
         "known_by": ["player"],
+        "not_known_by": ["steve", "bob"],
+        "maybe_known_by": [],
         "confidence": 1.0
       },
       {
         "id": "neighbor_witness",
         "text": "A neighbor heard a woman crying around 11:50, consistent with the time of the attack.",
         "known_by": ["player"],
+        "not_known_by": ["steve", "bob"],
+        "maybe_known_by": [],
         "confidence": 1.0
       },
       {
         "id": "missing_weapon",
         "text": "The murder weapon (a knife) was removed from the scene by Bob during cleanup.",
         "known_by": ["bob"],
+        "not_known_by": ["steve", "player"],
+        "maybe_known_by": [],
         "confidence": 1.0
       }
     ],
     "belief_seeds": {
       "steve": [
-        {"text": "I stabbed Jennie around 11:45 after she confronted me about money.", "confidence": 1.0, "source": "memory"},
-        {"text": "Bob helped me clean up afterward — wiped surfaces, took the knife.", "confidence": 1.0, "source": "memory"}
+        {"text": "I stabbed Jennie around 11:45 after she confronted me about money.", "confidence": 1.0, "source": "memory", "known_by": ["steve"], "not_known_by": ["player", "bob"], "maybe_known_by": []},
+        {"text": "Bob helped me clean up afterward — wiped surfaces, took the knife.", "confidence": 1.0, "source": "memory", "known_by": ["steve"], "not_known_by": ["player"], "maybe_known_by": ["bob"]}
       ],
       "bob": [
-        {"text": "Steve called me in a panic. When I arrived, Jennie was already dead.", "confidence": 0.9, "source": "memory"},
-        {"text": "I wiped the surfaces and removed the knife to protect both of us.", "confidence": 1.0, "source": "memory"}
+        {"text": "Steve called me in a panic. When I arrived, Jennie was already dead.", "confidence": 0.9, "source": "memory", "known_by": ["bob"], "not_known_by": ["player"], "maybe_known_by": ["steve"]},
+        {"text": "I wiped the surfaces and removed the knife to protect both of us.", "confidence": 1.0, "source": "memory", "known_by": ["bob"], "not_known_by": ["player"], "maybe_known_by": ["steve"]}
       ]
     }
   },

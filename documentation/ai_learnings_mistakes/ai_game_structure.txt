@@ -13,7 +13,9 @@ Knowledge (retrieval inputs)
 Story content
 - Path: backend\app\stories\<folder>/ where <folder> = `<int>_<slug>` (e.g., `1_iu_murder_mystery`, `2_jennie_murder_mini`)
 - Story JSON: either `<story_id>.json` or `<story_id>_story.json` (loader tries both).
-  Main narrative/story config (goal, opening text, rules, canonical_truth, knowledge_character_id, world_context).
+  Runtime canonical story object is projected to generic keys only:
+  `id,title,theme,instance,opening,world,time,emotion,goal,win_detection,epistemic_seed,canonical_truth,characters,relationships`.
+  Non-canonical top-level fields are not kept in the canonical story object; they are serialized into transient context.
 - `<story_id>_world.json`: world graph (locations, edges, start_location_id). Descriptions should encode specifics (e.g., "Interview Room A is Steve's room"). When loaded, Location.description carries this text.
 - Map image: `<folder>.png` (convention: folder name = image name). Auto-discovered by _discover_map_image().
   Also supports explicit path via world.world_map_image field in the story JSON.
@@ -25,39 +27,62 @@ Story content
 - IMPORTANT: world.file and world.world_map_image paths in story JSON must use the ACTUAL folder name (e.g., "2_jennie_murder_mini/..."), not short aliases.
 
 Character identity & canonical facts (REQUIRED in every story JSON)
-- `character_self_knowledge`: array of strings. Identity-level facts the main NPC always knows
-  about itself. Injected into system prompt under CHARACTER SELF-KNOWLEDGE section.
-  Example: ["You are the ghost of the previous tenant — you died here."]
+- Characters store only generic/basic attributes in runtime objects (`key,name,role,is_main,is_suspect,knowledge_character_id,uuid,tags`).
+  Any extra per-character authoring fields are treated as non-canonical metadata and moved into transient context.
 - `epistemic_seed.canonical_facts`: array of fact objects. These are authoritative game-world
-  truths. The engine injects facts into the NPC prompt where the main character's key appears
-  in `known_by`. Facts with `known_by: ["player"]` are NOT given to the NPC.
+  truths. Canonical facts are included in the epistemic knowledge stack and must be explicitly
+  labeled with visibility metadata.
   Required fields per fact:
     - `id`: unique string identifier (snake_case)
     - `text`: the canonical truth as a plain sentence
-    - `known_by`: array of character keys who know this fact (e.g., ["iu"], ["steve", "bob"])
+    - `known_by`: array of character keys who know this fact (e.g., ["iu"], ["steve", "bob"], or ["all_characters"] for common knowledge)
+    - `not_known_by`: array of character keys that explicitly do not know this fact
+    - `maybe_known_by`: array of character keys that might know this fact
     - `confidence`: ALWAYS 1.0. These are canonical (authoritative) facts, not beliefs.
       Beliefs with varying confidence belong in `epistemic_seed.belief_seeds`, not here.
   Rules:
     - Every story MUST have at least one canonical fact.
     - confidence is always 1.0 — never use 0.9, 0.7, etc. for canonical facts.
-    - `known_by` controls which NPCs get the fact in their prompt. Use character keys
-      (lowercase, matching the `key` field in the characters array).
-    - The prompt builder finds the main character via `is_main: true` in the characters array,
-      then filters canonical_facts by that character's key appearing in `known_by`.
+    - Use lowercase character keys matching `characters[].key`.
+    - Use `known_by: ["all_characters"]` only for true common knowledge facts.
+    - Canonical facts are rendered with source/tier/certainty + visibility labels in prompt order
+      (most canonical to least canonical).
 - `epistemic_seed.belief_seeds`: dict keyed by character key. These are subjective beliefs
   characters hold (not authoritative truth). Confidence CAN vary here (0.0–1.0) because
-  beliefs may be wrong, uncertain, or self-serving. Not currently injected into prompts
-  (reserved for future epistemic engine expansion).
+  beliefs may be wrong, uncertain, or self-serving.
+  Optional per-claim visibility metadata is also supported:
+    - `known_by`
+    - `not_known_by`
+    - `maybe_known_by`
 
 Frontend/meta
 - index.html fetches /api/stories and uses world_map_image from story meta to render map + location list.
 - version.json bumps to bust cache when assets change.
 
+Prompt context contract (runtime)
+- Prompt input can only come from:
+  1) BM25/FAISS retrieved chunks,
+  2) character basics,
+  3) story canonical truths (`canonical_facts` with explicit visibility labels),
+  4) character relationship graph,
+  5) belief graph,
+  6) places graph,
+  7) transient buffer.
+- Runtime prompt rendering uses an epistemic knowledge stack ordered:
+  CANONICAL_CORE → CANONICAL_GRAPH → SUBJECTIVE_BELIEF → RETRIEVED_MEMORY → TRANSIENT_CONTEXT.
+- For chunks without explicit `known_by` and without explicit `not_known_by` for the active speaker,
+  the LLM is instructed to make a best reasonable determination from dialogue context.
+- After each reply, `KnowledgeResolutionExtractor` evaluates unknown chunks and writes explicit
+  `knows` / `does_not_know` updates into the speaker belief graph (`EpistemicClaim`).
+- Each resolved knowledge object is also written to transient buffer with `expires_after_turns=8`
+  and `meta.source=knowledge_resolution`.
+- No other free-form story JSON fields are injected directly into prompt text.
+
 Loading flow (runtime)
 1) Story selection loads /api/story/<story_id> which:
    - Loads story JSON and world JSON (via WorldLoader) to expose known_locations and map path.
    - Discovers map image using world_map_image field or naming conventions.
-2) New game (__cmd_newgame__) loads story JSON, sets knowledge_character_id, and loads world graph. Canonical truths (story.canonical_truth) flow into prompt when truth mode is on.
+2) New game (__cmd_newgame__) canonicalizes story config, sets knowledge_character_id, seeds epistemic facts/beliefs, loads world graph, and seeds non-canonical story/character extras into transient entries.
 3) Retrieval: IndexService activates the character bundle; FAISS/BM25 artifacts (built from chunks.jsonl) are loaded from backend\app\knowledge\runtime.
 
 Instructions for AI to create a game

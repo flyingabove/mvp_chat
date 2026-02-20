@@ -2,8 +2,8 @@
 from dataclasses import dataclass, field
 
 from backend.app.config.epistemic_flags import belief_enabled
-from backend.app.engine.gameplay import manifest_mode
 from backend.app.engine.state import GameState
+from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -71,194 +71,345 @@ def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> st
     )
 
 
-def _language_honorific_block(cfg: dict, casual_used_str: str, honorific_unlocked: bool) -> str:
-    """Build language/honorific rules from story config. Returns empty if no language config."""
-    lang = cfg.get("language", {}) or {}
-    forbidden = lang.get("forbidden_honorifics") or []
-    casual_terms = lang.get("casual_terms") or []
-
-    if not forbidden and not casual_terms:
-        return "- If unsure, the character must choose neutral English."
-
-    lines = []
-    if forbidden:
-        terms_str = ", ".join(f'"{t}"' for t in forbidden)
-        lines.append(f"- Intimacy honorifics ({terms_str}) are NOT allowed unless:")
-        lines.append("    • relationship score ≥ 2, AND")
-        lines.append("    • the emotional tone clearly supports closeness.")
-        lines.append("- Even when unlocked, honorifics must be used **sparingly**: max once per reply.")
-
-    if casual_terms:
-        lines.append(f"\n- Casual language usage in the player's LAST message: {casual_used_str}")
-        first_term = casual_terms[0] if casual_terms else ""
-        if first_term:
-            lines.append(f'    • The word **"{first_term}"** MUST NOT be used unless the player used it.')
-        lines.append("    • Other casual phrases should appear only occasionally, ideally when the player uses them first.")
-
-    lines.append("\n- If unsure, the character must choose neutral English and avoid honorifics.")
-    return "\n".join(lines)
+def _visibility_suffix(chunk: KnowledgeChunk) -> str:
+    parts = []
+    if chunk.known_by:
+        if "all_characters" in chunk.known_by:
+            parts.append("known_by=ALL_CHARACTERS")
+        else:
+            parts.append("known_by=" + ",".join(chunk.known_by))
+    if chunk.not_known_by:
+        parts.append("not_known_by=" + ",".join(chunk.not_known_by))
+    if chunk.maybe_known_by:
+        parts.append("maybe_known_by=" + ",".join(chunk.maybe_known_by))
+    return " [" + " | ".join(parts) + "]" if parts else ""
 
 
-def _resolve_char_role(state: GameState, cfg: dict, story_def) -> str:
-    """Extract the main character's role string from state/config/story_def."""
-    if getattr(state, "main_character", None) and state.main_character.role:
-        return (state.main_character.role or "").lower()
-    if story_def and story_def.main_character_role:
-        return (story_def.main_character_role or "").lower()
-    return ((cfg.get("main_character", {}) or {}).get("role", "") or "").lower()
+def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> list[KnowledgeChunk]:
+    chunks: list[KnowledgeChunk] = []
 
-
-def system_prompt(state: GameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False, return_layers: bool = False):
-    cfg, story_def = _extract_story_cfg(state)
-
-    # Primary character label for prompts (avoid hardcoding any specific persona)
+    speaker_id = (getattr(state, "main_character_id", "") or "").strip().lower()
     main_char = getattr(state, "main_character", None)
-    char_name = (getattr(main_char, "name", "") or (cfg.get("main_character", {}) or {}).get("name") or "the character").strip()
-    if not char_name:
-        char_name = "the character"
+    if main_char:
+        chunks.append(KnowledgeChunk(
+            id=f"char::{main_char.key}",
+            text=f"{main_char.name} (role={main_char.role or 'npc'})",
+            tier="CANONICAL_CORE",
+            source="character",
+            certainty="certain",
+            known_by=normalize_parties([main_char.key]),
+        ))
 
-    disclaimer = (
-        cfg.get("meta", {}).get("disclaimer")
-        or "This is a fictional story; do not assert real allegations about real people."
+    for fact in getattr(state, "canonical_facts", []) or []:
+        text = (getattr(fact, "content", "") or "").strip()
+        if not text:
+            continue
+        chunks.append(KnowledgeChunk(
+            id=f"fact::{getattr(fact, 'id', '') or 'unknown'}",
+            text=text,
+            tier="CANONICAL_CORE",
+            source="epistemic_seed.canonical_facts",
+            certainty="certain",
+            known_by=normalize_parties(getattr(fact, "known_by", []) or []),
+            not_known_by=normalize_parties(getattr(fact, "not_known_by", []) or []),
+            maybe_known_by=normalize_parties(getattr(fact, "maybe_known_by", []) or []),
+        ))
+
+    graph = getattr(state, "character_graph", None)
+    if graph:
+        for edge in graph.get_edges_from(state.main_character_id or ""):
+            chunks.append(KnowledgeChunk(
+                id=f"rel::{edge.id}",
+                text=(
+                    f"{edge.from_id}->{edge.to_id} type={edge.type.value} "
+                    f"trust={edge.state.trust:+.1f} fear={edge.state.fear:.1f} "
+                    f"affection={edge.state.affection:+.1f} suspicion={edge.state.suspicion:.1f}"
+                ),
+                tier="CANONICAL_GRAPH",
+                source="character_graph",
+                certainty="certain",
+                known_by=normalize_parties([edge.from_id, edge.to_id]),
+            ))
+
+    runtime = getattr(state, "world_runtime", None)
+    loc_id = getattr(state, "location_id", "") or ""
+    if runtime and loc_id:
+        try:
+            wg = runtime.world_graph
+            loc = wg.get_location(loc_id)
+            chunks.append(KnowledgeChunk(
+                id=f"place::{loc_id}",
+                text=f"Current place={loc.name}; description={getattr(loc, 'description', '')}",
+                tier="CANONICAL_GRAPH",
+                source="places_graph",
+                certainty="certain",
+                known_by=["all_characters"],
+            ))
+        except Exception:
+            pass
+
+    if belief_enabled():
+        beliefs = getattr(state, "beliefs", {}) or {}
+        bs = beliefs.get(state.main_character_id or "")
+        if bs:
+            for claim in (getattr(bs, "claims", []) or [])[:10]:
+                text = (getattr(claim, "content", "") or "").strip()
+                if not text:
+                    continue
+                chunks.append(KnowledgeChunk(
+                    id=f"belief::{getattr(claim, 'id', '') or 'unknown'}",
+                    text=text,
+                    tier="SUBJECTIVE_BELIEF",
+                    source=str(getattr(claim, "source", "belief")),
+                    certainty="uncertain",
+                    known_by=normalize_parties(getattr(claim, "known_by", []) or [speaker_id]),
+                    not_known_by=normalize_parties(getattr(claim, "not_known_by", []) or []),
+                    maybe_known_by=normalize_parties(getattr(claim, "maybe_known_by", []) or []),
+                ))
+
+    for c in retrieved_chunks or []:
+        text = (c.get("text") or "").strip()
+        if not text:
+            continue
+        chunks.append(KnowledgeChunk(
+            id=f"retrieval::{c.get('chunk_id') or 'unknown'}",
+            text=text,
+            tier="RETRIEVED_MEMORY",
+            source="bm25_faiss",
+            certainty="mixed",
+            maybe_known_by=[speaker_id] if speaker_id else [],
+        ))
+
+    for e in (getattr(state, "transient_entries", []) or [])[-10:]:
+        text = (getattr(e, "text", "") or "").strip()
+        if not text:
+            continue
+        chunks.append(KnowledgeChunk(
+            id=f"transient::{getattr(e, 'id', 'unknown')}",
+            text=text,
+            tier="TRANSIENT_CONTEXT",
+            source="transient_buffer",
+            certainty="tentative",
+            maybe_known_by=[speaker_id] if speaker_id else [],
+        ))
+
+    return chunks
+
+
+def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) -> tuple[str, list[dict]]:
+    chunks = _knowledge_chunks_from_state(state, retrieved_chunks)
+
+    tier_order = [
+        "CANONICAL_CORE",
+        "CANONICAL_GRAPH",
+        "SUBJECTIVE_BELIEF",
+        "RETRIEVED_MEMORY",
+        "TRANSIENT_CONTEXT",
+    ]
+
+    grouped: dict[str, list[KnowledgeChunk]] = {k: [] for k in tier_order}
+    for c in chunks:
+        grouped.setdefault(c.tier, []).append(c)
+
+    sections = []
+    debug_chunks = []
+    for tier in tier_order:
+        items = grouped.get(tier) or []
+        if not items:
+            continue
+        lines = []
+        for it in items:
+            lines.append(f"- [{it.certainty}] ({it.source}) {it.text}{_visibility_suffix(it)}")
+            debug_chunks.append({
+                "id": it.id,
+                "tier": it.tier,
+                "source": it.source,
+                "certainty": it.certainty,
+                "text": it.text,
+                "known_by": list(it.known_by),
+                "not_known_by": list(it.not_known_by),
+                "maybe_known_by": list(it.maybe_known_by),
+            })
+        sections.append(f"### {tier}\n" + "\n".join(lines))
+
+    if not sections:
+        return "", []
+
+    preface = (
+        "\n────────────────────────────────────────\n"
+        "### EPISTEMIC KNOWLEDGE STACK (MOST CANONICAL → LEAST)\n"
+        "────────────────────────────────────────\n"
+        "Interpret sections in order. Earlier sections outrank later sections on conflicts.\n"
+        "Use visibility tags: known_by, not_known_by, maybe_known_by.\n"
+        "If known_by includes ALL_CHARACTERS, treat as common knowledge.\n"
+        "If a chunk has neither explicit known_by nor not_known_by for the active speaker, make the best reasonable determination from dialogue context.\n"
+        "When uncertain, hedge naturally instead of asserting certainty.\n"
+        "Do not state as fact anything the active speaker does not know.\n\n"
     )
 
-    style = cfg.get("style", {}) or {}
-    speech = style.get("korean_phrases") or []
-    phrase_list = ", ".join(speech) if speech else ""
+    return preface + "\n\n".join(sections) + "\n", debug_chunks
 
-    # FIRST TURN GUIDANCE (optional, per-story — no hardcoded examples)
-    prompt_suggestions = cfg.get("prompt_suggestions") or []
-    first_turn_hint = ""
-    if is_first_turn and prompt_suggestions:
-        soft_hint = prompt_suggestions[0]
-        first_turn_hint = f"""
-────────────────────────────────────────
-### FIRST TURN GUIDANCE (THIS TURN ONLY)
-────────────────────────────────────────
-The character's first reply after the opening scene should:
-- be inspired by: "{soft_hint}"
-- NOT narrate the player's emotions, actions, thoughts, or reactions.
-"""
 
-    # STATE VARS
+def _canonical_facts_for_speaker(state: GameState) -> list[str]:
+    speaker_id = (getattr(state, "main_character_id", "") or "").strip().lower()
+    out: list[str] = []
+
+    for fact in getattr(state, "canonical_facts", []) or []:
+        text = (getattr(fact, "content", "") or "").strip()
+        if not text:
+            continue
+        known_by = [str(x).strip().lower() for x in (getattr(fact, "known_by", []) or []) if str(x).strip()]
+        if known_by and speaker_id and speaker_id not in known_by and "all" not in known_by and "all_characters" not in known_by:
+            continue
+        out.append(text)
+
+    if not out:
+        for t in getattr(state, "canonical_truth", None) or []:
+            tt = str(t).strip()
+            if tt:
+                out.append(tt)
+
+    seen = set()
+    uniq = []
+    for t in out:
+        if t in seen:
+            continue
+        seen.add(t)
+        uniq.append(t)
+    return uniq[:12]
+
+
+def _character_basics_section(state: GameState) -> str:
+    ch = getattr(state, "main_character", None)
+    if not ch:
+        return ""
+    lines = [
+        f"- Character key: {getattr(ch, 'key', '') or ''}",
+        f"- Character name: {getattr(ch, 'name', '') or ''}",
+        f"- Character role/archetype: {getattr(ch, 'role', '') or 'npc'}",
+    ]
+    return (
+        "\n────────────────────────────────────────\n"
+        "### CHARACTER BASICS (CANONICAL)\n"
+        "────────────────────────────────────────\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
+def _canonical_section(state: GameState) -> str:
+    facts = _canonical_facts_for_speaker(state)
+    if not facts:
+        return ""
+    return (
+        "\n────────────────────────────────────────\n"
+        "### STORY CANONICAL TRUTHS (SPEAKER-VISIBLE)\n"
+        "────────────────────────────────────────\n"
+        "Only use these as hard world truths. If something is missing, say you don't know.\n\n"
+        + "\n".join(f"- {f}" for f in facts)
+        + "\n"
+    )
+
+
+def _places_graph_section(state: GameState) -> str:
+    runtime = getattr(state, "world_runtime", None)
+    loc_id = getattr(state, "location_id", "") or ""
+    if not runtime or not loc_id:
+        return ""
+    try:
+        wg = getattr(runtime, "world_graph", None)
+        if wg is None:
+            return ""
+        loc = wg.get_location(loc_id)
+        loc_name = getattr(loc, "name", "") or loc_id
+        loc_desc = getattr(loc, "description", "") or ""
+        outgoing = []
+        for edge in wg.get_outgoing(loc_id).to_tuple()[:8]:
+            to_loc = wg.get_location(edge.to_id.value)
+            outgoing.append(f"- {to_loc.name} ({int(edge.minutes)} min)")
+
+        section_lines = [f"Current place: {loc_name}"]
+        if loc_desc:
+            section_lines.append(f"Description: {loc_desc}")
+        if outgoing:
+            section_lines.append("Reachable places:")
+            section_lines.extend(outgoing)
+
+        return (
+            "\n────────────────────────────────────────\n"
+            "### PLACES GRAPH (CANONICAL)\n"
+            "────────────────────────────────────────\n"
+            + "\n".join(section_lines)
+            + "\n"
+        )
+    except Exception:
+        return ""
+
+
+def _transient_buffer_section(state: GameState) -> str:
+    entries = getattr(state, "transient_entries", []) or []
+    if not entries:
+        return ""
+    lines = []
+    for e in entries[-8:]:
+        text = (getattr(e, "text", "") or "").strip()
+        if text:
+            lines.append(f"- {text}")
+    if not lines:
+        return ""
+    return (
+        "\n────────────────────────────────────────\n"
+        "### TRANSIENT BUFFER (SHORT-LIVED CONTEXT)\n"
+        "────────────────────────────────────────\n"
+        "Use as recent scene flavor only; do not treat as canonical truth unless corroborated.\n\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
+def system_prompt(
+    state: GameState,
+    is_first_turn: bool = False,
+    memory_block: str = "",
+    truth_mode: bool = False,
+    return_layers: bool = False,
+    knowledge_chunks: list | None = None,
+):
+    main_char = getattr(state, "main_character", None)
+    char_name = (getattr(main_char, "name", "") or "the character").strip() or "the character"
+    disclaimer = "This is a fictional scenario."
+
     emotion = state.emotion or EMOTION_START
     rel = int(state.relationship if state.relationship is not None else REL_START)
 
-    # Meta player name (used in story file / opening narration)
-    pname = state.player_name or "Player"
-
-    # User naming knowledge
-    display_name = (state.user.display_name or "").strip()
-    formal_name = (state.user.formal_name or "").strip()
-    has_learned_name = bool(display_name)
-
-    setting_cfg = cfg.get("setting", {}) or {}
-    setting_desc = setting_cfg.get("start_location", "") or f"{setting_cfg.get('apartment_area', 'unknown')}, {setting_cfg.get('district', 'unknown')}"
-
-    # Character role (data-driven from state/config/story_def)
-    char_role = _resolve_char_role(state, cfg, story_def)
-
-    # Casual Korean usage from the LAST user message
-    casual_used = state.casual_korean_used or []
-    casual_used_str = ", ".join(casual_used) if casual_used else "none"
-
-    honorific_unlocked = rel >= 2
-
-    # Build world context from story config (data-driven, not role-based)
-    world_lines = cfg.get("world_context") or []
-    if world_lines:
-        world_context = "\n".join(f"- {l}" for l in world_lines)
-    else:
-        world_context = "- The character reacts naturally to the player's actions and words."
-
-    # Manifestation description from story config (optional)
-    manifest_rules = cfg.get("rules", {}).get("manifestation", {})
-    manifestation_line = ""
-    if manifest_rules:
-        manifest_desc = manifest_rules.get("description", "")
-        if manifest_desc:
-            manifestation_line = f"- Manifestation: {manifest_desc}"
-
-    # Protagonist context (player role description)
-    protagonist = cfg.get("protagonist", {}) or {}
-    player_role_desc = protagonist.get("role", "")
-
     base_prompt = f"""
-You are the story engine for a terminal chat experience on storieschat.ai.
+You are the dialogue renderer for a generic narrative game engine.
 {disclaimer}
-Stay fully in-universe as narrator and the main character. Never break the fourth wall.
+Stay fully in-universe as the active NPC speaker. Never break the fourth wall.
 
 ────────────────────────────────────────
 ### OUTPUT STYLE (MANDATORY)
 ────────────────────────────────────────
 - Begin EVERY reply with *italicized, cinematic narration*.
-- Present the character's spoken lines in **bold quotes**, e.g. **"You're really here..."**
+- Present spoken lines in **bold quotes**.
 - Mix narration and dialogue fluidly.
-- You may end with ONE optional italic parenthetical emotional beat.
 - NEVER end with meta prompts such as "What do you do?" or "What will you say?"
-- NEVER force the conversation forward. The character only reacts; they do not direct.
+- NEVER force the player's next move.
 
 ────────────────────────────────────────
-### CHARACTER BEHAVIOR RULES
+### GENERIC ENGINE RULES
 ────────────────────────────────────────
-The character must obey ALL of the following:
-
-1. **NO FORCED MISSION / NO PRESSURE**
-   - The character does NOT mention suspects, motives, or investigations on their own.
-   - The character does NOT set objectives or quests.
-
-2. **CONVERSATIONAL**
-   - The character reacts to the player's words and tone.
-   - If asked about the past → they answer carefully.
-
-3. **ABSOLUTE BAN: NEVER SPEAK AS THE PLAYER (CRITICAL — HIGHEST PRIORITY RULE)**
+1. **NEVER SPEAK AS THE PLAYER**
    - You must NEVER write dialogue, questions, or statements that come from the player.
    - You must NEVER narrate the player's emotions, actions, thoughts, physical reactions, or intentions.
-   - You must NEVER write things like: "you ask him...", "you say...", "your voice trembles", "you lean forward", "you catch a flicker".
-   - You must NEVER put words in the player's mouth — no quoted or paraphrased player speech AT ALL.
-   - You must NEVER generate a line of dialogue and attribute it to the player, even implicitly. For example, NEVER write: "Who took the knife, Steve? You need to tell me." — that is the PLAYER speaking, which is forbidden.
-   - The player is NEVER compelled, forced, or narrated into saying, doing, or feeling anything. The player has complete autonomy.
-   - The ONLY speakers in your output are NPCs/characters (narration + their dialogue). The player does not exist in your output as an actor.
-   - If you need to reference what the player said, refer to it indirectly: "your question" or "your words" — never restate, expand, or fabricate it.
-   - Violation of this rule breaks the entire experience. This is the most important rule. If in doubt, omit rather than risk speaking as the player.
-
-4. **SPEAKER LABELS (REQUIRED WHEN MULTIPLE CHARACTERS ARE PRESENT)**
+2. **SPEAKER CLARITY WHEN MULTIPLE NPCS ARE PRESENT**
    - When two or more characters could be speaking in a scene, you MUST clearly indicate who is talking.
-   - Use the character's name before their dialogue, e.g. Steve: **"I didn't do it."** or prefix narration with who it describes.
-   - NEVER label dialogue with the player's name. The player's name must NEVER appear as a speaker attribution.
-   - Ambiguous dialogue is unacceptable — the reader must always know exactly which character is speaking.
-
-────────────────────────────────────────
-### LANGUAGE & HONORIFIC RULES (STRICT)
-────────────────────────────────────────
-- Name knowledge:
-    • Story meta player name / nametag: "{pname}".
-    • Character_has_learned_name: {has_learned_name}
-    • The character must NOT speak any version of the player's name unless Character_has_learned_name is True.
-{_language_honorific_block(cfg, casual_used_str, honorific_unlocked)}
-
-────────────────────────────────────────
-### PASSIVE WORLD CONTEXT (ONLY IF PLAYER ASKS)
-────────────────────────────────────────
-{world_context}
-
-────────────────────────────────────────
-### PLAYER-RELATED DETAILS
-────────────────────────────────────────
-- Main character name: {char_name}
-- Character role: {char_role or "narrator"}
-- Story meta player name: {pname}
-- Player role: {player_role_desc or "player"}
-- User.display_name: "{display_name}"
-- User.formal_name: "{formal_name}"
-- Honorific eligible (relationship ≥ 2): {honorific_unlocked}
-- Setting: {setting_desc}
-{"- Flavor phrases list: " + phrase_list if phrase_list else ""}
-{manifestation_line}
+   - Ambiguous dialogue is unacceptable.
 
 ────────────────────────────────────────
 ### INTERNAL GAME STATE
 ────────────────────────────────────────
+- Speaker: {char_name}
 - Character emotion: {emotion}
 - Relationship score: {rel}
 """
@@ -273,61 +424,7 @@ Append EXACTLY one line at the end of every response:
 If forgotten, reply ONLY with that tag.
 """
 
-    # ── Character self-knowledge (identity facts from story config — always active) ──
-    # Only identity-safe facts go here (NOT full canonical truths which may contain
-    # plot spoilers, murder details, etc.). Story authors curate this list explicitly.
-    identity_section = ""
-    self_knowledge = cfg.get("character_self_knowledge") or []
-    if self_knowledge:
-        identity_lines = "\n".join(f"- {fact}" for fact in self_knowledge)
-        identity_section = f"""
-────────────────────────────────────────
-### CHARACTER SELF-KNOWLEDGE (ALWAYS ACTIVE)
-────────────────────────────────────────
-These are facts you know about yourself with absolute certainty.
-You must act on this knowledge naturally:
-- If the player makes an incorrect assumption about you (e.g., asks what
-  happened to someone when YOU are that person), gently correct them in character.
-- Do NOT volunteer these facts unprompted, but NEVER deny or contradict them.
-- If the player asks about something that directly concerns your identity,
-  answer truthfully from your own perspective.
-
-{identity_lines}
-"""
-
-    # ── Canonical facts the NPC knows (from epistemic_seed) ──
-    # These are plot-level facts the character experienced or witnessed.
-    # Only facts where the main character's key is in "known_by" are injected.
-    canonical_section = ""
-    epistemic = cfg.get("epistemic_seed") or {}
-    all_canon_facts = epistemic.get("canonical_facts") or []
-    if all_canon_facts:
-        # Find the main character's key from the characters list
-        characters = cfg.get("characters") or []
-        main_key = None
-        for ch in characters:
-            if ch.get("is_main"):
-                main_key = ch.get("key", "").strip().lower()
-                break
-        if main_key:
-            npc_facts = [
-                f for f in all_canon_facts
-                if main_key in [k.strip().lower() for k in (f.get("known_by") or [])]
-            ]
-            if npc_facts:
-                fact_lines = "\n".join(f"- {f.get('text') or f.get('content', '')}" for f in npc_facts)
-                canonical_section = f"""
-────────────────────────────────────────
-### CANONICAL MEMORIES (THINGS YOU EXPERIENCED OR KNOW)
-────────────────────────────────────────
-These are events and facts from your own experience. You remember them.
-- These memories are YOURS — always use first person ("I was…", "I saw…").
-- NEVER refer to yourself in third person when discussing these events.
-- Reveal these naturally when the player asks — do NOT dump them all at once.
-- You may be hazy on some details (low confidence) but you do not fabricate.
-
-{fact_lines}
-"""
+    knowledge_stack_section, knowledge_stack_debug = _format_labeled_knowledge_stack(state, knowledge_chunks or [])
 
     # ── Relationship context (character graph → prompt) ──
     relationship_section = ""
@@ -348,78 +445,7 @@ Use them to calibrate tone, hostility, trust, and willingness to cooperate.
 {rel_text}
 """
 
-    # ── Location description (world graph → prompt) ──
-    location_section = ""
-    world_rt = getattr(state, "world_runtime", None)
-    loc_id = getattr(state, "location_id", "") or ""
-    if world_rt and loc_id:
-        try:
-            wg = getattr(world_rt, "world_graph", None) or getattr(world_rt, "graph", None)
-            if wg:
-                loc_obj = None
-                locs = getattr(wg, "locations", {}) or {}
-                if isinstance(locs, dict):
-                    loc_obj = locs.get(loc_id)
-                if loc_obj:
-                    loc_name = getattr(loc_obj, "name", "") or loc_id
-                    loc_desc = getattr(loc_obj, "description", "") or ""
-                    if loc_desc:
-                        location_section = f"""
-────────────────────────────────────────
-### CURRENT LOCATION
-────────────────────────────────────────
-{loc_name} — {loc_desc}
-"""
-        except Exception:
-            pass
-
-    # ── Belief context (character beliefs → prompt) ──
-    belief_section = ""
-    if belief_enabled():
-        beliefs = getattr(state, "beliefs", {}) or {}
-        main_key = state.main_character_id or ""
-        bs = beliefs.get(main_key)
-        if bs and getattr(bs, "claims", None):
-            claims = sorted(bs.claims, key=lambda c: getattr(c, "confidence", 0), reverse=True)[:8]
-            belief_lines = []
-            for cl in claims:
-                text = getattr(cl, "content", "") or getattr(cl, "text", "")
-                conf = getattr(cl, "confidence", 1.0)
-                src = getattr(cl, "source", "") or getattr(cl, "provenance", "")
-                if text:
-                    belief_lines.append(f"- {text} (conf={conf:.1f}, source={src})")
-            if belief_lines:
-                belief_section = f"""
-────────────────────────────────────────
-### THINGS YOU BELIEVE (NOT NECESSARILY TRUE)
-────────────────────────────────────────
-These are your subjective beliefs. They may conflict with reality.
-Act on them naturally — you believe them to be true.
-
-{chr(10).join(belief_lines)}
-"""
-
-    # ── Character details (motive + tells for current speaker) ──
-    character_detail_section = ""
-    characters_list = cfg.get("characters") or []
-    if characters_list and state.main_character_id:
-        for ch_data in characters_list:
-            if ch_data.get("key") == state.main_character_id:
-                motive = ch_data.get("motive", "")
-                tells = ch_data.get("tells") or []
-                detail_lines = []
-                if motive:
-                    detail_lines.append(f"- Motive: {motive}")
-                if tells:
-                    detail_lines.append(f"- Behavioral tells: {', '.join(tells)}")
-                if detail_lines:
-                    character_detail_section = f"""
-────────────────────────────────────────
-### CHARACTER DETAILS
-────────────────────────────────────────
-{chr(10).join(detail_lines)}
-"""
-                break
+    transient_buffer_section = _transient_buffer_section(state)
 
     truth_override = ""
     if truth_mode:
@@ -464,30 +490,21 @@ EXAMPLE (WRONG — do NOT do this):
     # Assemble all layers into the final prompt.
     full_prompt = (
         base_prompt
-        + (memory_block or "")
-        + identity_section
-        + canonical_section
+        + knowledge_stack_section
         + relationship_section
-        + location_section
-        + belief_section
-        + character_detail_section
+        + transient_buffer_section
         + truth_override
-        + first_turn_hint
         + required_tail
     )
 
     if return_layers:
         layers = {
             "base_prompt": base_prompt,
-            "retrieved_knowledge": memory_block or "",
-            "character_self_knowledge": identity_section,
-            "canonical_memories": canonical_section,
+            "knowledge_stack": knowledge_stack_section,
+            "knowledge_chunks": knowledge_stack_debug,
             "relationship_context": relationship_section,
-            "location_description": location_section,
-            "belief_context": belief_section,
-            "character_details": character_detail_section,
+            "transient_buffer": transient_buffer_section,
             "truth_override": truth_override,
-            "first_turn_hint": first_turn_hint,
             "required_tail": required_tail,
         }
         return full_prompt, layers
@@ -533,27 +550,23 @@ def build_messages(
     # First actual user turn (after opening text)
     is_first_turn = state.turns == 0
 
-    # Detect casual language usage by the user in THIS message (terms from story config).
-    cfg, story_def = _extract_story_cfg(state)
-    lang_cfg = (cfg.get("language", {}) or {})
-    casual_terms = lang_cfg.get("casual_terms") or []
-    lower = user_msg.lower()
-    used = [term for term in casual_terms if term in lower]
-    state.casual_korean_used = used
-
-    # ---------------------------
-    # Knowledge formatting ONLY
-    # ---------------------------
-    main_char = getattr(state, "main_character", None)
-    char_name = (getattr(main_char, "name", "") or "the character").strip() or "the character"
-    memory_block = _format_memory_block(pi.knowledge_chunks, char_name)
-
     # Build system prompt; request layer breakdown when debug is needed
     prompt_layers = None
     if return_debug:
-        sysmsg, prompt_layers = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block, truth_mode=truth_mode, return_layers=True)
+        sysmsg, prompt_layers = system_prompt(
+            state,
+            is_first_turn=is_first_turn,
+            truth_mode=truth_mode,
+            return_layers=True,
+            knowledge_chunks=pi.knowledge_chunks,
+        )
     else:
-        sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block, truth_mode=truth_mode)
+        sysmsg = system_prompt(
+            state,
+            is_first_turn=is_first_turn,
+            truth_mode=truth_mode,
+            knowledge_chunks=pi.knowledge_chunks,
+        )
     messages = [{"role": "system", "content": sysmsg}]
 
     # keep last MEMORY_TURNS - 2 non-system turns
@@ -563,15 +576,10 @@ def build_messages(
         trimmed = trimmed[-limit:]
     messages.extend(trimmed)
 
-    # Build per-turn header; only include manifestation when story config defines rules
-    has_manifestation = bool(cfg.get("rules", {}).get("manifestation"))
-
     header_parts = [
         f"Time: {int(state.minute)} min since start.",
         f"Location: {state.location}.",
     ]
-    if has_manifestation:
-        header_parts.append(f"Manifestation: {manifest_mode(state)}.")
     header_parts.append(f"Current Emotion: {state.emotion}.")
     header_parts.append(f"Relationship: {state.relationship}.")
     header = " ".join(header_parts)
