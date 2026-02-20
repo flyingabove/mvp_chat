@@ -13,6 +13,7 @@ from backend.app.config.settings import (
     DEFAULT_INSTANCE,
 )
 
+from backend.app.engine.character_graph import CharacterGraph
 from backend.app.engine.epistemic_state import (
     BeliefState,
     EpistemicClaim,
@@ -147,6 +148,11 @@ class MurderGameState:
     epistemic_log: List[EpistemicClaim] = field(default_factory=list)
     observation_log: List[Observation] = field(default_factory=list)
     beliefs: Dict[str, BeliefState] = field(default_factory=dict)
+
+    # ==============================================================
+    # Character relationship graph (multi-dimensional)
+    # ==============================================================
+    character_graph: Optional[CharacterGraph] = None
 
     # ==============================================================
     # Transient scene buffer (non-authoritative, short-lived)
@@ -325,6 +331,12 @@ def apply_state_tag(state: MurderGameState, tag: dict):
 
     if state.main_character:
         state.main_character.relationship = state.relationship
+
+    # Route through character graph (maps rel_delta to affection)
+    if state.character_graph and state.main_character_id and rel_delta != 0:
+        state.character_graph.apply_rel_delta(
+            state.main_character_id, "player", rel_delta
+        )
 
 
 # ======================================================================

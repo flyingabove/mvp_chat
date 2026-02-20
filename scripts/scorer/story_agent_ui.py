@@ -1104,6 +1104,10 @@ HTML_PAGE = r"""<!DOCTYPE html>
   .layer-tag.retrieval { background: #e1705620; color: #fab1a0; }
   .layer-tag.identity { background: #6c5ce720; color: #a29bfe; }
   .layer-tag.canonical { background: #00b89420; color: #55efc4; }
+  .layer-tag.relationships { background: #e17d5620; color: #e17d56; }
+  .layer-tag.location { background: #74b9ff20; color: #74b9ff; }
+  .layer-tag.beliefs { background: #fd79a820; color: #fd79a8; }
+  .layer-tag.details { background: #a29bfe20; color: #dfe6e9; }
   .layer-tag.truth { background: #d6336c20; color: #f06595; }
   .layer-tag.hint { background: #fdcb6e20; color: #fdcb6e; }
 
@@ -2137,11 +2141,27 @@ HTML_PAGE = r"""<!DOCTYPE html>
       if (layers.canonical_memories && layers.canonical_memories.trim()) {
         sections.push({title: '\u2003CANONICAL MEMORIES \u2014 Epistemic Facts', content: String(layers.canonical_memories), open: true, tag: 'canonical'});
       }
-      // 4e. Truth Mode Override (if active)
+      // 4e. Relationship Context (character graph)
+      if (layers.relationship_context && layers.relationship_context.trim()) {
+        sections.push({title: '\u2003RELATIONSHIPS \u2014 Character Feelings', content: String(layers.relationship_context), open: true, tag: 'relationships'});
+      }
+      // 4f. Location Description (world graph)
+      if (layers.location_description && layers.location_description.trim()) {
+        sections.push({title: '\u2003LOCATION \u2014 Current Scene', content: String(layers.location_description), open: true, tag: 'location'});
+      }
+      // 4g. Belief Context (character beliefs)
+      if (layers.belief_context && layers.belief_context.trim()) {
+        sections.push({title: '\u2003BELIEFS \u2014 Character Beliefs', content: String(layers.belief_context), open: true, tag: 'beliefs'});
+      }
+      // 4h. Character Details (motive & tells)
+      if (layers.character_details && layers.character_details.trim()) {
+        sections.push({title: '\u2003CHARACTER DETAILS \u2014 Motive & Tells', content: String(layers.character_details), open: true, tag: 'details'});
+      }
+      // 4i. Truth Mode Override (if active)
       if (layers.truth_override && layers.truth_override.trim()) {
         sections.push({title: '\u2003TRUTH MODE \u2014 Debug Override', content: String(layers.truth_override), open: true, tag: 'truth'});
       }
-      // 4f. First Turn Hint (if present)
+      // 4j. First Turn Hint (if present)
       if (layers.first_turn_hint && layers.first_turn_hint.trim()) {
         sections.push({title: '\u2003FIRST TURN HINT', content: String(layers.first_turn_hint), open: true, tag: 'hint'});
       }

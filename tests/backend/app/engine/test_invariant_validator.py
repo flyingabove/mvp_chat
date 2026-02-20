@@ -1,64 +1,59 @@
 # tests/backend/app/engine/test_invariant_validator.py
-"""v2 invariant validator tests — kept active per no-skip policy."""
+"""Invariant validator tests — kept active per no-skip policy."""
 
-from backend.app.engine.story_schema_v2 import (
-    AccessPolicy,
-    CanonTier,
-    ChunkType,
-    Content,
-    KnowledgeChunk,
-    OutputPolicy,
+from backend.app.engine.invariant_validator import (
+    AnchorFact,
+    InvariantCheck,
+    InvariantContract,
+    Violation,
+    validate_response,
 )
-from backend.app.engine.turn_contract import Invariant, TurnContract
-from backend.app.engine.invariant_validator import validate_response, Violation
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _identity_anchor(name: str = "IU", tags: list = None) -> KnowledgeChunk:
-    return KnowledgeChunk(
+def _identity_anchor(name: str = "IU", tags: list = None) -> AnchorFact:
+    return AnchorFact(
         id="anchor_identity",
-        type=ChunkType.IDENTITY,
-        canon_tier=CanonTier.ANCHOR,
-        access=AccessPolicy(inject_every_turn=True),
-        content=Content(text=f"You are {name}. You are a ghost.", entities=[name], aliases=[]),
+        text=f"You are {name}. You are a ghost.",
+        entities=[name],
+        aliases=[],
         tags=tags or ["female"],
+        is_identity=True,
     )
 
 
-def _closet_anchor() -> KnowledgeChunk:
-    return KnowledgeChunk(
+def _closet_anchor() -> AnchorFact:
+    return AnchorFact(
         id="anchor_closet",
-        type=ChunkType.FACT,
-        canon_tier=CanonTier.ANCHOR,
-        access=AccessPolicy(inject_every_turn=True),
-        content=Content(text="The closet binds you to this apartment.", entities=["closet"]),
+        text="The closet binds you to this apartment.",
+        entities=["closet"],
+        is_identity=False,
     )
 
 
-def _contract_with_anchors(*anchors: KnowledgeChunk) -> TurnContract:
-    invariants = []
+def _contract_with_anchors(*anchors: AnchorFact) -> InvariantContract:
+    checks = []
     has_identity = False
     for a in anchors:
-        invariants.append(Invariant(
+        checks.append(InvariantCheck(
             type="ANCHOR_CONTRADICTION",
-            description=f"Must not contradict: {a.content.text}",
-            chunk_id=a.id,
+            description=f"Must not contradict: {a.text}",
+            anchor_id=a.id,
         ))
-        if a.type == ChunkType.IDENTITY:
+        if a.is_identity:
             has_identity = True
     if has_identity:
-        invariants.append(Invariant(
+        checks.append(InvariantCheck(
             type="SPEAKER_IDENTITY_DRIFT",
             description="Must not refer to self in third person",
         ))
-    return TurnContract(
-        speaker_character_id="iu",
-        injected_anchors=list(anchors),
-        output_policy=OutputPolicy(),
-        invariants=invariants,
+    return InvariantContract(
+        speaker_id="iu",
+        anchors=list(anchors),
+        checks=checks,
     )
 
 
@@ -141,8 +136,6 @@ def test_allows_third_person_about_others():
     contract = _contract_with_anchors(_identity_anchor())
     text = '**"She was my friend. Manager-nim, she betrayed me."**'
     violations = validate_response(contract, text)
-    # "She" near "Manager-nim" should not flag — it's about someone else
-    # The name "IU" doesn't appear near "she" here
     drift_violations = [v for v in violations if v.invariant_type == "SPEAKER_IDENTITY_DRIFT"]
     assert drift_violations == []
 
@@ -166,7 +159,7 @@ def test_empty_text_no_violations():
     assert violations == []
 
 
-def test_no_invariants_no_violations():
-    contract = TurnContract(speaker_character_id="iu", output_policy=OutputPolicy())
+def test_no_checks_no_violations():
+    contract = InvariantContract(speaker_id="iu")
     violations = validate_response(contract, "I'm not IU and she was trapped.")
     assert violations == []

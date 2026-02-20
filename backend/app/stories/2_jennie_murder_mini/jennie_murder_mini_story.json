@@ -125,7 +125,17 @@
         "known_by": ["bob"],
         "confidence": 1.0
       }
-    ]
+    ],
+    "belief_seeds": {
+      "steve": [
+        {"text": "I stabbed Jennie around 11:45 after she confronted me about money.", "confidence": 1.0, "source": "memory"},
+        {"text": "Bob helped me clean up afterward — wiped surfaces, took the knife.", "confidence": 1.0, "source": "memory"}
+      ],
+      "bob": [
+        {"text": "Steve called me in a panic. When I arrived, Jennie was already dead.", "confidence": 0.9, "source": "memory"},
+        {"text": "I wiped the surfaces and removed the knife to protect both of us.", "confidence": 1.0, "source": "memory"}
+      ]
+    }
   },
   "opening": {
     "text": "You sit between two rooms, switching back and forth. Steve and Bob keep insisting no one was there. The lab has almost nothing—no weapon, no prints, a too-clean kitchen. The only leverage is logic: the phone ping, the neighbor at 11:50, a single smudged shoeprint. And the standing rule: first full cooperator gets the deal.\n\nThey know it. You know it. The question is who breaks first."
@@ -156,6 +166,42 @@
       "(?i)\\bi took the knife\\b",
       "(?i)\\bi cleaned (the|her|it) up\\b",
       "(?i)\\bi wiped the surfaces\\b"
+    ]
+  },
+  "relationships": {
+    "edges": [
+      {
+        "id": "steve_to_player",
+        "from": "steve",
+        "to": "player",
+        "type": "OTHER",
+        "state": {"trust": -0.3, "fear": 0.7, "affection": -0.1, "suspicion": 0.0},
+        "label": "The detective interrogating you. Terrified but trying not to show it."
+      },
+      {
+        "id": "bob_to_player",
+        "from": "bob",
+        "to": "player",
+        "type": "OTHER",
+        "state": {"trust": -0.2, "fear": 0.5, "affection": 0.0, "suspicion": 0.0},
+        "label": "The detective. You are worried about the deal timing."
+      },
+      {
+        "id": "steve_to_bob",
+        "from": "steve",
+        "to": "bob",
+        "type": "FRIEND",
+        "state": {"trust": 0.5, "fear": 0.1, "affection": 0.4, "suspicion": 0.2},
+        "label": "Your friend who helped clean up. You trust him — for now."
+      },
+      {
+        "id": "bob_to_steve",
+        "from": "bob",
+        "to": "steve",
+        "type": "FRIEND",
+        "state": {"trust": 0.3, "fear": 0.3, "affection": 0.3, "suspicion": 0.5},
+        "label": "Steve dragged you into this. You are starting to wonder if he will betray you."
+      }
     ]
   }
 }

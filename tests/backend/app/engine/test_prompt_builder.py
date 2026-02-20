@@ -59,3 +59,67 @@ def test_build_messages_trims_history_and_adds_header(monkeypatch):
 def test_format_memory_block_empty_is_blank():
     from backend.app.engine import prompt_builder as pb
     assert pb._format_memory_block([]) == ""
+
+
+def test_prompt_includes_relationship_section():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.character_graph import CharacterGraph
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}, "setting": {}, "victim": {}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.character_graph = CharacterGraph.from_dict({
+        "edges": [{
+            "id": "e1", "from": "iu", "to": "player", "type": "OTHER",
+            "state": {"trust": -0.3, "fear": 0.7},
+            "label": "The detective interrogating you.",
+        }],
+    })
+
+    sysmsg = pb.system_prompt(st)
+    assert "YOUR FEELINGS ABOUT THE PEOPLE YOU KNOW" in sysmsg
+    assert "Trust:" in sysmsg
+    assert "detective" in sysmsg.lower()
+
+
+def test_prompt_includes_character_details():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {"disclaimer": "fiction"},
+        "setting": {},
+        "victim": {},
+        "characters": [
+            {"key": "iu", "name": "IU", "is_main": True,
+             "motive": "Job survival; feared being blacklisted",
+             "tells": ["voice tremor on logistics questions"]},
+        ],
+    }
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+
+    sysmsg = pb.system_prompt(st)
+    assert "CHARACTER DETAILS" in sysmsg
+    assert "Job survival" in sysmsg
+    assert "voice tremor" in sysmsg
+
+
+def test_prompt_layers_dict_has_new_keys():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.character_graph import CharacterGraph
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}, "setting": {}, "victim": {}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.character_graph = CharacterGraph.from_dict({
+        "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],
+    })
+
+    sysmsg, layers = pb.system_prompt(st, return_layers=True)
+    assert "relationship_context" in layers
+    assert "location_description" in layers
+    assert "belief_context" in layers
+    assert "character_details" in layers

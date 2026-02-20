@@ -44,3 +44,25 @@ def test_extract_state_tag_returns_none_on_invalid_json():
     clean, parsed = extract_state_tag(reply)
     assert parsed is None
     assert clean == reply
+
+
+def test_state_has_character_graph_field():
+    st = init_state()
+    assert st.character_graph is None
+
+
+def test_apply_state_tag_updates_character_graph():
+    from backend.app.engine.character_graph import CharacterGraph
+
+    st = init_state()
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.character_graph = CharacterGraph.from_dict({
+        "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],
+    })
+
+    apply_state_tag(st, {"emotion": "warm", "rel_delta": 1})
+
+    edge = st.character_graph.get_edge("iu", "player")
+    assert edge is not None
+    assert abs(edge.state.affection - 0.1) < 0.001

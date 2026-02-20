@@ -1,13 +1,4 @@
-# Character Graph Design (Retired)
-
-This design is retired from the active production direction.
-
-Current production direction keeps epistemic runtime minimal:
-- retrieval indexes
-- objects
-- graphs required for movement/truth constraints
-
-If relationship graph work resumes later, this file is historical context only.
+# Character Graph Design (Implemented)
 
 ## What Is the Character Graph?
 
@@ -189,3 +180,18 @@ Characters exist at specific locations. The `location_speakers` map in the world
 1. **Should relationship edges be mutable or append-only?** Mutable is simpler. Append-only (with snapshots) enables time-travel debugging ("what was Steve's trust in Bob at turn 5?").
 2. **How granular should extractor deltas be?** Per-dimension floats give precision but demand more from the extractor LLM. Coarser options: the extractor outputs a sentiment label (e.g., "more trusting") and the engine maps it to a fixed delta.
 3. **Should the player node exist in the graph?** Currently the player is not a character node — they're the void that characters react to. Adding a player node would let NPCs have structured opinions about the player, but it adds complexity.
+
+## Implementation Status
+
+**Phase 1 (backward compatible) is implemented.** The following modules make this work:
+
+- **`backend/app/engine/character_graph.py`** — Production module with `RelationshipType`, `RelationshipState`, `RelationshipEdge`, and `CharacterGraph` classes.
+- **Story JSONs** — Both `iu_murder_mystery_story.json` and `jennie_murder_mini_story.json` have `"relationships": { "edges": [...] }` sections with initial character-to-character edges.
+- **`backend/app/engine/story_loader.py`** — Parses `relationships` into `CharacterGraph` as part of `StoryDefinition`.
+- **`backend/app/engine/state.py`** — `MurderGameState.character_graph` field; `apply_state_tag()` routes `rel_delta` through `CharacterGraph.apply_rel_delta()` (maps to affection delta).
+- **`backend/app/engine/prompt_builder.py`** — Injects "YOUR FEELINGS ABOUT THE PEOPLE YOU KNOW" section into the system prompt from the character graph.
+- **`scripts/scorer/story_agent_ui.py`** — Scorer context modal shows relationship layer with color-coded tag.
+
+The legacy `rel_delta` (-1/0/+1) output format is preserved. The integer `state.relationship` continues to work in parallel.
+
+**Phase 2 (multi-dimensional extraction) and Phase 3 (NPC-to-NPC runtime updates)** are future work.

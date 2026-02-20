@@ -284,5 +284,49 @@
       "(?i)\\bi told .* to do it\\b",
       "(?i)\\bi made .* (kill|strangle) (her|him|them)\\b"
     ]
+  },
+  "relationships": {
+    "edges": [
+      {
+        "id": "iu_to_player",
+        "from": "iu",
+        "to": "player",
+        "type": "OTHER",
+        "state": {"trust": 0.0, "fear": 0.2, "affection": 0.0, "suspicion": 0.0},
+        "label": "A stranger who moved into the apartment where you died. You sense something about them."
+      },
+      {
+        "id": "iu_to_yoo_min_ho",
+        "from": "iu",
+        "to": "yoo_min_ho",
+        "type": "EMPLOYEE",
+        "state": {"trust": -0.3, "fear": 0.4, "affection": -0.2, "suspicion": 0.7},
+        "label": "Your day-to-day manager. He controlled your schedule and was there the night you died."
+      },
+      {
+        "id": "iu_to_han_jae_seo",
+        "from": "iu",
+        "to": "han_jae_seo",
+        "type": "EMPLOYER",
+        "state": {"trust": -0.5, "fear": 0.6, "affection": -0.4, "suspicion": 0.8},
+        "label": "The CEO of Aster Media. Cold, calculating. You suspect he ordered everything."
+      },
+      {
+        "id": "iu_to_park_so_jin",
+        "from": "iu",
+        "to": "park_so_jin",
+        "type": "FRIEND",
+        "state": {"trust": 0.1, "fear": 0.1, "affection": 0.2, "suspicion": 0.4},
+        "label": "Your collaborator and friend. Mixed loyalty — you are not sure whose side she is on."
+      },
+      {
+        "id": "iu_to_rival_trainee",
+        "from": "iu",
+        "to": "rival_trainee",
+        "type": "OTHER",
+        "state": {"trust": -0.1, "fear": 0.0, "affection": -0.1, "suspicion": 0.3},
+        "label": "A trainee from another label. Petty rivalry, possibly manipulated by others."
+      }
+    ]
   }
 }

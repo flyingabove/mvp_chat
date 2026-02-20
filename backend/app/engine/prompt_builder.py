@@ -1,6 +1,7 @@
 # app/engine/prompt_builder.py
 from dataclasses import dataclass, field
 
+from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.gameplay import manifest_mode
 from backend.app.engine.state import MurderGameState
 from backend.app.config.settings import (
@@ -342,6 +343,98 @@ These are events and facts from your own experience. You remember them.
 {fact_lines}
 """
 
+    # ── Relationship context (character graph → prompt) ──
+    relationship_section = ""
+    graph = getattr(state, "character_graph", None)
+    if graph:
+        rel_text = graph.format_for_prompt(
+            state.main_character_id or "",
+            state.characters,
+        )
+        if rel_text:
+            relationship_section = f"""
+────────────────────────────────────────
+### YOUR FEELINGS ABOUT THE PEOPLE YOU KNOW
+────────────────────────────────────────
+These relationships shape how you feel and behave toward others.
+Use them to calibrate tone, hostility, trust, and willingness to cooperate.
+
+{rel_text}
+"""
+
+    # ── Location description (world graph → prompt) ──
+    location_section = ""
+    world_rt = getattr(state, "world_runtime", None)
+    loc_id = getattr(state, "location_id", "") or ""
+    if world_rt and loc_id:
+        try:
+            wg = getattr(world_rt, "world_graph", None) or getattr(world_rt, "graph", None)
+            if wg:
+                loc_obj = None
+                locs = getattr(wg, "locations", {}) or {}
+                if isinstance(locs, dict):
+                    loc_obj = locs.get(loc_id)
+                if loc_obj:
+                    loc_name = getattr(loc_obj, "name", "") or loc_id
+                    loc_desc = getattr(loc_obj, "description", "") or ""
+                    if loc_desc:
+                        location_section = f"""
+────────────────────────────────────────
+### CURRENT LOCATION
+────────────────────────────────────────
+{loc_name} — {loc_desc}
+"""
+        except Exception:
+            pass
+
+    # ── Belief context (character beliefs → prompt) ──
+    belief_section = ""
+    if belief_enabled():
+        beliefs = getattr(state, "beliefs", {}) or {}
+        main_key = state.main_character_id or ""
+        bs = beliefs.get(main_key)
+        if bs and getattr(bs, "claims", None):
+            claims = sorted(bs.claims, key=lambda c: getattr(c, "confidence", 0), reverse=True)[:8]
+            belief_lines = []
+            for cl in claims:
+                text = getattr(cl, "content", "") or getattr(cl, "text", "")
+                conf = getattr(cl, "confidence", 1.0)
+                src = getattr(cl, "source", "") or getattr(cl, "provenance", "")
+                if text:
+                    belief_lines.append(f"- {text} (conf={conf:.1f}, source={src})")
+            if belief_lines:
+                belief_section = f"""
+────────────────────────────────────────
+### THINGS YOU BELIEVE (NOT NECESSARILY TRUE)
+────────────────────────────────────────
+These are your subjective beliefs. They may conflict with reality.
+Act on them naturally — you believe them to be true.
+
+{chr(10).join(belief_lines)}
+"""
+
+    # ── Character details (motive + tells for current speaker) ──
+    character_detail_section = ""
+    characters_list = cfg.get("characters") or []
+    if characters_list and state.main_character_id:
+        for ch_data in characters_list:
+            if ch_data.get("key") == state.main_character_id:
+                motive = ch_data.get("motive", "")
+                tells = ch_data.get("tells") or []
+                detail_lines = []
+                if motive:
+                    detail_lines.append(f"- Motive: {motive}")
+                if tells:
+                    detail_lines.append(f"- Behavioral tells: {', '.join(tells)}")
+                if detail_lines:
+                    character_detail_section = f"""
+────────────────────────────────────────
+### CHARACTER DETAILS
+────────────────────────────────────────
+{chr(10).join(detail_lines)}
+"""
+                break
+
     truth_override = ""
     if truth_mode:
         truth_override = """
@@ -382,8 +475,20 @@ EXAMPLE (WRONG — do NOT do this):
             for fact in canonical_truths:
                 truth_override += f"- {fact}\n"
 
-    # Inject canonical memory BEFORE the required tail so the model always sees it.
-    full_prompt = base_prompt + (memory_block or "") + identity_section + canonical_section + truth_override + first_turn_hint + required_tail
+    # Assemble all layers into the final prompt.
+    full_prompt = (
+        base_prompt
+        + (memory_block or "")
+        + identity_section
+        + canonical_section
+        + relationship_section
+        + location_section
+        + belief_section
+        + character_detail_section
+        + truth_override
+        + first_turn_hint
+        + required_tail
+    )
 
     if return_layers:
         layers = {
@@ -391,6 +496,10 @@ EXAMPLE (WRONG — do NOT do this):
             "retrieved_knowledge": memory_block or "",
             "character_self_knowledge": identity_section,
             "canonical_memories": canonical_section,
+            "relationship_context": relationship_section,
+            "location_description": location_section,
+            "belief_context": belief_section,
+            "character_details": character_detail_section,
             "truth_override": truth_override,
             "first_turn_hint": first_turn_hint,
             "required_tail": required_tail,

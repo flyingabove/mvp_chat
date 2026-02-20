@@ -908,6 +908,10 @@ async def chat_handler(data: dict):
         if not new_state.main_character_id and main_char_def:
             new_state.main_character_id = main_char_def.key
 
+        # Load character relationship graph from story definition
+        if isinstance(story_def, StoryDefinition) and story_def.relationships:
+            new_state.character_graph = story_def.relationships
+
         # Fallback knowledge bundle for main
         if not new_state.knowledge_character_id and main_char_def:
             new_state.knowledge_character_id = main_char_def.knowledge_character_id

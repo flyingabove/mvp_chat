@@ -2,7 +2,7 @@
 """
 Post-generation invariant validator.
 
-Checks model output for canon violations defined by the TurnContract.
+Checks model output for canon violations (anchor contradictions, identity drift).
 This is a best-effort heuristic — it catches common patterns but cannot
 guarantee perfect detection (pronoun coreference is inherently fuzzy).
 
@@ -14,8 +14,36 @@ import re
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from backend.app.engine.story_schema_v2 import ChunkType, KnowledgeChunk
-from backend.app.engine.turn_contract import Invariant, TurnContract
+
+# ---------------------------------------------------------------------------
+# Lightweight standalone types (no v2 schema dependency)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class AnchorFact:
+    """An identity or fact anchor used for invariant checking."""
+    id: str
+    text: str
+    entities: List[str] = field(default_factory=list)
+    aliases: List[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
+    is_identity: bool = False
+
+
+@dataclass(frozen=True)
+class InvariantCheck:
+    """Specifies what to check."""
+    type: str           # "ANCHOR_CONTRADICTION" or "SPEAKER_IDENTITY_DRIFT"
+    description: str = ""
+    anchor_id: str = ""
+
+
+@dataclass
+class InvariantContract:
+    """Lightweight contract for validation (replaces v2 TurnContract)."""
+    speaker_id: str = ""
+    anchors: List[AnchorFact] = field(default_factory=list)
+    checks: List[InvariantCheck] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -26,20 +54,74 @@ class Violation:
     chunk_id: Optional[str] = None
 
 
-def validate_response(contract: TurnContract, text: str) -> List[Violation]:
-    """Check model output against the contract's invariants.
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def validate_response(contract: InvariantContract, text: str) -> List[Violation]:
+    """Check model output against the contract's invariant checks.
 
     Returns a list of Violation objects (empty = clean).
     """
     violations: List[Violation] = []
 
-    for inv in contract.invariants:
-        if inv.type == "ANCHOR_CONTRADICTION":
-            violations.extend(_check_anchor_contradiction(inv, contract, text))
-        elif inv.type == "SPEAKER_IDENTITY_DRIFT":
+    for check in contract.checks:
+        if check.type == "ANCHOR_CONTRADICTION":
+            violations.extend(_check_anchor_contradiction(check, contract, text))
+        elif check.type == "SPEAKER_IDENTITY_DRIFT":
             violations.extend(_check_identity_drift(contract, text))
 
     return violations
+
+
+def build_contract_from_story(
+    story_cfg: dict,
+    main_character_key: str = "",
+) -> InvariantContract:
+    """Build an InvariantContract from v1 story config data.
+
+    Extracts identity anchors from character_self_knowledge and characters list.
+    """
+    anchors: List[AnchorFact] = []
+    checks: List[InvariantCheck] = []
+
+    # Extract character info for the main character
+    characters = story_cfg.get("characters") or []
+    char_name = ""
+    char_tags: List[str] = []
+    for ch in characters:
+        if ch.get("is_main") or ch.get("key") == main_character_key:
+            char_name = ch.get("name", "")
+            char_tags = list(ch.get("tags") or [])
+            break
+
+    # Build identity anchor from character_self_knowledge
+    self_knowledge = story_cfg.get("character_self_knowledge") or []
+    if self_knowledge and char_name:
+        combined_text = " ".join(self_knowledge)
+        anchor = AnchorFact(
+            id="anchor_identity",
+            text=combined_text,
+            entities=[char_name] if char_name else [],
+            tags=char_tags,
+            is_identity=True,
+        )
+        anchors.append(anchor)
+        checks.append(InvariantCheck(
+            type="ANCHOR_CONTRADICTION",
+            description=f"Must not contradict identity: {char_name}",
+            anchor_id="anchor_identity",
+        ))
+        checks.append(InvariantCheck(
+            type="SPEAKER_IDENTITY_DRIFT",
+            description="Must not refer to self in third person",
+        ))
+
+    return InvariantContract(
+        speaker_id=main_character_key,
+        anchors=anchors,
+        checks=checks,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -57,38 +139,36 @@ _DENIAL_PATTERNS = [
 
 
 def _check_anchor_contradiction(
-    inv: Invariant,
-    contract: TurnContract,
+    check: InvariantCheck,
+    contract: InvariantContract,
     text: str,
 ) -> List[Violation]:
     """Check if the text directly denies an anchor's content."""
     violations: List[Violation] = []
 
-    chunk_id = inv.chunk_id
-    if not chunk_id:
+    anchor_id = check.anchor_id
+    if not anchor_id:
         return violations
 
-    # Find the anchor chunk
-    anchor: Optional[KnowledgeChunk] = None
-    for a in contract.injected_anchors:
-        if a.id == chunk_id:
+    # Find the anchor
+    anchor: Optional[AnchorFact] = None
+    for a in contract.anchors:
+        if a.id == anchor_id:
             anchor = a
             break
     if anchor is None:
         return violations
 
     # Extract key entities/names from the anchor for denial checking
-    names_to_check: List[str] = list(anchor.content.entities)
-    names_to_check.extend(anchor.content.aliases)
+    names_to_check: List[str] = list(anchor.entities)
+    names_to_check.extend(anchor.aliases)
 
     # Also extract names from the text itself
-    # For identity anchors like "You are IU", extract the name
-    identity_match = re.search(r"you are\s+(\w+)", anchor.content.text, re.IGNORECASE)
+    identity_match = re.search(r"you are\s+(\w+)", anchor.text, re.IGNORECASE)
     if identity_match:
         names_to_check.append(identity_match.group(1))
 
-    # For anchors like "You are a ghost", extract the descriptor
-    descriptor_match = re.search(r"you are\s+a\s+(\w+)", anchor.content.text, re.IGNORECASE)
+    descriptor_match = re.search(r"you are\s+a\s+(\w+)", anchor.text, re.IGNORECASE)
     if descriptor_match:
         names_to_check.append(descriptor_match.group(1))
 
@@ -101,9 +181,9 @@ def _check_anchor_contradiction(
             if match:
                 violations.append(Violation(
                     invariant_type="ANCHOR_CONTRADICTION",
-                    description=f"Denies anchor '{chunk_id}': {match.group()}",
+                    description=f"Denies anchor '{anchor_id}': {match.group()}",
                     matched_text=match.group(),
-                    chunk_id=chunk_id,
+                    chunk_id=anchor_id,
                 ))
                 break  # one match per name is enough
 
@@ -114,7 +194,6 @@ def _check_anchor_contradiction(
 # SPEAKER_IDENTITY_DRIFT: third-person self-reference
 # ---------------------------------------------------------------------------
 
-# Pronouns that indicate third-person reference to a female character
 _THIRD_PERSON_FEMALE = [
     r"\bshe\s+was\b",
     r"\bshe\s+is\b",
@@ -128,7 +207,6 @@ _THIRD_PERSON_FEMALE = [
     r"\bher\s+(?:name|life|death|story|memory|soul|spirit|presence)\b",
 ]
 
-# Male equivalents
 _THIRD_PERSON_MALE = [
     r"\bhe\s+was\b",
     r"\bhe\s+is\b",
@@ -144,23 +222,19 @@ _THIRD_PERSON_MALE = [
 
 
 def _check_identity_drift(
-    contract: TurnContract,
+    contract: InvariantContract,
     text: str,
 ) -> List[Violation]:
-    """Check if the speaker refers to themselves in third person.
-
-    This is heuristic — it looks for third-person pronouns near identity
-    anchor names. False positives are possible when discussing other characters.
-    """
+    """Check if the speaker refers to themselves in third person."""
     violations: List[Violation] = []
 
     # Collect identity anchor names
     identity_names: List[str] = []
-    for anchor in contract.injected_anchors:
-        if anchor.type == ChunkType.IDENTITY:
-            identity_names.extend(anchor.content.entities)
-            identity_names.extend(anchor.content.aliases)
-            m = re.search(r"you are\s+(\w+)", anchor.content.text, re.IGNORECASE)
+    for anchor in contract.anchors:
+        if anchor.is_identity:
+            identity_names.extend(anchor.entities)
+            identity_names.extend(anchor.aliases)
+            m = re.search(r"you are\s+(\w+)", anchor.text, re.IGNORECASE)
             if m:
                 identity_names.append(m.group(1))
 
@@ -169,10 +243,9 @@ def _check_identity_drift(
 
     # Determine gender hint from anchor tags
     all_tags: List[str] = []
-    for anchor in contract.injected_anchors:
+    for anchor in contract.anchors:
         all_tags.extend(anchor.tags)
 
-    # Default to checking both pronoun sets; narrow if gender tag exists
     pronoun_patterns = _THIRD_PERSON_FEMALE + _THIRD_PERSON_MALE
     if "female" in all_tags:
         pronoun_patterns = _THIRD_PERSON_FEMALE
@@ -182,11 +255,8 @@ def _check_identity_drift(
     for name in identity_names:
         if not name.strip():
             continue
-        # Check: "she was trapped" style (pronoun near identity name)
-        # Look for name + pronoun pattern within 100 chars
         name_pattern = re.escape(name.strip())
         for pp in pronoun_patterns:
-            # Name followed by pronoun context (within ~100 chars)
             combined = rf"(?:{name_pattern}\b.{{0,100}}?{pp}|{pp}.{{0,100}}?\b{name_pattern}\b)"
             match = re.search(combined, text, re.IGNORECASE | re.DOTALL)
             if match:

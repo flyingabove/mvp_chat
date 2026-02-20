@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from backend.app.engine.character_graph import CharacterGraph
 from backend.app.utils.logging_utils import jlog
 
 
@@ -90,6 +91,7 @@ class StoryDefinition:
     theme: str = ""
     instance: int = 1
     characters: List[StoryCharacter] = field(default_factory=list)
+    relationships: Optional[CharacterGraph] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "StoryDefinition":
@@ -153,6 +155,10 @@ class StoryDefinition:
                     "uuid": main.uuid,
                 }
 
+        # Parse character relationship graph
+        rel_data = data.get("relationships")
+        relationships = CharacterGraph.from_dict(rel_data) if rel_data else None
+
         return cls(
             id=story_id,
             raw=normalized,
@@ -160,6 +166,7 @@ class StoryDefinition:
             theme=theme,
             instance=instance,
             characters=characters,
+            relationships=relationships,
         )
 
     # Dict-like helpers for backwards compatibility
