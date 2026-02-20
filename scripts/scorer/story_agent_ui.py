@@ -1087,6 +1087,26 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
   .context-section-body.open { display: block; }
 
+  /* Layer tags in context modal */
+  .layer-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .layer-tag.base { background: #636e7220; color: #b2bec3; }
+  .layer-tag.retrieval { background: #e1705620; color: #fab1a0; }
+  .layer-tag.identity { background: #6c5ce720; color: #a29bfe; }
+  .layer-tag.canonical { background: #00b89420; color: #55efc4; }
+  .layer-tag.truth { background: #d6336c20; color: #f06595; }
+  .layer-tag.hint { background: #fdcb6e20; color: #fdcb6e; }
+
   /* Scrollbar styling for modal */
   .context-modal-body::-webkit-scrollbar,
   .context-section-body::-webkit-scrollbar { width: 6px; }
@@ -2096,17 +2116,48 @@ HTML_PAGE = r"""<!DOCTYPE html>
       sections.push({title: 'NPC Response (T' + turn + ')', content: npcContent, open: true});
     }
 
-    // 4. System Prompt
-    if (pd.system_prompt_preview) {
-      sections.push({title: 'System Prompt (full)', content: String(pd.system_prompt_preview), open: false});
+    // 4-7. Prompt Layers (categorized knowledge fed into system prompt)
+    const layers = pd.prompt_layers || {};
+    const hasLayers = Object.values(layers).some(v => v && v.trim && v.trim().length > 0);
+
+    if (hasLayers) {
+      // 4a. Base Prompt (rules, style, world context, game state)
+      if (layers.base_prompt && layers.base_prompt.trim()) {
+        sections.push({title: '\u2003BASE PROMPT \u2014 Rules, Style & World Context', content: String(layers.base_prompt), open: false, tag: 'base'});
+      }
+      // 4b. Retrieved Knowledge (FAISS/BM25 chunks)
+      if (layers.retrieved_knowledge && layers.retrieved_knowledge.trim()) {
+        sections.push({title: '\u2003RETRIEVED KNOWLEDGE \u2014 Character Memory Chunks', content: String(layers.retrieved_knowledge), open: true, tag: 'retrieval'});
+      }
+      // 4c. Character Self-Knowledge (identity facts)
+      if (layers.character_self_knowledge && layers.character_self_knowledge.trim()) {
+        sections.push({title: '\u2003CHARACTER SELF-KNOWLEDGE \u2014 Identity Facts', content: String(layers.character_self_knowledge), open: true, tag: 'identity'});
+      }
+      // 4d. Canonical Memories (epistemic facts)
+      if (layers.canonical_memories && layers.canonical_memories.trim()) {
+        sections.push({title: '\u2003CANONICAL MEMORIES \u2014 Epistemic Facts', content: String(layers.canonical_memories), open: true, tag: 'canonical'});
+      }
+      // 4e. Truth Mode Override (if active)
+      if (layers.truth_override && layers.truth_override.trim()) {
+        sections.push({title: '\u2003TRUTH MODE \u2014 Debug Override', content: String(layers.truth_override), open: true, tag: 'truth'});
+      }
+      // 4f. First Turn Hint (if present)
+      if (layers.first_turn_hint && layers.first_turn_hint.trim()) {
+        sections.push({title: '\u2003FIRST TURN HINT', content: String(layers.first_turn_hint), open: true, tag: 'hint'});
+      }
     }
 
-    // 5. Header
+    // 5. Full System Prompt (raw, collapsed fallback/reference)
+    if (pd.system_prompt_preview) {
+      sections.push({title: 'Full System Prompt (raw)', content: String(pd.system_prompt_preview), open: false});
+    }
+
+    // 6. Header
     if (pd.header) {
       sections.push({title: 'User Message Header', content: String(pd.header), open: false});
     }
 
-    // 6. Knowledge Chunks
+    // 7. Knowledge Chunks (structured list from retrieval)
     if (pd.knowledge_chunks && pd.knowledge_chunks.length) {
       const kText = pd.knowledge_chunks.map(function(c, i) {
         return '[' + (i+1) + '] ' + (c.type || 'chunk') + (c.chunk_id ? ' (' + c.chunk_id + ')' : '') + (c.source ? ' src=' + c.source : '') + '\n' + (c.text || '(empty)');
@@ -2114,12 +2165,12 @@ HTML_PAGE = r"""<!DOCTYPE html>
       sections.push({title: 'Knowledge Chunks (' + pd.knowledge_chunks.length + ')', content: kText, open: false});
     }
 
-    // 7. Retrieval Debug
+    // 8. Retrieval Debug
     if (pd.retrieval_debug) {
       sections.push({title: 'Retrieval Debug', content: formatJson(pd.retrieval_debug), open: false});
     }
 
-    // 8. Raw debug_box (fallback if no structured data)
+    // 9. Raw debug_box (fallback if no structured data)
     if (payload && !gameLines.length) {
       sections.push({title: 'Raw Debug Box', content: formatJson(db), open: true});
     }
@@ -2134,9 +2185,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
       var s = sections[si];
       var openClass = s.open ? ' open' : '';
       var safeContent = escapeHtml(String(s.content || ''));
+      var tagHtml = s.tag ? '<span class="layer-tag ' + s.tag + '">' + s.tag + '</span>' : '';
       sectionsHtml += '<div class="context-section">';
       sectionsHtml += '<div class="context-section-header' + openClass + '" data-idx="' + si + '">';
       sectionsHtml += '<span class="arrow">&#9654;</span>';
+      sectionsHtml += tagHtml;
       sectionsHtml += '<span class="section-title">' + escapeHtml(String(s.title)) + '</span>';
       sectionsHtml += '</div>';
       sectionsHtml += '<div class="context-section-body' + openClass + '">' + safeContent + '</div>';

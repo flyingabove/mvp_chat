@@ -98,7 +98,7 @@ def _language_honorific_block(cfg: dict, casual_used_str: str, honorific_unlocke
     return "\n".join(lines)
 
 
-def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False) -> str:
+def system_prompt(state: MurderGameState, is_first_turn: bool = False, memory_block: str = "", truth_mode: bool = False, return_layers: bool = False):
     cfg, story_def = _extract_story_cfg(state)
 
     # Primary character label for prompts (avoid hardcoding any specific persona)
@@ -383,7 +383,21 @@ EXAMPLE (WRONG — do NOT do this):
                 truth_override += f"- {fact}\n"
 
     # Inject canonical memory BEFORE the required tail so the model always sees it.
-    return base_prompt + (memory_block or "") + identity_section + canonical_section + truth_override + first_turn_hint + required_tail
+    full_prompt = base_prompt + (memory_block or "") + identity_section + canonical_section + truth_override + first_turn_hint + required_tail
+
+    if return_layers:
+        layers = {
+            "base_prompt": base_prompt,
+            "retrieved_knowledge": memory_block or "",
+            "character_self_knowledge": identity_section,
+            "canonical_memories": canonical_section,
+            "truth_override": truth_override,
+            "first_turn_hint": first_turn_hint,
+            "required_tail": required_tail,
+        }
+        return full_prompt, layers
+
+    return full_prompt
 
 
 def build_messages(
@@ -439,7 +453,12 @@ def build_messages(
     char_name = (getattr(main_char, "name", "") or "the character").strip() or "the character"
     memory_block = _format_memory_block(pi.knowledge_chunks, char_name)
 
-    sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block, truth_mode=truth_mode)
+    # Build system prompt; request layer breakdown when debug is needed
+    prompt_layers = None
+    if return_debug:
+        sysmsg, prompt_layers = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block, truth_mode=truth_mode, return_layers=True)
+    else:
+        sysmsg = system_prompt(state, is_first_turn=is_first_turn, memory_block=memory_block, truth_mode=truth_mode)
     messages = [{"role": "system", "content": sysmsg}]
 
     # keep last MEMORY_TURNS - 2 non-system turns
@@ -491,6 +510,7 @@ def build_messages(
         ],
         "retrieval_debug": pi.retrieval_debug,
         "system_prompt_preview": sysmsg,
+        "prompt_layers": prompt_layers,
         "header": header,
         "trimmed_history": len(trimmed),
     }
