@@ -88,8 +88,8 @@ def _visibility_suffix(chunk: KnowledgeChunk) -> str:
 def _get_active_character_keys(state: GameState) -> set[str]:
     """Extract the active character set from transient markers.
 
-    Scans ``state.transient_entries`` for entries with
-    ``meta.source == "active_character"`` and returns their character keys.
+    Scans ``state.transient_entries`` for marker texts in the form
+    ``__active_character_marker__:<character_key>`` and returns their keys.
     Always includes ``main_character_id`` and ``"player"`` as fallback.
     """
     keys: set[str] = set()
@@ -99,9 +99,9 @@ def _get_active_character_keys(state: GameState) -> set[str]:
     keys.add("player")
 
     for e in getattr(state, "transient_entries", []) or []:
-        meta = getattr(e, "meta", {}) or {}
-        if meta.get("source") == "active_character":
-            ch_key = meta.get("character_key", "")
+        txt = (getattr(e, "text", "") or "").strip()
+        if txt.startswith("__active_character_marker__:"):
+            ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
                 keys.add(ch_key)
 
@@ -206,31 +206,6 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
             maybe_known_by=[speaker_id] if speaker_id else [],
         ))
 
-    active_keys_for_transient = _get_active_character_keys(state)
-    for e in (getattr(state, "transient_entries", []) or [])[-10:]:
-        meta = getattr(e, "meta", {}) or {}
-
-        # Skip active-character markers (internal metadata, not narrative)
-        if meta.get("source") == "active_character":
-            continue
-
-        # Skip character extras for non-active characters
-        ch_key = meta.get("character_key", "")
-        if ch_key and ch_key not in active_keys_for_transient:
-            continue
-
-        text = (getattr(e, "text", "") or "").strip()
-        if not text:
-            continue
-        chunks.append(KnowledgeChunk(
-            id=f"transient::{getattr(e, 'id', 'unknown')}",
-            text=text,
-            tier="TRANSIENT_CONTEXT",
-            source="transient_buffer",
-            certainty="tentative",
-            maybe_known_by=[speaker_id] if speaker_id else [],
-        ))
-
     return chunks
 
 
@@ -242,7 +217,6 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
         "CANONICAL_GRAPH",
         "SUBJECTIVE_BELIEF",
         "RETRIEVED_MEMORY",
-        "TRANSIENT_CONTEXT",
     ]
 
     grouped: dict[str, list[KnowledgeChunk]] = {k: [] for k in tier_order}
@@ -385,36 +359,7 @@ def _places_graph_section(state: GameState) -> str:
 
 
 def _transient_buffer_section(state: GameState) -> str:
-    entries = getattr(state, "transient_entries", []) or []
-    if not entries:
-        return ""
-    active_keys = _get_active_character_keys(state)
-    lines = []
-    for e in entries[-8:]:
-        meta = getattr(e, "meta", {}) or {}
-
-        # Skip active-character markers (internal metadata, not narrative)
-        if meta.get("source") == "active_character":
-            continue
-
-        # Skip character extras for non-active characters
-        ch_key = meta.get("character_key", "")
-        if ch_key and ch_key not in active_keys:
-            continue
-
-        text = (getattr(e, "text", "") or "").strip()
-        if text:
-            lines.append(f"- {text}")
-    if not lines:
-        return ""
-    return (
-        "\n────────────────────────────────────────\n"
-        "### TRANSIENT BUFFER (SHORT-LIVED CONTEXT)\n"
-        "────────────────────────────────────────\n"
-        "Use as recent scene flavor only; do not treat as canonical truth unless corroborated.\n\n"
-        + "\n".join(lines)
-        + "\n"
-    )
+    return ""
 
 
 def system_prompt(
@@ -564,7 +509,6 @@ EXAMPLE (WRONG — do NOT do this):
         base_prompt
         + knowledge_stack_section
         + relationship_section
-        + transient_buffer_section
         + truth_override
         + required_tail
     )

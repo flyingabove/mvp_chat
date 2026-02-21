@@ -33,6 +33,14 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
+# XFAIL POLICY (single explicit quarantine only)
+# ---------------------------------------------------------------------------
+_ALLOWED_XFAIL_NODEIDS = {
+    "tests/backend/integration/test_iu_identity_correction.py::test_iu_identity_correction",
+}
+
+
+# ---------------------------------------------------------------------------
 # CREDENTIAL LOADING (centralized in backend.app.config.credentials)
 # ---------------------------------------------------------------------------
 from backend.app.config.credentials import get_openai_api_key, _load_env_test_once
@@ -174,6 +182,26 @@ def pytest_configure(config):
     )
 
 
+def pytest_collection_modifyitems(config, items):
+    """Enforce xfail policy: only allow explicit quarantine nodeids.
+
+    Any xfail marker outside the allowlist is a hard error at collection time.
+    """
+    disallowed = []
+    for item in items:
+        if item.get_closest_marker("xfail") and item.nodeid not in _ALLOWED_XFAIL_NODEIDS:
+            disallowed.append(item.nodeid)
+
+    if disallowed:
+        joined = "\n".join(f"- {n}" for n in disallowed)
+        raise pytest.UsageError(
+            "POLICY VIOLATION: xfail marker used outside allowlist.\n"
+            "Only explicitly quarantined tests may use xfail.\n"
+            f"Allowed:\n- {next(iter(_ALLOWED_XFAIL_NODEIDS))}\n"
+            f"Found disallowed xfail markers:\n{joined}"
+        )
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Enforce NO-SKIP policy: convert any skip into a hard failure.
@@ -187,6 +215,20 @@ def pytest_runtest_makereport(item, call):
     """
     outcome = yield
     report = outcome.get_result()
+
+    # Allow only explicit xfail quarantines (report.skipped + wasxfail).
+    wasxfail = getattr(report, "wasxfail", None)
+    if report.skipped and wasxfail:
+        if item.nodeid in _ALLOWED_XFAIL_NODEIDS:
+            return
+        report.outcome = "failed"
+        report.longrepr = (
+            f"POLICY VIOLATION: Test '{item.nodeid}' used xfail but is not allowlisted.\n"
+            f"xfail reason: {wasxfail}\n\n"
+            f"Only this test may xfail:\n"
+            f"- {next(iter(_ALLOWED_XFAIL_NODEIDS))}"
+        )
+        return
 
     if report.skipped:
         report.outcome = "failed"

@@ -11,6 +11,7 @@ MAX_TOKENS: int = 512
 TEMPERATURE: float = 0.8
 MEMORY_TURNS: int = 8
 EXTRACTOR_TURNS: int = 8
+TRANSIENT_KNOWLEDGE_TURNS: int = 8
 
 # --- Game constants ---
 GAME_TITLE: str = "storieschat.ai (beta)"

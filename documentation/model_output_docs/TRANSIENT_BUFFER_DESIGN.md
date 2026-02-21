@@ -13,6 +13,8 @@ These details improve immersion but should usually fade.
 ## Key Rule
 Transient buffers are **scratch scene memory**, not truth authority.
 
+Transient entries are **never rendered into the system prompt text**. They can influence runtime logic, but prompt assembly intentionally excludes a transient section.
+
 If a detail must matter later for gameplay (evidence, objective, access, irreversible world change), it must be promoted into objects/graphs.
 
 ## Lifecycle
@@ -21,47 +23,30 @@ If a detail must matter later for gameplay (evidence, objective, access, irrever
 3. Reset/expire aggressively.
 
 ## Required Reset Behavior
-- On location change, clear location-scoped transient entries.
 - On session reset, clear all transient entries.
+- Turn expiry is handled by countdown pruning, so transient memory naturally fades without being surfaced in prompt text.
 
-This matches expected behavior: Hospital scene details do not automatically follow the player to Work.
-
-## Data Shape (Minimal)
+## Data Shape (Current Minimal Runtime Model)
 ```text
-TransientEntry:
-- id
-- namespace: <user>-<story>-<instance>
-- scope: scene | location | conversation
-- location_id (optional)
+TransientKnowledge:
 - text
-- created_minute
-- expires_after_turns or expires_after_minutes
-- promotable: bool
-- promoted: bool
+- turns_remaining
 ```
 
 ## Expiration Policy
-Use one simple policy set:
-- default turn TTL (short)
-- optional minute TTL
-- hard cap on max entries per namespace
-
-Evict oldest first when cap is exceeded.
+- The default TTL is fixed to **8 turns**.
+- This hardcoded value is centralized at `backend/app/config/settings.py` as `TRANSIENT_KNOWLEDGE_TURNS = 8`.
+- `TransientBuffer.prune_expired()` decrements `turns_remaining` and removes entries once they hit `<= 0`.
 
 ## Promotion Rules
-Promote transient detail to canonical objects/graphs only when at least one is true:
-1. The detail changes objective/evidence state.
-2. The detail creates durable access constraints.
-3. The detail is repeatedly confirmed and gameplay-relevant.
-
-Promotion should be explicit and logged.
+If a detail becomes durable gameplay truth, write it explicitly to canonical structures (facts/graphs) rather than relying on transient retention.
 
 ## Safety Rules
-- No retrieval index writes from transient buffer by default.
-- No direct truth overwrite from transient buffer.
-- No cross-namespace sharing.
+- No direct transient section in prompt output.
+- No direct truth overwrite from transient entries.
+- No cross-session sharing.
 
 ## Implementation Notes
-- Keep transient buffer attached to runtime session state (namespace-scoped).
-- Keep APIs tiny: add, get_active, clear_on_travel, clear_all, promote.
-- Instrument with logs so debugging is easy.
+- Runtime state stores `List[TransientKnowledge]` on `GameState.transient_entries`.
+- New entries are appended via `GameState.add_transient_entry(text, ...)` and always use `TRANSIENT_KNOWLEDGE_TURNS`.
+- Prompt builder excludes transient entries by design.

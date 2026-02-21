@@ -11,6 +11,7 @@ from backend.app.config.settings import (
     REL_MAX,
     DEFAULT_USER_ID,
     DEFAULT_INSTANCE,
+    TRANSIENT_KNOWLEDGE_TURNS,
 )
 
 from backend.app.engine.character_graph import CharacterGraph
@@ -20,7 +21,7 @@ from backend.app.engine.epistemic_state import (
     EpistemicFact,
     Observation,
 )
-from backend.app.engine.transient_buffer import TransientEntry, prune_expired
+from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
 from backend.app.config.epistemic_flags import (
     belief_enabled,
     truth_enabled,
@@ -152,7 +153,7 @@ class GameState:
     # ==============================================================
     # Transient scene buffer (non-authoritative, short-lived)
     # ==============================================================
-    transient_entries: List[TransientEntry] = field(default_factory=list)
+    transient_entries: List[TransientKnowledge] = field(default_factory=list)
 
     # ==============================================================
     # Optional world runtime (graph-based movement)
@@ -234,7 +235,7 @@ class GameState:
         namespace: str,
         scope: str,
         text: str,
-        expires_after_turns: int | None = 2,
+        expires_after_turns: int | None = TRANSIENT_KNOWLEDGE_TURNS,
         expires_after_minutes: int | None = None,
         promotable: bool = False,
         meta: Optional[Dict[str, str]] = None,
@@ -242,19 +243,7 @@ class GameState:
         if not text or not text.strip():
             return
         self.transient_entries.append(
-            TransientEntry(
-                id=id,
-                namespace=namespace,
-                scope=scope,
-                text=text.strip(),
-                created_turn=int(self.turns),
-                created_minute=int(self.minute),
-                location_id=str(getattr(self, "location_id", "") or ""),
-                expires_after_turns=expires_after_turns,
-                expires_after_minutes=expires_after_minutes,
-                promotable=promotable,
-                meta=dict(meta or {}),
-            )
+            TransientKnowledge(text=text.strip(), turns_remaining=TRANSIENT_KNOWLEDGE_TURNS)
         )
 
     def purge_transient_entries(self) -> None:
@@ -265,7 +254,7 @@ class GameState:
         )
 
     def clear_location_transient_entries(self) -> None:
-        self.transient_entries = [e for e in self.transient_entries if e.scope != "location"]
+        return
 
     def clear_all_transient_entries(self) -> None:
         self.transient_entries = []

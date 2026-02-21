@@ -9,10 +9,10 @@ This file is a centralized register of active TODOs that currently affect runtim
    - **Priority:** HIGH
    - **Owner:** Epistemic/prompt runtime
    - **Where:** `tests/backend/integration/test_iu_identity_correction.py`
-   - **Current behavior:** test remains fully executed but uses non-blocking TODO warning behavior when evaluator returns `FALSE`.
+   - **Current behavior:** test is marked `xfail` (strict=False) and is the only allowlisted xfail in test policy.
    - **Failure summary:** IU sometimes answers the prompt “what happened to the previous tenant?” as if IU and tenant are different people.
    - **Required fix:** enforce first-person identity correction in renderer behavior for this intent class and re-enable strict pass.
-   - **Exit criteria:** restore strict assertion (`TRUE` required), run integration playback scenario repeatedly, verify stable TRUE verdict from evaluator.
+   - **Exit criteria:** remove `xfail`, keep strict assertion (`TRUE` required), run integration playback scenario repeatedly, verify stable TRUE verdict from evaluator.
 
 2. **Truth vs belief enforcement utility remains incomplete**
    - **Status:** OPEN

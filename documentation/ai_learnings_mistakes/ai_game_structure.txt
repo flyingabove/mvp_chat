@@ -67,19 +67,19 @@ Prompt context contract (runtime)
   4) character relationship graph,
   5) belief graph,
   6) places graph,
-  7) transient buffer.
+  7) runtime transient buffer (internal only; not rendered directly into prompt text).
 - Runtime prompt rendering uses an epistemic knowledge stack ordered:
-  CANONICAL_CORE → CANONICAL_GRAPH → SUBJECTIVE_BELIEF → RETRIEVED_MEMORY → TRANSIENT_CONTEXT.
+  CANONICAL_CORE → CANONICAL_GRAPH → SUBJECTIVE_BELIEF → RETRIEVED_MEMORY.
 - Character-graph and character-extra prompt data must be scoped by active-character markers only.
   Active characters are extracted from user/assistant dialogue mentions plus scene location speakers,
-  stored in transient markers (`meta.source=active_character`), and refreshed each turn.
+  stored as transient marker text entries prefixed with `__active_character_marker__:` and refreshed each turn.
   System-prompt log content is excluded from active-character extraction.
 - For chunks without explicit `known_by` and without explicit `not_known_by` for the active speaker,
   the LLM is instructed to make a best reasonable determination from dialogue context.
 - After each reply, `KnowledgeResolutionExtractor` evaluates unknown chunks and writes explicit
   `knows` / `does_not_know` updates into the speaker belief graph (`EpistemicClaim`).
-- Each resolved knowledge object is also written to transient buffer with `expires_after_turns=8`
-  and `meta.source=knowledge_resolution`.
+- Each resolved knowledge object is also written to transient buffer as `TransientKnowledge(text, turns_remaining)`
+  with fixed turn TTL from `backend/app/config/settings.py` (`TRANSIENT_KNOWLEDGE_TURNS = 8`).
 - No other free-form story JSON fields are injected directly into prompt text.
 
 Loading flow (runtime)

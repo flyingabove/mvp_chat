@@ -1,32 +1,17 @@
 from backend.app.engine.state import init_state
-from backend.app.engine.gameplay import advance_time
-from backend.app.engine.transient_buffer import TransientEntry, prune_expired
+from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
+from backend.app.config.settings import TRANSIENT_KNOWLEDGE_TURNS
 
 
 def test_prune_expired_by_turns():
-    e1 = TransientEntry(
-        id="a",
-        namespace="default_user-story-1",
-        scope="conversation",
-        text="hello",
-        created_turn=1,
-        created_minute=0,
-        expires_after_turns=2,
-    )
-    e2 = TransientEntry(
-        id="b",
-        namespace="default_user-story-1",
-        scope="conversation",
-        text="fresh",
-        created_turn=3,
-        created_minute=0,
-        expires_after_turns=2,
-    )
+    e1 = TransientKnowledge(text="hello", turns_remaining=1)
+    e2 = TransientKnowledge(text="fresh", turns_remaining=2)
 
     kept = prune_expired([e1, e2], current_turn=4, current_minute=0)
-    ids = [e.id for e in kept]
-    assert "a" not in ids
-    assert "b" in ids
+    texts = [e.text for e in kept]
+    assert "hello" not in texts
+    assert "fresh" in texts
+    assert kept[0].turns_remaining == 1
 
 
 def test_state_purge_transient_entries():
@@ -43,34 +28,24 @@ def test_state_purge_transient_entries():
         expires_after_turns=1,
     )
     assert len(st.transient_entries) == 1
+    assert st.transient_entries[0].turns_remaining == TRANSIENT_KNOWLEDGE_TURNS
 
-    st.turns = 1
-    st.purge_transient_entries()
+    for i in range(TRANSIENT_KNOWLEDGE_TURNS):
+        st.turns = i + 1
+        st.purge_transient_entries()
+
     assert len(st.transient_entries) == 0
 
 
-def test_location_transient_clears_on_travel():
+def test_transient_entries_use_default_ttl_of_eight():
     st = init_state()
-    st.story_cfg = {}
-    st.location = "Hospital"
+    st.story = "demo"
 
     st.add_transient_entry(
-        id="loc1",
-        namespace="default_user-demo-1",
-        scope="location",
-        text="Coffee cup on table",
-        expires_after_turns=10,
-    )
-    st.add_transient_entry(
-        id="conv1",
+        id="t1",
         namespace="default_user-demo-1",
         scope="conversation",
-        text="Asked about coffee",
-        expires_after_turns=10,
+        text="One",
     )
-
-    advance_time(st, "go to Work")
-
-    scopes = [e.scope for e in st.transient_entries]
-    assert "location" not in scopes
-    assert "conversation" in scopes
+    assert len(st.transient_entries) == 1
+    assert st.transient_entries[0].turns_remaining == TRANSIENT_KNOWLEDGE_TURNS

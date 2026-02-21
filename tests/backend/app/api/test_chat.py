@@ -580,6 +580,6 @@ def test_knowledge_resolution_updates_belief_and_transient(client, monkeypatch):
     assert any(getattr(c, "id", "") == f"kr::{speaker}::c_unknown" for c in claims)
 
     entries = st.transient_entries
-    matched = [e for e in entries if (e.meta or {}).get("source") == "knowledge_resolution" and (e.meta or {}).get("chunk_id") == "c_unknown"]
+    matched = [e for e in entries if "KnowledgeResolution" in (getattr(e, "text", "") or "") and "chunk=c_unknown" in (getattr(e, "text", "") or "")]
     assert matched
-    assert matched[-1].expires_after_turns == 8
+    assert matched[-1].turns_remaining == 8

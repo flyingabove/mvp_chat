@@ -75,7 +75,7 @@ def test_prompt_includes_relationship_section():
 
     sysmsg = pb.system_prompt(st)
     assert "YOUR FEELINGS ABOUT THE PEOPLE YOU KNOW" in sysmsg
-    assert "Trust:" in sysmsg
+    assert "Trust=" in sysmsg
     assert "detective" in sysmsg.lower()
 
 
@@ -208,7 +208,7 @@ def test_prompt_filters_graph_edges_by_active_characters():
 
 
 def test_prompt_hides_active_character_markers_from_text():
-    """Active character markers must not leak into prompt text."""
+    """No transient buffer content should leak into prompt text."""
     from backend.app.engine import prompt_builder as pb
 
     st = init_state()
@@ -235,11 +235,11 @@ def test_prompt_hides_active_character_markers_from_text():
 
     sysmsg = pb.system_prompt(st)
     assert "__active_character_marker__" not in sysmsg
-    assert "Player said: hello there" in sysmsg
+    assert "Player said: hello there" not in sysmsg
 
 
 def test_prompt_filters_character_extras_by_active_set():
-    """Character extras for non-active characters should be filtered out."""
+    """Transient extras remain internal and must never be printed in prompt."""
     from backend.app.engine import prompt_builder as pb
 
     st = init_state()
@@ -278,8 +278,8 @@ def test_prompt_filters_character_extras_by_active_set():
     )
 
     sysmsg = pb.system_prompt(st)
-    assert "greed" not in sysmsg        # bob's extras filtered
-    assert "pg13" in sysmsg             # story-level entry preserved
+    assert "greed" not in sysmsg
+    assert "pg13" not in sysmsg
 
 
 def test_prompt_backward_compat_no_markers():

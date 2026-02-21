@@ -16,7 +16,6 @@ Evaluation:
 """
 
 import os
-import warnings
 from dataclasses import dataclass, field
 from typing import Any, List
 
@@ -166,22 +165,23 @@ Answer with EXACTLY one word: TRUE or FALSE"""
     @step(kind="assert", description="Assert evaluator returned TRUE")
     def assert_verdict(self):
         verdict = self.state.evaluator_verdict
-        if "TRUE" in verdict:
-            return self.say_system("Identity correction assertion PASSED.")
-
-        warnings.warn(
-            "TODO[HIGH]: IU identity correction is still failing in live runs; "
-            "keeping this as a non-blocking deployment signal until renderer/prompt "
-            "guarantees first-person correction for tenant identity questions. "
-            f"Evaluator verdict={verdict}."
+        assert "TRUE" in verdict, (
+            "TODO[HIGH]: remove xfail quarantine once IU consistently corrects identity. "
+            f"Evaluator returned '{verdict}' — IU did not correct the player that she IS the previous tenant.\n"
+            f"LLM reply was:\n{self.state.llm_reply}"
         )
-        return self.say_system(
-            "TODO[HIGH]: Non-blocking failure observed — evaluator returned "
-            f"'{verdict}'. Capture for tracking; deployment is not blocked."
-        )
+        return self.say_system("Identity correction assertion PASSED.")
 
 
 # -- Pytest entry point --
 @pytest.mark.integration
+@pytest.mark.xfail(
+    reason=(
+        "TODO[HIGH]: IU identity correction is not stable in live evaluator runs. "
+        "Quarantined as expected failure until renderer/prompt guarantees first-person correction. "
+        "Must remain listed in documentation/model_output_docs/TODO_REGISTER.md."
+    ),
+    strict=False,
+)
 def test_iu_identity_correction():
     IUIdentityCorrectionScenario.run_as_test()

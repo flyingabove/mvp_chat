@@ -60,6 +60,33 @@ Instead of one integer, each edge carries:
 
 These dimensions are independent. A suspect can have high fear (0.9) AND moderate trust (0.3) toward the detective — they're scared but believe the detective will honor the cooperation deal. This nuance is impossible with a single score.
 
+## Deterministic Language Layer (Current Prompt Behavior)
+
+The prompt relationship section now uses deterministic wording rather than raw numeric-only labels.
+
+### Normalization philosophy
+
+- `trust` and `affection` are already interpreted on `-1..1`.
+- `fear` and `suspicion` are stored as `0..1` but normalized to `-1..1` for language generation using:
+  - `normalized = (value * 2) - 1`
+- This creates one common semantic scale where:
+  - `-1` = strongly low/positive-safe state for that dimension
+  - `+1` = strongly high/negative-intense state for that dimension
+
+### Word mapping and determinism
+
+- Each normalized value is clamped to `[-1, 1]`, rounded to the nearest `0.1`, then mapped to a fixed word.
+- No randomness is used in this mapping.
+- The runtime helper is `describe_relationship_state()` in `backend/app/engine/character_graph.py`.
+
+### Prompt output format
+
+Per relationship edge, prompt text now includes:
+- a deterministic lexical line like `Trust=... | Fear=... | Affection=... | Suspicion=...`
+- a deterministic stance sentence labeled `Behavior tendency:`
+
+This gives stable, readable interpretation while preserving underlying numeric state for mechanics.
+
 ### RelationshipType enum
 
 ```

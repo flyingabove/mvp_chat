@@ -6,6 +6,7 @@ from backend.app.engine.character_graph import (
     RelationshipEdge,
     RelationshipState,
     RelationshipType,
+    describe_relationship_state,
 )
 
 
@@ -170,8 +171,9 @@ def test_format_for_prompt_output():
 
     output = cg.format_for_prompt("iu", {"player": FakeChar()})
     assert "player" in output.lower() or "detective" in output.lower()
-    assert "Trust:" in output
-    assert "Fear:" in output
+    assert "Behavior tendency:" in output
+    assert "Trust=" in output
+    assert "Fear=" in output
 
 
 def test_format_for_prompt_empty_graph():
@@ -234,3 +236,21 @@ def test_format_for_prompt_active_filter_empty_returns_empty():
 
     output = cg.format_for_prompt("iu", {"bob": FakeChar()}, active_characters={"player"})
     assert output == ""
+
+
+def test_describe_relationship_state_normalizes_all_dimensions_to_minus1_to_1():
+    state = RelationshipState(trust=0.4, fear=0.0, affection=-0.2, suspicion=1.0)
+    described = describe_relationship_state(state)
+    assert described["trust_normalized"] == 0.4
+    assert described["fear_normalized"] == -1.0
+    assert described["affection_normalized"] == -0.2
+    assert described["suspicion_normalized"] == 1.0
+
+
+def test_describe_relationship_state_returns_deterministic_words():
+    state = RelationshipState(trust=-0.5, fear=0.8, affection=0.3, suspicion=0.2)
+    described = describe_relationship_state(state)
+    assert described["trust_word"] == "skeptical"
+    assert described["fear_word"] == "terrified"
+    assert described["affection_word"] == "fond"
+    assert described["suspicion_word"] == "unconcerned"

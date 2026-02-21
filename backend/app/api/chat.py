@@ -32,6 +32,7 @@ from backend.app.config.settings import (
 
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
     DEFAULT_USER_ID, DEFAULT_INSTANCE,
+    TRANSIENT_KNOWLEDGE_TURNS,
 
 )
 from backend.app.config.epistemic_flags import set_epistemic_flags, set_master
@@ -318,14 +319,12 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         "goal", "win_detection", "epistemic_seed", "canonical_truth", "characters", "relationships",
     }
 
-    # (text, character_key_or_empty) — character_key lets the prompt builder
-    # filter character extras based on the active-character set.
-    details: list[tuple[str, str]] = []
+    details: list[str] = []
 
     for key, value in src.items():
         if key in canonical_top_keys:
             continue
-        details.append((f"story.{key}: {json.dumps(value, ensure_ascii=False)}", ""))
+        details.append(f"story.{key}: {json.dumps(value, ensure_ascii=False)}")
 
     for ch in src.get("characters") or []:
         if not isinstance(ch, dict):
@@ -333,24 +332,18 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         ch_key = str(ch.get("key") or ch.get("id") or ch.get("name") or "character")
         extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS}
         if extras:
-            details.append((f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}", ch_key))
+            details.append(f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}")
 
-    for i, (detail, ch_key) in enumerate(details[:20]):
+    for i, detail in enumerate(details[:20]):
         text = detail.strip()
         if not text:
             continue
-        meta: dict[str, str] = {"source": "story_noncanonical"}
-        if ch_key:
-            meta["character_key"] = ch_key
         state.add_transient_entry(
             id=f"story_extra_{i}",
             namespace=_namespace_for_state(state),
             scope="scene",
             text=text[:600],
-            expires_after_turns=12,
-            expires_after_minutes=240,
-            promotable=False,
-            meta=meta,
+            expires_after_turns=TRANSIENT_KNOWLEDGE_TURNS,
         )
 
 
@@ -364,22 +357,22 @@ _LOCATION_EXTRACTOR = LocationExtractor()
 _KNOWLEDGE_RESOLUTION_EXTRACTOR = KnowledgeResolutionExtractor()
 
 # Active-character marker TTL (turns without re-mention before expiry)
-_ACTIVE_CHAR_TTL_TURNS = 4
+_ACTIVE_CHAR_TTL_TURNS = TRANSIENT_KNOWLEDGE_TURNS
 
 
 def _upsert_active_character_markers(state: GameState, active_keys: set[str]) -> None:
     """Create or refresh transient markers for each active character key.
 
     Removes stale markers for the same keys first (resets TTL), then inserts
-    fresh entries.  Markers use ``meta.source="active_character"`` so the
-    prompt builder can read the active set and hide the markers from prompt
-    text.
+    fresh entries. Markers are stored as text values using
+    ``__active_character_marker__:<character_key>`` so prompt building can
+    read the active set while keeping markers hidden from rendered prompt text.
     """
     # Replace marker set each turn so only currently relevant characters remain.
     state.transient_entries = [
         e for e in state.transient_entries
         if not (
-            (getattr(e, "meta", {}) or {}).get("source") == "active_character"
+            (getattr(e, "text", "") or "").startswith("__active_character_marker__:")
         )
     ]
 
@@ -390,9 +383,6 @@ def _upsert_active_character_markers(state: GameState, active_keys: set[str]) ->
             scope="scene",
             text=f"__active_character_marker__:{key}",
             expires_after_turns=_ACTIVE_CHAR_TTL_TURNS,
-            expires_after_minutes=None,
-            promotable=False,
-            meta={"source": "active_character", "character_key": key},
         )
 
 
@@ -534,15 +524,7 @@ def _apply_knowledge_resolution_updates(
                 f"KnowledgeResolution chunk={chunk_id} speaker={speaker_id} "
                 f"knows={str(knows).lower()} conf={confidence:.2f} text={chunk_text}"
             ),
-            expires_after_turns=8,
-            expires_after_minutes=None,
-            promotable=False,
-            meta={
-                "source": "knowledge_resolution",
-                "speaker": speaker_id,
-                "chunk_id": chunk_id,
-                "knows": str(knows).lower(),
-            },
+            expires_after_turns=TRANSIENT_KNOWLEDGE_TURNS,
         )
 
         applied.append({
@@ -1366,10 +1348,7 @@ async def chat_handler(data: dict):
             namespace=_namespace_for_state(state),
             scope="conversation",
             text=f"Player said: {msg}",
-            expires_after_turns=2,
-            expires_after_minutes=30,
-            promotable=False,
-            meta={"source": "player"},
+            expires_after_turns=TRANSIENT_KNOWLEDGE_TURNS,
         )
     except Exception:
         pass
@@ -1452,10 +1431,7 @@ async def chat_handler(data: dict):
             namespace=_namespace_for_state(state),
             scope="conversation",
             text=f"NPC replied: {clean}",
-            expires_after_turns=2,
-            expires_after_minutes=30,
-            promotable=False,
-            meta={"source": "npc"},
+            expires_after_turns=TRANSIENT_KNOWLEDGE_TURNS,
         )
     except Exception:
         pass

@@ -15,6 +15,105 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 
+_TENTHS = [round(-1.0 + 0.1 * i, 1) for i in range(21)]
+
+_TRUST_WORDS = {
+    t: w for t, w in zip(_TENTHS, [
+        "betrayed", "treacherous", "hostile", "distrustful", "wary", "skeptical", "guarded", "reserved", "cautious", "unsure", "neutral", "open", "receptive", "cooperative", "confident", "reliant", "trusting", "devoted", "steadfast", "unshakable", "absolute",
+    ])
+}
+
+_AFFECTION_WORDS = {
+    t: w for t, w in zip(_TENTHS, [
+        "hateful", "resentful", "cold", "bitter", "hostile", "distant", "aloof", "detached", "dry", "reserved", "neutral", "warm", "friendly", "fond", "caring", "attached", "affectionate", "devoted", "tender", "adoring", "deeply_bonded",
+    ])
+}
+
+_FEAR_WORDS = {
+    t: w for t, w in zip(_TENTHS, [
+        "fearless", "calm", "steady", "composed", "unfazed", "alert", "watchful", "uneasy", "nervous", "tense", "guarded", "anxious", "shaken", "alarmed", "frightened", "panicked", "terrified", "horrified", "petrified", "overwhelmed", "paralyzed",
+    ])
+}
+
+_SUSPICION_WORDS = {
+    t: w for t, w in zip(_TENTHS, [
+        "fully_trusting", "trusting", "accepting", "open-minded", "unconcerned", "relaxed", "attentive", "questioning", "doubtful", "uncertain", "guarded", "skeptical", "wary", "dubious", "suspicious", "highly_suspicious", "convinced", "accusatory", "paranoid", "hypervigilant", "obsessed",
+    ])
+}
+
+
+def _clamp_unit(value: float) -> float:
+    return max(-1.0, min(1.0, float(value)))
+
+
+def _round_tenth(value: float) -> float:
+    return round(_clamp_unit(value), 1)
+
+
+def _normalize_zero_to_one(value: float) -> float:
+    v = max(0.0, min(1.0, float(value)))
+    return _round_tenth(v * 2.0 - 1.0)
+
+
+def _word_from_scale(scale: dict[float, str], normalized_value: float) -> str:
+    return scale[_round_tenth(normalized_value)]
+
+
+def _stance_sentence(*, trust_n: float, fear_n: float, affection_n: float, suspicion_n: float) -> str:
+    cooperative = trust_n >= 0.3 and affection_n >= 0.2 and fear_n <= 0.1 and suspicion_n <= 0.1
+    defensive = fear_n >= 0.3 or suspicion_n >= 0.3
+    hostile = trust_n <= -0.4 and affection_n <= -0.4
+
+    if cooperative:
+        return "Behavior tendency: cooperative and candid, likely to engage and share."
+    if hostile and defensive:
+        return "Behavior tendency: defensive-hostile, likely to resist, deflect, or confront."
+    if hostile:
+        return "Behavior tendency: hostile distance, likely to push back and withhold."
+    if defensive:
+        return "Behavior tendency: guarded defense, likely to hedge and reveal selectively."
+    return "Behavior tendency: neutral-watchful, likely to respond cautiously without full openness."
+
+
+def describe_relationship_state(state: "RelationshipState") -> dict[str, str | float]:
+    trust_n = _round_tenth(state.trust)
+    affection_n = _round_tenth(state.affection)
+    fear_n = _normalize_zero_to_one(state.fear)
+    suspicion_n = _normalize_zero_to_one(state.suspicion)
+
+    trust_w = _word_from_scale(_TRUST_WORDS, trust_n)
+    fear_w = _word_from_scale(_FEAR_WORDS, fear_n)
+    affection_w = _word_from_scale(_AFFECTION_WORDS, affection_n)
+    suspicion_w = _word_from_scale(_SUSPICION_WORDS, suspicion_n)
+
+    summary = (
+        f"Trust={trust_w} ({trust_n:+.1f}); "
+        f"Fear={fear_w} ({fear_n:+.1f}); "
+        f"Affection={affection_w} ({affection_n:+.1f}); "
+        f"Suspicion={suspicion_w} ({suspicion_n:+.1f})."
+    )
+
+    stance = _stance_sentence(
+        trust_n=trust_n,
+        fear_n=fear_n,
+        affection_n=affection_n,
+        suspicion_n=suspicion_n,
+    )
+
+    return {
+        "trust_normalized": trust_n,
+        "fear_normalized": fear_n,
+        "affection_normalized": affection_n,
+        "suspicion_normalized": suspicion_n,
+        "trust_word": trust_w,
+        "fear_word": fear_w,
+        "affection_word": affection_w,
+        "suspicion_word": suspicion_w,
+        "summary": summary,
+        "stance": stance,
+    }
+
+
 class RelationshipType(str, Enum):
     FRIEND = "FRIEND"
     ENEMY = "ENEMY"
@@ -169,15 +268,15 @@ class CharacterGraph:
                 name = "The Player"
 
             type_label = e.type.value.lower().replace("_", " ")
-            s = e.state
-            state_str = f"Trust: {s.trust:+.1f}, Fear: {s.fear:.1f}, Affection: {s.affection:+.1f}, Suspicion: {s.suspicion:.1f}"
+            described = describe_relationship_state(e.state)
 
             if e.to_id == "player":
                 label_name = f"{name} ({e.to_id})"
             else:
                 label_name = f"{name} ({e.to_id})"
 
-            line = f"- {label_name} ({type_label}): {state_str}"
+            line = f"- {label_name} ({type_label}): {described['summary']}"
+            line += f"\n  {described['stance']}"
             if e.label:
                 line += f"\n  {e.label}"
             lines.append(line)
