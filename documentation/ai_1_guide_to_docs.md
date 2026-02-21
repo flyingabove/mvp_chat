@@ -35,4 +35,5 @@ Instructions to AI:
 - [documentation/model_output_docs/old designs/EPISTEMIC_REDESIGN.md](documentation/model_output_docs/old%20designs/EPISTEMIC_REDESIGN.md): Archived redesign notes (historical context only; superseded by current epistemic design/todo docs).
 - [documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md](documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md): Scenario/step registry + UI playback design for integration tests (cached vs live LLM, assertions).
 - [documentation/model_output_docs/layer_coverage_mapping.md](documentation/model_output_docs/layer_coverage_mapping.md): Mapping of IU scenario segments to epistemic layers and how toggle tests assert them.
+- [documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md](documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md): Proposed shift from chatbot-style prompting to paragraph-first scene storytelling, with multi-character narrative handling and identity-correction intent guards.
 ![alt text](image.png)
