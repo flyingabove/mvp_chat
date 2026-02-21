@@ -85,6 +85,29 @@ def _visibility_suffix(chunk: KnowledgeChunk) -> str:
     return " [" + " | ".join(parts) + "]" if parts else ""
 
 
+def _get_active_character_keys(state: GameState) -> set[str]:
+    """Extract the active character set from transient markers.
+
+    Scans ``state.transient_entries`` for entries with
+    ``meta.source == "active_character"`` and returns their character keys.
+    Always includes ``main_character_id`` and ``"player"`` as fallback.
+    """
+    keys: set[str] = set()
+    main_id = getattr(state, "main_character_id", "") or ""
+    if main_id:
+        keys.add(main_id)
+    keys.add("player")
+
+    for e in getattr(state, "transient_entries", []) or []:
+        meta = getattr(e, "meta", {}) or {}
+        if meta.get("source") == "active_character":
+            ch_key = meta.get("character_key", "")
+            if ch_key:
+                keys.add(ch_key)
+
+    return keys
+
+
 def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> list[KnowledgeChunk]:
     chunks: list[KnowledgeChunk] = []
 
@@ -117,7 +140,10 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
 
     graph = getattr(state, "character_graph", None)
     if graph:
+        active_keys = _get_active_character_keys(state)
         for edge in graph.get_edges_from(state.main_character_id or ""):
+            if edge.to_id not in active_keys:
+                continue
             chunks.append(KnowledgeChunk(
                 id=f"rel::{edge.id}",
                 text=(
@@ -180,7 +206,19 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
             maybe_known_by=[speaker_id] if speaker_id else [],
         ))
 
+    active_keys_for_transient = _get_active_character_keys(state)
     for e in (getattr(state, "transient_entries", []) or [])[-10:]:
+        meta = getattr(e, "meta", {}) or {}
+
+        # Skip active-character markers (internal metadata, not narrative)
+        if meta.get("source") == "active_character":
+            continue
+
+        # Skip character extras for non-active characters
+        ch_key = meta.get("character_key", "")
+        if ch_key and ch_key not in active_keys_for_transient:
+            continue
+
         text = (getattr(e, "text", "") or "").strip()
         if not text:
             continue
@@ -350,8 +388,20 @@ def _transient_buffer_section(state: GameState) -> str:
     entries = getattr(state, "transient_entries", []) or []
     if not entries:
         return ""
+    active_keys = _get_active_character_keys(state)
     lines = []
     for e in entries[-8:]:
+        meta = getattr(e, "meta", {}) or {}
+
+        # Skip active-character markers (internal metadata, not narrative)
+        if meta.get("source") == "active_character":
+            continue
+
+        # Skip character extras for non-active characters
+        ch_key = meta.get("character_key", "")
+        if ch_key and ch_key not in active_keys:
+            continue
+
         text = (getattr(e, "text", "") or "").strip()
         if text:
             lines.append(f"- {text}")
@@ -450,9 +500,11 @@ If forgotten, reply ONLY with that tag.
     relationship_section = ""
     graph = getattr(state, "character_graph", None)
     if graph:
+        active_keys = _get_active_character_keys(state)
         rel_text = graph.format_for_prompt(
             state.main_character_id or "",
             state.characters,
+            active_characters=active_keys,
         )
         if rel_text:
             relationship_section = f"""

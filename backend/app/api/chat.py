@@ -318,12 +318,14 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         "goal", "win_detection", "epistemic_seed", "canonical_truth", "characters", "relationships",
     }
 
-    details: list[str] = []
+    # (text, character_key_or_empty) — character_key lets the prompt builder
+    # filter character extras based on the active-character set.
+    details: list[tuple[str, str]] = []
 
     for key, value in src.items():
         if key in canonical_top_keys:
             continue
-        details.append(f"story.{key}: {json.dumps(value, ensure_ascii=False)}")
+        details.append((f"story.{key}: {json.dumps(value, ensure_ascii=False)}", ""))
 
     for ch in src.get("characters") or []:
         if not isinstance(ch, dict):
@@ -331,12 +333,15 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         ch_key = str(ch.get("key") or ch.get("id") or ch.get("name") or "character")
         extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS}
         if extras:
-            details.append(f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}")
+            details.append((f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}", ch_key))
 
-    for i, detail in enumerate(details[:20]):
+    for i, (detail, ch_key) in enumerate(details[:20]):
         text = detail.strip()
         if not text:
             continue
+        meta: dict[str, str] = {"source": "story_noncanonical"}
+        if ch_key:
+            meta["character_key"] = ch_key
         state.add_transient_entry(
             id=f"story_extra_{i}",
             namespace=_namespace_for_state(state),
@@ -345,7 +350,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
             expires_after_turns=12,
             expires_after_minutes=240,
             promotable=False,
-            meta={"source": "story_noncanonical"},
+            meta=meta,
         )
 
 
@@ -357,6 +362,38 @@ SESSIONS = {}
 # Shared extractor instance (stateless).
 _LOCATION_EXTRACTOR = LocationExtractor()
 _KNOWLEDGE_RESOLUTION_EXTRACTOR = KnowledgeResolutionExtractor()
+
+# Active-character marker TTL (turns without re-mention before expiry)
+_ACTIVE_CHAR_TTL_TURNS = 4
+
+
+def _upsert_active_character_markers(state: GameState, active_keys: set[str]) -> None:
+    """Create or refresh transient markers for each active character key.
+
+    Removes stale markers for the same keys first (resets TTL), then inserts
+    fresh entries.  Markers use ``meta.source="active_character"`` so the
+    prompt builder can read the active set and hide the markers from prompt
+    text.
+    """
+    # Replace marker set each turn so only currently relevant characters remain.
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if not (
+            (getattr(e, "meta", {}) or {}).get("source") == "active_character"
+        )
+    ]
+
+    for key in active_keys:
+        state.add_transient_entry(
+            id=f"active_char::{key}",
+            namespace=_namespace_for_state(state),
+            scope="scene",
+            text=f"__active_character_marker__:{key}",
+            expires_after_turns=_ACTIVE_CHAR_TTL_TURNS,
+            expires_after_minutes=None,
+            promotable=False,
+            meta={"source": "active_character", "character_key": key},
+        )
 
 
 def _chunk_text(chunk: dict) -> str:
@@ -1209,6 +1246,19 @@ async def chat_handler(data: dict):
     # Keep transient scene memory bounded.
     state.purge_transient_entries()
 
+    # --- ACTIVE CHARACTER DETECTION (pre-prompt) ---
+    # Detect which characters are mentioned in recent conversation or present
+    # at the current location.  Markers stored in the transient buffer let the
+    # prompt builder filter graph edges and character extras to only what is
+    # contextually relevant.
+    from backend.app.engine.active_characters import compute_active_character_set
+    _pre_active_chars = compute_active_character_set(
+        state=state,
+        user_msg=msg,
+        recent_log=log[-4:],
+    )
+    _upsert_active_character_markers(state, _pre_active_chars)
+
     # NOTE: advance_time is called AFTER location extraction (below) so that
     # the canonicalized movement message (e.g. "go to interview_room_bob") is
     # used instead of the raw user text which may not match the strict regex.
@@ -1407,6 +1457,20 @@ async def chat_handler(data: dict):
             promotable=False,
             meta={"source": "npc"},
         )
+    except Exception:
+        pass
+
+    # --- POST-REPLY ACTIVE CHARACTER DETECTION ---
+    # Scan the NPC reply for character mentions so active set stays aligned with
+    # current context (mentioned + scene-present), not stale prior turns.
+    try:
+        _post_active_chars = compute_active_character_set(
+            state=state,
+            user_msg="",
+            recent_log=[],
+            npc_reply=clean,
+        )
+        _upsert_active_character_markers(state, _post_active_chars)
     except Exception:
         pass
 

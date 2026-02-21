@@ -131,12 +131,18 @@ class CharacterGraph:
         # Map ±1 integer to ±0.1 affection delta
         edge.state.apply_delta(affection=rel_delta * 0.1)
 
-    def format_for_prompt(self, speaker_id: str, characters: dict) -> str:
+    def format_for_prompt(
+        self,
+        speaker_id: str,
+        characters: dict,
+        active_characters: set[str] | None = None,
+    ) -> str:
         """Build the relationship context section for the system prompt.
 
         Args:
             speaker_id: the character whose perspective we're building for
             characters: dict of key -> CharacterState (or any object with .name)
+            active_characters: if provided, only include edges targeting these keys
 
         Returns:
             Formatted string for prompt injection, or empty string if no edges.
@@ -144,6 +150,12 @@ class CharacterGraph:
         edges = self.get_edges_from(speaker_id)
         if not edges:
             return ""
+
+        # Filter to active characters if specified
+        if active_characters is not None:
+            edges = [e for e in edges if e.to_id in active_characters]
+            if not edges:
+                return ""
 
         # Cap at 6 edges for prompt size control
         edges = edges[:6]
@@ -160,7 +172,12 @@ class CharacterGraph:
             s = e.state
             state_str = f"Trust: {s.trust:+.1f}, Fear: {s.fear:.1f}, Affection: {s.affection:+.1f}, Suspicion: {s.suspicion:.1f}"
 
-            line = f"- {name} ({type_label}): {state_str}"
+            if e.to_id == "player":
+                label_name = f"{name} ({e.to_id})"
+            else:
+                label_name = f"{name} ({e.to_id})"
+
+            line = f"- {label_name} ({type_label}): {state_str}"
             if e.label:
                 line += f"\n  {e.label}"
             lines.append(line)

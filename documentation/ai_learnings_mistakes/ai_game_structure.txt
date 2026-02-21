@@ -70,6 +70,10 @@ Prompt context contract (runtime)
   7) transient buffer.
 - Runtime prompt rendering uses an epistemic knowledge stack ordered:
   CANONICAL_CORE → CANONICAL_GRAPH → SUBJECTIVE_BELIEF → RETRIEVED_MEMORY → TRANSIENT_CONTEXT.
+- Character-graph and character-extra prompt data must be scoped by active-character markers only.
+  Active characters are extracted from user/assistant dialogue mentions plus scene location speakers,
+  stored in transient markers (`meta.source=active_character`), and refreshed each turn.
+  System-prompt log content is excluded from active-character extraction.
 - For chunks without explicit `known_by` and without explicit `not_known_by` for the active speaker,
   the LLM is instructed to make a best reasonable determination from dialogue context.
 - After each reply, `KnowledgeResolutionExtractor` evaluates unknown chunks and writes explicit

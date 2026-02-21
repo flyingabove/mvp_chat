@@ -178,3 +178,59 @@ def test_format_for_prompt_empty_graph():
     cg = CharacterGraph.from_dict(None)
     output = cg.format_for_prompt("iu", {})
     assert output == ""
+
+
+def test_format_for_prompt_filters_by_active_characters():
+    """Only edges targeting active characters should appear."""
+    cg = CharacterGraph.from_dict({
+        "edges": [
+            {"id": "e1", "from": "iu", "to": "player", "type": "OTHER"},
+            {"id": "e2", "from": "iu", "to": "bob", "type": "FRIEND"},
+            {"id": "e3", "from": "iu", "to": "carol", "type": "ENEMY"},
+        ],
+    })
+
+    class FakeChar:
+        name = "Placeholder"
+
+    chars = {"player": FakeChar(), "bob": FakeChar(), "carol": FakeChar()}
+
+    # Only player is active
+    output = cg.format_for_prompt("iu", chars, active_characters={"player"})
+    assert "player" in output.lower()
+    assert "bob" not in output.lower()
+    assert "carol" not in output.lower()
+
+
+def test_format_for_prompt_no_filter_when_none():
+    """When active_characters=None, all edges appear (backward compat)."""
+    cg = CharacterGraph.from_dict({
+        "edges": [
+            {"id": "e1", "from": "iu", "to": "player", "type": "OTHER"},
+            {"id": "e2", "from": "iu", "to": "bob", "type": "FRIEND"},
+        ],
+    })
+
+    class FakeChar:
+        name = "X"
+
+    chars = {"player": FakeChar(), "bob": FakeChar()}
+
+    output = cg.format_for_prompt("iu", chars, active_characters=None)
+    assert "player" in output.lower()
+    assert "bob" in output.lower()
+
+
+def test_format_for_prompt_active_filter_empty_returns_empty():
+    """If active set excludes all edge targets, return empty string."""
+    cg = CharacterGraph.from_dict({
+        "edges": [
+            {"id": "e1", "from": "iu", "to": "bob", "type": "FRIEND"},
+        ],
+    })
+
+    class FakeChar:
+        name = "Bob"
+
+    output = cg.format_for_prompt("iu", {"bob": FakeChar()}, active_characters={"player"})
+    assert output == ""
