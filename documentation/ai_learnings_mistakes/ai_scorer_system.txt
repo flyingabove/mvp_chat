@@ -179,3 +179,16 @@ CSS Conventions
 - Background: #0c0e14, accent: #6c5ce7 (purple)
 - NPC color: orange (#fab1a0), Player color: blue (#74b9ff)
 - All in :root block at top of embedded <style>
+
+Chat Text Formatting (important parity behavior)
+------------------------------------------------
+- Scorer chat bubbles now use the same rich-text rendering style as the main game chat:
+   - `**bold**` -> `<strong>`
+   - `*italic*` -> `<em>`
+   - quoted dialogue wrapped/styled as dialogue text
+   - preserves paragraph breaks and single-line breaks (`<p>` + `<br>`)
+- Implementation lives in `scripts/scorer/story_agent_ui.py` JS helpers:
+   - `normalizeNewlines()`
+   - `formatInline()`
+   - `toRichHTML()`
+- `addChatMsg()` must render message content via `toRichHTML(...)`, not plain `escapeHtml(...)`, otherwise formatting/newlines will be lost.

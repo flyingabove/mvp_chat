@@ -842,6 +842,23 @@ HTML_PAGE = r"""<!DOCTYPE html>
   .msg.npc .role-tag { color: var(--npc); }
   .msg.player .role-tag { color: rgba(255,255,255,0.7); }
 
+  .msg-content .rich p {
+    margin: 0 0 8px;
+  }
+  .msg-content .rich p:last-child {
+    margin-bottom: 0;
+  }
+  .msg-content .rich strong {
+    font-weight: 700;
+  }
+  .msg-content .rich em {
+    font-style: italic;
+  }
+  .msg-content .dialogue {
+    display: inline;
+    font-style: italic;
+  }
+
   .system-msg {
     text-align: center;
     font-size: 11px;
@@ -1678,7 +1695,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     }
 
     let html = '<div class="role-tag">' + (msg.role === 'npc' ? 'NPC' : 'Player') + ' &middot; T' + turn + '</div>';
-    html += '<div>' + escapeHtml(msg.content) + '</div>';
+    html += '<div class="msg-content">' + toRichHTML(msg.content) + '</div>';
     if (msg.latency_ms) {
       html += '<div class="meta">' + msg.latency_ms + 'ms \u00B7 ' + (msg.tokens || 0) + ' tok</div>';
     }
@@ -2325,6 +2342,29 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
 
   // ---- Utility ----
+  function normalizeNewlines(text) {
+    return String(text || '')
+      .replace(/\\r\\n|\\n|\\r/g, '\n')
+      .replace(/\r\n/g, '\n');
+  }
+
+  function formatInline(md) {
+    return md
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*(.+?)\*(?!\*)/g, function(_, p, i) { return p + '<em>' + i + '</em>'; })
+      .replace(/"([^"]+)"/g, '<span class="dialogue">“$1”</span>')
+      .replace(/“([^”]+)”/g, '<span class="dialogue">“$1”</span>');
+  }
+
+  function toRichHTML(text) {
+    var s = normalizeNewlines(text);
+    var safe = escapeHtml(s);
+    var parts = safe.split(/\n{2,}/);
+    return '<div class="rich">' + parts.map(function(p) {
+      return '<p>' + formatInline(p.replace(/\n/g, '<br>')) + '</p>';
+    }).join('') + '</div>';
+  }
+
   function escapeHtml(s) {
     if (s == null) return '';
     s = String(s);
