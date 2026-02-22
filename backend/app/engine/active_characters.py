@@ -117,6 +117,53 @@ def get_location_speaker_keys(state: GameState) -> Set[str]:
     return keys
 
 
+def get_character_location_index(state: GameState) -> Dict[str, str]:
+    """Return a map of character_key -> location_id from world location_speakers.
+
+    This keeps prompt routing aligned with the world location graph by deriving
+    current per-character placement from story world bindings each turn.
+    """
+    index: Dict[str, str] = {}
+
+    cfg = getattr(state, "story_cfg", None)
+    if cfg is None:
+        return index
+    if hasattr(cfg, "as_dict"):
+        cfg = cfg.as_dict()
+    if not isinstance(cfg, dict):
+        return index
+
+    world_cfg = cfg.get("world", {}) or {}
+    loc_speakers = world_cfg.get("location_speakers") or {}
+    if not isinstance(loc_speakers, dict):
+        return index
+
+    characters = getattr(state, "characters", {}) or {}
+    name_to_key: Dict[str, str] = {}
+    for ckey, char in characters.items():
+        ckey_l = str(ckey).strip().lower()
+        if ckey_l:
+            name_to_key[ckey_l] = ckey_l
+        cname = (getattr(char, "name", "") or "").strip().lower()
+        if cname:
+            name_to_key[cname] = ckey_l
+
+    for loc_id, mapping in loc_speakers.items():
+        if isinstance(mapping, str):
+            speakers = [mapping]
+        elif isinstance(mapping, (list, tuple)):
+            speakers = [str(x) for x in mapping]
+        else:
+            continue
+
+        for speaker in speakers:
+            key = name_to_key.get(str(speaker).strip().lower())
+            if key:
+                index[key] = str(loc_id or "")
+
+    return index
+
+
 def get_on_call_character_keys(state: GameState) -> Set[str]:
     """Return character keys currently marked as being on a phone call.
 
@@ -158,7 +205,9 @@ def compute_active_character_set(
     combined_text = "\n".join(text_parts)
 
     mentioned = detect_mentioned_characters(combined_text, characters, main_id)
-    location = get_location_speaker_keys(state)
+    location_index = get_character_location_index(state)
+    current_loc = str(getattr(state, "location_id", "") or "")
+    location = {key for key, loc in location_index.items() if loc == current_loc}
     on_call = get_on_call_character_keys(state)
 
     return mentioned | location | on_call

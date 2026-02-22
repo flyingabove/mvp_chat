@@ -386,6 +386,28 @@ def _upsert_active_character_markers(state: GameState, active_keys: set[str]) ->
         )
 
 
+def _upsert_character_location_markers(state: GameState) -> None:
+    """Refresh derived character->location markers from world location bindings."""
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if not ((getattr(e, "text", "") or "").startswith("__character_location_marker__:"))
+    ]
+
+    from backend.app.engine.active_characters import get_character_location_index
+
+    loc_index = get_character_location_index(state)
+    for key, loc_id in loc_index.items():
+        if not key or not loc_id:
+            continue
+        state.add_transient_entry(
+            id=f"char_loc::{key}",
+            namespace=_namespace_for_state(state),
+            scope="scene",
+            text=f"__character_location_marker__:{key}:{loc_id}",
+            expires_after_turns=_ACTIVE_CHAR_TTL_TURNS,
+        )
+
+
 def _chunk_text(chunk: dict) -> str:
     return str(chunk.get("text") or chunk.get("content") or "").strip()
 
@@ -1227,6 +1249,9 @@ async def chat_handler(data: dict):
 
     # Keep transient scene memory bounded.
     state.purge_transient_entries()
+
+    # Keep location bindings current for all known characters.
+    _upsert_character_location_markers(state)
 
     # --- ACTIVE CHARACTER DETECTION (pre-prompt) ---
     # Detect which characters are mentioned in recent conversation or present

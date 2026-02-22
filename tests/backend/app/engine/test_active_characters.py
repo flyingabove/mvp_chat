@@ -4,6 +4,7 @@
 from backend.app.engine.active_characters import (
     compute_active_character_set,
     detect_mentioned_characters,
+    get_character_location_index,
     get_on_call_character_keys,
     get_location_speaker_keys,
 )
@@ -140,6 +141,26 @@ def test_location_speakers_no_story_cfg():
     assert result == set()
 
 
+def test_character_location_index_maps_all_bindings():
+    state = GameState()
+    state.characters = {
+        "iu": CharacterState(key="iu", name="IU", role="ghost"),
+        "han_jae_seo": CharacterState(key="han_jae_seo", name="Han Jae-seo", role="ceo"),
+    }
+    state.story_cfg = {
+        "world": {
+            "location_speakers": {
+                "iu_apartment": ["IU"],
+                "aster_office": ["Han Jae-seo"],
+            }
+        }
+    }
+
+    result = get_character_location_index(state)
+    assert result["iu"] == "iu_apartment"
+    assert result["han_jae_seo"] == "aster_office"
+
+
 # ---------------------------------------------------------------------------
 # compute_active_character_set
 # ---------------------------------------------------------------------------
@@ -244,3 +265,27 @@ def test_compute_includes_on_call_markers():
     )
 
     assert "han_jae_seo" in result
+
+
+def test_compute_excludes_offscene_location_speakers_by_current_location():
+    state = GameState()
+    state.main_character_id = "iu"
+    state.characters = _make_characters()
+    state.location_id = "iu_apartment"
+    state.story_cfg = {
+        "world": {
+            "location_speakers": {
+                "iu_apartment": ["IU"],
+                "aster_office": ["Han Jae-seo"],
+            }
+        }
+    }
+
+    result = compute_active_character_set(
+        state=state,
+        user_msg="hello",
+        recent_log=[],
+    )
+
+    assert "iu" in result
+    assert "han_jae_seo" not in result

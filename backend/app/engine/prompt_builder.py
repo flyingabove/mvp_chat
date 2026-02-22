@@ -112,16 +112,21 @@ def _english_join(names: list[str]) -> str:
     return ", ".join(names[:-1]) + f", and {names[-1]}"
 
 
-def _visibility_prose(chunk: KnowledgeChunk, characters: dict) -> str:
+def _visibility_prose(chunk: KnowledgeChunk, characters: dict, active_characters: set[str] | None = None) -> str:
     """Convert a chunk's visibility lists into a plain-English sentence."""
     if "all_characters" in chunk.known_by:
         return "Everyone knows this."
 
     parts: list[str] = []
 
-    known_names = [_resolve_name(k, characters) for k in chunk.known_by]
-    not_known_names = [_resolve_name(k, characters) for k in chunk.not_known_by]
-    maybe_names = [_resolve_name(k, characters) for k in chunk.maybe_known_by]
+    def _filter_scene(keys: list[str]) -> list[str]:
+        if active_characters is None:
+            return list(keys)
+        return [k for k in keys if k in active_characters]
+
+    known_names = [_resolve_name(k, characters) for k in _filter_scene(chunk.known_by)]
+    not_known_names = [_resolve_name(k, characters) for k in _filter_scene(chunk.not_known_by)]
+    maybe_names = [_resolve_name(k, characters) for k in _filter_scene(chunk.maybe_known_by)]
 
     if known_names and not not_known_names and not maybe_names:
         if len(known_names) == 1:
@@ -143,6 +148,22 @@ def _visibility_prose(chunk: KnowledgeChunk, characters: dict) -> str:
         parts.append(f"{_english_join(maybe_names)} may have some awareness of this.")
 
     return " ".join(parts)
+
+
+def _is_legacy_relationship_telemetry(text: str) -> bool:
+    """Detect old relationship telemetry lines that should not appear in prose stack.
+
+    These lines are rendered in the dedicated relationship section and must not
+    leak into canonical/belief stack sections.
+    """
+    content = str(text or "").strip().lower()
+    if not content:
+        return False
+
+    if "->" in content and "type=" in content and "trust is" in content:
+        return True
+
+    return content.startswith("relationship dynamics and world context:")
 
 
 _CERTAINTY_WORDS = {
@@ -187,8 +208,8 @@ def _certainty_phrase(certainty_word: str) -> str:
     return "with mixed confidence"
 
 
-def _belief_line(it: KnowledgeChunk, characters: dict, idx: int) -> str:
-    visibility = _visibility_prose(it, characters)
+def _belief_line(it: KnowledgeChunk, characters: dict, idx: int, active_characters: set[str] | None = None) -> str:
+    visibility = _visibility_prose(it, characters, active_characters=active_characters)
     certainty_word = str(getattr(it, "certainty", "") or "mixed").strip() or "mixed"
     certainty_phrase = _certainty_phrase(certainty_word)
 
@@ -234,6 +255,45 @@ def _get_active_character_keys(state: GameState) -> set[str]:
     return keys
 
 
+def _scene_presence_keys(state: GameState) -> set[str]:
+    """Return characters that are currently in scene focus.
+
+    Includes always-on anchors (main + player), active mention/on-call markers,
+    and speakers configured at the current location.
+    """
+    keys = set(_get_active_character_keys(state))
+
+    cfg, _ = _extract_story_cfg(state)
+    world_cfg = (cfg.get("world") or {}) if isinstance(cfg, dict) else {}
+    loc_speakers = world_cfg.get("location_speakers") or {}
+    loc_id = str(getattr(state, "location_id", "") or "")
+    raw_speakers = loc_speakers.get(loc_id) if isinstance(loc_speakers, dict) else None
+
+    if isinstance(raw_speakers, str):
+        raw_list = [raw_speakers]
+    elif isinstance(raw_speakers, list):
+        raw_list = [str(x or "") for x in raw_speakers]
+    else:
+        raw_list = []
+
+    chars = getattr(state, "characters", {}) or {}
+    name_to_key = {}
+    for ckey, char in chars.items():
+        ckey_l = str(ckey or "").strip().lower()
+        if ckey_l:
+            name_to_key[ckey_l] = ckey_l
+        cname = (getattr(char, "name", "") or "").strip().lower()
+        if cname:
+            name_to_key[cname] = ckey_l
+
+    for raw in raw_list:
+        key = name_to_key.get(str(raw).strip().lower())
+        if key:
+            keys.add(key)
+
+    return keys
+
+
 def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> list[KnowledgeChunk]:
     chunks: list[KnowledgeChunk] = []
 
@@ -252,6 +312,8 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
     for fact in getattr(state, "canonical_facts", []) or []:
         text = (getattr(fact, "content", "") or "").strip()
         if not text:
+            continue
+        if _is_legacy_relationship_telemetry(text):
             continue
         chunks.append(KnowledgeChunk(
             id=f"fact::{getattr(fact, 'id', '') or 'unknown'}",
@@ -282,7 +344,7 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
             loc = wg.get_location(loc_id)
             chunks.append(KnowledgeChunk(
                 id=f"place::{loc_id}",
-                text=f"Current place={loc.name}; description={getattr(loc, 'description', '')}",
+                text=f"The current place is {loc.name}. {getattr(loc, 'description', '')}",
                 tier="CANONICAL_GRAPH",
                 source="places_graph",
                 certainty="certain",
@@ -314,6 +376,8 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
         text = (c.get("text") or "").strip()
         if not text:
             continue
+        if _is_legacy_relationship_telemetry(text):
+            continue
         chunks.append(KnowledgeChunk(
             id=f"retrieval::{c.get('chunk_id') or 'unknown'}",
             text=text,
@@ -329,6 +393,7 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
 def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) -> tuple[str, list[dict]]:
     chunks = _knowledge_chunks_from_state(state, retrieved_chunks)
     characters = getattr(state, "characters", {}) or {}
+    active_keys = _scene_presence_keys(state)
 
     tier_order = [
         "CANONICAL_CORE",
@@ -350,10 +415,12 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
         heading = _TIER_HEADINGS.get(tier, f"{tier}:")
         lines = [heading]
         for idx, it in enumerate(items, 1):
+            if _is_legacy_relationship_telemetry(it.text):
+                continue
             if tier == "SUBJECTIVE_BELIEF":
-                lines.append(_belief_line(it, characters, idx))
+                lines.append(_belief_line(it, characters, idx, active_characters=active_keys))
             else:
-                visibility = _visibility_prose(it, characters)
+                visibility = _visibility_prose(it, characters, active_characters=active_keys)
                 if visibility:
                     lines.append(f"{idx}. {it.text} {visibility}")
                 else:
@@ -368,7 +435,8 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
                 "not_known_by": list(it.not_known_by),
                 "maybe_known_by": list(it.maybe_known_by),
             })
-        sections.append("\n".join(lines))
+        if len(lines) > 1:
+            sections.append("\n".join(lines))
 
     if not sections:
         return "", []
@@ -526,6 +594,33 @@ def _scene_cast_keys(state: GameState) -> list[str]:
     return keys[:8]
 
 
+def _humanize_rel_word(token: str) -> str:
+    return str(token or "").replace("_", " ").strip()
+
+
+def _relationship_role_prose(edge_type: str) -> str:
+    token = str(edge_type or "other").strip().lower().replace("_", " ")
+    if token == "employer":
+        return "This is an employer relationship with a clear boss-to-subordinate power dynamic."
+    if token == "employee":
+        return "This is an employee relationship where authority pressure flows from the other side."
+    if token == "family":
+        return "This is a family relationship, so history and obligation shape the emotional stakes."
+    if token == "friend":
+        return "This is a friendship relationship, so trust and betrayal carry extra weight."
+    if token == "enemy":
+        return "This is an enemy relationship, so conflict and defensive behavior are expected."
+    if token == "lover":
+        return "This is a romantic relationship, so intimacy and emotional volatility are both in play."
+    if token == "suspect":
+        return "This is a suspect relationship, so caution, leverage, and defensive framing dominate."
+    if token == "victim":
+        return "This is a victim-linked relationship, so guilt, grief, and evidentiary pressure can surface."
+    if token == "witness":
+        return "This is a witness relationship, so credibility and selective disclosure matter."
+    return f"The relationship type is {token}."
+
+
 def _relationship_scene_section(state: GameState) -> str:
     graph = getattr(state, "character_graph", None)
     main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
@@ -549,11 +644,16 @@ def _relationship_scene_section(state: GameState) -> str:
         target_name = "the player" if edge.to_id == "player" else (getattr(target, "name", None) or edge.to_id.replace("_", " ").title())
         described = describe_relationship_state(edge.state)
         stance = str(described.get("stance", "")).replace("Behavior tendency:", "").strip()
+        role_line = _relationship_role_prose(getattr(edge.type, "value", edge.type))
+        trust_word = _humanize_rel_word(described["trust_word"])
+        fear_word = _humanize_rel_word(described["fear_word"])
+        affection_word = _humanize_rel_word(described["affection_word"])
+        suspicion_word = _humanize_rel_word(described["suspicion_word"])
         sentence = (
             f"{idx}. {main_name} currently reads {target_name} with "
-            f"{described['trust_word']} trust, {described['fear_word']} fear, "
-            f"{described['affection_word']} affection, and {described['suspicion_word']} suspicion. "
-            f"{stance}."
+            f"{trust_word} trust, {fear_word} fear, "
+            f"{affection_word} affection, and {suspicion_word} suspicion. "
+            f"{role_line} {stance}."
         )
         label = (getattr(edge, "label", "") or "").strip()
         if label:

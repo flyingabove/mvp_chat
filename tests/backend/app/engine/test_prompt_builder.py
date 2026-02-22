@@ -177,7 +177,7 @@ def test_prompt_knowledge_stack_renders_visibility_labels():
     assert "EPISTEMIC KNOWLEDGE STACK" in sysmsg
     assert "Everyone knows this" in sysmsg
     assert "IU does not yet know" in sysmsg
-    assert "Bob may have some awareness" in sysmsg
+    assert "Bob may have some awareness" not in sysmsg
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +338,122 @@ def test_prompt_does_not_duplicate_relationship_context_in_knowledge_stack():
     assert "iu->player type=" not in sysmsg
     # Relationship section should still exist once.
     assert sysmsg.count("RELATIONSHIP CONTEXT IN THIS SCENE") == 1
+
+
+def test_prompt_filters_legacy_relationship_telemetry_from_stack():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.character_graph import CharacterGraph
+    from backend.app.engine.epistemic_state import EpistemicFact
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.character_graph = CharacterGraph.from_dict({
+        "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],
+    })
+
+    st.add_canonical_fact(EpistemicFact(
+        id="legacy_rel",
+        content="iu->player type=OTHER Trust is neutral; fear is unfazed; affection is neutral; suspicion is fully_trusting.",
+        known_by=["iu", "player"],
+    ))
+
+    sysmsg = pb.system_prompt(st)
+    assert "iu->player type=OTHER" not in sysmsg
+    assert "Relationship dynamics and world context:" not in sysmsg
+    assert sysmsg.count("RELATIONSHIP CONTEXT IN THIS SCENE") == 1
+
+
+def test_prompt_hides_offscene_visibility_names_from_epistemic_stack():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicFact
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {"disclaimer": "fiction"},
+        "world": {"location_speakers": {"iu_apartment": ["IU"]}},
+    }
+    st.location_id = "iu_apartment"
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["han_jae_seo"] = CharacterState(key="han_jae_seo", name="Han Jae-seo", role="ceo")
+    st.main_character_id = "iu"
+
+    st.add_canonical_fact(EpistemicFact(
+        id="f1",
+        content="A private detail about the death.",
+        known_by=["iu"],
+        maybe_known_by=["han_jae_seo"],
+    ))
+
+    sysmsg = pb.system_prompt(st)
+    assert "Han Jae-seo" not in sysmsg
+
+
+def test_prompt_world_context_uses_natural_place_prose():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.world.location import Location
+
+    class _WG:
+        def get_location(self, loc_id):
+            return Location(
+                id=loc_id,
+                name="IU's Apartment",
+                description="A quiet apartment filled with muted light.",
+            )
+
+    class _RT:
+        world_graph = _WG()
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.location_id = "iu_apartment"
+    st.world_runtime = _RT()
+
+    sysmsg = pb.system_prompt(st)
+    assert "The current place is IU's Apartment." in sysmsg
+    assert "Current place=" not in sysmsg
+
+
+def test_relationship_section_uses_natural_prose_and_role_details():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.character_graph import CharacterGraph
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["han_jae_seo"] = CharacterState(key="han_jae_seo", name="Han Jae-seo", role="ceo")
+    st.main_character_id = "iu"
+    st.character_graph = CharacterGraph.from_dict({
+        "edges": [
+            {
+                "id": "e1",
+                "from": "iu",
+                "to": "han_jae_seo",
+                "type": "EMPLOYER",
+                "state": {
+                    "trust": -0.5,
+                    "fear": 0.6,
+                    "affection": -0.4,
+                    "suspicion": 0.75,
+                },
+            }
+        ],
+    })
+    st.add_transient_entry(
+        id="active_char::han_jae_seo",
+        namespace="test",
+        scope="scene",
+        text="__active_character_marker__:han_jae_seo",
+        expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st)
+    assert "This is an employer relationship with a clear boss-to-subordinate power dynamic." in sysmsg
+    assert "highly suspicious suspicion" in sysmsg
+    assert "highly_suspicious" not in sysmsg
 
 
 # ---------------------------------------------------------------------------
