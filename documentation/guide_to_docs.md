@@ -1,5 +1,7 @@
 Documentation map (what to read for which need)
 
+Use `documentation/ai_1_guide_to_docs.md` as the primary AI index. This file is a lightweight mirror.
+
 - [documentation/ai_learnings_mistakes/ai_create_new_flag.txt](documentation/ai_learnings_mistakes/ai_create_new_flag.txt): How to add new bracket commands ([H]/[HINT]) across backend + frontend with testing notes.
 - [documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt](documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt): Postmortem on blank-page incident; guards to avoid orphaned frontend code and how to recover.
 - [documentation/ai_learnings_mistakes/ai_game_structure.txt](documentation/ai_learnings_mistakes/ai_game_structure.txt): Story/game asset layout (story folders, knowledge indexes, maps, UUID rules) and steps to author a new case.
@@ -19,10 +21,10 @@ Documentation map (what to read for which need)
 - documentation\model_output_docs is where AI will typically write new docs
 - [documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md](documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md): Implemented relationship graph design plus enforced prompt-source boundaries (canonical graphs/objects + BM25/FAISS + transient).
 - [documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md](documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md): Epistemic architecture (truth vs belief vs retrieval) with namespacing rules `<user>-<story>-<instance>`.
-- [documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md](documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md): Implementation todo list for epistemic data model, extractor schema, prompt lift, and tests.
+- [documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md](documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md): Archived planning doc (historical only, not source of runtime truth).
 - [documentation/model_output_docs/old designs/EPISTEMIC_REDESIGN.md](documentation/model_output_docs/old%20designs/EPISTEMIC_REDESIGN.md): Story JSON v2 proposal with canon tiers (ANCHOR/CANON/SECRET_CANON/CLAIM/RUMOR), knowledge chunks, and invariants. (Moved to old designs folder.)
 - [documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md](documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md): Scenario/step registry + UI playback design for integration tests (cached vs live LLM, assertions).
 - [documentation/model_output_docs/layer_coverage_mapping.md](documentation/model_output_docs/layer_coverage_mapping.md): Mapping of IU scenario segments to epistemic layers and how toggle tests assert them.
 - [documentation/model_output_docs/MESSAGE_TO_PROMPT_FLOW_TRACE.md](documentation/model_output_docs/MESSAGE_TO_PROMPT_FLOW_TRACE.md): End-to-end runtime trace from previous LLM response through retrieval/extractors/graphs/transient updates to the next LLM prompt send.
 - [documentation/model_output_docs/NORTH_STAR_GAPS_AUDIT_2026-02-20.md](documentation/model_output_docs/NORTH_STAR_GAPS_AUDIT_2026-02-20.md): Detailed gap audit of current implementation vs north-star design principles, with prioritized remediation actions.
-- [documentation/model_output_docs/TODO_REGISTER.md](documentation/model_output_docs/TODO_REGISTER.md): Centralized active TODO register, including quarantined tests, priorities, owners, and exit criteria.
+- [documentation/model_output_docs/TODO_REGISTER.md](documentation/model_output_docs/TODO_REGISTER.md): Archived TODO register; active tracking should live in PRs/issues and tests.

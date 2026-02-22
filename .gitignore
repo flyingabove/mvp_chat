@@ -213,3 +213,4 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 nul
+scripts/saves/scores.csv

@@ -81,9 +81,9 @@ The prompt relationship section now uses deterministic wording rather than raw n
 
 ### Prompt output format
 
-Per relationship edge, prompt text now includes:
-- a deterministic lexical line like `Trust=... | Fear=... | Affection=... | Suspicion=...`
-- a deterministic stance sentence labeled `Behavior tendency:`
+Per relationship edge, prompt text now includes deterministic prose summaries (not raw numbers), for example:
+- `IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion.`
+- Followed by a deterministic stance sentence derived from the same dimensions.
 
 This gives stable, readable interpretation while preserving underlying numeric state for mechanics.
 
@@ -102,14 +102,7 @@ The type is the "label" on the edge. It's set at story creation time and can cha
 When building the prompt for a turn, the engine:
 1. Identifies the current speaker (from location → speaker mapping).
 2. Looks up all edges FROM that speaker.
-3. Injects a relationship summary into the prompt:
-   ```
-   Your feelings about the people you know:
-   - Bob: co-conspirator. Trust: 0.4, Fear: 0.2, Suspicion: 0.1.
-     You've been friends for years but you're starting to wonder if he'll crack first.
-   - Detective (player): adversary. Trust: -0.3, Fear: 0.7, Suspicion: 0.0.
-     You're terrified but trying not to show it.
-   ```
+3. Injects a relationship summary into the prompt as scene prose under relationship context headings.
 4. The `supporting_chunk_ids` can optionally pull in the specific events that shaped the relationship, giving the AI concrete memories to reference.
 
 Prompt input source boundaries (enforced):
@@ -221,7 +214,7 @@ Characters exist at specific locations. The `location_speakers` map in the world
 - **Story JSONs** — Both `iu_murder_mystery_story.json` and `jennie_murder_mini_story.json` have `"relationships": { "edges": [...] }` sections with initial character-to-character edges.
 - **`backend/app/engine/story_loader.py`** — Parses `relationships` into `CharacterGraph` as part of `StoryDefinition`.
 - **`backend/app/engine/state.py`** — `GameState.character_graph` field; `apply_state_tag()` routes `rel_delta` through `CharacterGraph.apply_rel_delta()` (maps to affection delta).
-- **`backend/app/engine/prompt_builder.py`** — Injects "YOUR FEELINGS ABOUT THE PEOPLE YOU KNOW" section into the system prompt from the character graph.
+- **`backend/app/engine/prompt_builder.py`** — Injects scene-scoped relationship prose (from character graph state) into `RELATIONSHIP CONTEXT IN THIS SCENE`.
 - **`scripts/scorer/story_agent_ui.py`** — Scorer context modal shows relationship layer with color-coded tag.
 
 The legacy `rel_delta` (-1/0/+1) output format is preserved. The integer `state.relationship` continues to work in parallel.

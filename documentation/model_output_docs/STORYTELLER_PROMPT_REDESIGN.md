@@ -292,11 +292,9 @@ In addition to individual dimension words, a single **behavior tendency** senten
 
 ### Prompt output format
 
-Each relationship renders as:
+Each relationship renders as prose in the relationship context section, for example:
 ```
-- The Player (player) (other): Trust is neutral; fear is guarded; affection is neutral; suspicion is guarded.
-  Behavior tendency: neutral-watchful, likely to respond cautiously without full openness.
-  [optional label context]
+1. IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion. neutral-watchful, likely to respond cautiously without full openness.
 ```
 
 No numeric values appear anywhere in the prompt.
@@ -387,24 +385,16 @@ World context relevant to the current scene:
 
 ---
 
-## Implementation plan
+## Implementation status
 
-### Phase A — Prompt builder refactor
-1. Introduce paragraph-oriented section composer in `backend/app/engine/prompt_builder.py`.
-2. Preserve epistemic ordering but summarize each tier into prose blocks.
-3. Keep relationship context as prose influence, not list-like telemetry where possible.
+### Implemented
+1. Prompt sections use prose-oriented epistemic headings and visibility language.
+2. Relationship context is rendered once in scene prose with deterministic relationship words.
+3. Active-character scope is constrained to current-turn mentions, same-location speakers, and active on-call markers.
 
-### Phase B — Context routing hardening
-1. Keep active-character scope limited to current-turn mentions, same-location speakers, and active on-call markers.
-2. Ensure off-scene characters are excluded from relationship context unless reintroduced in-turn.
-
-### Phase C — Output validator (lightweight)
-1. Add post-response check for known identity-critical intents.
-2. If violation detected, run a constrained rewrite pass (same content, corrected identity framing).
-
-### Phase D — Evaluation updates
-1. Update scorer rubric to score "story beat coherence" and "identity correction under implication".
-2. Remove IU xfail quarantine only after repeated stable pass runs.
+### Not implemented in runtime
+1. No dedicated post-response rewrite validator pass is currently wired in runtime.
+2. Evaluation/rubric changes remain owned by scorer/integration evolution, not this prompt composer module.
 
 ---
 
@@ -423,10 +413,9 @@ Mitigation: keep epistemic visibility suffix logic and unknown-handling rule in 
 
 ## Success criteria
 
-1. IU "previous tenant" prompt yields direct first-person correction consistently.
-2. Responses feel like interactive narrative beats, not rigid chatbot turns.
-3. Main character remains clear focal lens while scene context can include other relevant characters.
-4. No regressions on agency rule, canonical consistency, and state-tag compliance.
+1. Responses feel like interactive narrative beats, not rigid chatbot turns.
+2. Main character remains clear focal lens while scene context can include other relevant characters.
+3. No regressions on agency rule, canonical consistency, and state-tag compliance.
 
 ---
 

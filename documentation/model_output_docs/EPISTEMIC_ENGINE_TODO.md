@@ -1,56 +1,24 @@
-# Epistemic Engine TODO (Simple + Strict)
+# Epistemic Engine TODO (Archived)
 
-## Scope Lock
-Keep implementation inside the in-memory contract from `EPISTEMIC_ENGINE_DESIGN.md`:
-1. Retrieval indexes
-2. Objects
-3. Graphs
+This file is retained for historical planning context only.
 
-No extra long-lived memory categories.
+## Why archived
 
-## Phase 1 — Stabilize Current Live Path
-- [x] Keep `BeliefState` as the live epistemic container (claims + observations).
-- [x] Ensure seeded epistemic writes include provenance/source fields.
-- [x] Enforce reset hygiene: `__cmd_reset__` clears epistemic state and session-local transient scene data.
-- [x] Add logging for seeded epistemic mutations (`kind=epistemic_event`).
+The prior phase checklist drifted from current implementation details and created conflicting guidance. Active behavior should be inferred from code + tests + canonical design docs.
 
-## Phase 1.5 — Unknown Knowledge Resolution (Implemented)
-- [x] Add extractor pass after each reply for unknown chunks (`KnowledgeResolutionExtractor`).
-- [x] Resolve per chunk into explicit `knows`/`does_not_know` updates with confidence.
-- [x] Upsert resolved chunk knowledge into character belief graph (`EpistemicClaim`).
-- [x] Store resolved chunk objects in transient buffer for 8 turns (`meta.source=knowledge_resolution`).
+## Use these docs instead
 
-## Phase 2 — Truth vs Belief Enforcement
-- [ ] Add a single comparator utility: `truth_overrides_belief()`.
-- [ ] Mark contradictions explicitly (contested status), do not auto-resolve without evidence.
-- [ ] Prevent retrieval payloads from directly mutating truth objects/graphs.
+- `documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md`
+- `documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md`
+- `documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md`
 
-## Phase 3 — Prompt Contract Simplification
-- [ ] Inject only three epistemic blocks into prompts:
-  1. validated truth slice
-  2. contested/claimed belief slice
-  3. retrieval recall slice
-- [ ] Add one clear rule: if unknown in truth and belief, model must say unknown.
-- [ ] Keep prompt size bounded by fixed caps per slice.
+## Runtime source of truth
 
-## Phase 4 — Belief Graph Projection (Optional but Preferred)
-- [ ] Add projection API from `BeliefState` to graph edges for query/debug.
-- [ ] Do not create a second source of truth; projection remains derived from belief objects.
+- `backend/app/engine/epistemic_state.py`
+- `backend/app/engine/prompt_builder.py`
+- `backend/app/engine/active_characters.py`
+- `backend/app/api/chat.py`
+- `tests/backend/app/engine/`
+- `tests/backend/integration/`
 
-## Phase 5 — Transient Scene Buffer Integration
-- [x] Introduce transient scene buffer policy from `TRANSIENT_BUFFER_DESIGN.md`.
-- [x] Clear location-scoped transient entries on travel.
-- [x] Auto-expire stale scene flavor entries by TTL/turn budget.
-- [ ] Promote only gameplay-relevant facts from transient -> objects/graphs.
-- [ ] Add optional promotion path from repeated knowledge-resolution claims to canonical truth review queue.
-
-## Phase 6 — Tests (Must-Have)
-- [ ] Unit: contradiction marking, truth precedence, namespace isolation, prompt slices.
-- [ ] Unit: transient buffer reset on travel and TTL expiration.
-- [ ] Integration: movement + claim + contradiction scenario stays deterministic.
-- [ ] Integration: no epistemic bleed across `<user>-<story>-<instance>`.
-
-## Hard Rejection Rules
-- Reject any proposal that adds a fourth long-lived memory category.
-- Reject any design where retrieval can overwrite truth.
-- Reject any design that keeps unbounded transcript history in hot runtime memory.
+Keep new work tracking in PRs/issues instead of reviving long-lived checklist docs here.

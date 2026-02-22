@@ -14,9 +14,7 @@ XFAIL POLICY (STRICT ALLOWLIST)
 - Current allowed xfail:
    - `tests/backend/integration/test_iu_identity_correction.py::test_iu_identity_correction`
 - Any additional `xfail` marker outside allowlist is treated as a policy violation at collection time.
-- If you add or modify any xfail quarantine, you MUST update:
-   - `documentation/model_output_docs/TODO_REGISTER.md`
-   with priority, owner, failure summary, and exit criteria.
+- If you add or modify any xfail quarantine, document the rationale in the PR and keep the allowlist in `tests/conftest.py` synchronized.
 
 Context
 - OS: Windows (PowerShell terminals). Environment: conda env at C:\Users\Christian\Miniconda3.
