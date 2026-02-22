@@ -1,13 +1,15 @@
 # Storyteller Prompt Redesign (Plain-English, Scene-Based)
 
-## Implementation status (2026-02-21)
+## Implementation status (2026-02-13)
 
 - Phase A is implemented in `backend/app/engine/prompt_builder.py`:
    - paragraph-first storyteller contract
    - deterministic scene brief section
    - multi-character cast-pressure framing with main-character focus
    - relationship context reframed as scene tension guidance
-- IU identity intent guard for previous-tenant/closet prompts is implemented as deterministic prompt injection logic.
+- Critical intent guard removed — identity correction is now handled generically by the epistemic stack and factual integrity rules in the prompt contract, not per-story band-aids.
+- All numeric relationship values replaced with deterministic word mappings (see "Relationship Word Mappings" section below).
+- Context-aware character graph filtering implemented: only characters mentioned in conversation or present at the scene are included in the prompt. Uses transient buffer TTL decay via `active_characters.py`.
 
 Remaining phases (validator/rewrite pass and full scorer rubric migration) are still pending.
 
@@ -136,6 +138,144 @@ Acceptable examples:
 
 Disallowed pattern:
 - Third-person distancing ("she died there") without immediate self-clarification.
+
+---
+
+## Relationship Word Mappings (deterministic)
+
+All numeric relationship values are converted to human-readable words before entering the prompt.
+No raw numbers appear in the prompt — only these words.
+
+Source code: `backend/app/engine/character_graph.py` (module-level dicts `_TRUST_WORDS`, `_AFFECTION_WORDS`, `_FEAR_WORDS`, `_SUSPICION_WORDS`).
+
+TTL for transient buffer entries: `TRANSIENT_KNOWLEDGE_TURNS = 8` in `backend/app/config/settings.py`.
+
+Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and suspicion are stored as 0.0–1.0 internally but normalized to -1.0–+1.0 for word lookup.
+
+### Trust (-1.0 to +1.0)
+
+| Value | Word |
+|-------|------|
+| -1.0 | betrayed |
+| -0.9 | treacherous |
+| -0.8 | hostile |
+| -0.7 | distrustful |
+| -0.6 | wary |
+| -0.5 | skeptical |
+| -0.4 | guarded |
+| -0.3 | reserved |
+| -0.2 | cautious |
+| -0.1 | unsure |
+| 0.0 | neutral |
+| +0.1 | open |
+| +0.2 | receptive |
+| +0.3 | cooperative |
+| +0.4 | confident |
+| +0.5 | reliant |
+| +0.6 | trusting |
+| +0.7 | devoted |
+| +0.8 | steadfast |
+| +0.9 | unshakable |
+| +1.0 | absolute |
+
+### Affection (-1.0 to +1.0)
+
+| Value | Word |
+|-------|------|
+| -1.0 | hateful |
+| -0.9 | resentful |
+| -0.8 | cold |
+| -0.7 | bitter |
+| -0.6 | hostile |
+| -0.5 | distant |
+| -0.4 | aloof |
+| -0.3 | detached |
+| -0.2 | dry |
+| -0.1 | reserved |
+| 0.0 | neutral |
+| +0.1 | warm |
+| +0.2 | friendly |
+| +0.3 | fond |
+| +0.4 | caring |
+| +0.5 | attached |
+| +0.6 | affectionate |
+| +0.7 | devoted |
+| +0.8 | tender |
+| +0.9 | adoring |
+| +1.0 | deeply_bonded |
+
+### Fear (normalized -1.0 to +1.0; stored internally as 0.0–1.0)
+
+| Value | Word |
+|-------|------|
+| -1.0 | fearless |
+| -0.9 | calm |
+| -0.8 | steady |
+| -0.7 | composed |
+| -0.6 | unfazed |
+| -0.5 | alert |
+| -0.4 | watchful |
+| -0.3 | uneasy |
+| -0.2 | nervous |
+| -0.1 | tense |
+| 0.0 | guarded |
+| +0.1 | anxious |
+| +0.2 | shaken |
+| +0.3 | alarmed |
+| +0.4 | frightened |
+| +0.5 | panicked |
+| +0.6 | terrified |
+| +0.7 | horrified |
+| +0.8 | petrified |
+| +0.9 | overwhelmed |
+| +1.0 | paralyzed |
+
+### Suspicion (normalized -1.0 to +1.0; stored internally as 0.0–1.0)
+
+| Value | Word |
+|-------|------|
+| -1.0 | fully_trusting |
+| -0.9 | trusting |
+| -0.8 | accepting |
+| -0.7 | open-minded |
+| -0.6 | unconcerned |
+| -0.5 | relaxed |
+| -0.4 | attentive |
+| -0.3 | questioning |
+| -0.2 | doubtful |
+| -0.1 | uncertain |
+| 0.0 | guarded |
+| +0.1 | skeptical |
+| +0.2 | wary |
+| +0.3 | dubious |
+| +0.4 | suspicious |
+| +0.5 | highly_suspicious |
+| +0.6 | convinced |
+| +0.7 | accusatory |
+| +0.8 | paranoid |
+| +0.9 | hypervigilant |
+| +1.0 | obsessed |
+
+### Behavior Stance (composite, deterministic)
+
+In addition to individual dimension words, a single **behavior tendency** sentence is generated from the combination of all four dimensions. Rules (evaluated in order, first match wins):
+
+1. **Cooperative**: trust ≥ 0.3 AND affection ≥ 0.2 AND fear ≤ 0.1 AND suspicion ≤ 0.1 → "cooperative and candid, likely to engage and share"
+2. **Defensive-hostile**: (trust ≤ -0.4 AND affection ≤ -0.4) AND (fear ≥ 0.3 OR suspicion ≥ 0.3) → "defensive-hostile, likely to resist, deflect, or confront"
+3. **Hostile**: trust ≤ -0.4 AND affection ≤ -0.4 → "hostile distance, likely to push back and withhold"
+4. **Defensive**: fear ≥ 0.3 OR suspicion ≥ 0.3 → "guarded defense, likely to hedge and reveal selectively"
+5. **Default**: → "neutral-watchful, likely to respond cautiously without full openness"
+
+### Prompt output format
+
+Each relationship renders as:
+```
+- The Player (player) (other): Trust is neutral; fear is guarded; affection is neutral; suspicion is guarded.
+  Behavior tendency: neutral-watchful, likely to respond cautiously without full openness.
+  [optional label context]
+```
+
+No numeric values appear anywhere in the prompt.
 
 ---
 

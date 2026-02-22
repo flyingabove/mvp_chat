@@ -779,6 +779,78 @@ HTML_PAGE = r"""<!DOCTYPE html>
     border-radius: 2px;
   }
 
+  /* ---- Collapse toggles ---- */
+  .collapse-btn {
+    position: absolute;
+    top: 10px;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .collapse-btn:hover { color: var(--text-bright); border-color: var(--accent); }
+  .collapse-btn-left { right: 10px; }
+  .collapse-btn-right { left: 10px; }
+
+  .expand-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 48px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    z-index: 20;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .expand-btn:hover { color: var(--text-bright); border-color: var(--accent); }
+  .expand-btn-left { left: 0; border-radius: 0 6px 6px 0; border-left: none; }
+  .expand-btn-right { right: 0; border-radius: 6px 0 0 6px; border-right: none; }
+
+  .sidebar, .right-panel {
+    position: relative;
+    transition: width 0.2s, padding 0.2s, opacity 0.15s;
+  }
+
+  .app.collapsed-left .sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    opacity: 0;
+  }
+  .app.collapsed-left { grid-template-columns: 0px 1fr 360px; }
+  .app.collapsed-left .expand-btn-left { display: flex; }
+
+  .app.collapsed-right .right-panel {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    opacity: 0;
+  }
+  .app.collapsed-right { grid-template-columns: 320px 1fr 0px; }
+  .app.collapsed-right .expand-btn-right { display: flex; }
+
+  .app.collapsed-left.collapsed-right { grid-template-columns: 0px 1fr 0px; }
+
   /* ---- Chat panel ---- */
   .chat-panel {
     background: var(--bg);
@@ -1295,6 +1367,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
   <div class="tab-page active" id="tab-tester" style="display:contents">
   <!-- Left sidebar: Controls -->
   <div class="sidebar" id="sidebar-tester">
+    <button class="collapse-btn collapse-btn-left" onclick="togglePanel('left')" title="Collapse sidebar">&#x276E;</button>
     <div>
       <div class="section-label">Story</div>
       <div class="control-group">
@@ -1393,7 +1466,9 @@ HTML_PAGE = r"""<!DOCTYPE html>
   </div>
 
   <!-- Center: Chat -->
-  <div class="chat-panel" id="chatPanel-tester">
+  <div class="chat-panel" id="chatPanel-tester" style="position:relative">
+    <button class="expand-btn expand-btn-left" onclick="togglePanel('left')" title="Expand sidebar">&#x276F;</button>
+    <button class="expand-btn expand-btn-right" onclick="togglePanel('right')" title="Expand evaluation">&#x276E;</button>
     <div class="chat-messages" id="chatMessages">
       <div class="system-msg">Select a story and click Run to begin.</div>
     </div>
@@ -1405,6 +1480,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
   <!-- Right: Evaluation -->
   <div class="right-panel" id="rightPanel-tester">
+    <button class="collapse-btn collapse-btn-right" onclick="togglePanel('right')" title="Collapse evaluation">&#x276F;</button>
     <div class="right-panel-content">
       <div class="section-label">Evaluation</div>
       <div class="eval-placeholder" id="evalPlaceholder">
@@ -1464,6 +1540,12 @@ HTML_PAGE = r"""<!DOCTYPE html>
   let editingTestCaseIdx = -1;
   let currentTab = 'tester';
   let debugPayloads = {};  // turn -> {debug_box, prompt_debug}
+
+  // ---- Panel collapse/expand ----
+  function togglePanel(side) {
+    const app = document.querySelector('.app');
+    app.classList.toggle(side === 'left' ? 'collapsed-left' : 'collapsed-right');
+  }
 
   // ---- Tab switching ----
   function switchTab(tab) {

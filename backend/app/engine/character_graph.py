@@ -87,10 +87,10 @@ def describe_relationship_state(state: "RelationshipState") -> dict[str, str | f
     suspicion_w = _word_from_scale(_SUSPICION_WORDS, suspicion_n)
 
     summary = (
-        f"Trust={trust_w} ({trust_n:+.1f}); "
-        f"Fear={fear_w} ({fear_n:+.1f}); "
-        f"Affection={affection_w} ({affection_n:+.1f}); "
-        f"Suspicion={suspicion_w} ({suspicion_n:+.1f})."
+        f"Trust is {trust_w}; "
+        f"fear is {fear_w}; "
+        f"affection is {affection_w}; "
+        f"suspicion is {suspicion_w}."
     )
 
     stance = _stance_sentence(

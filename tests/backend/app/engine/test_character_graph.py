@@ -172,8 +172,8 @@ def test_format_for_prompt_output():
     output = cg.format_for_prompt("iu", {"player": FakeChar()})
     assert "player" in output.lower() or "detective" in output.lower()
     assert "Behavior tendency:" in output
-    assert "Trust=" in output
-    assert "Fear=" in output
+    assert "Trust is" in output
+    assert "fear is" in output
 
 
 def test_format_for_prompt_empty_graph():

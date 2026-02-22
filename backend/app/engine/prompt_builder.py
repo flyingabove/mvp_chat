@@ -1,7 +1,5 @@
 # app/engine/prompt_builder.py
 from dataclasses import dataclass, field
-import re
-
 from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.state import GameState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
@@ -141,16 +139,17 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
 
     graph = getattr(state, "character_graph", None)
     if graph:
+        from backend.app.engine.character_graph import describe_relationship_state
         active_keys = _get_active_character_keys(state)
         for edge in graph.get_edges_from(state.main_character_id or ""):
             if edge.to_id not in active_keys:
                 continue
+            desc = describe_relationship_state(edge.state)
             chunks.append(KnowledgeChunk(
                 id=f"rel::{edge.id}",
                 text=(
                     f"{edge.from_id}->{edge.to_id} type={edge.type.value} "
-                    f"trust={edge.state.trust:+.1f} fear={edge.state.fear:.1f} "
-                    f"affection={edge.state.affection:+.1f} suspicion={edge.state.suspicion:.1f}"
+                    f"{desc['summary']}"
                 ),
                 tier="CANONICAL_GRAPH",
                 source="character_graph",
@@ -437,32 +436,6 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
     )
 
 
-def _identity_intent_guard_section(state: GameState, current_user_msg: str = "") -> str:
-    main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
-    main_char = getattr(state, "main_character", None)
-    main_name = str(getattr(main_char, "name", "") or "").strip().lower()
-
-    if main_id not in {"iu", "main"} and "iu" not in main_name:
-        return ""
-
-    text = str(current_user_msg or "").strip().lower()
-    if not text:
-        return ""
-
-    trigger = re.search(
-        r"previous\s+tenant|who\s+died\s+in\s+the\s+closet|what\s+happened\s+to\s+the\s+tenant|tenant.*closet|closet.*tenant",
-        text,
-    )
-    if not trigger:
-        return ""
-
-    return (
-        "\n────────────────────────────────────────\n"
-        "### CRITICAL INTENT GUARD\n"
-        "────────────────────────────────────────\n"
-        "Because the player asked about the previous tenant / closet death, IU must explicitly clarify in first person that she herself was the previous tenant and the person who died in that closet. "
-        "Do not distance this as a separate woman without immediate self-correction in the same response beat.\n"
-    )
 
 
 def system_prompt(
@@ -507,7 +480,6 @@ The focal character is {char_name}. Current emotional posture is {emotion}. Curr
 """
 
     scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)
-    identity_guard = _identity_intent_guard_section(state, current_user_msg=current_user_msg)
 
     required_tail = """
 ────────────────────────────────────────
@@ -540,8 +512,6 @@ Use these relationship signals to calibrate tone, trust, suspicion, fear, and wi
 
 {rel_text}
 """
-
-    transient_buffer_section = _transient_buffer_section(state)
 
     truth_override = ""
     if truth_mode:
@@ -589,7 +559,6 @@ EXAMPLE (WRONG — do NOT do this):
         + scene_brief
         + knowledge_stack_section
         + relationship_section
-        + identity_guard
         + truth_override
         + required_tail
     )
@@ -601,8 +570,6 @@ EXAMPLE (WRONG — do NOT do this):
             "knowledge_stack": knowledge_stack_section,
             "knowledge_chunks": knowledge_stack_debug,
             "relationship_context": relationship_section,
-            "intent_guard": identity_guard,
-            "transient_buffer": transient_buffer_section,
             "truth_override": truth_override,
             "required_tail": required_tail,
         }

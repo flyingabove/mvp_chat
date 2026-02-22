@@ -75,7 +75,7 @@ def test_prompt_includes_relationship_section():
 
     sysmsg = pb.system_prompt(st)
     assert "RELATIONAL TENSIONS IN THIS SCENE" in sysmsg
-    assert "Trust=" in sysmsg
+    assert "Trust is" in sysmsg
     assert "detective" in sysmsg.lower()
 
 
@@ -91,19 +91,6 @@ def test_prompt_uses_storyteller_mode_language():
     assert "narrative scene engine" in sysmsg.lower()
     assert "story prose" in sysmsg.lower()
     assert "SCENE BRIEF" in sysmsg
-
-
-def test_prompt_inserts_iu_identity_guard_for_previous_tenant_intent():
-    from backend.app.engine import prompt_builder as pb
-
-    st = init_state()
-    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.main_character_id = "iu"
-
-    sysmsg = pb.system_prompt(st, current_user_msg="what happened to the previous tenant?")
-    assert "CRITICAL INTENT GUARD" in sysmsg
-    assert "first person" in sysmsg.lower()
 
 
 def test_prompt_ignores_story_specific_fields_and_uses_canonical_facts():
@@ -144,7 +131,6 @@ def test_prompt_layers_dict_has_new_keys():
     assert "relationship_context" in layers
     assert "knowledge_stack" in layers
     assert "knowledge_chunks" in layers
-    assert "transient_buffer" in layers
 
 
 def test_prompt_labels_canonical_truths_with_known_by_visibility():
