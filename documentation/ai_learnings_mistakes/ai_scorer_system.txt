@@ -48,6 +48,7 @@ How a Run Works (WebSocket /ws/run)
    b. Run scorer LLM with transcript + scorer_instructions.md + story context
    c. Parse JSON response, append row to scores.csv
    d. Emit "evaluation" event
+   e. Emit "done" with the active `session_id` so UI manual mode can continue the same game session
 
 WebSocket Events
 ----------------
@@ -59,6 +60,8 @@ WebSocket Events
 - "error"      — error message
 - "evaluation" — final scorer JSON
 - "done"       — run complete
+
+After "done", the tester UI enables manual input and reuses that run's session id, so you can append extra player messages to the same game instead of starting from turn 0.
 
 Player Personas (chatter agent)
 -------------------------------

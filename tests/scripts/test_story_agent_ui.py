@@ -1,4 +1,5 @@
 import importlib
+import inspect
 
 import pytest
 from fastapi.testclient import TestClient
@@ -135,3 +136,14 @@ def test_context_copy_json_uses_canonical_context_shape(ui_module):
 
     assert "debug_payload: payload || null" not in html
     assert "sections: sections.map(function(s)" not in html
+
+
+def test_done_event_enables_manual_continuation(ui_module):
+    src = ui_module.HTML_PAGE
+    ws_src = inspect.getsource(ui_module.ws_run)
+
+    assert 'await send("done", {"conversation": conversation, "session_id": session_id})' in ws_src
+    assert "manualSession = String(msg.session_id);" in src
+    assert "Done. You can continue this same run with manual messages." in src
+    assert "document.getElementById('manualInput').disabled = false;" in src
+    assert "document.getElementById('sendBtn').disabled = false;" in src

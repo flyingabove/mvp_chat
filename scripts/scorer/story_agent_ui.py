@@ -559,7 +559,7 @@ async def ws_run(ws: WebSocket):
                 except Exception as e:
                     await send("error", {"text": f"Evaluation failed: {e}"})
 
-            await send("done", {"conversation": conversation})
+            await send("done", {"conversation": conversation, "session_id": session_id})
 
         active_runs.pop(run_id, None)
 
@@ -1693,6 +1693,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     latencies = [];
     totalTokens = 0;
     turnCount = 0;
+    manualSession = null;
     debugPayloads = {};
     document.getElementById('chatMessages').innerHTML = '';
     document.getElementById('evalContent').style.display = 'none';
@@ -1827,8 +1828,18 @@ HTML_PAGE = r"""<!DOCTYPE html>
         renderEval(msg);
         break;
       case 'done':
-        addSystemMsg('Done.');
+        if (msg.session_id) {
+          manualSession = String(msg.session_id);
+          addSystemMsg('Done. You can continue this same run with manual messages.');
+        } else {
+          addSystemMsg('Done.');
+        }
         document.getElementById('progressBar').style.width = '100%';
+        running = false;
+        document.getElementById('runBtn').style.display = 'block';
+        document.getElementById('stopBtn').style.display = 'none';
+        document.getElementById('manualInput').disabled = false;
+        document.getElementById('sendBtn').disabled = false;
         break;
     }
   }
