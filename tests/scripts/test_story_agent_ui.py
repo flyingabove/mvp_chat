@@ -123,3 +123,15 @@ def test_scores_endpoint_reads_csv(ui_module, client):
     assert rows[0]["canon_fidelity"] == "4"
     assert rows[0]["chatter_persona"] == "curious_rookie"
     assert rows[0]["rater_persona"] == "curious_rookie"
+
+
+def test_context_copy_json_uses_canonical_context_shape(ui_module):
+    html = ui_module.HTML_PAGE
+
+    assert "schema_version: 2" in html
+    assert "context: {" in html
+    assert "debug_box: db || null" in html
+    assert "prompt_debug: pd || null" in html
+
+    assert "debug_payload: payload || null" not in html
+    assert "sections: sections.map(function(s)" not in html

@@ -1536,7 +1536,6 @@ async def chat_handler(data: dict):
     if knowledge_resolution_updates:
         result["knowledge_resolution_updates"] = knowledge_resolution_updates
     if debug_box is not None:
-        debug_box["prompt"] = prompt_debug
         if knowledge_resolution_updates:
             debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
         result["debug_box"] = debug_box

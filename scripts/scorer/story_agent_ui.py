@@ -310,14 +310,37 @@ async def ws_run(ws: WebSocket):
         async def send(event: str, data: dict):
             await ws.send_json({"event": event, **data})
 
-        async def emit_debug(turn: int, result: dict):
+        def _extract_debug_payload(result: dict):
           if not isinstance(result, dict):
-            return
-          debug_box = result.get("debug_box")
-          prompt_debug = result.get("prompt_debug")
+            return None, None
+
+          debug_payload = result.get("debug_payload")
+          payload_box = debug_payload.get("debug_box") if isinstance(debug_payload, dict) else None
+          payload_prompt = debug_payload.get("prompt_debug") if isinstance(debug_payload, dict) else None
+
+          debug_box = payload_box if payload_box is not None else result.get("debug_box")
+          prompt_debug = payload_prompt if payload_prompt is not None else result.get("prompt_debug")
+
+          if prompt_debug is None and isinstance(debug_box, dict):
+            nested_prompt = debug_box.get("prompt")
+            if isinstance(nested_prompt, dict):
+              prompt_debug = nested_prompt
+
+          if isinstance(debug_box, dict) and "prompt" in debug_box:
+            debug_box = {k: v for k, v in debug_box.items() if k != "prompt"}
+
+          return debug_box, prompt_debug
+
+        async def emit_debug(turn: int, result: dict):
+          debug_box, prompt_debug = _extract_debug_payload(result)
           if debug_box is None and prompt_debug is None:
             return
-          await send("debug", {"turn": turn, "debug_box": debug_box, "prompt_debug": prompt_debug})
+          await send("debug", {
+            "turn": turn,
+            "debug_payload": {"debug_box": debug_box, "prompt_debug": prompt_debug},
+            "debug_box": debug_box,
+            "prompt_debug": prompt_debug,
+          })
 
         # Build agent persona with strategy/persona if provided
         persona_desc = CHATTER_PERSONAS.get(chatter_persona, chatter_persona)
@@ -1731,6 +1754,39 @@ HTML_PAGE = r"""<!DOCTYPE html>
     catch (e) { return '<<unserializable: ' + e.message + '>>'; }
   }
 
+  function normalizeDebugPayload(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const payload = (raw.debug_payload && typeof raw.debug_payload === 'object') ? raw.debug_payload : raw;
+    let debugBox = null;
+    if (payload.debug_box && typeof payload.debug_box === 'object') {
+      debugBox = payload.debug_box;
+    } else if (raw.debug_box && typeof raw.debug_box === 'object') {
+      debugBox = raw.debug_box;
+    }
+
+    let promptDebug = null;
+    if (payload.prompt_debug && typeof payload.prompt_debug === 'object') {
+      promptDebug = payload.prompt_debug;
+    } else if (raw.prompt_debug && typeof raw.prompt_debug === 'object') {
+      promptDebug = raw.prompt_debug;
+    } else if (debugBox && debugBox.prompt && typeof debugBox.prompt === 'object') {
+      promptDebug = debugBox.prompt;
+    }
+
+    if (debugBox && Object.prototype.hasOwnProperty.call(debugBox, 'prompt')) {
+      debugBox = Object.assign({}, debugBox);
+      delete debugBox.prompt;
+    }
+
+    const normalizedTurn = (raw.turn != null) ? raw.turn : ((payload.turn != null) ? payload.turn : null);
+    return {
+      turn: normalizedTurn,
+      debug_box: debugBox || null,
+      prompt_debug: promptDebug || null,
+    };
+  }
+
   function stopRun() {
     if (ws) ws.close();
     running = false;
@@ -1778,11 +1834,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
   }
 
   function handleDebug(msg) {
-    debugPayloads[msg.turn] = {
-      turn: msg.turn,
-      debug_box: msg.debug_box,
-      prompt_debug: msg.prompt_debug
-    };
+    const normalized = normalizeDebugPayload(msg);
+    if (!normalized) return;
+    const turnKey = (msg.turn != null) ? msg.turn : normalized.turn;
+    if (turnKey == null) return;
+    debugPayloads[turnKey] = normalized;
   }
 
   function addChatMsg(msg) {
@@ -2217,7 +2273,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
   // ---- Context Modal ----
   function openContextModal(turn) {
    try {
-    const payload = debugPayloads[turn];
+    const payload = normalizeDebugPayload(debugPayloads[turn]);
     const npcMsg = conversation.find(m => m.role === 'npc' && m.turn === turn);
     const playerMsg = conversation.find(m => m.role === 'player' && m.turn === turn);
 
@@ -2443,6 +2499,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     if (copyBtn) {
       copyBtn.addEventListener('click', async function() {
         var exportObj = {
+          schema_version: 2,
           turn: turn,
           player_message: playerMsg ? {
             role: playerMsg.role,
@@ -2456,16 +2513,10 @@ HTML_PAGE = r"""<!DOCTYPE html>
             latency_ms: npcMsg.latency_ms || null,
             tokens: npcMsg.tokens || 0
           } : null,
-          debug_payload: payload || null,
-          debug_box: db || null,
-          prompt_debug: pd || null,
-          sections: sections.map(function(s) {
-            return {
-              title: s.title,
-              tag: s.tag || null,
-              content: s.content || ''
-            };
-          })
+          context: {
+            debug_box: db || null,
+            prompt_debug: pd || null
+          }
         };
 
         var jsonText = formatJson(exportObj);
