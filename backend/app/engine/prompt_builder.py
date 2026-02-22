@@ -750,16 +750,6 @@ The focal character is {char_name}. Current emotional posture is {emotion}. Curr
 
     scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)
 
-    required_tail = """
-────────────────────────────────────────
-### REQUIRED FINAL LINE
-────────────────────────────────────────
-Append EXACTLY one line at the end of every response:
-[[STATE]]{"emotion":"<one/two words>","rel_delta":-1|0|1}[[/STATE]]
-
-If forgotten, reply ONLY with that tag.
-"""
-
     knowledge_stack_section, knowledge_stack_debug = _format_labeled_knowledge_stack(state, knowledge_chunks or [])
 
     # ── Relationship context (single source: prose scene section) ──
@@ -812,7 +802,6 @@ EXAMPLE (WRONG — do NOT do this):
         + knowledge_stack_section
         + relationship_section
         + truth_override
-        + required_tail
     )
 
     if return_layers:
@@ -823,7 +812,6 @@ EXAMPLE (WRONG — do NOT do this):
             "knowledge_chunks": knowledge_stack_debug,
             "relationship_context": relationship_section,
             "truth_override": truth_override,
-            "required_tail": required_tail,
         }
         return full_prompt, layers
 

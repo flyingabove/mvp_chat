@@ -5,7 +5,7 @@ import pytest
 from backend.app.engine.state import init_state, CharacterState
 
 
-def test_system_prompt_includes_required_tail_and_memory_block(monkeypatch):
+def test_system_prompt_includes_epistemic_stack(monkeypatch):
     from backend.app.engine import prompt_builder as pb
 
     st = init_state()
@@ -21,7 +21,7 @@ def test_system_prompt_includes_required_tail_and_memory_block(monkeypatch):
     sysmsg = pb.system_prompt(st, is_first_turn=True, memory_block=memory)
 
     assert "EPISTEMIC KNOWLEDGE STACK" in sysmsg
-    assert "[[STATE]]" in sysmsg and "[[/STATE]]" in sysmsg
+    assert "REQUIRED FINAL LINE" not in sysmsg
 
 
 def test_build_messages_trims_history_and_adds_header(monkeypatch):
@@ -46,8 +46,8 @@ def test_build_messages_trims_history_and_adds_header(monkeypatch):
     assert messages[-1]["role"] == "user"
     assert "Time:" in messages[-1]["content"]
 
-    # Ensure the state tag requirement exists in system prompt.
-    assert "REQUIRED FINAL LINE" in messages[0]["content"]
+    # State tag is optional; prompt should not force a terminal line.
+    assert "REQUIRED FINAL LINE" not in messages[0]["content"]
     # Make sure casual Korean detection doesn't crash
     assert isinstance(st.casual_korean_used, list)
 
@@ -627,8 +627,7 @@ def test_belief_section_snapshot_layout_is_stable():
     st.beliefs["iu"] = bs
 
     sysmsg = pb.system_prompt(st)
-    section = sysmsg.split("Beliefs and suspicions (not necessarily true):\n", 1)[1]
-    section = section.split("\n────────────────────────────────────────\n### REQUIRED FINAL LINE", 1)[0].strip()
+    section = sysmsg.split("Beliefs and suspicions (not necessarily true):\n", 1)[1].strip()
 
     expected = (
         "1. Currently only IU knows this with low confidence: I may have heard footsteps by the closet before dawn.\n"

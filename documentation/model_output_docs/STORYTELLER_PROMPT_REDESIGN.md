@@ -114,7 +114,7 @@ Describe who is currently in-scene, on-call, or actively mentioned so narrative 
 - The narrative can describe atmosphere and NPC behavior around the player.
 
 ### State tag continuity
-- Keep final `[[STATE]]` line until a later migration explicitly redesigns state extraction.
+- `[[STATE]]` tags remain supported by the runtime parser, but the prompt no longer forces a mandatory terminal state line.
 
 ---
 
@@ -294,10 +294,15 @@ In addition to individual dimension words, a single **behavior tendency** senten
 
 Each relationship renders as prose in the relationship context section, for example:
 ```
-1. IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion. neutral-watchful, likely to respond cautiously without full openness.
+1. IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion. The relationship type is other. Neutral-watchful, likely to respond cautiously without full openness.
+2. IU currently reads Han Jae-seo with skeptical trust, shaken fear, aloof affection, and convinced suspicion. This is an employer relationship with a clear boss-to-subordinate power dynamic. Defensive-hostile, likely to resist, deflect, or confront.
 ```
 
 No numeric values appear anywhere in the prompt.
+
+Runtime note:
+- Relationship wording is rendered as natural prose with humanized tokens (for example, `highly_suspicious` becomes "highly suspicious").
+- Role context is included in sentence form so power dynamics and relationship type are explicit without telemetry-style formatting.
 
 ---
 
@@ -380,7 +385,7 @@ World context relevant to the current scene:
 
 ### RELATIONSHIP CONTEXT IN THIS SCENE
 
-1. IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion. neutral-watchful, likely to respond cautiously without full openness.
+1. IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion. The relationship type is other. Neutral-watchful, likely to respond cautiously without full openness.
 ```
 
 ---
