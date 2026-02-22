@@ -1,5 +1,6 @@
 # app/engine/prompt_builder.py
 from dataclasses import dataclass, field
+import re
 
 from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.state import GameState
@@ -362,6 +363,108 @@ def _transient_buffer_section(state: GameState) -> str:
     return ""
 
 
+def _scene_cast_keys(state: GameState) -> list[str]:
+    keys: list[str] = []
+    seen: set[str] = set()
+
+    def add_key(raw: str) -> None:
+        key = str(raw or "").strip().lower()
+        if not key or key in seen:
+            return
+        seen.add(key)
+        keys.append(key)
+
+    main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
+    if main_id:
+        add_key(main_id)
+
+    add_key("player")
+
+    for key in _get_active_character_keys(state):
+        add_key(key)
+
+    graph = getattr(state, "character_graph", None)
+    if graph and main_id:
+        for edge in graph.get_edges_from(main_id):
+            add_key(edge.to_id)
+
+    cfg, _ = _extract_story_cfg(state)
+    world_cfg = (cfg.get("world") or {}) if isinstance(cfg, dict) else {}
+    loc_speakers = world_cfg.get("location_speakers") or {}
+    loc_id = str(getattr(state, "location_id", "") or "")
+    raw_speakers = loc_speakers.get(loc_id) if isinstance(loc_speakers, dict) else None
+    if isinstance(raw_speakers, str):
+        add_key(raw_speakers)
+    elif isinstance(raw_speakers, list):
+        for sp in raw_speakers:
+            add_key(str(sp or ""))
+
+    return keys[:8]
+
+
+def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
+    main_char = getattr(state, "main_character", None)
+    main_name = (getattr(main_char, "name", "") or "the main character").strip() or "the main character"
+    main_role = (getattr(main_char, "role", "") or "npc").strip() or "npc"
+    emotion = (getattr(state, "emotion", "") or EMOTION_START).strip() or EMOTION_START
+    rel = int(getattr(state, "relationship", REL_START) if getattr(state, "relationship", None) is not None else REL_START)
+    location = str(getattr(state, "location", "unknown") or "unknown")
+    minute = int(getattr(state, "minute", 0) or 0)
+
+    keys = _scene_cast_keys(state)
+    chars = getattr(state, "characters", {}) or {}
+    cast_names: list[str] = []
+    for key in keys:
+        if key == "player":
+            cast_names.append("The Player")
+            continue
+        ch = chars.get(key)
+        name = getattr(ch, "name", None) if ch else None
+        cast_names.append((name or key).strip())
+
+    cast_text = ", ".join(cast_names[:6]) if cast_names else "The Player"
+    user_line = (current_user_msg or "").strip()
+    user_line_text = f'Current player line: "{user_line}".' if user_line else "Current player line is available in the user message."
+
+    return (
+        "\n────────────────────────────────────────\n"
+        "### SCENE BRIEF\n"
+        "────────────────────────────────────────\n"
+        f"The scene is currently in {location} at minute {minute} of the session, with {main_name} as the focal lens. "
+        f"{main_name} is a {main_role} and is currently emotionally {emotion}, with relationship baseline {rel}.\n\n"
+        f"Relevant cast pressure around this moment includes: {cast_text}. Use this cast context to keep the world feeling populated and story-driven, while keeping {main_name} as the primary focus.\n\n"
+        f"{user_line_text}\n"
+    )
+
+
+def _identity_intent_guard_section(state: GameState, current_user_msg: str = "") -> str:
+    main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
+    main_char = getattr(state, "main_character", None)
+    main_name = str(getattr(main_char, "name", "") or "").strip().lower()
+
+    if main_id not in {"iu", "main"} and "iu" not in main_name:
+        return ""
+
+    text = str(current_user_msg or "").strip().lower()
+    if not text:
+        return ""
+
+    trigger = re.search(
+        r"previous\s+tenant|who\s+died\s+in\s+the\s+closet|what\s+happened\s+to\s+the\s+tenant|tenant.*closet|closet.*tenant",
+        text,
+    )
+    if not trigger:
+        return ""
+
+    return (
+        "\n────────────────────────────────────────\n"
+        "### CRITICAL INTENT GUARD\n"
+        "────────────────────────────────────────\n"
+        "Because the player asked about the previous tenant / closet death, IU must explicitly clarify in first person that she herself was the previous tenant and the person who died in that closet. "
+        "Do not distance this as a separate woman without immediate self-correction in the same response beat.\n"
+    )
+
+
 def system_prompt(
     state: GameState,
     is_first_turn: bool = False,
@@ -369,6 +472,7 @@ def system_prompt(
     truth_mode: bool = False,
     return_layers: bool = False,
     knowledge_chunks: list | None = None,
+    current_user_msg: str = "",
 ):
     main_char = getattr(state, "main_character", None)
     char_name = (getattr(main_char, "name", "") or "the character").strip() or "the character"
@@ -378,56 +482,32 @@ def system_prompt(
     rel = int(state.relationship if state.relationship is not None else REL_START)
 
     base_prompt = f"""
-You are the dialogue renderer for a generic narrative game engine.
+You are the narrative scene engine for an interactive mystery game.
 {disclaimer}
-Stay fully in-universe as the active NPC speaker. Never break the fourth wall.
+Stay fully in-universe and write the next beat as story prose, not as assistant commentary.
 
 ────────────────────────────────────────
-### OUTPUT STYLE (MANDATORY)
+### STORYTELLER CONTRACT
 ────────────────────────────────────────
-- Begin EVERY reply with *italicized, cinematic narration*.
-- Present spoken lines in **bold quotes**.
-- Mix narration and dialogue fluidly.
-- NEVER end with meta prompts such as "What do you do?" or "What will you say?"
-- NEVER force the player's next move.
+Write compact cinematic paragraphs that blend narration and dialogue. Keep {char_name} as the focal character, but you may naturally include other relevant characters when it improves scene tension, continuity, or mystery logic.
+
+Spoken lines must appear as **bold quotes** and narration should remain vivid without becoming repetitive. Never break the fourth wall and never end with meta prompts such as "What do you do?" or "What will you say?".
 
 ────────────────────────────────────────
-### GENERIC ENGINE RULES
+### AGENCY AND CONTINUITY CONTRACT
 ────────────────────────────────────────
-1. **NEVER SPEAK AS THE PLAYER**
-   - You must NEVER write dialogue, questions, or statements that come from the player.
-   - You must NEVER narrate the player's emotions, actions, thoughts, physical reactions, or intentions.
-2. **SPEAKER CLARITY WHEN MULTIPLE NPCS ARE PRESENT**
-   - When two or more characters could be speaking in a scene, you MUST clearly indicate who is talking.
-   - Ambiguous dialogue is unacceptable.
+Never speak as the player and never narrate the player's decisions, thoughts, emotions, or physical actions as facts. Keep speaker attribution clear whenever multiple characters are involved.
+
+Maintain factual continuity with canonical truth and graph constraints. If player wording implies a false fact, push back naturally and stay anchored to canon. When uncertain about non-canonical details, hedge naturally rather than invent.
 
 ────────────────────────────────────────
-### FACTUAL INTEGRITY & WORLD CONSISTENCY (CRITICAL)
+### FOCAL STATE
 ────────────────────────────────────────
-1. **NEVER contradict canonical facts or the knowledge stack.**
-   - If a fact is marked CANONICAL_CORE or CANONICAL_GRAPH, treat it as absolute truth. Do not bend, reinterpret, or ignore it under any circumstances.
-   - If the player implies something happened that contradicts canonical facts, the character must push back or remain confused — never confirm a falsehood.
-2. **Stay consistent with established events and locations.**
-   - If a past conversation established that an event occurred (or did not occur), do not contradict it later.
-   - Locations described in the places graph are real. Do not invent new locations or change the properties of existing ones.
-3. **Characters must stay in-identity.**
-   - Each character has a defined role, personality, and set of knowledge. Never have a character act wildly out of character without clear in-world justification.
-   - A character who does not know a fact must NOT reveal it. Respect the known_by / not_known_by visibility labels at all times.
-4. **Resist player-induced hallucination.**
-   - If the player tries to lead you into confirming something that never happened, fabricating details, or inventing events — do NOT comply.
-   - When uncertain, hedge naturally ("I'm not sure about that...") rather than asserting invented facts.
-5. **Make every response vivid and dynamic.**
-   - Vary sentence structure, emotional beats, and pacing. Avoid formulaic or repetitive patterns.
-   - Ground responses in sensory detail and the character's current emotional state.
-   - Reactions should feel like genuine human responses to the situation — surprise, hesitation, anger, warmth — as the scene demands.
-
-────────────────────────────────────────
-### INTERNAL GAME STATE
-────────────────────────────────────────
-- Speaker: {char_name}
-- Character emotion: {emotion}
-- Relationship score: {rel}
+The focal character is {char_name}. Current emotional posture is {emotion}. Current relationship baseline is {rel}.
 """
+
+    scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)
+    identity_guard = _identity_intent_guard_section(state, current_user_msg=current_user_msg)
 
     required_tail = """
 ────────────────────────────────────────
@@ -454,10 +534,9 @@ If forgotten, reply ONLY with that tag.
         if rel_text:
             relationship_section = f"""
 ────────────────────────────────────────
-### YOUR FEELINGS ABOUT THE PEOPLE YOU KNOW
+### RELATIONAL TENSIONS IN THIS SCENE
 ────────────────────────────────────────
-These relationships shape how you feel and behave toward others.
-Use them to calibrate tone, hostility, trust, and willingness to cooperate.
+Use these relationship signals to calibrate tone, trust, suspicion, fear, and willingness to reveal information.
 
 {rel_text}
 """
@@ -507,8 +586,10 @@ EXAMPLE (WRONG — do NOT do this):
     # Assemble all layers into the final prompt.
     full_prompt = (
         base_prompt
+        + scene_brief
         + knowledge_stack_section
         + relationship_section
+        + identity_guard
         + truth_override
         + required_tail
     )
@@ -516,9 +597,11 @@ EXAMPLE (WRONG — do NOT do this):
     if return_layers:
         layers = {
             "base_prompt": base_prompt,
+            "scene_brief": scene_brief,
             "knowledge_stack": knowledge_stack_section,
             "knowledge_chunks": knowledge_stack_debug,
             "relationship_context": relationship_section,
+            "intent_guard": identity_guard,
             "transient_buffer": transient_buffer_section,
             "truth_override": truth_override,
             "required_tail": required_tail,
@@ -575,6 +658,7 @@ def build_messages(
             truth_mode=truth_mode,
             return_layers=True,
             knowledge_chunks=pi.knowledge_chunks,
+            current_user_msg=user_msg,
         )
     else:
         sysmsg = system_prompt(
@@ -582,6 +666,7 @@ def build_messages(
             is_first_turn=is_first_turn,
             truth_mode=truth_mode,
             knowledge_chunks=pi.knowledge_chunks,
+            current_user_msg=user_msg,
         )
     messages = [{"role": "system", "content": sysmsg}]
 

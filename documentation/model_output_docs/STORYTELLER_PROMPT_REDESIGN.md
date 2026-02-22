@@ -1,5 +1,16 @@
 # Storyteller Prompt Redesign (Plain-English, Scene-Based)
 
+## Implementation status (2026-02-21)
+
+- Phase A is implemented in `backend/app/engine/prompt_builder.py`:
+   - paragraph-first storyteller contract
+   - deterministic scene brief section
+   - multi-character cast-pressure framing with main-character focus
+   - relationship context reframed as scene tension guidance
+- IU identity intent guard for previous-tenant/closet prompts is implemented as deterministic prompt injection logic.
+
+Remaining phases (validator/rewrite pass and full scorer rubric migration) are still pending.
+
 ## Why this redesign is needed
 
 The current prompt is structurally strong but too instruction-heavy and speaker-constrained. It pushes the model into a "single-character chatbot" posture, which creates two recurring issues:

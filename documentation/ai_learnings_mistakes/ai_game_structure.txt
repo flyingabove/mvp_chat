@@ -70,6 +70,9 @@ Prompt context contract (runtime)
   7) runtime transient buffer (internal only; not rendered directly into prompt text).
 - Runtime prompt rendering uses an epistemic knowledge stack ordered:
   CANONICAL_CORE → CANONICAL_GRAPH → SUBJECTIVE_BELIEF → RETRIEVED_MEMORY.
+- System prompt delivery mode is storyteller-first (paragraph narrative contract) rather than single-NPC chatbot framing.
+- The main character remains focal, but prompt instructions allow multi-character scene narration when relevant to continuity and tension.
+- For IU tenant-identity intents (e.g., "previous tenant" / "who died in the closet"), prompt builder injects a deterministic high-priority guard requiring first-person identity correction.
 - Character-graph and character-extra prompt data must be scoped by active-character markers only.
   Active characters are extracted from user/assistant dialogue mentions plus scene location speakers,
   stored as transient marker text entries prefixed with `__active_character_marker__:` and refreshed each turn.
