@@ -279,6 +279,86 @@ No numeric values appear anywhere in the prompt.
 
 ---
 
+## Epistemic Knowledge Stack — Prose Rendering Rules
+
+The knowledge stack is rendered as plain-English numbered prose instead of machine-readable tags. All rendering logic lives in `backend/app/engine/prompt_builder.py`.
+
+### Character identity chunk
+
+The main character entry renders as a natural sentence:
+```
+IU is a ghost in this story.
+```
+Source: `_knowledge_chunks_from_state()` — uses `f"{name} is a {role} in this story."`.
+
+### Tier headings
+
+Each tier gets a prose heading instead of a `### TIER_NAME` header:
+
+| Tier | Heading |
+|------|---------|
+| `CANONICAL_CORE` | "These are the definitive canonical facts of this story:" |
+| `CANONICAL_GRAPH` | "Relationship dynamics and world context:" |
+| `SUBJECTIVE_BELIEF` | "Beliefs and suspicions (not necessarily true):" |
+| `RETRIEVED_MEMORY` | "Remembered details from past interactions:" |
+
+Source: `_TIER_HEADINGS` dict in `prompt_builder.py`.
+
+### Visibility prose rules
+
+Each fact's `known_by`, `not_known_by`, and `maybe_known_by` lists are converted to a plain-English suffix sentence by `_visibility_prose()`. The rules (evaluated in order):
+
+| Scenario | Output |
+|----------|--------|
+| `known_by` contains `"all_characters"` | `"Everyone knows this."` |
+| Single knower, no other lists | `"Currently only {name} knows this."` |
+| Multiple knowers, no other lists | `"{names} know this."` |
+| Knower(s) + not_known_by | `"{names} know(s) this but {names} do(es) not yet know."` |
+| Only not_known_by (no knowers) | `"{names} do(es) not yet know this."` |
+| maybe_known_by (appended to any above) | `"{names} may have some awareness of this."` |
+| All lists empty | No suffix (empty string) |
+
+**Verb agreement**: singular subject uses "knows"/"does not yet know", plural uses "know"/"do not yet know".
+
+**Name conjunction** (`_english_join`):
+- 1 name: `"IU"`
+- 2 names: `"IU and the player"`
+- 3+ names: `"IU, Han Jae-seo, and the player"` (Oxford comma)
+
+**Name resolution** (`_resolve_name`):
+- `"player"` → `"the player"`
+- `"all_characters"` → `"everyone"`
+- Known character key → `CharacterState.name` (e.g. `"iu"` → `"IU"`)
+- Unknown key fallback → `key.replace("_", " ").title()` (e.g. `"rival_trainee"` → `"Rival Trainee"`)
+
+### Preface instructions
+
+The stack preface tells the model how to use the facts:
+
+> "The following sections describe what is true in this story and who knows what. Earlier sections outrank later sections when facts conflict. Each fact includes a plain-English note about which characters know it, do not know it, or may be partially aware of it."
+>
+> "When a fact says a character does not know something, that character must not state, hint at, or act on that information. When a fact says everyone knows something, treat it as common knowledge. When uncertain about whether a character would know a detail not listed here, hedge naturally instead of asserting certainty. Never state as fact anything the active speaker does not know."
+
+### Full example output
+
+```
+────────────────────────────────────────
+### EPISTEMIC KNOWLEDGE STACK
+────────────────────────────────────────
+The following sections describe what is true in this story and who knows what...
+
+These are the definitive canonical facts of this story:
+1. IU is a ghost in this story. Currently only IU knows this.
+2. IU died the prior week in the Nonhyeon-dong officetel closet; she is now the ghost in the apartment. IU knows this but the player does not yet know. Han Jae-seo, Park So-jin, Rival Trainee, and Yoo Min-ho may have some awareness of this.
+3. A prior tenant death occurred in the unit and is now part of building rumor context. Everyone knows this.
+4. The apartment's cheap rent was due to the undisclosed prior tenant death in the closet. The player and Park So-jin know this but Rival Trainee does not yet know. Han Jae-seo and Yoo Min-ho may have some awareness of this.
+
+Relationship dynamics and world context:
+1. iu->player type=other Trust is neutral; fear is guarded; affection is neutral; suspicion is guarded. IU and the player know this.
+```
+
+---
+
 ## Implementation plan
 
 ### Phase A — Prompt builder refactor
