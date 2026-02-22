@@ -1,5 +1,7 @@
 
-# app/api/chat.py
+# app/api/prompt_engine.py
+# Prompt Engine: orchestrates all raw context (state, knowledge, history) and
+# transforms it into a fully-assembled LLM prompt, then dispatches the API call.
 
 from backend.app.engine.extractors.location_extractor import LocationExtractor, LocationIntent
 from backend.app.engine.extractors.knowledge_resolution_extractor import (

@@ -8,7 +8,11 @@ To add a new one you must change both frontend and backend:
 
 ### Example: adding a [H] / [HINT] command that gives the player a hint
 
-#### STEP 1 — Backend (backend/app/api/chat.py)
+#### STEP 1 — Backend (backend/app/api/prompt_engine.py)
+
+The Prompt Engine (prompt_engine.py) is the single file that receives the raw
+request, orchestrates all context, builds the final LLM prompt, and dispatches
+the API call. All bracket commands are processed here before any LLM call.
 
 A) Define token set and detection function (near line ~78, next to existing ones):
 

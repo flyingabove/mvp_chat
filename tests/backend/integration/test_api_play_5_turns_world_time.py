@@ -55,7 +55,7 @@ class ChatFiveTurnScenario(IntegrationScenario):
     player_role = "Detective"
 
     def setup(self):
-        from backend.app.api import chat as chat_module
+        from backend.app.api import prompt_engine as chat_module
         from backend.app.main import app
 
         ctx = ChatFiveTurnContext()
@@ -154,7 +154,7 @@ class ChatFiveTurnScenario(IntegrationScenario):
 
     @step(kind="assert", description="Validate state and time")
     def assert_state(self):
-        from backend.app.api import chat as chat_module
+        from backend.app.api import prompt_engine as chat_module
 
         sess = chat_module.SESSIONS["t1"]
         st = sess["state"]

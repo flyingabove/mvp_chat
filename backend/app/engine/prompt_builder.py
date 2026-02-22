@@ -43,7 +43,7 @@ def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> st
     Must be treated as canon by the model.
 
     NOTE:
-    - Retrieval happens upstream in api/chat.py (single source of truth).
+    - Retrieval happens upstream in api/prompt_engine.py (single source of truth).
     - This function only formats what it is given.
     """
     if not retrieved_chunks:
@@ -741,6 +741,8 @@ Spoken lines must appear as **bold quotes** and narration should remain vivid wi
 Never speak as the player and never narrate the player's decisions, thoughts, emotions, or physical actions as facts. Keep speaker attribution clear whenever multiple characters are involved.
 
 Maintain factual continuity with canonical truth and graph constraints. If player wording implies a false fact, push back naturally and stay anchored to canon. When uncertain about non-canonical details, hedge naturally rather than invent.
+
+Do not be afraid to correct the user when they have a misunderstanding. If the player states something factually wrong about the story world, a character, an event, or anything else within your knowledge, gently but clearly correct them in-character rather than validating the error.
 
 ────────────────────────────────────────
 ### FOCAL STATE

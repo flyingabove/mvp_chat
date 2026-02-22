@@ -30,6 +30,12 @@ Instructions to AI:
 - [documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt](documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt)
 - [documentation/ai_learnings_mistakes/ai_learnings_integration_requirements.txt](documentation/ai_learnings_mistakes/ai_learnings_integration_requirements.txt)
 
+### Prompt Engine tasks (backend/app/api/prompt_engine.py)
+The **Prompt Engine** (`backend/app/api/prompt_engine.py`) is the single file that receives
+raw requests, orchestrates all context (state, knowledge, history, flags), builds the fully-
+assembled LLM prompt, and dispatches the API call. Its test file mirrors the path exactly:
+`tests/backend/app/api/test_prompt_engine.py`.
+
 ### Prompt/epistemic behavior tasks
 - [documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md](documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md)
 - [documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md](documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md)

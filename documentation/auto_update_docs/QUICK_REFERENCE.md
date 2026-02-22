@@ -8,7 +8,7 @@
 |------|-------|---------|---------------|
 | `main.py` | 113 | FastAPI app entry point | `warm_indexes()`, `_startup_event()`, `version()` |
 | `config/settings.py` | 26 | Global configuration | Constants only |
-| `api/chat.py` | 1477 | Main gameplay API | `chat_handler()`, `get_session()`, `_translate_to_chinese()` |
+| `api/prompt_engine.py` | 1477 | **Prompt Engine** — orchestrates all raw context (state, knowledge, history) into a fully-assembled LLM prompt, then dispatches the API call | `chat_handler()`, `get_session()`, `_translate_to_chinese()` |
 | `api/health.py` | 28 | Health check | `health()` |
 | `api/echo.py` | 28 | Debug echo | `echo()` |
 | `api/stories.py` | 53 | List stories | `list_stories()` |
@@ -323,7 +323,7 @@ backend/app/knowledge/characters/<character_id>/
 pytest tests/
 
 # Specific test file
-pytest tests/backend/app/api/test_chat.py
+pytest tests/backend/app/api/test_prompt_engine.py
 
 # Integration tests only
 pytest -m integration

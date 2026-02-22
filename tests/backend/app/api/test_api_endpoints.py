@@ -12,7 +12,7 @@ STORY_ID = first_story_id()
 def client(monkeypatch):
     """Create a FastAPI TestClient with network calls mocked."""
     # Import inside fixture so our monkeypatches apply before first use.
-    from backend.app.api import chat as chat_mod
+    from backend.app.api import prompt_engine as chat_mod
 
     # Prevent retrieval from doing any IO during tests.
     monkeypatch.setattr(chat_mod, "retrieve_knowledge", lambda *args, **kwargs: ([], {}), raising=False)

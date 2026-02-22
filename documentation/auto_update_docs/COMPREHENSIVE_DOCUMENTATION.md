@@ -163,9 +163,9 @@ backend/app/
 
 ---
 
-#### `backend/app/api/chat.py` (1477 lines)
+#### `backend/app/api/prompt_engine.py` (1477 lines)
 
-**Purpose:** Main gameplay loop and chat API endpoint
+**Purpose:** Prompt Engine — orchestrates all raw context (state, knowledge, history, flags) into a fully-assembled LLM prompt, then dispatches the API call. This is the main gameplay loop and chat API endpoint.
 
 **Global Variables:**
 - **`SESSIONS`** (line 67): In-memory session store `{session_id -> {state, log, debug_mode, chinese_mode}}`
@@ -1269,13 +1269,13 @@ backend/app/
    - **Recommendation:** **DELETE THIS FILE** or implement actual game logic
 
 #### 2. **Duplicate `_log()` functions**
-   - **Location 1:** `backend/app/api/chat.py` (lines 145-149)
+   - **Location 1:** `backend/app/api/prompt_engine.py` (lines 145-149)
    - **Location 2:** `backend/app/engine/prompt_builder.py` as `_jlog()` (lines 17-28)
    - **Issue:** Two nearly identical JSON logging functions
    - **Recommendation:** **Consolidate** into a shared logging utility module
 
 #### 3. **Duplicate `_truncate()` functions**
-   - **Location 1:** `backend/app/api/chat.py` (lines 152-154) - 6000 char default
+   - **Location 1:** `backend/app/api/prompt_engine.py` (lines 152-154) - 6000 char default
    - **Location 2:** `backend/app/engine/prompt_builder.py` (lines 31-35) - 500 char default
    - **Issue:** Nearly identical truncation functions
    - **Recommendation:** **Consolidate** into shared utility
@@ -1316,7 +1316,7 @@ backend/app/
    - **Recommendation:** **Replace** with proper logging (use `_log()` or Python logging module)
 
 #### 11. **Duplicate name patterns**
-   - **Location:** `backend/app/api/chat.py` lines 269-277
+   - **Location:** `backend/app/api/prompt_engine.py` lines 269-277
    - **Issue:** 7 regex patterns for name extraction, many overlapping
    - **Recommendation:** **Consolidate** to 4-5 patterns; remove redundant ones
 
@@ -1331,7 +1331,7 @@ backend/app/
    - **Recommendation:** **Review** and remove unused schema definitions
 
 #### 14. **Unused Chinese mode flag persistence**
-   - **Location:** `backend/app/api/chat.py` session store
+   - **Location:** `backend/app/api/prompt_engine.py` session store
    - **Issue:** `chinese_mode` flag persists across resets but is lost on server restart (in-memory)
    - **Recommendation:** **Document** as session-scoped only, or persist to DB
 
@@ -1445,7 +1445,7 @@ backend/app/
        │ 1. POST /api/chat
        ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  chat_handler() in api/chat.py                               │
+│  chat_handler() in api/prompt_engine.py                      │
 │                                                              │
 │  2. Retrieve Session                                         │
 │     ┌─────────────────────────────────┐                     │

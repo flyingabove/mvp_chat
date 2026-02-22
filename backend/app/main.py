@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import threading
 
-from backend.app.api.chat import router as chat_router
+from backend.app.api.prompt_engine import router as chat_router
 from backend.app.api.echo import router as echo_router
 from backend.app.api.health import router as health_router
 from backend.app.api.story import router as story_router

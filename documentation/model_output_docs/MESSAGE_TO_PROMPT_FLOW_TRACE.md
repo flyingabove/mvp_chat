@@ -3,7 +3,7 @@
 This document traces the exact runtime path from one completed LLM response to the next outgoing LLM request.
 
 ## 0) Starting Point: Prior LLM Response Exists
-At the end of the prior turn, `chat.py` has already:
+At the end of the prior turn, `prompt_engine.py` has already:
 - stripped `[[STATE]]...[[/STATE]]` via `extract_state_tag`,
 - applied state deltas with `apply_state_tag`,
 - appended user/assistant messages to session log,
@@ -16,7 +16,7 @@ This means the next turn starts from a state that may already include newly reso
 ---
 
 ## 1) Request Intake
-Endpoint: `POST /api/chat` → `backend/app/api/chat.py::chat_handler`
+Endpoint: `POST /api/chat` → `backend/app/api/prompt_engine.py::chat_handler`
 
 1. Parse `session_id` and message string.
 2. Strip UI quote prefix (`>`).
@@ -128,7 +128,7 @@ The final payload includes:
 ---
 
 ## 9) Outbound LLM Call
-`chat.py` builds payload with:
+`prompt_engine.py` builds payload with:
 - model,
 - messages,
 - temperature,
