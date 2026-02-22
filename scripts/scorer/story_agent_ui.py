@@ -2309,12 +2309,83 @@ HTML_PAGE = r"""<!DOCTYPE html>
       sections.push({title: 'User Message Header', content: String(pd.header), open: false});
     }
 
-    // 7. Knowledge Chunks (structured list from retrieval)
+    // 7. Knowledge Chunks (tiered epistemic view)
     if (pd.knowledge_chunks && pd.knowledge_chunks.length) {
-      const kText = pd.knowledge_chunks.map(function(c, i) {
-        return '[' + (i+1) + '] ' + (c.type || 'chunk') + (c.chunk_id ? ' (' + c.chunk_id + ')' : '') + (c.source ? ' src=' + c.source : '') + '\n' + (c.text || '(empty)');
-      }).join('\n\n');
-      sections.push({title: 'Knowledge Chunks (' + pd.knowledge_chunks.length + ')', content: kText, open: false});
+      const chunks = Array.isArray(pd.knowledge_chunks) ? pd.knowledge_chunks : [];
+
+      function certaintyPhraseFromLabel(label) {
+        const token = String(label || 'mixed').trim().toLowerCase();
+        if (token === 'speculative' || token === 'very_tentative') return 'with very low confidence';
+        if (token === 'tentative' || token === 'leaning_uncertain' || token === 'uncertain') return 'with low confidence';
+        if (token === 'mixed') return 'with mixed confidence';
+        if (token === 'leaning_likely' || token === 'plausible') return 'with moderate confidence';
+        if (token === 'likely' || token === 'highly_likely') return 'with high confidence';
+        if (token === 'certain') return 'with complete confidence';
+        return 'with mixed confidence';
+      }
+
+      function formatChunkLines(list) {
+        return list.map(function(c, i) {
+          const lines = [];
+          lines.push((i + 1) + '. ' + String(c.text || '(empty)'));
+          if (c.id) lines.push('   id: ' + c.id);
+          if (c.source) lines.push('   source: ' + c.source);
+          if (c.certainty) lines.push('   certainty: ' + certaintyPhraseFromLabel(c.certainty));
+
+          const kb = Array.isArray(c.known_by) ? c.known_by : [];
+          const nkb = Array.isArray(c.not_known_by) ? c.not_known_by : [];
+          const mkb = Array.isArray(c.maybe_known_by) ? c.maybe_known_by : [];
+          if (kb.length) lines.push('   known_by: ' + kb.join(', '));
+          if (nkb.length) lines.push('   not_known_by: ' + nkb.join(', '));
+          if (mkb.length) lines.push('   maybe_known_by: ' + mkb.join(', '));
+
+          return lines.join('\n');
+        }).join('\n\n');
+      }
+
+      function pushKnowledgeSection(title, list, openByDefault, tag) {
+        if (!list || !list.length) return;
+        sections.push({
+          title: title,
+          content: formatChunkLines(list),
+          open: !!openByDefault,
+          tag: tag,
+        });
+      }
+
+      const canonicalCore = chunks.filter(c => String(c.tier || '') === 'CANONICAL_CORE');
+      const canonicalGraph = chunks.filter(c => String(c.tier || '') === 'CANONICAL_GRAPH');
+      const retrievedMemory = chunks.filter(c => String(c.tier || '') === 'RETRIEVED_MEMORY');
+      const subjectiveBelief = chunks.filter(c => String(c.tier || '') === 'SUBJECTIVE_BELIEF');
+
+      // Names aligned with docs tier naming.
+      pushKnowledgeSection('Knowledge Chunks — Canonical Core', canonicalCore, false, 'canonical');
+      pushKnowledgeSection('Knowledge Chunks — Canonical Graph (World Context)', canonicalGraph, false, 'canonical');
+
+      const beliefConfidenceOrder = [
+        'with very low confidence',
+        'with low confidence',
+        'with mixed confidence',
+        'with moderate confidence',
+        'with high confidence',
+        'with complete confidence',
+      ];
+
+      const byConfidence = {};
+      for (let i = 0; i < subjectiveBelief.length; i++) {
+        const chunk = subjectiveBelief[i];
+        const phrase = certaintyPhraseFromLabel(chunk.certainty);
+        if (!byConfidence[phrase]) byConfidence[phrase] = [];
+        byConfidence[phrase].push(chunk);
+      }
+
+      for (let i = 0; i < beliefConfidenceOrder.length; i++) {
+        const phrase = beliefConfidenceOrder[i];
+        const list = byConfidence[phrase] || [];
+        pushKnowledgeSection('Knowledge Chunks — Subjective Belief (' + phrase + ')', list, false, 'beliefs');
+      }
+
+      pushKnowledgeSection('Knowledge Chunks — Retrieved Memory', retrievedMemory, false, 'retrieval');
     }
 
     // 8. Retrieval Debug
