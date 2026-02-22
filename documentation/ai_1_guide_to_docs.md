@@ -1,14 +1,8 @@
 Documentation map (what to read for which need)
 Instructions to AI:
-- Use this doc (\documentation\ai_1_guide_to_docs.md) to find which docs document what. update this doc if ever needed
-- Update this doc as needed (There is a line which says "Only Update Material After This LINE ", only update this doc AFTER that line, leave these instructions)
-- Update all docs as needed, except any docs under human_north_star_docs
-- Don't be lazy and always rememember to update docs with any changes or learnings 
-- After making code changes always add a descriptive comment and push the code.
-- Always boldly disagree with me when you feel like something doesnt make sense, dont be shy. and always ask questions if something is unclear.
-
-
-==== Only Update Material After This LINE ====
+- Use this doc (\documentation\ai_1_guide_to_docs.md) to answers anyquestions you might have and load context for problems you need to solve and find designs and common problems. 
+- Update this doc and all docs as needed, except any docs under human_north_star_docs
+- Only read docs as necessary as related to your task
 
 ## AI-first lookup order (always follow this order)
 
