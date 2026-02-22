@@ -256,6 +256,42 @@ Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and susp
 | +0.9 | hypervigilant |
 | +1.0 | obsessed |
 
+### Belief Certainty (0.0 to 1.0)
+
+Belief confidence is stored on `EpistemicClaim.confidence` in the range 0.0–1.0.
+Internally, that value is rounded to the nearest 0.1 and converted to a deterministic certainty label:
+
+| Value | Word |
+|-------|------|
+| 0.0 | speculative |
+| 0.1 | very_tentative |
+| 0.2 | tentative |
+| 0.3 | leaning_uncertain |
+| 0.4 | uncertain |
+| 0.5 | mixed |
+| 0.6 | leaning_likely |
+| 0.7 | plausible |
+| 0.8 | likely |
+| 0.9 | highly_likely |
+| 1.0 | certain |
+
+Prompt-facing output uses natural confidence buckets (derived from the deterministic label):
+
+| Internal Labels | Prompt Phrase |
+|----------------|---------------|
+| `speculative`, `very_tentative` | with very low confidence |
+| `tentative`, `leaning_uncertain`, `uncertain` | with low confidence |
+| `mixed` | with mixed confidence |
+| `leaning_likely`, `plausible` | with moderate confidence |
+| `likely`, `highly_likely` | with high confidence |
+| `certain` | with complete confidence |
+
+Belief lines render with the natural confidence phrase in the visibility prefix, then the fact text:
+
+```
+Currently only IU knows this with low confidence: IU died the prior week in the Nonhyeon-dong officetel closet; she is now the ghost in the apartment.
+```
+
 ### Behavior Stance (composite, deterministic)
 
 In addition to individual dimension words, a single **behavior tendency** sentence is generated from the combination of all four dimensions. Rules (evaluated in order, first match wins):

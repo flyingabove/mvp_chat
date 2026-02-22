@@ -417,3 +417,49 @@ def test_debug_chunks_structure_unchanged():
     assert fact_chunk["not_known_by"] == ["player"]
     assert fact_chunk["maybe_known_by"] == ["bob"]
     assert fact_chunk["certainty"] == "certain"
+
+
+def test_certainty_word_mapping_uses_tenths():
+    from backend.app.engine.prompt_builder import _certainty_word
+
+    assert _certainty_word(0.0) == "speculative"
+    assert _certainty_word(0.14) == "very_tentative"
+    assert _certainty_word(0.24) == "tentative"
+    assert _certainty_word(0.26) == "leaning_uncertain"
+    assert _certainty_word(0.5) == "mixed"
+    assert _certainty_word(0.84) == "likely"
+    assert _certainty_word(1.0) == "certain"
+
+
+def test_certainty_phrase_buckets_are_natural():
+    from backend.app.engine.prompt_builder import _certainty_phrase
+
+    assert _certainty_phrase("speculative") == "with very low confidence"
+    assert _certainty_phrase("uncertain") == "with low confidence"
+    assert _certainty_phrase("mixed") == "with mixed confidence"
+    assert _certainty_phrase("plausible") == "with moderate confidence"
+    assert _certainty_phrase("likely") == "with high confidence"
+    assert _certainty_phrase("certain") == "with complete confidence"
+
+
+def test_belief_section_includes_certainty_words_before_fact_text():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicClaim, BeliefState
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+
+    bs = BeliefState(character_id="iu")
+    bs.add_claim(EpistemicClaim(
+        id="b1",
+        content="IU died the prior week in the Nonhyeon-dong officetel closet; she is now the ghost in the apartment.",
+        confidence=0.3,
+        known_by=["iu"],
+    ))
+    st.beliefs["iu"] = bs
+
+    sysmsg = pb.system_prompt(st)
+    assert "Beliefs and suspicions (not necessarily true):" in sysmsg
+    assert "Currently only IU knows this with low confidence: IU died the prior week" in sysmsg

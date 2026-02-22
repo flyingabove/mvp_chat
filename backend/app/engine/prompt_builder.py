@@ -145,6 +145,60 @@ def _visibility_prose(chunk: KnowledgeChunk, characters: dict) -> str:
     return " ".join(parts)
 
 
+_CERTAINTY_WORDS = {
+    0.0: "speculative",
+    0.1: "very_tentative",
+    0.2: "tentative",
+    0.3: "leaning_uncertain",
+    0.4: "uncertain",
+    0.5: "mixed",
+    0.6: "leaning_likely",
+    0.7: "plausible",
+    0.8: "likely",
+    0.9: "highly_likely",
+    1.0: "certain",
+}
+
+
+def _certainty_word(confidence: float | int | str | None) -> str:
+    try:
+        value = float(confidence if confidence is not None else 0.0)
+    except (TypeError, ValueError):
+        value = 0.0
+    value = max(0.0, min(1.0, value))
+    bucket = round(value, 1)
+    return _CERTAINTY_WORDS.get(bucket, "mixed")
+
+
+def _certainty_phrase(certainty_word: str) -> str:
+    token = str(certainty_word or "mixed").strip().lower()
+    if token in {"speculative", "very_tentative"}:
+        return "with very low confidence"
+    if token in {"tentative", "leaning_uncertain", "uncertain"}:
+        return "with low confidence"
+    if token == "mixed":
+        return "with mixed confidence"
+    if token in {"leaning_likely", "plausible"}:
+        return "with moderate confidence"
+    if token in {"likely", "highly_likely"}:
+        return "with high confidence"
+    if token == "certain":
+        return "with complete confidence"
+    return "with mixed confidence"
+
+
+def _belief_line(it: KnowledgeChunk, characters: dict, idx: int) -> str:
+    visibility = _visibility_prose(it, characters)
+    certainty_word = str(getattr(it, "certainty", "") or "mixed").strip() or "mixed"
+    certainty_phrase = _certainty_phrase(certainty_word)
+
+    if visibility:
+        prefix = visibility.rstrip(".")
+        return f"{idx}. {prefix} {certainty_phrase}: {it.text}"
+
+    return f"{idx}. {certainty_phrase.capitalize()}: {it.text}"
+
+
 _TIER_HEADINGS = {
     "CANONICAL_CORE": "These are the definitive canonical facts of this story:",
     "CANONICAL_GRAPH": "Relationship dynamics and world context:",
@@ -256,7 +310,7 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
                     text=text,
                     tier="SUBJECTIVE_BELIEF",
                     source=str(getattr(claim, "source", "belief")),
-                    certainty="uncertain",
+                    certainty=_certainty_word(getattr(claim, "confidence", 0.0)),
                     known_by=normalize_parties(getattr(claim, "known_by", []) or [speaker_id]),
                     not_known_by=normalize_parties(getattr(claim, "not_known_by", []) or []),
                     maybe_known_by=normalize_parties(getattr(claim, "maybe_known_by", []) or []),
@@ -302,11 +356,14 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
         heading = _TIER_HEADINGS.get(tier, f"{tier}:")
         lines = [heading]
         for idx, it in enumerate(items, 1):
-            visibility = _visibility_prose(it, characters)
-            if visibility:
-                lines.append(f"{idx}. {it.text} {visibility}")
+            if tier == "SUBJECTIVE_BELIEF":
+                lines.append(_belief_line(it, characters, idx))
             else:
-                lines.append(f"{idx}. {it.text}")
+                visibility = _visibility_prose(it, characters)
+                if visibility:
+                    lines.append(f"{idx}. {it.text} {visibility}")
+                else:
+                    lines.append(f"{idx}. {it.text}")
             debug_chunks.append({
                 "id": it.id,
                 "tier": it.tier,
