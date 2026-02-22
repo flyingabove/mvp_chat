@@ -1177,7 +1177,28 @@ HTML_PAGE = r"""<!DOCTYPE html>
     font-size: 12px;
     font-weight: 600;
     color: var(--text-bright);
+    flex: 1;
   }
+  .section-copy-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .section-copy-btn:hover { border-color: var(--accent); color: var(--text-bright); }
+  .section-copy-btn.copied { border-color: var(--green); color: var(--green); }
+  .section-copy-btn svg { width: 14px; height: 14px; }
   .context-section-body {
     padding: 12px 14px;
     font-family: var(--font-mono);
@@ -2321,11 +2342,13 @@ HTML_PAGE = r"""<!DOCTYPE html>
       var openClass = s.open ? ' open' : '';
       var safeContent = escapeHtml(String(s.content || ''));
       var tagHtml = s.tag ? '<span class="layer-tag ' + s.tag + '">' + s.tag + '</span>' : '';
+      var copyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
       sectionsHtml += '<div class="context-section">';
       sectionsHtml += '<div class="context-section-header' + openClass + '" data-idx="' + si + '">';
       sectionsHtml += '<span class="arrow">&#9654;</span>';
       sectionsHtml += tagHtml;
       sectionsHtml += '<span class="section-title">' + escapeHtml(String(s.title)) + '</span>';
+      sectionsHtml += '<button class="section-copy-btn" data-section-idx="' + si + '" title="Copy section text">' + copyIcon + '</button>';
       sectionsHtml += '</div>';
       sectionsHtml += '<div class="context-section-body' + openClass + '">' + safeContent + '</div>';
       sectionsHtml += '</div>';
@@ -2404,10 +2427,42 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
     // Attach section toggle handlers (no inline onclick needed)
     overlay.querySelectorAll('.context-section-header').forEach(function(hdr) {
-      hdr.addEventListener('click', function() {
+      hdr.addEventListener('click', function(e) {
+        // Don't toggle when clicking the copy button
+        if (e.target.closest('.section-copy-btn')) return;
         hdr.classList.toggle('open');
         var body = hdr.nextElementSibling;
         if (body) body.classList.toggle('open');
+      });
+    });
+
+    // Attach per-section copy button handlers
+    overlay.querySelectorAll('.section-copy-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var idx = parseInt(btn.getAttribute('data-section-idx'));
+        var text = sections[idx] ? sections[idx].content : '';
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'absolute';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          btn.classList.add('copied');
+          var origHtml = btn.innerHTML;
+          btn.innerHTML = '&#10003;';
+          setTimeout(function() { btn.innerHTML = origHtml; btn.classList.remove('copied'); }, 1200);
+        } catch (copyErr) {
+          alert('Copy failed: ' + copyErr.message);
+        }
       });
     });
 
