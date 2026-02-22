@@ -70,6 +70,7 @@ def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> st
     )
 
 
+# Legacy: retained for debug/logging paths
 def _visibility_suffix(chunk: KnowledgeChunk) -> str:
     parts = []
     if chunk.known_by:
@@ -82,6 +83,74 @@ def _visibility_suffix(chunk: KnowledgeChunk) -> str:
     if chunk.maybe_known_by:
         parts.append("maybe_known_by=" + ",".join(chunk.maybe_known_by))
     return " [" + " | ".join(parts) + "]" if parts else ""
+
+
+# ---------------------------------------------------------------------------
+# Plain-English visibility prose
+# ---------------------------------------------------------------------------
+
+def _resolve_name(key: str, characters: dict) -> str:
+    """Convert a character key to a human-readable display name."""
+    if key == "player":
+        return "the player"
+    if key == "all_characters":
+        return "everyone"
+    ch = characters.get(key)
+    if ch and getattr(ch, "name", None):
+        return ch.name
+    return key.replace("_", " ").title()
+
+
+def _english_join(names: list[str]) -> str:
+    """Join names with natural English conjunctions."""
+    if not names:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    if len(names) == 2:
+        return f"{names[0]} and {names[1]}"
+    return ", ".join(names[:-1]) + f", and {names[-1]}"
+
+
+def _visibility_prose(chunk: KnowledgeChunk, characters: dict) -> str:
+    """Convert a chunk's visibility lists into a plain-English sentence."""
+    if "all_characters" in chunk.known_by:
+        return "Everyone knows this."
+
+    parts: list[str] = []
+
+    known_names = [_resolve_name(k, characters) for k in chunk.known_by]
+    not_known_names = [_resolve_name(k, characters) for k in chunk.not_known_by]
+    maybe_names = [_resolve_name(k, characters) for k in chunk.maybe_known_by]
+
+    if known_names and not not_known_names and not maybe_names:
+        if len(known_names) == 1:
+            parts.append(f"Currently only {known_names[0]} knows this.")
+        else:
+            parts.append(f"{_english_join(known_names)} know this.")
+    elif known_names:
+        verb = "knows" if len(known_names) == 1 else "know"
+        clause = f"{_english_join(known_names)} {verb} this"
+        if not_known_names:
+            neg_verb = "does not yet know" if len(not_known_names) == 1 else "do not yet know"
+            clause += f" but {_english_join(not_known_names)} {neg_verb}"
+        parts.append(clause + ".")
+    elif not_known_names:
+        neg_verb = "does not yet know this." if len(not_known_names) == 1 else "do not yet know this."
+        parts.append(f"{_english_join(not_known_names)} {neg_verb}")
+
+    if maybe_names:
+        parts.append(f"{_english_join(maybe_names)} may have some awareness of this.")
+
+    return " ".join(parts)
+
+
+_TIER_HEADINGS = {
+    "CANONICAL_CORE": "These are the definitive canonical facts of this story:",
+    "CANONICAL_GRAPH": "Relationship dynamics and world context:",
+    "SUBJECTIVE_BELIEF": "Beliefs and suspicions (not necessarily true):",
+    "RETRIEVED_MEMORY": "Remembered details from past interactions:",
+}
 
 
 def _get_active_character_keys(state: GameState) -> set[str]:
@@ -211,6 +280,7 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
 
 def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) -> tuple[str, list[dict]]:
     chunks = _knowledge_chunks_from_state(state, retrieved_chunks)
+    characters = getattr(state, "characters", {}) or {}
 
     tier_order = [
         "CANONICAL_CORE",
@@ -229,9 +299,14 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
         items = grouped.get(tier) or []
         if not items:
             continue
-        lines = []
-        for it in items:
-            lines.append(f"- [{it.certainty}] ({it.source}) {it.text}{_visibility_suffix(it)}")
+        heading = _TIER_HEADINGS.get(tier, f"{tier}:")
+        lines = [heading]
+        for idx, it in enumerate(items, 1):
+            visibility = _visibility_prose(it, characters)
+            if visibility:
+                lines.append(f"{idx}. {it.text} {visibility}")
+            else:
+                lines.append(f"{idx}. {it.text}")
             debug_chunks.append({
                 "id": it.id,
                 "tier": it.tier,
@@ -242,21 +317,25 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
                 "not_known_by": list(it.not_known_by),
                 "maybe_known_by": list(it.maybe_known_by),
             })
-        sections.append(f"### {tier}\n" + "\n".join(lines))
+        sections.append("\n".join(lines))
 
     if not sections:
         return "", []
 
     preface = (
         "\n────────────────────────────────────────\n"
-        "### EPISTEMIC KNOWLEDGE STACK (MOST CANONICAL → LEAST)\n"
+        "### EPISTEMIC KNOWLEDGE STACK\n"
         "────────────────────────────────────────\n"
-        "Interpret sections in order. Earlier sections outrank later sections on conflicts.\n"
-        "Use visibility tags: known_by, not_known_by, maybe_known_by.\n"
-        "If known_by includes ALL_CHARACTERS, treat as common knowledge.\n"
-        "If a chunk has neither explicit known_by nor not_known_by for the active speaker, make the best reasonable determination from dialogue context.\n"
-        "When uncertain, hedge naturally instead of asserting certainty.\n"
-        "Do not state as fact anything the active speaker does not know.\n\n"
+        "The following sections describe what is true in this story and who knows what. "
+        "Earlier sections outrank later sections when facts conflict. "
+        "Each fact includes a plain-English note about which characters know it, "
+        "do not know it, or may be partially aware of it.\n\n"
+        "When a fact says a character does not know something, that character must not "
+        "state, hint at, or act on that information. "
+        "When a fact says everyone knows something, treat it as common knowledge. "
+        "When uncertain about whether a character would know a detail not listed here, "
+        "hedge naturally instead of asserting certainty. "
+        "Never state as fact anything the active speaker does not know.\n\n"
     )
 
     return preface + "\n\n".join(sections) + "\n", debug_chunks

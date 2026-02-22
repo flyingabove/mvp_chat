@@ -148,7 +148,7 @@ def test_prompt_labels_canonical_truths_with_known_by_visibility():
     sysmsg = pb.system_prompt(st)
     assert "IU known fact" in sysmsg
     assert "Player-only fact" in sysmsg
-    assert "not_known_by=iu" in sysmsg
+    assert "IU does not yet know" in sysmsg
 
 
 def test_prompt_knowledge_stack_renders_visibility_labels():
@@ -175,9 +175,9 @@ def test_prompt_knowledge_stack_renders_visibility_labels():
 
     sysmsg = pb.system_prompt(st)
     assert "EPISTEMIC KNOWLEDGE STACK" in sysmsg
-    assert "known_by=ALL_CHARACTERS" in sysmsg
-    assert "not_known_by=iu" in sysmsg
-    assert "maybe_known_by=bob" in sysmsg
+    assert "Everyone knows this" in sysmsg
+    assert "IU does not yet know" in sysmsg
+    assert "Bob may have some awareness" in sysmsg
 
 
 # ---------------------------------------------------------------------------
@@ -319,3 +319,101 @@ def test_prompt_backward_compat_no_markers():
     assert "detective" in sysmsg.lower()
     # Bob is NOT in the default fallback set {iu, player}
     assert "old buddy" not in sysmsg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Prose visibility helpers
+# ---------------------------------------------------------------------------
+
+def test_visibility_prose_all_characters():
+    from backend.app.engine.prompt_builder import _visibility_prose
+    from backend.app.engine.knowledge_chunks import KnowledgeChunk
+
+    chunk = KnowledgeChunk(
+        id="t1", text="x", tier="t", source="s", certainty="c",
+        known_by=["all_characters"],
+    )
+    assert _visibility_prose(chunk, {}) == "Everyone knows this."
+
+
+def test_visibility_prose_single_knower():
+    from backend.app.engine.prompt_builder import _visibility_prose
+    from backend.app.engine.knowledge_chunks import KnowledgeChunk
+
+    chunk = KnowledgeChunk(
+        id="t1", text="x", tier="t", source="s", certainty="c",
+        known_by=["iu"],
+    )
+    chars = {"iu": CharacterState(key="iu", name="IU")}
+    assert _visibility_prose(chunk, chars) == "Currently only IU knows this."
+
+
+def test_visibility_prose_known_and_not_known():
+    from backend.app.engine.prompt_builder import _visibility_prose
+    from backend.app.engine.knowledge_chunks import KnowledgeChunk
+
+    chunk = KnowledgeChunk(
+        id="t1", text="x", tier="t", source="s", certainty="c",
+        known_by=["iu"],
+        not_known_by=["player"],
+        maybe_known_by=["han_jae_seo", "park_so_jin"],
+    )
+    chars = {
+        "iu": CharacterState(key="iu", name="IU"),
+        "han_jae_seo": CharacterState(key="han_jae_seo", name="Han Jae-seo"),
+        "park_so_jin": CharacterState(key="park_so_jin", name="Park So-jin"),
+    }
+    result = _visibility_prose(chunk, chars)
+    assert "IU knows this" in result
+    assert "the player does not yet know" in result
+    assert "Han Jae-seo and Park So-jin may have some awareness" in result
+
+
+def test_visibility_prose_empty_lists():
+    from backend.app.engine.prompt_builder import _visibility_prose
+    from backend.app.engine.knowledge_chunks import KnowledgeChunk
+
+    chunk = KnowledgeChunk(
+        id="t1", text="x", tier="t", source="s", certainty="c",
+    )
+    assert _visibility_prose(chunk, {}) == ""
+
+
+def test_knowledge_stack_uses_numbered_list():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicFact
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.add_canonical_fact(EpistemicFact(id="f1", content="Fact one", known_by=["iu"]))
+    st.add_canonical_fact(EpistemicFact(id="f2", content="Fact two", known_by=["all_characters"]))
+
+    sysmsg = pb.system_prompt(st)
+    # Should have numbered items, not bracketed bullets
+    assert "1. " in sysmsg
+    assert "- [certain]" not in sysmsg
+
+
+def test_debug_chunks_structure_unchanged():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicFact
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.add_canonical_fact(EpistemicFact(
+        id="f1", content="Test fact",
+        known_by=["iu"], not_known_by=["player"], maybe_known_by=["bob"],
+    ))
+
+    _, layers = pb.system_prompt(st, return_layers=True)
+    debug = layers["knowledge_chunks"]
+    # Find the fact chunk (skip the character chunk)
+    fact_chunk = next(c for c in debug if c["id"] == "fact::f1")
+    assert fact_chunk["known_by"] == ["iu"]
+    assert fact_chunk["not_known_by"] == ["player"]
+    assert fact_chunk["maybe_known_by"] == ["bob"]
+    assert fact_chunk["certainty"] == "certain"
