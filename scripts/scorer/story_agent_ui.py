@@ -2261,11 +2261,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     const hasLayers = Object.values(layers).some(v => v && v.trim && v.trim().length > 0);
 
     if (hasLayers) {
-      // 4a. Base Prompt (rules, style, world context, game state)
-      if (layers.base_prompt && layers.base_prompt.trim()) {
-        sections.push({title: '\u2003BASE PROMPT \u2014 Rules, Style & World Context', content: String(layers.base_prompt), open: false, tag: 'base'});
-      }
-      // 4b. Retrieved Knowledge (FAISS/BM25 chunks)
+      // 4a. Retrieved Knowledge (FAISS/BM25 chunks)
       if (layers.retrieved_knowledge && layers.retrieved_knowledge.trim()) {
         sections.push({title: '\u2003RETRIEVED KNOWLEDGE \u2014 Character Memory Chunks', content: String(layers.retrieved_knowledge), open: true, tag: 'retrieval'});
       }
