@@ -184,7 +184,7 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
     if main_char:
         chunks.append(KnowledgeChunk(
             id=f"char::{main_char.key}",
-            text=f"{main_char.name} (role={main_char.role or 'npc'})",
+            text=f"{main_char.name} is a {main_char.role or 'character'} in this story.",
             tier="CANONICAL_CORE",
             source="character",
             certainty="certain",
