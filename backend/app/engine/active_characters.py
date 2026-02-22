@@ -117,6 +117,23 @@ def get_location_speaker_keys(state: GameState) -> Set[str]:
     return keys
 
 
+def get_on_call_character_keys(state: GameState) -> Set[str]:
+    """Return character keys currently marked as being on a phone call.
+
+    Markers are transient text entries in the form:
+    ``__on_call_character_marker__:<character_key>``
+    """
+    keys: Set[str] = set()
+    for entry in getattr(state, "transient_entries", []) or []:
+        txt = (getattr(entry, "text", "") or "").strip()
+        if not txt.startswith("__on_call_character_marker__:"):
+            continue
+        key = txt.split(":", 1)[1].strip().lower()
+        if key:
+            keys.add(key)
+    return keys
+
+
 def compute_active_character_set(
     state: GameState,
     user_msg: str,
@@ -127,22 +144,14 @@ def compute_active_character_set(
 
     Combines:
     1. main_character + player (always active)
-    2. Characters mentioned in *user_msg*
-    3. Characters mentioned in recent log (last 4 entries)
-    4. Characters mentioned in *npc_reply* (post-turn refresh)
-    5. Characters at current location (``location_speakers``)
+    2. Characters mentioned in the current turn text (*user_msg* + *npc_reply*)
+    3. Characters at current location (``location_speakers``)
+    4. Characters currently marked as on-call (transient markers)
     """
     characters = getattr(state, "characters", {}) or {}
     main_id = getattr(state, "main_character_id", "") or ""
 
     text_parts = [user_msg or ""]
-    for entry in (recent_log or [])[-4:]:
-        role = entry.get("role", "") if isinstance(entry, dict) else ""
-        if role not in {"user", "assistant"}:
-            continue
-        content = entry.get("content", "") if isinstance(entry, dict) else ""
-        if content:
-            text_parts.append(content)
     if npc_reply:
         text_parts.append(npc_reply)
 
@@ -150,5 +159,6 @@ def compute_active_character_set(
 
     mentioned = detect_mentioned_characters(combined_text, characters, main_id)
     location = get_location_speaker_keys(state)
+    on_call = get_on_call_character_keys(state)
 
-    return mentioned | location
+    return mentioned | location | on_call

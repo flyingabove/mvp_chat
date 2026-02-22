@@ -4,6 +4,7 @@
 from backend.app.engine.active_characters import (
     compute_active_character_set,
     detect_mentioned_characters,
+    get_on_call_character_keys,
     get_location_speaker_keys,
 )
 from backend.app.engine.state import CharacterState, GameState
@@ -164,7 +165,7 @@ def test_compute_combines_all_sources():
     assert "park_so_jin" in result # location speaker
 
 
-def test_compute_includes_recent_log():
+def test_compute_ignores_recent_log_to_avoid_stale_mentions():
     state = GameState()
     state.main_character_id = "iu"
     state.characters = _make_characters()
@@ -177,7 +178,7 @@ def test_compute_includes_recent_log():
         ],
     )
 
-    assert "yoo_min_ho" in result
+    assert "yoo_min_ho" not in result
 
 
 def test_compute_ignores_system_role_recent_log_entries():
@@ -209,3 +210,37 @@ def test_compute_includes_npc_reply():
     )
 
     assert "park_so_jin" in result
+
+
+def test_get_on_call_character_keys_reads_transient_markers():
+    state = GameState()
+    state.add_transient_entry(
+        id="on_call::yoo_min_ho",
+        namespace="test",
+        scope="scene",
+        text="__on_call_character_marker__:yoo_min_ho",
+        expires_after_turns=4,
+    )
+    result = get_on_call_character_keys(state)
+    assert result == {"yoo_min_ho"}
+
+
+def test_compute_includes_on_call_markers():
+    state = GameState()
+    state.main_character_id = "iu"
+    state.characters = _make_characters()
+    state.add_transient_entry(
+        id="on_call::han_jae_seo",
+        namespace="test",
+        scope="scene",
+        text="__on_call_character_marker__:han_jae_seo",
+        expires_after_turns=4,
+    )
+
+    result = compute_active_character_set(
+        state=state,
+        user_msg="hello",
+        recent_log=[],
+    )
+
+    assert "han_jae_seo" in result

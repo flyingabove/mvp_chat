@@ -74,8 +74,8 @@ def test_prompt_includes_relationship_section():
     })
 
     sysmsg = pb.system_prompt(st)
-    assert "RELATIONAL TENSIONS IN THIS SCENE" in sysmsg
-    assert "Trust is" in sysmsg
+    assert "RELATIONSHIP CONTEXT IN THIS SCENE" in sysmsg
+    assert "IU currently reads the player" in sysmsg
     assert "detective" in sysmsg.lower()
 
 
@@ -215,7 +215,7 @@ def test_prompt_filters_graph_edges_by_active_characters():
 
     sysmsg = pb.system_prompt(st)
     # Player relationship should be present
-    assert "detective" in sysmsg.lower()
+    assert "the player" in sysmsg.lower()
     # Bob should NOT appear in the relationships section
     assert "old buddy" not in sysmsg.lower()
 
@@ -316,9 +316,28 @@ def test_prompt_backward_compat_no_markers():
 
     # No active_character markers at all — fallback is {main, player}
     sysmsg = pb.system_prompt(st)
-    assert "detective" in sysmsg.lower()
+    assert "the player" in sysmsg.lower()
     # Bob is NOT in the default fallback set {iu, player}
     assert "old buddy" not in sysmsg.lower()
+
+
+def test_prompt_does_not_duplicate_relationship_context_in_knowledge_stack():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.character_graph import CharacterGraph
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.character_graph = CharacterGraph.from_dict({
+        "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],
+    })
+
+    sysmsg = pb.system_prompt(st)
+    # No raw graph-edge telemetry in epistemic stack.
+    assert "iu->player type=" not in sysmsg
+    # Relationship section should still exist once.
+    assert sysmsg.count("RELATIONSHIP CONTEXT IN THIS SCENE") == 1
 
 
 # ---------------------------------------------------------------------------
@@ -463,3 +482,40 @@ def test_belief_section_includes_certainty_words_before_fact_text():
     sysmsg = pb.system_prompt(st)
     assert "Beliefs and suspicions (not necessarily true):" in sysmsg
     assert "Currently only IU knows this with low confidence: IU died the prior week" in sysmsg
+
+
+def test_belief_section_snapshot_layout_is_stable():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.epistemic_state import EpistemicClaim, BeliefState
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["player"] = CharacterState(key="player", name="The Player", role="detective")
+    st.main_character_id = "iu"
+
+    bs = BeliefState(character_id="iu")
+    bs.add_claim(EpistemicClaim(
+        id="b_low",
+        content="I may have heard footsteps by the closet before dawn.",
+        confidence=0.2,
+        known_by=["iu"],
+    ))
+    bs.add_claim(EpistemicClaim(
+        id="b_high",
+        content="My phone and lyric notebook were missing after the killing.",
+        confidence=0.9,
+        known_by=["iu"],
+        not_known_by=["player"],
+    ))
+    st.beliefs["iu"] = bs
+
+    sysmsg = pb.system_prompt(st)
+    section = sysmsg.split("Beliefs and suspicions (not necessarily true):\n", 1)[1]
+    section = section.split("\n────────────────────────────────────────\n### REQUIRED FINAL LINE", 1)[0].strip()
+
+    expected = (
+        "1. Currently only IU knows this with low confidence: I may have heard footsteps by the closet before dawn.\n"
+        "2. IU knows this but the player does not yet know with high confidence: My phone and lyric notebook were missing after the killing."
+    )
+    assert section == expected

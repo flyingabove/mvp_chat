@@ -201,7 +201,7 @@ def _belief_line(it: KnowledgeChunk, characters: dict, idx: int) -> str:
 
 _TIER_HEADINGS = {
     "CANONICAL_CORE": "These are the definitive canonical facts of this story:",
-    "CANONICAL_GRAPH": "Relationship dynamics and world context:",
+    "CANONICAL_GRAPH": "World context relevant to the current scene:",
     "SUBJECTIVE_BELIEF": "Beliefs and suspicions (not necessarily true):",
     "RETRIEVED_MEMORY": "Remembered details from past interactions:",
 }
@@ -223,6 +223,10 @@ def _get_active_character_keys(state: GameState) -> set[str]:
     for e in getattr(state, "transient_entries", []) or []:
         txt = (getattr(e, "text", "") or "").strip()
         if txt.startswith("__active_character_marker__:"):
+            ch_key = txt.split(":", 1)[1].strip().lower()
+            if ch_key:
+                keys.add(ch_key)
+        elif txt.startswith("__on_call_character_marker__:"):
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
                 keys.add(ch_key)
@@ -262,23 +266,13 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
 
     graph = getattr(state, "character_graph", None)
     if graph:
-        from backend.app.engine.character_graph import describe_relationship_state
         active_keys = _get_active_character_keys(state)
         for edge in graph.get_edges_from(state.main_character_id or ""):
             if edge.to_id not in active_keys:
                 continue
-            desc = describe_relationship_state(edge.state)
-            chunks.append(KnowledgeChunk(
-                id=f"rel::{edge.id}",
-                text=(
-                    f"{edge.from_id}->{edge.to_id} type={edge.type.value} "
-                    f"{desc['summary']}"
-                ),
-                tier="CANONICAL_GRAPH",
-                source="character_graph",
-                certainty="certain",
-                known_by=normalize_parties([edge.from_id, edge.to_id]),
-            ))
+            # Relationship dynamics are rendered once in the dedicated
+            # relationship section, not duplicated inside epistemic stack.
+            pass
 
     runtime = getattr(state, "world_runtime", None)
     loc_id = getattr(state, "location_id", "") or ""
@@ -518,11 +512,6 @@ def _scene_cast_keys(state: GameState) -> list[str]:
     for key in _get_active_character_keys(state):
         add_key(key)
 
-    graph = getattr(state, "character_graph", None)
-    if graph and main_id:
-        for edge in graph.get_edges_from(main_id):
-            add_key(edge.to_id)
-
     cfg, _ = _extract_story_cfg(state)
     world_cfg = (cfg.get("world") or {}) if isinstance(cfg, dict) else {}
     loc_speakers = world_cfg.get("location_speakers") or {}
@@ -535,6 +524,50 @@ def _scene_cast_keys(state: GameState) -> list[str]:
             add_key(str(sp or ""))
 
     return keys[:8]
+
+
+def _relationship_scene_section(state: GameState) -> str:
+    graph = getattr(state, "character_graph", None)
+    main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
+    if not graph or not main_id:
+        return ""
+
+    from backend.app.engine.character_graph import describe_relationship_state
+
+    chars = getattr(state, "characters", {}) or {}
+    main_char = chars.get(main_id)
+    main_name = (getattr(main_char, "name", None) or main_id or "The focal character").strip()
+    active_keys = _get_active_character_keys(state)
+
+    edges = [e for e in graph.get_edges_from(main_id) if e.to_id in active_keys][:6]
+    if not edges:
+        return ""
+
+    lines: list[str] = []
+    for idx, edge in enumerate(edges, 1):
+        target = chars.get(edge.to_id)
+        target_name = "the player" if edge.to_id == "player" else (getattr(target, "name", None) or edge.to_id.replace("_", " ").title())
+        described = describe_relationship_state(edge.state)
+        stance = str(described.get("stance", "")).replace("Behavior tendency:", "").strip()
+        sentence = (
+            f"{idx}. {main_name} currently reads {target_name} with "
+            f"{described['trust_word']} trust, {described['fear_word']} fear, "
+            f"{described['affection_word']} affection, and {described['suspicion_word']} suspicion. "
+            f"{stance}."
+        )
+        label = (getattr(edge, "label", "") or "").strip()
+        if label:
+            sentence += f" Context: {label}"
+        lines.append(sentence)
+
+    return (
+        "\n────────────────────────────────────────\n"
+        "### RELATIONSHIP CONTEXT IN THIS SCENE\n"
+        "────────────────────────────────────────\n"
+        "Use this relationship context to shape who speaks, who withholds, who pressures, and how tension evolves between characters currently in play.\n\n"
+        + "\n".join(lines)
+        + "\n"
+    )
 
 
 def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
@@ -598,7 +631,7 @@ Stay fully in-universe and write the next beat as story prose, not as assistant 
 ────────────────────────────────────────
 ### STORYTELLER CONTRACT
 ────────────────────────────────────────
-Write compact cinematic paragraphs that blend narration and dialogue. Keep {char_name} as the focal character, but you may naturally include other relevant characters when it improves scene tension, continuity, or mystery logic.
+Write compact cinematic paragraphs that blend narration and dialogue. You are not any single character; you are the scene storyteller. Keep {char_name} as the focal character, but naturally include other relevant characters when they are present, on-call, or currently being discussed.
 
 Spoken lines must appear as **bold quotes** and narration should remain vivid without becoming repetitive. Never break the fourth wall and never end with meta prompts such as "What do you do?" or "What will you say?".
 
@@ -629,25 +662,8 @@ If forgotten, reply ONLY with that tag.
 
     knowledge_stack_section, knowledge_stack_debug = _format_labeled_knowledge_stack(state, knowledge_chunks or [])
 
-    # ── Relationship context (character graph → prompt) ──
-    relationship_section = ""
-    graph = getattr(state, "character_graph", None)
-    if graph:
-        active_keys = _get_active_character_keys(state)
-        rel_text = graph.format_for_prompt(
-            state.main_character_id or "",
-            state.characters,
-            active_characters=active_keys,
-        )
-        if rel_text:
-            relationship_section = f"""
-────────────────────────────────────────
-### RELATIONAL TENSIONS IN THIS SCENE
-────────────────────────────────────────
-Use these relationship signals to calibrate tone, trust, suspicion, fear, and willingness to reveal information.
-
-{rel_text}
-"""
+    # ── Relationship context (single source: prose scene section) ──
+    relationship_section = _relationship_scene_section(state)
 
     truth_override = ""
     if truth_mode:

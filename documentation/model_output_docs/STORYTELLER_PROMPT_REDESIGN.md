@@ -9,7 +9,7 @@
    - relationship context reframed as scene tension guidance
 - Critical intent guard removed — identity correction is now handled generically by the epistemic stack and factual integrity rules in the prompt contract, not per-story band-aids.
 - All numeric relationship values replaced with deterministic word mappings (see "Relationship Word Mappings" section below).
-- Context-aware character graph filtering implemented: only characters mentioned in conversation or present at the scene are included in the prompt. Uses transient buffer TTL decay via `active_characters.py`.
+- Context-aware character graph filtering implemented: only characters in current-turn mention scope, scene co-presence, or active phone-call scope are included in the prompt via transient markers in `active_characters.py`.
 
 Remaining phases (validator/rewrite pass and full scorer rubric migration) are still pending.
 
@@ -92,10 +92,8 @@ Describe other relevant characters and relationships that can color response ton
 ### 5) Truth & Knowledge Paragraph
 Plain-English summary of what is canonically true, what is uncertain, and what must not be contradicted.
 
-### 6) Intent Guard Paragraph (high-priority)
-Small "if this intent appears, do X" prose for fragile intents.
-Example guard for IU:
-"If asked about the previous tenant or who died in the closet, IU must clarify directly that she herself was that tenant, in first person."
+### 6) Context Routing Paragraph (high-priority)
+Describe who is currently in-scene, on-call, or actively mentioned so narrative focus stays local and does not drag in stale off-screen characters.
 
 ---
 
@@ -120,24 +118,14 @@ Example guard for IU:
 
 ---
 
-## Critical intent policy (Identity Correction)
+## Identity handling policy (soft, non-forced)
 
-For IU story family, add explicit semantic triggers in prompt-building:
+Identity-sensitive prompts should be handled through canon-first continuity and uncertainty-aware storytelling, not brittle per-story hard guards.
 
-Trigger phrases (normalized):
-- "previous tenant"
-- "who died in the closet"
-- "what happened to the tenant"
-
-Required response property:
-- First-person identity correction within the same answer beat.
-
-Acceptable examples:
-- "I was the previous tenant. I died in that closet."
-- "You're asking about me. I'm the one who was found there."
-
-Disallowed pattern:
-- Third-person distancing ("she died there") without immediate self-clarification.
+Preferred behavior:
+- Prioritize canonical facts when identity is directly questioned.
+- Allow emotional hesitation, but avoid drifting into contradictory third-person fabrication.
+- Keep responses in narrative voice without forcing a fixed sentence template.
 
 ---
 
@@ -334,7 +322,7 @@ Each tier gets a prose heading instead of a `### TIER_NAME` header:
 | Tier | Heading |
 |------|---------|
 | `CANONICAL_CORE` | "These are the definitive canonical facts of this story:" |
-| `CANONICAL_GRAPH` | "Relationship dynamics and world context:" |
+| `CANONICAL_GRAPH` | "World context relevant to the current scene:" |
 | `SUBJECTIVE_BELIEF` | "Beliefs and suspicions (not necessarily true):" |
 | `RETRIEVED_MEMORY` | "Remembered details from past interactions:" |
 
@@ -389,8 +377,12 @@ These are the definitive canonical facts of this story:
 3. A prior tenant death occurred in the unit and is now part of building rumor context. Everyone knows this.
 4. The apartment's cheap rent was due to the undisclosed prior tenant death in the closet. The player and Park So-jin know this but Rival Trainee does not yet know. Han Jae-seo and Yoo Min-ho may have some awareness of this.
 
-Relationship dynamics and world context:
-1. iu->player type=other Trust is neutral; fear is guarded; affection is neutral; suspicion is guarded. IU and the player know this.
+World context relevant to the current scene:
+1. Current place=IU’s Apartment; description=A quiet, carefully kept apartment filled with muted light and personal belongings. Everyone knows this.
+
+### RELATIONSHIP CONTEXT IN THIS SCENE
+
+1. IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion. neutral-watchful, likely to respond cautiously without full openness.
 ```
 
 ---
@@ -402,9 +394,9 @@ Relationship dynamics and world context:
 2. Preserve epistemic ordering but summarize each tier into prose blocks.
 3. Keep relationship context as prose influence, not list-like telemetry where possible.
 
-### Phase B — Intent guard insertion
-1. Add story/character-specific guard generator for fragile intents.
-2. Inject only when trigger intent risk is present (or always for known fragile stories, as a first pass).
+### Phase B — Context routing hardening
+1. Keep active-character scope limited to current-turn mentions, same-location speakers, and active on-call markers.
+2. Ensure off-scene characters are excluded from relationship context unless reintroduced in-turn.
 
 ### Phase C — Output validator (lightweight)
 1. Add post-response check for known identity-critical intents.

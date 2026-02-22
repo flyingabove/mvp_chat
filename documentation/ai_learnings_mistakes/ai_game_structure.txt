@@ -72,11 +72,12 @@ Prompt context contract (runtime)
   CANONICAL_CORE → CANONICAL_GRAPH → SUBJECTIVE_BELIEF → RETRIEVED_MEMORY.
 - System prompt delivery mode is storyteller-first (paragraph narrative contract) rather than single-NPC chatbot framing.
 - The main character remains focal, but prompt instructions allow multi-character scene narration when relevant to continuity and tension.
-- For IU tenant-identity intents (e.g., "previous tenant" / "who died in the closet"), prompt builder injects a deterministic high-priority guard requiring first-person identity correction.
+- Character-graph context is rendered once in a dedicated prose relationship section (no duplicated raw `from->to` telemetry inside epistemic stack).
 - Character-graph and character-extra prompt data must be scoped by active-character markers only.
-  Active characters are extracted from user/assistant dialogue mentions plus scene location speakers,
+  Active characters are derived from current-turn mentions, scene co-presence (location_speakers), and on-call transient markers,
   stored as transient marker text entries prefixed with `__active_character_marker__:` and refreshed each turn.
-  System-prompt log content is excluded from active-character extraction.
+  Optional phone-call markers use `__on_call_character_marker__:`.
+  System-prompt log content and stale prior-turn mentions are excluded from active-character extraction.
 - For chunks without explicit `known_by` and without explicit `not_known_by` for the active speaker,
   the LLM is instructed to make a best reasonable determination from dialogue context.
 - After each reply, `KnowledgeResolutionExtractor` evaluates unknown chunks and writes explicit
