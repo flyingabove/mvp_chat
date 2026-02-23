@@ -192,6 +192,13 @@ class GameState:
     # ==============================================================
     last_assistant_guess_name: str = ""
 
+    # ============================================================== 
+    # Single-call turn extractor carryover context
+    # ============================================================== 
+    last_turn_user_msg: str = ""
+    last_turn_assistant_reply: str = ""
+    last_turn_retrieved_chunks: List[Dict[str, Any]] = field(default_factory=list)
+
     # ==============================================================
     # BACKWARD COMPAT (deprecated - use direct attribute access instead)
     # ==============================================================

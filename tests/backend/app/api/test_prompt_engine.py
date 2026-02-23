@@ -40,15 +40,11 @@ def client(monkeypatch):
     # Prevent retrieval from doing any IO during tests.
     monkeypatch.setattr(pe_mod, "retrieve_knowledge", lambda *args, **kwargs: ([], {}), raising=False)
 
-    # Mock location extractor to not call LLM (return NONE intent)
-    from backend.app.engine.extractors.location_extractor import LocationExtraction, LocationIntent
+    # Mock single-call turn extractor to not call LLM
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
     async def _mock_extract(*args, **kwargs):
-        return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text=None)
-    monkeypatch.setattr(pe_mod._LOCATION_EXTRACTOR, "extract", _mock_extract, raising=False)
-
-    async def _mock_knowledge_extract(*args, **kwargs):
-        return []
-    monkeypatch.setattr(pe_mod._KNOWLEDGE_RESOLUTION_EXTRACTOR, "extract", _mock_knowledge_extract, raising=False)
+        return TurnExtraction()
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract, raising=False)
 
     # Mock httpx.AsyncClient so /api/chat never hits OpenAI.
     class _FakeResp:
@@ -93,11 +89,11 @@ def client_with_translation(monkeypatch):
     # Prevent retrieval from doing any IO during tests.
     monkeypatch.setattr(pe_mod, "retrieve_knowledge", lambda *args, **kwargs: ([], {}), raising=False)
 
-    # Mock location extractor
-    from backend.app.engine.extractors.location_extractor import LocationExtraction, LocationIntent
+    # Mock single-call turn extractor
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
     async def _mock_extract(*args, **kwargs):
-        return LocationExtraction(intent=LocationIntent.NONE, destination_id=None, confidence=0.0, destination_text=None)
-    monkeypatch.setattr(pe_mod._LOCATION_EXTRACTOR, "extract", _mock_extract, raising=False)
+        return TurnExtraction()
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract, raising=False)
 
     # Track translation calls
     translation_spy = types.SimpleNamespace(calls=0, last_input=None, return_value="这是翻译的回复")
@@ -660,10 +656,20 @@ def test_file_consolidation_single_location(client):
 
 def test_knowledge_resolution_updates_belief_and_transient(client, monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
-    from backend.app.engine.extractors.knowledge_resolution_extractor import KnowledgeResolution
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, TurnKnowledgeResolution
 
-    async def _mock_resolution(*args, **kwargs):
-        return [KnowledgeResolution(chunk_id="c_unknown", knows=True, confidence=0.88, reason="dialogue indicates familiarity")]
+    async def _mock_turn_extract(*args, **kwargs):
+        return TurnExtraction(
+            movement_intent="NONE",
+            knowledge_updates=[
+                TurnKnowledgeResolution(
+                    chunk_id="c_unknown",
+                    knows=True,
+                    confidence=0.88,
+                    reason="dialogue indicates familiarity",
+                )
+            ],
+        )
 
     monkeypatch.setattr(
         pe_mod,
@@ -671,7 +677,7 @@ def test_knowledge_resolution_updates_belief_and_transient(client, monkeypatch):
         lambda *args, **kwargs: ([{"chunk_id": "c_unknown", "text": "The hidden hallway has a red door.", "type": "scene"}], {}),
         raising=False,
     )
-    monkeypatch.setattr(pe_mod._KNOWLEDGE_RESOLUTION_EXTRACTOR, "extract", _mock_resolution, raising=False)
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", _mock_turn_extract, raising=False)
 
     sid = "kr1"
     r0 = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
@@ -679,7 +685,9 @@ def test_knowledge_resolution_updates_belief_and_transient(client, monkeypatch):
 
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "tell me about the hallway"})
     assert r1.status_code == 200
-    body = r1.json()
+    r2 = client.post("/api/chat", json={"session_id": sid, "message": "and what else?"})
+    assert r2.status_code == 200
+    body = r2.json()
     assert "knowledge_resolution_updates" in body
     assert body["knowledge_resolution_updates"][0]["chunk_id"] == "c_unknown"
     assert body["knowledge_resolution_updates"][0]["knows"] is True

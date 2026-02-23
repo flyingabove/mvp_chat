@@ -18,6 +18,7 @@ Instructions to AI:
 - [documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md](documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md)
 - [documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md](documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md)
 - [documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md](documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md)
+- [documentation/model_output_docs/SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md](documentation/model_output_docs/SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md)
 - [documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md](documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md)
 
 3) **Generated references last (never use as behavior source of truth)**
@@ -39,6 +40,7 @@ assembled LLM prompt, and dispatches the API call. Its test file mirrors the pat
 
 ### Prompt/epistemic behavior tasks
 - [documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md](documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md)
+- [documentation/model_output_docs/SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md](documentation/model_output_docs/SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md)
 - [documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md](documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md)
 - [documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md](documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md)
 

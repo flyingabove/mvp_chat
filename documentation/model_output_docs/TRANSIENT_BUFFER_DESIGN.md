@@ -66,6 +66,7 @@ If a detail becomes durable gameplay truth, write it explicitly to canonical str
 - Per turn, engine tracks both:
 	- `speakers` (who is currently talking / in turn-active cast)
 	- `people_present` (who is physically present at player location)
+- These scene fields are produced by the single-call turn extractor contract (one extractor LLM call per turn).
 - `people_present` is derived by combining current world location query + character location index.
 - If location did not change from previous scene knowledge item, previous turn speakers are carried into the current active character list.
 - Phone-call/off-scene edge cases are intentionally deferred.

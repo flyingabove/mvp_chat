@@ -12,6 +12,7 @@
 - Context-aware character graph filtering implemented: only characters in current-turn mention scope, scene co-presence, or active phone-call scope are included in the prompt via transient markers in `active_characters.py`.
 - Prompt scene brief now explicitly injects both `speakers` and `people_present` (including people count) before generation.
 - Previous-turn speaker carry-over is applied only when location is unchanged (from scene knowledge FIFO).
+- Extraction pipeline policy: one extractor LLM call per turn (`TurnExtractor`) with strict JSON output.
 
 Remaining phases (validator/rewrite pass and full scorer rubric migration) are still pending.
 

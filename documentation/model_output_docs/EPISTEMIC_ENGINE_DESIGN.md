@@ -54,12 +54,12 @@ Lower layers can inform dialogue, but cannot overwrite higher layers.
 When a chunk is not explicitly marked `known_by` and not explicitly marked `not_known_by` for the active speaker:
 
 1. Prompt instructions require the LLM to make a best reasonable determination (with hedging if uncertain).
-2. After the reply, a dedicated extractor (`KnowledgeResolutionExtractor`) evaluates the latest dialogue window (up to 8 turns) plus candidate chunks.
-3. Extractor outputs deterministic updates per chunk: `chunk_id`, `knows`, `confidence`, `reason`.
+2. On the next turn's pre-render phase, a **single-call turn extractor** evaluates prior-turn dialogue + candidate chunks.
+3. Extractor outputs deterministic updates per chunk in one JSON payload: `chunk_id`, `knows`, `confidence`, `reason`.
 4. Engine writes these to the speaker's belief graph as `EpistemicClaim` entries (`source=knowledge_resolution_extractor`, `provenance=inferred_dialogue`).
 5. Engine writes a mirrored knowledge object into transient buffer with TTL = 8 turns (`meta.source=knowledge_resolution`).
 
-This means ambiguous retrieval memory is converted into explicit epistemic state over time using dialogue evidence.
+This means ambiguous retrieval memory is converted into explicit epistemic state over time using dialogue evidence, without running separate extractor calls in a single turn.
 
 ## Where Updates Are Stored
 - Primary authority for these updates is character-local belief graph (`BeliefState`).
@@ -67,7 +67,7 @@ This means ambiguous retrieval memory is converted into explicit epistemic state
 - No direct on-the-fly mutation of packaged FAISS/BM25 artifacts occurs at runtime.
 
 ## What Is Live vs Planned
-- **Live now:** object state, place graph travel, retrieval namespaces, per-character belief logs (`BeliefState`), unknown-knowledge extractor resolution, and transient scene buffering (including 8-turn knowledge objects).
+- **Live now:** object state, place graph travel, retrieval namespaces, per-character belief logs (`BeliefState`), single-call extractor resolution, and transient scene buffering (including 8-turn knowledge objects).
 - **Planned:** stronger invariant validator + full belief graph projection.
 
 ## Design Guardrails

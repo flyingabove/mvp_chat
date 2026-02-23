@@ -7,9 +7,10 @@ At the end of the prior turn, `prompt_engine.py` has already:
 - stripped `[[STATE]]...[[/STATE]]` via `extract_state_tag`,
 - applied state deltas with `apply_state_tag`,
 - appended user/assistant messages to session log,
-- optionally executed post-reply `KnowledgeResolutionExtractor` and wrote updates into:
-  - belief graph (`state.beliefs[main_character_id].claims`),
-  - transient buffer entries (`meta.source=knowledge_resolution`, TTL 8 turns).
+- persisted previous-turn extractor context:
+   - previous user message,
+   - previous assistant reply,
+   - previous retrieved chunks.
 
 This means the next turn starts from a state that may already include newly resolved knowledge ownership.
 
@@ -59,21 +60,30 @@ If no early return, continue to regular turn path.
    - namespace filtering,
    - return top chunks + debug metadata.
 
-Returned chunks are candidate memory fragments for both prompt construction and epistemic resolution.
+Returned chunks are candidate memory fragments for prompt construction and for the next turn's single-call extractor.
 
 ---
 
-## 4) Location Extraction (Pre-Render Extractor)
+## 4) Single-Call Turn Extraction (Pre-Render)
 1. If world runtime exists and current location is known:
-   - run `LocationExtractor.extract(...)` with:
-     - user message,
-     - world graph locations,
-     - retrieved chunks (for disambiguation),
+   - run `TurnExtractor.extract(...)` once with:
+     - current user message,
+     - world locations + character key map,
+     - previous-turn user message,
+     - previous-turn assistant reply,
+     - previous-turn unknown candidate chunks,
      - recent conversation log.
-2. If extractor yields a valid move destination:
+2. Extractor returns one strict JSON payload containing:
+   - movement intent (`MOVE|NONE`) + destination_id,
+   - previous-turn scene location_id,
+   - previous-turn speakers,
+   - previous-turn knowledge updates (`chunk_id/knows/confidence/reason`).
+3. If extractor yields a valid move destination:
    - canonicalize message to `go to <destination_id>`.
-3. Fallback heuristic can also convert message to movement command.
-4. `advance_time(state, msg)` executes travel/time updates and world graph movement.
+4. Apply extracted previous-turn scene knowledge into FIFO scene buffer.
+5. Apply extracted previous-turn knowledge updates into belief graph + transient mirror entries.
+6. Fallback heuristic can still convert message to movement command if extractor returns no move.
+7. `advance_time(state, msg)` executes travel/time updates and world graph movement.
 
 ---
 
@@ -157,30 +167,24 @@ After receiving response:
 2. Append final user/assistant text to log.
 3. Add transient entry: `NPC replied: ...` (TTL = `TRANSIENT_KNOWLEDGE_TURNS`).
 4. Evaluate win condition.
-5. Run post-reply knowledge resolution for unknown chunks:
-   - derive unknown candidate chunks from retrieval + canonical visibility checks,
-   - run `KnowledgeResolutionExtractor` over last ~8 turns + latest exchange,
-   - apply updates into belief graph (`kr::<speaker>::<chunk_id>` claims),
-   - add transient knowledge objects with TTL 8 turns.
-6. Upsert scene knowledge FIFO object:
-   - location_id from previous-reply location extractor,
-   - current-turn `speakers`,
-   - current `people_present`,
-   - payload metadata including location-change flag.
+5. Persist this completed turn into extractor carryover fields:
+   - `last_turn_user_msg`,
+   - `last_turn_assistant_reply`,
+   - `last_turn_retrieved_chunks`.
 
-Result can include `knowledge_resolution_updates` for debug/inspection.
+Result can include `knowledge_resolution_updates` for debug/inspection (applied from single-call extractor output).
 
 ---
 
 ## 11) Where Each Graph/Store Is Used
 - Character graph: prompt relationship section, rel delta mapping.
-- Belief graph: seeded beliefs + post-reply knowledge resolution updates.
+- Belief graph: seeded beliefs + single-call turn extractor knowledge updates.
 - World/place graph: movement extraction target set + travel + prompt location context.
 - FAISS/BM25: retrieval slice for prompt and unknown-chunk candidates.
 - Transient buffer:
    - conversation flavor (8-turn TTL),
   - resolved knowledge objects (8-turn TTL).
-- Scene knowledge FIFO:
+- Scene knowledge FIFO (replacement for TTL scene memory flow):
    - bounded to 8 entries,
    - refreshed on upsert by key,
    - used for previous-turn speaker carryover when location is unchanged.
@@ -189,6 +193,6 @@ Result can include `knowledge_resolution_updates` for debug/inspection.
 
 ## 12) Expiration / Cleanup Behavior
 - Cleanup trigger: each turn start (`state.purge_transient_entries`).
-- Knowledge-resolution objects naturally disappear after 8 turns unless refreshed by later extractor updates.
+- Knowledge-resolution mirror objects naturally disappear after 8 turns unless refreshed by later single-call extractor updates.
 - Location-scoped transients are cleared on travel by gameplay flow.
 - Scene knowledge objects are retained as FIFO queue items (max 8), not per-object countdown.

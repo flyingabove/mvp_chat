@@ -3,10 +3,9 @@
 # Prompt Engine: orchestrates all raw context (state, knowledge, history) and
 # transforms it into a fully-assembled LLM prompt, then dispatches the API call.
 
-from backend.app.engine.extractors.location_extractor import LocationExtractor, LocationIntent
-from backend.app.engine.extractors.knowledge_resolution_extractor import (
-    KnowledgeResolutionExtractor,
-    KnowledgeResolution,
+from backend.app.engine.extractors.turn_extractor import (
+    TurnExtractor,
+    TurnKnowledgeResolution,
 )
 
 from fastapi import APIRouter
@@ -360,9 +359,8 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
 SESSIONS = {}
 
 
-# Shared extractor instance (stateless).
-_LOCATION_EXTRACTOR = LocationExtractor()
-_KNOWLEDGE_RESOLUTION_EXTRACTOR = KnowledgeResolutionExtractor()
+# Shared single-call extractor instance (stateless).
+_TURN_EXTRACTOR = TurnExtractor()
 
 # Active-character marker TTL (turns without re-mention before expiry)
 _ACTIVE_CHAR_TTL_TURNS = TRANSIENT_KNOWLEDGE_TURNS
@@ -555,7 +553,7 @@ def _upsert_belief_claim_for_resolution(
 def _apply_knowledge_resolution_updates(
     *,
     state: GameState,
-    updates: list[KnowledgeResolution],
+    updates: list[TurnKnowledgeResolution],
     candidate_chunks: list[dict],
 ) -> list[dict]:
     speaker_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
@@ -1375,54 +1373,103 @@ async def chat_handler(data: dict):
         _log({"kind": "retrieval_error", "error": str(e)})
         return {"error": "knowledge retrieval failed", "character": "default"}
 
-    # --- LOCATION EXTRACTION (with knowledge context for disambiguation) ---
-    # LocationExtractor receives knowledge_chunks to disambiguate implicit location references
-    # using LLM calls. Example: "old workplace" → FAISS chunks mention EDAM → LLM extracts EDAM_ID
+    # --- SINGLE-CALL TURN EXTRACTION ---
+    # One extractor call handles movement intent, previous-turn scene extraction,
+    # and previous-turn knowledge-resolution updates in a single JSON response.
     runtime = getattr(state, "world_runtime", None)
+    knowledge_resolution_updates: list[dict] = []
+    extraction = None
     extraction_applied = False
     if runtime is not None and getattr(state, "location_id", ""):
+        previous_candidate_chunks = _unknown_knowledge_chunks_for_speaker(
+            state,
+            getattr(state, "last_turn_retrieved_chunks", []) or [],
+        )
+
+        world_locations = {
+            str(loc_id): str(getattr(loc, "name", "") or str(loc_id))
+            for loc_id, loc in (getattr(runtime.world_graph, "locations", {}) or {}).items()
+        }
+        character_key_to_name = {
+            str(key).strip().lower(): str(getattr(ch, "name", "") or key)
+            for key, ch in (getattr(state, "characters", {}) or {}).items()
+            if str(key).strip()
+        }
+
         try:
             _log({
-                "kind": "location_extraction_attempting",
+                "kind": "turn_extraction_attempting",
                 "user_msg": msg,
                 "current_location_id": state.location_id,
                 "current_location_name": state.location,
             })
-            extraction = await _LOCATION_EXTRACTOR.extract(
-                msg,
-                world_graph=runtime.world_graph,
-                knowledge_chunks=retrieved,  # Pass knowledge chunks for disambiguation
-                conversation_log=log  # Pass conversation history for context
+            extraction = await _TURN_EXTRACTOR.extract(
+                user_msg=msg,
+                world_locations=world_locations,
+                character_key_to_name=character_key_to_name,
+                previous_turn_user_msg=str(getattr(state, "last_turn_user_msg", "") or ""),
+                previous_turn_assistant_reply=str(getattr(state, "last_turn_assistant_reply", "") or ""),
+                previous_turn_candidate_chunks=previous_candidate_chunks,
+                conversation_log=log,
             )
             
             _log({
-                "kind": "location_extraction_complete",
+                "kind": "turn_extraction_complete",
                 "user_msg": msg,
-                "extraction_intent": extraction.intent.value,
+                "extraction_intent": extraction.movement_intent,
                 "extraction_destination_id": extraction.destination_id,
                 "extraction_confidence": extraction.confidence,
+                "previous_reply_location_id": extraction.previous_reply_location_id,
+                "previous_reply_speakers_count": len(extraction.previous_reply_speakers),
+                "knowledge_updates_count": len(extraction.knowledge_updates),
             })
+
+            prev_scene_location_id = extraction.previous_reply_location_id or _current_location_id
+            prev_scene_speakers = {
+                str(s or "").strip().lower()
+                for s in (extraction.previous_reply_speakers or [])
+                if str(s or "").strip()
+            }
+            if prev_scene_speakers:
+                _upsert_scene_speaker_markers(state, prev_scene_speakers)
+
+            state.upsert_scene_knowledge(
+                key=f"turn:{int(getattr(state, 'turns', 0) or 0)}",
+                location_id=prev_scene_location_id,
+                speakers=sorted(prev_scene_speakers),
+                people_present=sorted(_people_present),
+                payload={
+                    "location_changed_from_previous": _location_changed,
+                    "source": "single_call_turn_extractor",
+                },
+            )
+
+            knowledge_resolution_updates = _apply_knowledge_resolution_updates(
+                state=state,
+                updates=extraction.knowledge_updates,
+                candidate_chunks=previous_candidate_chunks,
+            )
             
-            if extraction.intent == LocationIntent.MOVE and extraction.destination_id:
+            if extraction.movement_intent == "MOVE" and extraction.destination_id:
                 if extraction.destination_id in runtime.world_graph.locations:
                     original_msg = msg
                     msg = f"go to {extraction.destination_id}"
                     extraction_applied = True
                     _log({
-                        "kind": "location_extraction_applied",
+                        "kind": "turn_extraction_movement_applied",
                         "original_msg": original_msg,
                         "canonicalized_msg": msg,
                         "destination_id": extraction.destination_id,
                     })
                 else:
                     _log({
-                        "kind": "location_extraction_invalid_destination",
+                        "kind": "turn_extraction_invalid_destination",
                         "user_msg": msg,
                         "destination_id": extraction.destination_id,
                     })
         except Exception as e:
             _log({
-                "kind": "location_extraction_error",
+                "kind": "turn_extraction_error",
                 "error": str(e),
                 "user_msg": msg,
             })
@@ -1435,16 +1482,16 @@ async def chat_handler(data: dict):
                 msg = f"go to {dest}"
                 extraction_applied = True
                 _log({
-                    "kind": "location_extraction_heuristic_applied",
+                    "kind": "turn_extraction_heuristic_applied",
                     "original_msg": original_msg,
                     "canonicalized_msg": msg,
                     "destination_id": dest,
                 })
     else:
         if runtime is None:
-            _log({"kind": "location_extraction_skipped", "reason": "no_world_runtime"})
+            _log({"kind": "turn_extraction_skipped", "reason": "no_world_runtime"})
         elif not getattr(state, "location_id", ""):
-            _log({"kind": "location_extraction_skipped", "reason": "no_location_id"})
+            _log({"kind": "turn_extraction_skipped", "reason": "no_location_id"})
 
     # advance_time runs AFTER location extraction so the canonicalized msg
     # (e.g. "go to interview_room_bob") matches the strict movement regex.
@@ -1582,25 +1629,10 @@ async def chat_handler(data: dict):
         state.over = True
         clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
 
-    # Resolve unknown knowledge-chunk epistemics after each completed turn.
-    knowledge_resolution_updates: list[dict] = []
-    try:
-        candidates = _unknown_knowledge_chunks_for_speaker(state, retrieved)
-        if candidates:
-            extracted_updates = await _KNOWLEDGE_RESOLUTION_EXTRACTOR.extract(
-                speaker_id=str(getattr(state, "main_character_id", "") or ""),
-                user_msg=msg,
-                assistant_reply=clean,
-                candidate_chunks=candidates,
-                conversation_log=log[-8:],
-            )
-            knowledge_resolution_updates = _apply_knowledge_resolution_updates(
-                state=state,
-                updates=extracted_updates,
-                candidate_chunks=candidates,
-            )
-    except Exception as e:
-        _log({"kind": "knowledge_resolution_error", "error": str(e)})
+    # Persist this completed turn for next turn's single-call extractor analysis.
+    state.last_turn_user_msg = msg
+    state.last_turn_assistant_reply = clean
+    state.last_turn_retrieved_chunks = [dict(c) for c in (retrieved or [])]
 
     _log({
         "kind": "chat_response",
