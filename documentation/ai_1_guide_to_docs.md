@@ -10,6 +10,7 @@ Instructions to AI:
 - [documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt](documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt)
 - [documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt](documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt)
 - [documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt](documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt)
+- [documentation/ai_learnings_mistakes/ai_logical_bugs.txt](documentation/ai_learnings_mistakes/ai_logical_bugs.txt) — known logical bugs, dead code, and silent failures
 
 2) **Feature/domain docs second**
 - [documentation/ai_learnings_mistakes/ai_game_structure.txt](documentation/ai_learnings_mistakes/ai_game_structure.txt)
