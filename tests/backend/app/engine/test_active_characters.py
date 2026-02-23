@@ -161,6 +161,68 @@ def test_character_location_index_maps_all_bindings():
     assert result["han_jae_seo"] == "aster_office"
 
 
+def test_character_location_index_prefers_runtime_state():
+    """state.character_locations takes priority over location_speakers in story_cfg."""
+    state = GameState()
+    state.characters = {
+        "iu": CharacterState(key="iu", name="IU", role="ghost"),
+        "yoo_min_ho": CharacterState(key="yoo_min_ho", name="Yoo Min-ho", role="manager"),
+    }
+    # Set runtime locations (from character_start_locations seeded at game start)
+    state.character_locations = {
+        "iu": "iu_apartment_room",
+        "yoo_min_ho": "workplace_hallway",
+    }
+    # Also provide legacy location_speakers — should be ignored when runtime data exists
+    state.story_cfg = {
+        "world": {
+            "location_speakers": {
+                "iu_apartment_room": ["Yoo Min-ho"],  # contradicts runtime — should lose
+            }
+        }
+    }
+
+    result = get_character_location_index(state)
+    assert result["iu"] == "iu_apartment_room"
+    assert result["yoo_min_ho"] == "workplace_hallway"
+
+
+def test_character_location_index_empty_runtime_falls_back_to_location_speakers():
+    """When character_locations is empty, fall back to location_speakers."""
+    state = GameState()
+    state.characters = {
+        "steve": CharacterState(key="steve", name="Steve", role="suspect"),
+    }
+    state.character_locations = {}  # empty runtime
+    state.story_cfg = {
+        "world": {
+            "location_speakers": {
+                "interview_room_steve": "Steve",
+            }
+        }
+    }
+
+    result = get_character_location_index(state)
+    assert result["steve"] == "interview_room_steve"
+
+
+def test_character_location_index_returns_only_current_loc_chars(monkeypatch):
+    """Characters at a different location should not appear for the current location."""
+    state = GameState()
+    state.location_id = "iu_apartment_room"
+    state.character_locations = {
+        "iu": "iu_apartment_room",
+        "yoo_min_ho": "workplace_hallway",
+        "han_jae_seo": "iu_office",
+    }
+
+    result = get_character_location_index(state)
+    chars_here = [k for k, loc in result.items() if loc == state.location_id]
+    assert chars_here == ["iu"]
+    assert "yoo_min_ho" not in chars_here
+    assert "han_jae_seo" not in chars_here
+
+
 # ---------------------------------------------------------------------------
 # compute_active_character_set
 # ---------------------------------------------------------------------------

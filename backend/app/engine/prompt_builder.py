@@ -614,8 +614,6 @@ def _relationship_role_prose(edge_type: str) -> str:
         return "This is a romantic relationship, so intimacy and emotional volatility are both in play."
     if token == "suspect":
         return "This is a suspect relationship, so caution, leverage, and defensive framing dominate."
-    if token == "victim":
-        return "This is a victim-linked relationship, so guilt, grief, and evidentiary pressure can surface."
     if token == "witness":
         return "This is a witness relationship, so credibility and selective disclosure matter."
     return f"The relationship type is {token}."
@@ -724,7 +722,7 @@ def system_prompt(
     rel = int(state.relationship if state.relationship is not None else REL_START)
 
     base_prompt = f"""
-You are the narrative scene engine for an interactive mystery game.
+You are the narrative scene engine for an interactive story game.
 {disclaimer}
 Stay fully in-universe and write the next beat as story prose, not as assistant commentary.
 

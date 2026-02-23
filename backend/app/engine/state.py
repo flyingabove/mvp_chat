@@ -161,6 +161,14 @@ class GameState:
     world_runtime: Optional[object] = None
     location_id: str = ""
     location_uuid: str = ""
+
+    # ==============================================================
+    # Character location tracking
+    # Maps character key -> current location_id.
+    # Seeded at game start from world.character_start_locations.
+    # Update this dict whenever a character moves during gameplay.
+    # ==============================================================
+    character_locations: Dict[str, str] = field(default_factory=dict)
     world_start_datetime: str = ""
     last_travel_from_id: str = ""
     last_travel_to_id: str = ""

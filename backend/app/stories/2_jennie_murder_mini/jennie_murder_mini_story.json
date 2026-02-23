@@ -76,7 +76,12 @@
       "interview_room_bob": "Bob",
       "evidence_lab": "Lab techs"
     },
-    "world_map_image": "2_jennie_murder_mini/2_jennie_murder_mini.png"
+    "world_map_image": "2_jennie_murder_mini/2_jennie_murder_mini.png",
+    "character_start_locations": {
+      "jennie": "apartment_kitchen",
+      "steve": "interview_room_steve",
+      "bob": "interview_room_bob"
+    }
   },
   "emotion": {
     "start": "controlled, skeptical"

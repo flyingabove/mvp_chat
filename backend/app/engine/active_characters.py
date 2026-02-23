@@ -118,11 +118,21 @@ def get_location_speaker_keys(state: GameState) -> Set[str]:
 
 
 def get_character_location_index(state: GameState) -> Dict[str, str]:
-    """Return a map of character_key -> location_id from world location_speakers.
+    """Return a map of character_key -> location_id.
 
-    This keeps prompt routing aligned with the world location graph by deriving
-    current per-character placement from story world bindings each turn.
+    Precedence:
+    1. state.character_locations — runtime-tracked positions (seeded from
+       world.character_start_locations and updated as characters move).
+    2. world.location_speakers in story_cfg — legacy static mapping (location
+       → [character names]); used as fallback for stories that haven't migrated
+       to character_start_locations yet.
     """
+    # Prefer runtime-tracked locations if populated
+    runtime_locs = getattr(state, "character_locations", {}) or {}
+    if runtime_locs:
+        return dict(runtime_locs)
+
+    # Fallback: derive from location_speakers (legacy static mapping)
     index: Dict[str, str] = {}
 
     cfg = getattr(state, "story_cfg", None)

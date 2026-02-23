@@ -16,7 +16,7 @@ Story content
   Runtime canonical story object is projected to generic keys only:
   `id,title,theme,instance,opening,world,time,emotion,goal,win_detection,epistemic_seed,canonical_truth,characters,relationships`.
   Non-canonical top-level fields are not kept in the canonical story object; they are serialized into transient context.
-- `<story_id>_world.json`: world graph (locations, edges, start_location_id). Descriptions should encode specifics (e.g., "Interview Room A is Steve's room"). When loaded, Location.description carries this text.
+- `<story_id>_world.json`: world graph (locations, edges). Descriptions should encode specifics (e.g., "Interview Room A is Steve's room"). When loaded, Location.description carries this text.
 - Map image: `<folder>.png` (convention: folder name = image name). Auto-discovered by _discover_map_image().
   Also supports explicit path via world.world_map_image field in the story JSON.
   Served to the frontend via GET /api/story-image/{path}.
@@ -26,9 +26,48 @@ Story content
   - `entity` is the character key or location id (slugged, lowercase).
 - IMPORTANT: world.file and world.world_map_image paths in story JSON must use the ACTUAL folder name (e.g., "2_jennie_murder_mini/..."), not short aliases.
 
+Character Location Tracking (REQUIRED in every story)
+------------------------------------------------------
+Every character must have a declared starting location. This ensures the engine knows
+who is at each location at game start, and prevents the engine from fabricating speakers.
+
+Schema — in the story JSON `world` section:
+  "world": {
+    "start_location_id": "some_location_id",        ← player's starting location
+    "character_start_locations": {                  ← REQUIRED: where each character begins
+      "<character_key>": "<location_id>",
+      ...
+    }
+  }
+
+Runtime: At game start, `state.character_locations` (Dict[str, str]) is populated from
+`character_start_locations`. As characters move during gameplay, update `state.character_locations[key]`
+to their new location. Every location implicitly tracks who is there by inverting this dict.
+
+Rules:
+- EVERY named character must appear in `character_start_locations`.
+- Location IDs must match keys in the `<story_id>_world.json` `locations` object.
+- The player's start position is `start_location_id` (separate from character positions).
+- `state.character_locations` is the runtime source of truth. The static
+  `location_speakers` legacy field in world config is only used as a fallback for
+  stories that haven't yet defined `character_start_locations`.
+
+Engine behavior when nobody is at the player's location:
+- Debug box shows no speakers (empty) — never fabricates.
+- Prompt scene cast contains only the focal NPC and player.
+- The LLM may still narrate descriptions of an empty location; it will not
+  force a character to speak who is not physically present.
+
 Character identity & canonical facts (REQUIRED in every story JSON)
 - Characters store only generic/basic attributes in runtime objects (`key,name,role,is_main,is_suspect,knowledge_character_id,uuid,tags`).
   Any extra per-character authoring fields are treated as non-canonical metadata and moved into transient context.
+- `tags` are story-level labels (e.g., `["ghost"]`, `["suspect"]`). They are narrative metadata only —
+  the engine does NOT interpret any tag as special behavior. In particular, there is no "victim" concept
+  at the engine level. Game-specific roles like "victim" or "ghost" are purely story labels that have
+  no effect on speaker selection, scene casting, or any engine logic.
+  WRONG: Using tags to exclude a character from speaking (old "victim" fallback — removed).
+  RIGHT: Use `character_start_locations` to put characters in specific locations where they
+  are or aren't present.
 - `epistemic_seed.canonical_facts`: array of fact objects. These are authoritative game-world
   truths. Canonical facts are included in the epistemic knowledge stack and must be explicitly
   labeled with visibility metadata.
@@ -100,6 +139,8 @@ Instructions for AI to create a game
 4) Create story JSON under backend\app\stories\<folder>/ as `<story_id>_story.json`. Include: goal, opening, rules, canonical_truth (explicit facts), knowledge_character_id, world_context array.
    Set the world.file path using the actual folder name: "<folder>/<story_id>_world.json".
 5) Create world JSON (<story_id>_world.json) with locations/edges. Ensure descriptions encode ownership details (e.g., "Interview Room A is Steve's room"; "Interview Room B is Bob's room") so Location.description carries them after load.
+   Also add `character_start_locations` to the story JSON's `world` section — every character needs a starting location.
+   The player's start position goes in `start_location_id` (separate from character positions).
 6) Produce a coherent map image named `<folder>.png` inside the story folder. Keep scale/layout believable. Auto-discovery will find it by convention.
 7) Verify frontend: story appears in /api/stories, map renders, location list shows descriptions.
 8) Add/extend integration tests to load the story, world, and map; ensure data paths resolve. Run full test suite (python -m pytest).

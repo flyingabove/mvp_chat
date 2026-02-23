@@ -667,48 +667,31 @@ def _match_world_destination(msg: str, runtime, current_location_id: str = "") -
 
 
 def _debug_speakers(state: GameState) -> list[str]:
-    """Collect speaker names for debug box with location-aware mapping."""
+    """Return display names of characters currently at the player's location.
 
-    speakers: list[str] = []
+    Uses character_locations (runtime) or location_speakers (legacy static config).
+    Returns an empty list if no characters are configured at the current location —
+    the engine must not fabricate a speaker just because no mapping exists.
+    """
+    from backend.app.engine.active_characters import get_character_location_index
 
-    cfg = getattr(state, "story_cfg", {}) or {}
-    world_cfg = cfg.get("world", {}) or {}
-    loc_speakers = world_cfg.get("location_speakers") or {}
+    loc_id = (getattr(state, "location_id", "") or "").strip()
+    if not loc_id:
+        return []
 
-    runtime = getattr(state, "world_runtime", None)
-    loc_id = getattr(state, "location_id", "")
+    index = get_character_location_index(state)  # {char_key: location_id}
+    chars_at_loc = [key for key, loc in index.items() if loc == loc_id]
+    if not chars_at_loc:
+        return []
 
-    if runtime is not None and loc_id:
-        try:
-            mapping = loc_speakers.get(loc_id)
-            if isinstance(mapping, str) and mapping.strip():
-                speakers.append(mapping.strip())
-            elif isinstance(mapping, (list, tuple)):
-                speakers.extend([str(x).strip() for x in mapping if str(x).strip()])
-        except Exception:
-            pass
-
-    # Fallback to the characters dictionary if no location-specific mapping exists.
-    # Exclude characters tagged as "victim" — they are dead and never speak.
-    if not speakers:
-        chars = list((getattr(state, "characters", {}) or {}).values())
-        for c in chars:
-            try:
-                tags = getattr(c, "tags", []) or []
-                if isinstance(tags, str):
-                    tags = [tags]
-                if "victim" in tags:
-                    continue
-            except Exception:
-                pass
-            try:
-                name = (getattr(c, "name", "") or "").strip() or "(unnamed)"
-            except Exception:
-                name = "(unnamed)"
-            if name:
-                speakers.append(name)
-
-    return [s for s in speakers if s]
+    characters = getattr(state, "characters", {}) or {}
+    names: list[str] = []
+    for key in chars_at_loc:
+        ch = characters.get(key)
+        name = (getattr(ch, "name", "") or "").strip() if ch else key.replace("_", " ").title()
+        if name:
+            names.append(name)
+    return names
 
 
 def _box(title: str, lines: list[str]) -> str:
@@ -1217,6 +1200,16 @@ async def chat_handler(data: dict):
 
         if not new_state.main_character_id and main_char_def:
             new_state.main_character_id = main_char_def.key
+
+        # Seed character start locations from world config
+        # character_start_locations: {character_key: location_id} — explicit positions at game start
+        char_start_locs = world_cfg.get("character_start_locations") or {}
+        if isinstance(char_start_locs, dict):
+            new_state.character_locations = {
+                str(k).strip(): str(v).strip()
+                for k, v in char_start_locs.items()
+                if k and v
+            }
 
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:

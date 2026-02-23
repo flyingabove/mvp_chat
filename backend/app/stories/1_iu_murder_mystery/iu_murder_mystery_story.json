@@ -116,7 +116,14 @@
     "seed": 42,
     "start_datetime": "2025-01-15T09:00:00",
     "start_location_id": "iu_apartment_room",
-    "world_map_image": "1_iu_murder_mystery/1_iu_murder_mystery.png"
+    "world_map_image": "1_iu_murder_mystery/1_iu_murder_mystery.png",
+    "character_start_locations": {
+      "iu": "iu_apartment_room",
+      "yoo_min_ho": "workplace_hallway",
+      "han_jae_seo": "iu_office",
+      "park_so_jin": "recording_studio",
+      "rival_trainee": "local_cafe"
+    }
   },
   "emotion": {
     "start": "wary, exhausted"
