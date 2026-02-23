@@ -193,11 +193,35 @@ def get_on_call_character_keys(state: GameState) -> Set[str]:
     return keys
 
 
+def get_people_present_keys(state: GameState) -> Set[str]:
+    """Return character keys currently present at player's location.
+
+    Presence source is runtime world location index when available.
+    This helper queries the active world graph location id each turn, then
+    filters character locations to that id.
+    """
+    current_loc = str(getattr(state, "location_id", "") or "").strip()
+    if not current_loc:
+        return set()
+
+    runtime = getattr(state, "world_runtime", None)
+    if runtime is not None:
+        try:
+            # Validate the location exists in world graph for this turn.
+            _ = runtime.world_graph.get_location(current_loc)
+        except Exception:
+            return set()
+
+    location_index = get_character_location_index(state)
+    return {key for key, loc in location_index.items() if str(loc or "").strip() == current_loc}
+
+
 def compute_active_character_set(
     state: GameState,
     user_msg: str,
     recent_log: list | None = None,
     npc_reply: str = "",
+    carryover_speakers: Set[str] | None = None,
 ) -> Set[str]:
     """Compute the full set of active characters for this turn.
 
@@ -217,9 +241,8 @@ def compute_active_character_set(
     combined_text = "\n".join(text_parts)
 
     mentioned = detect_mentioned_characters(combined_text, characters, main_id)
-    location_index = get_character_location_index(state)
-    current_loc = str(getattr(state, "location_id", "") or "")
-    location = {key for key, loc in location_index.items() if loc == current_loc}
+    location = get_people_present_keys(state)
     on_call = get_on_call_character_keys(state)
+    carryover = set(carryover_speakers or set())
 
-    return mentioned | location | on_call
+    return mentioned | location | on_call | carryover

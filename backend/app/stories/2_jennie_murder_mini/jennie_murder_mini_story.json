@@ -71,10 +71,9 @@
     "seed": 99,
     "start_datetime": "2025-04-12T09:00:00",
     "start_location_id": "interview_room_steve",
-    "location_speakers": {
-      "interview_room_steve": "Steve",
-      "interview_room_bob": "Bob",
-      "evidence_lab": "Lab techs"
+    "scene_presence": {
+      "speakers_source": "turn_runtime",
+      "people_present_source": "world_graph_plus_character_locations"
     },
     "world_map_image": "2_jennie_murder_mini/2_jennie_murder_mini.png",
     "character_start_locations": {

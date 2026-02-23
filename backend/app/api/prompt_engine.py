@@ -394,6 +394,69 @@ def _upsert_active_character_markers(state: GameState, active_keys: set[str]) ->
         )
 
 
+def _upsert_people_present_markers(state: GameState, people_keys: set[str]) -> None:
+    """Store current-scene people-present markers for prompt/debug consumption."""
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if not (
+            (getattr(e, "text", "") or "").startswith("__people_present_marker__:")
+        )
+    ]
+    for key in people_keys:
+        state.add_transient_entry(
+            id=f"people_present::{key}",
+            namespace=_namespace_for_state(state),
+            scope="scene",
+            text=f"__people_present_marker__:{key}",
+            expires_after_turns=_ACTIVE_CHAR_TTL_TURNS,
+        )
+
+
+def _upsert_scene_speaker_markers(state: GameState, speaker_keys: set[str]) -> None:
+    """Store current-turn speaker markers for prompt/debug consumption."""
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if not (
+            (getattr(e, "text", "") or "").startswith("__scene_speaker_marker__:")
+        )
+    ]
+    for key in speaker_keys:
+        state.add_transient_entry(
+            id=f"scene_speaker::{key}",
+            namespace=_namespace_for_state(state),
+            scope="scene",
+            text=f"__scene_speaker_marker__:{key}",
+            expires_after_turns=_ACTIVE_CHAR_TTL_TURNS,
+        )
+
+
+def _extract_location_from_reply(state: GameState, reply: str) -> str:
+    """Extract best-effort location mention from previous assistant reply.
+
+    Ignores phone-call/off-scene edge cases by design for this iteration.
+    """
+    runtime = getattr(state, "world_runtime", None)
+    if runtime is None:
+        return str(getattr(state, "location_id", "") or "")
+
+    text = str(reply or "").strip().lower()
+    if not text:
+        return str(getattr(state, "location_id", "") or "")
+
+    try:
+        for loc_id, loc in (runtime.world_graph.locations or {}).items():
+            loc_name = (getattr(loc, "name", "") or "").strip().lower()
+            if loc_name and loc_name in text:
+                return str(loc_id)
+            loc_token = str(loc_id).replace("_", " ").lower()
+            if loc_token and loc_token in text:
+                return str(loc_id)
+    except Exception:
+        pass
+
+    return str(getattr(state, "location_id", "") or "")
+
+
 
 def _chunk_text(chunk: dict) -> str:
     return str(chunk.get("text") or chunk.get("content") or "").strip()
@@ -652,12 +715,28 @@ def _match_world_destination(msg: str, runtime, current_location_id: str = "") -
 
 
 def _debug_speakers(state: GameState) -> list[str]:
-    """Return display names of characters currently at the player's location.
+    """Return display names of characters marked as current-turn speakers."""
+    marker_keys: list[str] = []
+    for entry in getattr(state, "transient_entries", []) or []:
+        txt = (getattr(entry, "text", "") or "").strip()
+        if not txt.startswith("__scene_speaker_marker__:"):
+            continue
+        marker_keys.append(txt.split(":", 1)[1].strip().lower())
 
-    Uses character_locations (runtime) or location_speakers (legacy static config).
-    Returns an empty list if no characters are configured at the current location —
-    the engine must not fabricate a speaker just because no mapping exists.
-    """
+    if marker_keys:
+        seen = set()
+        marker_keys = [k for k in marker_keys if not (k in seen or seen.add(k))]
+        characters = getattr(state, "characters", {}) or {}
+        names: list[str] = []
+        for key in marker_keys:
+            ch = characters.get(key)
+            name = (getattr(ch, "name", "") or "").strip() if ch else key.replace("_", " ").title()
+            if name:
+                names.append(name)
+        if names:
+            return names
+
+    # Backward-compatible fallback when markers are not available.
     from backend.app.engine.active_characters import get_character_location_index
 
     loc_id = (getattr(state, "location_id", "") or "").strip()
@@ -672,6 +751,22 @@ def _debug_speakers(state: GameState) -> list[str]:
     characters = getattr(state, "characters", {}) or {}
     names: list[str] = []
     for key in chars_at_loc:
+        ch = characters.get(key)
+        name = (getattr(ch, "name", "") or "").strip() if ch else key.replace("_", " ").title()
+        if name:
+            names.append(name)
+    return names
+
+
+def _debug_people_present(state: GameState) -> list[str]:
+    from backend.app.engine.active_characters import get_people_present_keys
+
+    keys = sorted(get_people_present_keys(state))
+    if not keys:
+        return []
+    characters = getattr(state, "characters", {}) or {}
+    names: list[str] = []
+    for key in keys:
         ch = characters.get(key)
         name = (getattr(ch, "name", "") or "").strip() if ch else key.replace("_", " ").title()
         if name:
@@ -1235,13 +1330,25 @@ async def chat_handler(data: dict):
     # at the current location.  Markers stored in the transient buffer let the
     # prompt builder filter graph edges and character extras to only what is
     # contextually relevant.
-    from backend.app.engine.active_characters import compute_active_character_set
+    from backend.app.engine.active_characters import compute_active_character_set, get_people_present_keys
+
+    _previous_scene = state.latest_scene_knowledge()
+    _previous_location_id = str(getattr(_previous_scene, "location_id", "") or "") if _previous_scene else ""
+    _current_location_id = str(getattr(state, "location_id", "") or "")
+    _location_changed = bool(_previous_location_id and _current_location_id and _previous_location_id != _current_location_id)
+    _carryover_speakers = set()
+    if _previous_scene and not _location_changed:
+        _carryover_speakers = {str(s or "").strip().lower() for s in (getattr(_previous_scene, "speakers", []) or []) if str(s or "").strip()}
+
+    _people_present = get_people_present_keys(state)
     _pre_active_chars = compute_active_character_set(
         state=state,
         user_msg=msg,
         recent_log=log[-4:],
+        carryover_speakers=_carryover_speakers,
     )
     _upsert_active_character_markers(state, _pre_active_chars)
+    _upsert_people_present_markers(state, _people_present)
 
     # NOTE: advance_time is called AFTER location extraction (below) so that
     # the canonicalized movement message (e.g. "go to interview_room_bob") is
@@ -1447,8 +1554,27 @@ async def chat_handler(data: dict):
             user_msg="",
             recent_log=[],
             npc_reply=clean,
+            carryover_speakers=_carryover_speakers,
         )
         _upsert_active_character_markers(state, _post_active_chars)
+
+        _scene_speakers = set(_post_active_chars)
+        main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
+        if main_id:
+            _scene_speakers.add(main_id)
+        _upsert_scene_speaker_markers(state, _scene_speakers)
+
+        _narrative_location_id = _extract_location_from_reply(state, clean)
+        state.upsert_scene_knowledge(
+            key=f"turn:{int(getattr(state, 'turns', 0) or 0)}",
+            location_id=_narrative_location_id,
+            speakers=sorted(_scene_speakers),
+            people_present=sorted(_people_present),
+            payload={
+                "location_changed_from_previous": _location_changed,
+                "source": "scene_presence_extractor",
+            },
+        )
     except Exception:
         pass
 
@@ -1503,6 +1629,7 @@ async def chat_handler(data: dict):
             "location": user_loc,
             "location_uuid": getattr(state, "location_uuid", ""),
             "speakers": speakers if speakers else None,
+            "people_present": _debug_people_present(state) or None,
             "transient_count": len(raw_entries),
             "transient_entries": [
                 {"text": e.text, "turns_remaining": e.turns_remaining}

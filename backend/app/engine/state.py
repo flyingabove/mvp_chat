@@ -22,6 +22,11 @@ from backend.app.engine.epistemic_state import (
     Observation,
 )
 from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
+from backend.app.engine.transient_buffer import (
+    SceneKnowledge,
+    latest_scene_knowledge,
+    upsert_scene_knowledge_fifo,
+)
 from backend.app.config.epistemic_flags import (
     belief_enabled,
     truth_enabled,
@@ -154,6 +159,7 @@ class GameState:
     # Transient scene buffer (non-authoritative, short-lived)
     # ==============================================================
     transient_entries: List[TransientKnowledge] = field(default_factory=list)
+    scene_knowledge_entries: List[SceneKnowledge] = field(default_factory=list)
 
     # ==============================================================
     # Optional world runtime (graph-based movement)
@@ -280,6 +286,32 @@ class GameState:
 
     def clear_all_transient_entries(self) -> None:
         self.transient_entries = []
+        self.scene_knowledge_entries = []
+
+    def upsert_scene_knowledge(
+        self,
+        *,
+        key: str,
+        location_id: str,
+        speakers: List[str],
+        people_present: List[str],
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        item = SceneKnowledge(
+            key=str(key or "").strip() or "scene",
+            location_id=str(location_id or "").strip(),
+            speakers=[str(s or "").strip().lower() for s in (speakers or []) if str(s or "").strip()],
+            people_present=[str(p or "").strip().lower() for p in (people_present or []) if str(p or "").strip()],
+            payload=dict(payload or {}),
+        )
+        self.scene_knowledge_entries = upsert_scene_knowledge_fifo(
+            self.scene_knowledge_entries,
+            item=item,
+            max_items=TRANSIENT_KNOWLEDGE_TURNS,
+        )
+
+    def latest_scene_knowledge(self) -> SceneKnowledge | None:
+        return latest_scene_knowledge(self.scene_knowledge_entries)
 
 
 # ======================================================================

@@ -247,12 +247,62 @@ def _get_active_character_keys(state: GameState) -> set[str]:
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
                 keys.add(ch_key)
+        elif txt.startswith("__scene_speaker_marker__:"):
+            ch_key = txt.split(":", 1)[1].strip().lower()
+            if ch_key:
+                keys.add(ch_key)
         elif txt.startswith("__on_call_character_marker__:"):
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
                 keys.add(ch_key)
 
     return keys
+
+
+def _get_people_present_keys(state: GameState) -> set[str]:
+    keys: set[str] = set()
+    for e in getattr(state, "transient_entries", []) or []:
+        txt = (getattr(e, "text", "") or "").strip()
+        if txt.startswith("__people_present_marker__:"):
+            ch_key = txt.split(":", 1)[1].strip().lower()
+            if ch_key:
+                keys.add(ch_key)
+    if keys:
+        return keys
+
+    latest_scene = getattr(state, "latest_scene_knowledge", None)
+    if callable(latest_scene):
+        item = latest_scene()
+        if item is not None:
+            return {
+                str(k or "").strip().lower()
+                for k in (getattr(item, "people_present", []) or [])
+                if str(k or "").strip()
+            }
+    return set()
+
+
+def _get_scene_speaker_keys(state: GameState) -> set[str]:
+    keys: set[str] = set()
+    for e in getattr(state, "transient_entries", []) or []:
+        txt = (getattr(e, "text", "") or "").strip()
+        if txt.startswith("__scene_speaker_marker__:"):
+            ch_key = txt.split(":", 1)[1].strip().lower()
+            if ch_key:
+                keys.add(ch_key)
+    if keys:
+        return keys
+
+    latest_scene = getattr(state, "latest_scene_knowledge", None)
+    if callable(latest_scene):
+        item = latest_scene()
+        if item is not None:
+            return {
+                str(k or "").strip().lower()
+                for k in (getattr(item, "speakers", []) or [])
+                if str(k or "").strip()
+            }
+    return set()
 
 
 def _scene_presence_keys(state: GameState) -> set[str]:
@@ -585,6 +635,12 @@ def _scene_cast_keys(state: GameState) -> list[str]:
 
     add_key("player")
 
+    for key in _get_people_present_keys(state):
+        add_key(key)
+
+    for key in _get_scene_speaker_keys(state):
+        add_key(key)
+
     for key in _get_active_character_keys(state):
         add_key(key)
 
@@ -699,6 +755,24 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         cast_names.append((name or key).strip())
 
     cast_text = ", ".join(cast_names[:6]) if cast_names else "The Player"
+    people_present_keys = _get_people_present_keys(state)
+    speaker_keys = _get_scene_speaker_keys(state)
+
+    def _resolve_scene_names(keys: set[str]) -> str:
+        if not keys:
+            return "none"
+        resolved: list[str] = []
+        for key in sorted(keys):
+            if key == "player":
+                resolved.append("The Player")
+                continue
+            ch = chars.get(key)
+            resolved.append((getattr(ch, "name", None) or key).strip())
+        return ", ".join(resolved[:8]) if resolved else "none"
+
+    people_present_text = _resolve_scene_names(people_present_keys)
+    speakers_text = _resolve_scene_names(speaker_keys)
+    people_present_count = len(people_present_keys)
     user_line = (current_user_msg or "").strip()
     user_line_text = f'Current player line: "{user_line}".' if user_line else "Current player line is available in the user message."
 
@@ -708,6 +782,8 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         "────────────────────────────────────────\n"
         f"The scene is currently in {location} at minute {minute} of the session, with {main_name} as the focal lens. "
         f"{main_name} is a {main_role} and is currently emotionally {emotion}, with relationship baseline {rel}.\n\n"
+        f"People present in this location right now ({people_present_count}): {people_present_text}.\n"
+        f"Current-turn speakers: {speakers_text}.\n\n"
         f"Relevant cast pressure around this moment includes: {cast_text}. Use this cast context to keep the world feeling populated and story-driven, while keeping {main_name} as the primary focus.\n\n"
         f"{user_line_text}\n"
     )

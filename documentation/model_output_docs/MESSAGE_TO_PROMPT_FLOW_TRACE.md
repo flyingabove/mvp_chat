@@ -34,7 +34,12 @@ If no early return, continue to regular turn path.
    - game over -> finished reply.
 2. Purge expired transient entries (`state.purge_transient_entries`):
    - removes old transient objects by turn/minute TTL.
-3. Name handling:
+3. Scene presence bootstrap:
+   - load latest scene knowledge object from FIFO queue,
+   - compare previous location_id vs current location_id,
+   - if unchanged, carry previous turn speakers into active-cast seed,
+   - query world location + character location index to derive `people_present`.
+4. Name handling:
    - confirm guessed name from prior turn,
    - extract user name phrases and update user state.
 
@@ -76,7 +81,14 @@ Returned chunks are candidate memory fragments for both prompt construction and 
 Before rendering:
 - add transient entry: `Player said: ...`
 - scope: `conversation`
-- TTL: 2 turns, 30 minutes.
+- TTL: `TRANSIENT_KNOWLEDGE_TURNS`.
+
+Scene markers updated before render:
+- `__active_character_marker__:<key>`
+- `__people_present_marker__:<key>`
+
+After reply, scene speaker markers are updated:
+- `__scene_speaker_marker__:<key>`
 
 ---
 
@@ -98,14 +110,14 @@ Then call `build_messages(prompt_input, return_debug=True)`.
 1. Base behavior/style rules.
 2. Epistemic knowledge stack (`_format_labeled_knowledge_stack`):
    - `CANONICAL_CORE`: character basics + canonical facts,
-   - `CANONICAL_GRAPH`: character graph edges + current place info,
+   - `CANONICAL_GRAPH`: current place info,
    - `SUBJECTIVE_BELIEF`: belief claims for active speaker,
-   - `RETRIEVED_MEMORY`: FAISS/BM25 chunks,
-   - `TRANSIENT_CONTEXT`: recent transient entries.
+   - `RETRIEVED_MEMORY`: FAISS/BM25 chunks.
 3. Relationship section (`character_graph.format_for_prompt`).
-4. Transient section (last transient entries).
+4. Scene brief includes explicit per-turn scene context:
+   - `people_present` list and count,
+   - `speakers` list.
 5. Optional truth-mode override.
-6. Required terminal `[[STATE]]` instruction.
 
 Important current rule in preface:
 - If chunk visibility is not explicit for speaker, model should make best reasonable determination; hedge when uncertain.
@@ -143,13 +155,18 @@ This is the exact point where the new prompt is sent.
 After receiving response:
 1. Extract and apply `[[STATE]]`.
 2. Append final user/assistant text to log.
-3. Add transient entry: `NPC replied: ...` (TTL 2 turns).
+3. Add transient entry: `NPC replied: ...` (TTL = `TRANSIENT_KNOWLEDGE_TURNS`).
 4. Evaluate win condition.
 5. Run post-reply knowledge resolution for unknown chunks:
    - derive unknown candidate chunks from retrieval + canonical visibility checks,
    - run `KnowledgeResolutionExtractor` over last ~8 turns + latest exchange,
    - apply updates into belief graph (`kr::<speaker>::<chunk_id>` claims),
    - add transient knowledge objects with TTL 8 turns.
+6. Upsert scene knowledge FIFO object:
+   - location_id from previous-reply location extractor,
+   - current-turn `speakers`,
+   - current `people_present`,
+   - payload metadata including location-change flag.
 
 Result can include `knowledge_resolution_updates` for debug/inspection.
 
@@ -161,8 +178,12 @@ Result can include `knowledge_resolution_updates` for debug/inspection.
 - World/place graph: movement extraction target set + travel + prompt location context.
 - FAISS/BM25: retrieval slice for prompt and unknown-chunk candidates.
 - Transient buffer:
-  - conversation flavor (2-turn TTL),
+   - conversation flavor (8-turn TTL),
   - resolved knowledge objects (8-turn TTL).
+- Scene knowledge FIFO:
+   - bounded to 8 entries,
+   - refreshed on upsert by key,
+   - used for previous-turn speaker carryover when location is unchanged.
 
 ---
 
@@ -170,3 +191,4 @@ Result can include `knowledge_resolution_updates` for debug/inspection.
 - Cleanup trigger: each turn start (`state.purge_transient_entries`).
 - Knowledge-resolution objects naturally disappear after 8 turns unless refreshed by later extractor updates.
 - Location-scoped transients are cleared on travel by gameplay flow.
+- Scene knowledge objects are retained as FIFO queue items (max 8), not per-object countdown.

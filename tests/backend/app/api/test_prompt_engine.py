@@ -188,6 +188,7 @@ def test_debug_mode_toggle_no_llm_on_toggle_and_appends_debug_box(client):
     assert "debug_box" in data3, "debug_box should be in response when debug mode is on"
     assert "timestamp" in data3["debug_box"]
     assert "location" in data3["debug_box"]
+    assert "people_present" in data3["debug_box"]
     assert "DEBUG INFO" not in data3["reply"], "debug info should not be in reply text anymore"
     assert not re.match(r"^\[\d{4}-\d{2}-\d{2} ", data3["reply"])  # no leading timestamp
     assert spy.calls == base_calls + 1
@@ -269,6 +270,25 @@ def test_debug_box_speakers_do_not_include_location_as_name(client):
     if debug_box["speakers"]:
         for name in debug_box["speakers"]:
             assert "Apartment" not in name, f"Location leaked into speakers: {name}"
+
+
+def test_scene_knowledge_queue_updates_each_turn(client):
+    import backend.app.api.prompt_engine as pe_mod
+
+    sid = "sceneq1"
+    r0 = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
+    assert r0.status_code == 200
+
+    r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    st = pe_mod.SESSIONS[sid]["state"]
+    assert st.scene_knowledge_entries
+    latest = st.latest_scene_knowledge()
+    assert latest is not None
+    assert isinstance(latest.speakers, list)
+    assert isinstance(latest.people_present, list)
+    assert "source" in latest.payload
 
 
 def test_debug_box_rendering_structured(client):

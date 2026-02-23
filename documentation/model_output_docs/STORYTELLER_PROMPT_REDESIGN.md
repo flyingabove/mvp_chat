@@ -10,6 +10,8 @@
 - Critical intent guard removed — identity correction is now handled generically by the epistemic stack and factual integrity rules in the prompt contract, not per-story band-aids.
 - All numeric relationship values replaced with deterministic word mappings (see "Relationship Word Mappings" section below).
 - Context-aware character graph filtering implemented: only characters in current-turn mention scope, scene co-presence, or active phone-call scope are included in the prompt via transient markers in `active_characters.py`.
+- Prompt scene brief now explicitly injects both `speakers` and `people_present` (including people count) before generation.
+- Previous-turn speaker carry-over is applied only when location is unchanged (from scene knowledge FIFO).
 
 Remaining phases (validator/rewrite pass and full scorer rubric migration) are still pending.
 
@@ -94,6 +96,12 @@ Plain-English summary of what is canonically true, what is uncertain, and what m
 
 ### 6) Context Routing Paragraph (high-priority)
 Describe who is currently in-scene, on-call, or actively mentioned so narrative focus stays local and does not drag in stale off-screen characters.
+
+Current runtime contract:
+- `people_present`: world-location presence (world graph location + character location index)
+- `speakers`: current-turn speaking cast
+- If location is unchanged, prior-turn speakers are eligible carry-over into current cast list
+- Phone-call edge cases are deferred for now by product decision
 
 ---
 

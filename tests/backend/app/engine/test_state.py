@@ -135,3 +135,52 @@ def test_extract_state_tag_handles_nested_json():
     clean, parsed = extract_state_tag(reply)
     assert parsed == tag
     assert "[[STATE]]" not in clean
+
+
+def test_scene_knowledge_fifo_refresh_and_tail_order():
+    st = init_state()
+
+    st.upsert_scene_knowledge(
+        key="turn:1",
+        location_id="room_a",
+        speakers=["iu"],
+        people_present=["iu", "player"],
+        payload={"source": "test"},
+    )
+    st.upsert_scene_knowledge(
+        key="turn:2",
+        location_id="room_a",
+        speakers=["iu", "player"],
+        people_present=["iu", "player"],
+        payload={"source": "test"},
+    )
+
+    st.upsert_scene_knowledge(
+        key="turn:1",
+        location_id="room_b",
+        speakers=["iu"],
+        people_present=["iu"],
+        payload={"source": "refresh"},
+    )
+
+    keys = [e.key for e in st.scene_knowledge_entries]
+    assert keys == ["turn:2", "turn:1"]
+    assert st.latest_scene_knowledge() is not None
+    assert st.latest_scene_knowledge().location_id == "room_b"
+
+
+def test_scene_knowledge_fifo_max_len_uses_transient_turn_constant():
+    from backend.app.config.settings import TRANSIENT_KNOWLEDGE_TURNS
+
+    st = init_state()
+    for idx in range(TRANSIENT_KNOWLEDGE_TURNS + 3):
+        st.upsert_scene_knowledge(
+            key=f"turn:{idx}",
+            location_id=f"loc_{idx}",
+            speakers=["iu"],
+            people_present=["iu"],
+            payload={},
+        )
+
+    assert len(st.scene_knowledge_entries) == TRANSIENT_KNOWLEDGE_TURNS
+    assert st.scene_knowledge_entries[0].key == "turn:3"

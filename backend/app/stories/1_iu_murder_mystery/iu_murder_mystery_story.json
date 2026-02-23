@@ -116,6 +116,10 @@
     "seed": 42,
     "start_datetime": "2025-01-15T09:00:00",
     "start_location_id": "iu_apartment_room",
+    "scene_presence": {
+      "speakers_source": "turn_runtime",
+      "people_present_source": "world_graph_plus_character_locations"
+    },
     "world_map_image": "1_iu_murder_mystery/1_iu_murder_mystery.png",
     "character_start_locations": {
       "iu": "iu_apartment_room",

@@ -93,6 +93,42 @@ def test_prompt_uses_storyteller_mode_language():
     assert "SCENE BRIEF" in sysmsg
 
 
+def test_scene_brief_includes_people_present_and_speakers():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["park_so_jin"] = CharacterState(key="park_so_jin", name="Park So-jin", role="producer")
+    st.main_character_id = "iu"
+
+    st.add_transient_entry(
+        id="pp::iu",
+        namespace="test",
+        scope="scene",
+        text="__people_present_marker__:iu",
+        expires_after_turns=4,
+    )
+    st.add_transient_entry(
+        id="pp::park_so_jin",
+        namespace="test",
+        scope="scene",
+        text="__people_present_marker__:park_so_jin",
+        expires_after_turns=4,
+    )
+    st.add_transient_entry(
+        id="speaker::iu",
+        namespace="test",
+        scope="scene",
+        text="__scene_speaker_marker__:iu",
+        expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "People present in this location right now (2):" in sysmsg
+    assert "Current-turn speakers:" in sysmsg
+
+
 def test_prompt_ignores_story_specific_fields_and_uses_canonical_facts():
     from backend.app.engine import prompt_builder as pb
     from backend.app.engine.epistemic_state import EpistemicFact

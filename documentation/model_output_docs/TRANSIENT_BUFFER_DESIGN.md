@@ -26,17 +26,26 @@ If a detail must matter later for gameplay (evidence, objective, access, irrever
 - On session reset, clear all transient entries.
 - Turn expiry is handled by countdown pruning, so transient memory naturally fades without being surfaced in prompt text.
 
-## Data Shape (Current Minimal Runtime Model)
+## Data Shape (Current Runtime Model)
 ```text
 TransientKnowledge:
 - text
 - turns_remaining
+
+SceneKnowledge (FIFO scene queue):
+- key
+- location_id
+- speakers: [character_key]
+- people_present: [character_key]
+- payload: { ... }
 ```
 
 ## Expiration Policy
 - The default TTL is fixed to **8 turns**.
 - This hardcoded value is centralized at `backend/app/config/settings.py` as `TRANSIENT_KNOWLEDGE_TURNS = 8`.
 - `TransientBuffer.prune_expired()` decrements `turns_remaining` and removes entries once they hit `<= 0`.
+- SceneKnowledge uses FIFO retention (max 8 entries) rather than per-object turn counters.
+- Upsert semantics refresh an existing key by moving it to queue tail.
 
 ## Promotion Rules
 If a detail becomes durable gameplay truth, write it explicitly to canonical structures (facts/graphs) rather than relying on transient retention.
@@ -48,5 +57,15 @@ If a detail becomes durable gameplay truth, write it explicitly to canonical str
 
 ## Implementation Notes
 - Runtime state stores `List[TransientKnowledge]` on `GameState.transient_entries`.
-- New entries are appended via `GameState.add_transient_entry(text, ...)` and always use `TRANSIENT_KNOWLEDGE_TURNS`.
+- Runtime state also stores `List[SceneKnowledge]` on `GameState.scene_knowledge_entries`.
+- New text entries are appended via `GameState.add_transient_entry(text, ...)` and use caller TTL or `TRANSIENT_KNOWLEDGE_TURNS`.
+- Scene knowledge entries are upserted via `GameState.upsert_scene_knowledge(...)` and bounded to 8 FIFO items.
 - Prompt builder excludes transient entries by design.
+
+## Scene Presence Contract (Current)
+- Per turn, engine tracks both:
+	- `speakers` (who is currently talking / in turn-active cast)
+	- `people_present` (who is physically present at player location)
+- `people_present` is derived by combining current world location query + character location index.
+- If location did not change from previous scene knowledge item, previous turn speakers are carried into the current active character list.
+- Phone-call/off-scene edge cases are intentionally deferred.

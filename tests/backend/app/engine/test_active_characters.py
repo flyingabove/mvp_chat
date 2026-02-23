@@ -5,6 +5,7 @@ from backend.app.engine.active_characters import (
     compute_active_character_set,
     detect_mentioned_characters,
     get_character_location_index,
+    get_people_present_keys,
     get_on_call_character_keys,
     get_location_speaker_keys,
 )
@@ -368,3 +369,34 @@ def test_compute_excludes_offscene_location_speakers_by_current_location():
 
     assert "iu" in result
     assert "han_jae_seo" not in result
+
+
+def test_get_people_present_keys_uses_current_location_index():
+    state = GameState()
+    state.location_id = "iu_apartment_room"
+    state.character_locations = {
+        "iu": "iu_apartment_room",
+        "yoo_min_ho": "workplace_hallway",
+    }
+
+    result = get_people_present_keys(state)
+    assert result == {"iu"}
+
+
+def test_compute_includes_carryover_speakers_on_same_location():
+    state = GameState()
+    state.main_character_id = "iu"
+    state.characters = _make_characters()
+    state.location_id = "iu_apartment_room"
+    state.character_locations = {
+        "iu": "iu_apartment_room",
+    }
+
+    result = compute_active_character_set(
+        state=state,
+        user_msg="hello",
+        recent_log=[],
+        carryover_speakers={"park_so_jin"},
+    )
+
+    assert "park_so_jin" in result

@@ -196,8 +196,15 @@ Note that Steve→Bob and Bob→Steve have different states. Bob is more suspici
 
 ## Relationship to Location Binding
 
-Characters exist at specific locations. The `location_speakers` map in the world config determines who speaks where. The character graph complements this: it tells you not just WHO is at a location, but how they FEEL about the other characters. When the player is in Interview Room A with Steve, the prompt needs both:
-- Steve is the speaker here (from location binding)
+Characters exist at specific locations. Runtime now distinguishes:
+- `people_present` (world location occupancy)
+- `speakers` (current-turn speaking cast)
+
+`people_present` is computed per turn from world location + character location index. `speakers` comes from turn-level scene extraction and can carry over from previous turn only when location is unchanged.
+
+The character graph complements this: it tells you not just WHO is present, but how they FEEL about others in the active cast. When the player is in Interview Room A with Steve, the prompt needs both:
+- Steve is physically present in this location (scene presence)
+- Steve is a current-turn speaker when selected by turn context
 - Steve's relationship state toward the player and toward Bob (from the character graph)
 
 ## Open Questions
