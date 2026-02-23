@@ -295,6 +295,23 @@ def test_compute_includes_npc_reply():
     assert "park_so_jin" in result
 
 
+# ─── BUG-10: get_character_location_index filters empty values ───────────────
+
+def test_character_location_index_filters_empty_value_entries():
+    """BUG-10: Entries with empty location_id should be silently dropped."""
+    state = GameState()
+    state.character_locations = {
+        "iu": "iu_apartment_room",
+        "ghost": "",          # empty value — should be filtered out
+        "": "some_location",  # empty key — should be filtered out
+    }
+    result = get_character_location_index(state)
+    assert "iu" in result
+    assert result["iu"] == "iu_apartment_room"
+    assert "ghost" not in result
+    assert "" not in result
+
+
 def test_get_on_call_character_keys_reads_transient_markers():
     state = GameState()
     state.add_transient_entry(

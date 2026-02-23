@@ -294,6 +294,9 @@
   ],
   "rules": {
     "manifestation": {
+      "apartment_location_ids": [
+        "iu_apartment_room"
+      ],
       "apartment_location_contains": [
         "nonhyeon-dong",
         "officetel",

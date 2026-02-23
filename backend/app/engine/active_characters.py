@@ -127,10 +127,12 @@ def get_character_location_index(state: GameState) -> Dict[str, str]:
        → [character names]); used as fallback for stories that haven't migrated
        to character_start_locations yet.
     """
-    # Prefer runtime-tracked locations if populated
+    # Prefer runtime-tracked locations if populated.
+    # Filter out any entries with empty keys or values to avoid polluting the
+    # index with stale or partially-written location data.
     runtime_locs = getattr(state, "character_locations", {}) or {}
     if runtime_locs:
-        return dict(runtime_locs)
+        return {k: v for k, v in runtime_locs.items() if k and v}
 
     # Fallback: derive from location_speakers (legacy static mapping)
     index: Dict[str, str] = {}

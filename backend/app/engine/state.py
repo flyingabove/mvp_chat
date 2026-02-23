@@ -250,8 +250,10 @@ class GameState:
     ) -> None:
         if not text or not text.strip():
             return
+        # Use caller-provided TTL if given; fall back to the system default.
+        ttl = int(expires_after_turns) if expires_after_turns is not None else TRANSIENT_KNOWLEDGE_TURNS
         self.transient_entries.append(
-            TransientKnowledge(text=text.strip(), turns_remaining=TRANSIENT_KNOWLEDGE_TURNS)
+            TransientKnowledge(text=text.strip(), turns_remaining=ttl)
         )
 
     def purge_transient_entries(self) -> None:
@@ -262,7 +264,19 @@ class GameState:
         )
 
     def clear_location_transient_entries(self) -> None:
-        return
+        """Remove location-scoped transient entries on travel.
+
+        Clears all scene context accumulated at the previous location so it
+        does not bleed into the next scene.  Only conversation-wide markers
+        (e.g., on-call phone markers) are preserved.  Active-character markers
+        are intentionally cleared here because they are re-injected at the
+        start of every turn by _upsert_active_character_markers.
+        """
+        _PERSISTENT_PREFIXES = ("__on_call_character_marker__:",)
+        self.transient_entries = [
+            e for e in self.transient_entries
+            if any((getattr(e, "text", "") or "").startswith(p) for p in _PERSISTENT_PREFIXES)
+        ]
 
     def clear_all_transient_entries(self) -> None:
         self.transient_entries = []
@@ -340,7 +354,10 @@ def extract_state_tag(reply: str):
     Returns:
         (clean_text, dict or None)
     """
-    m = re.search(r"\[\[STATE\]\](\{.*?\})\[\[/STATE\]\]", reply, re.S)
+    # Use `.*?` (not `\{.*?\}`) so the capture boundary is the [[/STATE]]
+    # delimiter rather than the first closing brace.  This correctly handles
+    # STATE payloads that contain nested JSON objects.
+    m = re.search(r"\[\[STATE\]\](.*?)\[\[/STATE\]\]", reply, re.S)
     if not m:
         return reply, None
 

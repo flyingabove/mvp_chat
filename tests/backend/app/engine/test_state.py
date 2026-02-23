@@ -66,3 +66,72 @@ def test_apply_state_tag_updates_character_graph():
     edge = st.character_graph.get_edge("iu", "player")
     assert edge is not None
     assert abs(edge.state.affection - 0.1) < 0.001
+
+
+# ─── BUG-01: add_transient_entry respects expires_after_turns ──────────────
+
+def test_add_transient_entry_respects_custom_ttl():
+    """BUG-01: expires_after_turns must be used, not silently ignored."""
+    from backend.app.engine.state import GameState
+    st = GameState()
+    st.add_transient_entry(id="t1", namespace="ns", scope="scene", text="hello", expires_after_turns=1)
+    assert len(st.transient_entries) == 1
+    assert st.transient_entries[0].turns_remaining == 1
+
+
+def test_add_transient_entry_uses_default_ttl_when_none():
+    """BUG-01: When expires_after_turns is None, the system default is used."""
+    from backend.app.config.settings import TRANSIENT_KNOWLEDGE_TURNS
+    from backend.app.engine.state import GameState
+    st = GameState()
+    st.add_transient_entry(id="t2", namespace="ns", scope="scene", text="world", expires_after_turns=None)
+    assert st.transient_entries[0].turns_remaining == TRANSIENT_KNOWLEDGE_TURNS
+
+
+def test_add_transient_entry_ignores_empty_text():
+    from backend.app.engine.state import GameState
+    st = GameState()
+    st.add_transient_entry(id="t3", namespace="ns", scope="scene", text="   ", expires_after_turns=3)
+    assert len(st.transient_entries) == 0
+
+
+# ─── BUG-02: clear_location_transient_entries removes scene entries ─────────
+
+def test_clear_location_transient_entries_removes_scene_entries():
+    """BUG-02: Calling clear_location_transient_entries must actually purge entries."""
+    from backend.app.engine.state import GameState
+    from backend.app.engine.transient_buffer import TransientKnowledge
+    st = GameState()
+    st.transient_entries = [
+        TransientKnowledge(text="Player said something at the apartment", turns_remaining=5),
+        TransientKnowledge(text="__active_character_marker__:iu", turns_remaining=5),
+        TransientKnowledge(text="knowledge chunk from previous scene", turns_remaining=3),
+    ]
+    st.clear_location_transient_entries()
+    # All non-persistent entries should be gone
+    assert len(st.transient_entries) == 0
+
+
+def test_clear_location_transient_entries_preserves_on_call_markers():
+    """BUG-02: On-call phone markers must survive location changes."""
+    from backend.app.engine.state import GameState
+    from backend.app.engine.transient_buffer import TransientKnowledge
+    st = GameState()
+    st.transient_entries = [
+        TransientKnowledge(text="__on_call_character_marker__:manager", turns_remaining=5),
+        TransientKnowledge(text="scene context from previous location", turns_remaining=3),
+    ]
+    st.clear_location_transient_entries()
+    assert len(st.transient_entries) == 1
+    assert st.transient_entries[0].text == "__on_call_character_marker__:manager"
+
+
+# ─── BUG-03: extract_state_tag handles nested JSON objects ──────────────────
+
+def test_extract_state_tag_handles_nested_json():
+    """BUG-03: STATE tags with nested JSON objects must parse correctly."""
+    tag = {"emotion": "wary", "extra": {"x": 1, "y": 2}}
+    reply = "Some text\n[[STATE]]" + json.dumps(tag) + "[[/STATE]]\n"
+    clean, parsed = extract_state_tag(reply)
+    assert parsed == tag
+    assert "[[STATE]]" not in clean

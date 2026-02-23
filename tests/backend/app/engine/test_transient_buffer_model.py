@@ -20,6 +20,7 @@ def test_state_purge_transient_entries():
     st.turns = 0
     st.minute = 0
 
+    # BUG-01 fix: expires_after_turns=1 must result in TTL=1, not TRANSIENT_KNOWLEDGE_TURNS.
     st.add_transient_entry(
         id="t1",
         namespace="default_user-demo-1",
@@ -28,11 +29,11 @@ def test_state_purge_transient_entries():
         expires_after_turns=1,
     )
     assert len(st.transient_entries) == 1
-    assert st.transient_entries[0].turns_remaining == TRANSIENT_KNOWLEDGE_TURNS
+    assert st.transient_entries[0].turns_remaining == 1  # BUG-01 fixed: respects caller TTL
 
-    for i in range(TRANSIENT_KNOWLEDGE_TURNS):
-        st.turns = i + 1
-        st.purge_transient_entries()
+    # A single purge call should expire the 1-turn entry.
+    st.turns = 1
+    st.purge_transient_entries()
 
     assert len(st.transient_entries) == 0
 

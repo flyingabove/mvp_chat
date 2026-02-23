@@ -119,7 +119,7 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
     # Canonical facts (truth layer)
     canonical_facts = seed_cfg.get("canonical_facts") or []
     seeded_texts = []
-    for fact_cfg in canonical_facts:
+    for _fact_idx, fact_cfg in enumerate(canonical_facts):
         try:
             fact = EpistemicFact(
                 id=str(fact_cfg.get("id") or uuid.uuid4()),
@@ -182,7 +182,13 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
                         source=claim.source,
                         provenance=claim.provenance,
                     )
-        except Exception:
+        except Exception as _fact_exc:
+            _log({
+                "kind": "canonical_fact_parse_error",
+                "fact_index": _fact_idx,
+                "fact_id": fact_cfg.get("id") if isinstance(fact_cfg, dict) else None,
+                "error": str(_fact_exc),
+            })
             continue
 
     # Additional belief seeds (claims/observations per character)
@@ -387,27 +393,6 @@ def _upsert_active_character_markers(state: GameState, active_keys: set[str]) ->
             expires_after_turns=_ACTIVE_CHAR_TTL_TURNS,
         )
 
-
-def _upsert_character_location_markers(state: GameState) -> None:
-    """Refresh derived character->location markers from world location bindings."""
-    state.transient_entries = [
-        e for e in state.transient_entries
-        if not ((getattr(e, "text", "") or "").startswith("__character_location_marker__:"))
-    ]
-
-    from backend.app.engine.active_characters import get_character_location_index
-
-    loc_index = get_character_location_index(state)
-    for key, loc_id in loc_index.items():
-        if not key or not loc_id:
-            continue
-        state.add_transient_entry(
-            id=f"char_loc::{key}",
-            namespace=_namespace_for_state(state),
-            scope="scene",
-            text=f"__character_location_marker__:{key}:{loc_id}",
-            expires_after_turns=_ACTIVE_CHAR_TTL_TURNS,
-        )
 
 
 def _chunk_text(chunk: dict) -> str:
@@ -1244,9 +1229,6 @@ async def chat_handler(data: dict):
 
     # Keep transient scene memory bounded.
     state.purge_transient_entries()
-
-    # Keep location bindings current for all known characters.
-    _upsert_character_location_markers(state)
 
     # --- ACTIVE CHARACTER DETECTION (pre-prompt) ---
     # Detect which characters are mentioned in recent conversation or present

@@ -24,25 +24,35 @@ def manifest_mode(state) -> str:
     """
     Determines the character's manifestation state based on story config rules.
     Works with GameState objects.
+
+    Preferred config key (exact match against state.location_id):
+        rules.manifestation.apartment_location_ids: ["iu_apartment_room", ...]
+
+    Legacy fallback (substring match against state.location display name):
+        rules.manifestation.apartment_location_contains: ["apartment", ...]
+
+    If neither key is present, always materializes (safe default for new stories).
     """
 
     # Safe access to story_cfg
     cfg = getattr(state, "story_cfg", {}) or {}
+    manifest_cfg = (cfg.get("rules") or {}).get("manifestation") or {}
 
-    # Manifestation rules from story JSON (empty list = always manifest)
-    manifest_rules = (
-        cfg.get("rules", {})
-           .get("manifestation", {})
-           .get("apartment_location_contains", [])
-    )
+    # Preferred: exact location_id matching (canonical and unambiguous).
+    location_ids = manifest_cfg.get("apartment_location_ids") or []
+    if location_ids:
+        loc_id = (getattr(state, "location_id", "") or "").strip().lower()
+        if not loc_id:
+            return "whisper"
+        inside = loc_id in {lid.strip().lower() for lid in location_ids}
+        return "materialize" if inside else "whisper"
 
-    # Player location (string or None)
-    loc = getattr(state, "location", "") or ""
-    loc = loc.lower()
-
-    # No rules defined = always materialize (safe default for new stories)
+    # Legacy fallback: substring matching on display name (fragile, kept for
+    # backward compatibility with stories that haven't defined location_ids yet).
+    manifest_rules = manifest_cfg.get("apartment_location_contains") or []
     if not manifest_rules:
         return "materialize"
+    loc = (getattr(state, "location", "") or "").lower()
     inside = any(k.lower() in loc for k in manifest_rules)
     return "materialize" if inside else "whisper"
 
@@ -63,6 +73,13 @@ def advance_time(state, player_text: str):
     delta = base + math.ceil(word_count(player_text) * per_word)
 
     # If a world clock is active, keep it in sync with dialog time.
+    # ORDERING NOTE: world_clock is advanced *twice* when travel succeeds:
+    #   1. Here, by `delta` (dialog time for this turn).
+    #   2. Inside travel_resolver.resolve() (travel time for the journey).
+    # state.minute is then synced from world_clock.minute after travel
+    # (line ~117 below), capturing both advances in one assignment.
+    # If travel_resolver is ever refactored to stop advancing world_clock
+    # internally, the travel-time advance must be added explicitly here.
     runtime = getattr(state, "world_runtime", None)
     if runtime is not None:
         try:

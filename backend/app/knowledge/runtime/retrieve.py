@@ -60,8 +60,10 @@ def retrieve_knowledge(
 
         faiss_filtered = _filter_by_namespace(faiss_idxs, k_faiss)
         faiss_scores_filtered: List[float] = []
+        # Use a set for O(1) membership checks instead of O(n) list scan.
+        faiss_filtered_set = set(faiss_filtered)
         for idx, score in zip(faiss_idxs, faiss_scores):
-            if idx in faiss_filtered:
+            if idx in faiss_filtered_set:
                 faiss_scores_filtered.append(float(score))
 
         fused_idxs = hybrid_retrieve(bm25_idxs, faiss_filtered, top_k=k_final)

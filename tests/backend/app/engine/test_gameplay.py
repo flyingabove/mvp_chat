@@ -69,6 +69,38 @@ def test_win_condition_detected_with_config_patterns():
     assert win_condition_detected("just chatting", st) is False
 
 
+# ─── BUG-06: manifest_mode uses location_id, not display string ─────────────
+
+def test_manifest_mode_uses_location_id_when_apartment_location_ids_defined():
+    """BUG-06: Preferred path uses state.location_id exact match."""
+    st = init_state()
+    st.story_cfg = {"rules": {"manifestation": {"apartment_location_ids": ["iu_apartment_room"]}}}
+    st.location_id = "iu_apartment_room"
+    assert manifest_mode(st) == "materialize"
+
+    st.location_id = "workplace_hallway"
+    assert manifest_mode(st) == "whisper"
+
+
+def test_manifest_mode_location_id_empty_returns_whisper():
+    """BUG-06: If apartment_location_ids is set but location_id is empty, whisper."""
+    st = init_state()
+    st.story_cfg = {"rules": {"manifestation": {"apartment_location_ids": ["iu_apartment_room"]}}}
+    st.location_id = ""
+    assert manifest_mode(st) == "whisper"
+
+
+def test_manifest_mode_falls_back_to_display_name_when_no_location_ids():
+    """BUG-06: Legacy apartment_location_contains still works when location_ids absent."""
+    st = init_state()
+    st.story_cfg = {"rules": {"manifestation": {"apartment_location_contains": ["officetel"]}}}
+    st.location = "Nonhyeon-dong officetel"
+    assert manifest_mode(st) == "materialize"
+
+    st.location = "Outside Park"
+    assert manifest_mode(st) == "whisper"
+
+
 def test_advance_time_handles_no_valid_route_error():
     """Test that advance_time gracefully handles RuntimeError from travel_resolver.
     

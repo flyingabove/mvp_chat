@@ -1,4 +1,6 @@
-from backend.app.engine.story_loader import load_story
+from unittest.mock import patch
+
+from backend.app.engine.story_loader import load_story, StoryDefinition
 from tests.conftest import first_story_id
 
 STORY_ID = first_story_id()
@@ -36,3 +38,48 @@ def test_story_loader_character_graph_has_edges():
         assert edge.from_id
         assert edge.to_id
         assert edge.state is not None
+
+
+# ─── BUG-13: story_loader warns when no is_main character found ──────────────
+
+def test_story_loader_warns_when_no_is_main_flag(capfd):
+    """BUG-13: StoryDefinition.from_dict should jlog a warning when defaulting is_main."""
+    data = {
+        "id": "test_story",
+        "title": "Test",
+        "characters": [
+            {"key": "alice", "name": "Alice", "role": "npc"},  # no is_main: true
+            {"key": "bob", "name": "Bob", "role": "npc"},
+        ],
+    }
+    logged = []
+    with patch("backend.app.engine.story_loader.jlog") as mock_jlog:
+        story = StoryDefinition.from_dict(data)
+        # Should have called jlog with a warning
+        warning_calls = [
+            c for c in mock_jlog.call_args_list
+            if c.args and isinstance(c.args[0], dict) and c.args[0].get("kind") == "story_warning"
+        ]
+        assert len(warning_calls) >= 1
+    # First character should get is_main = True
+    assert story.characters[0].is_main is True
+
+
+def test_story_loader_no_warning_when_is_main_present():
+    """BUG-13: No warning is emitted when is_main is explicitly set."""
+    data = {
+        "id": "test_story",
+        "title": "Test",
+        "characters": [
+            {"key": "alice", "name": "Alice", "role": "ghost", "is_main": True},
+            {"key": "bob", "name": "Bob", "role": "npc"},
+        ],
+    }
+    with patch("backend.app.engine.story_loader.jlog") as mock_jlog:
+        story = StoryDefinition.from_dict(data)
+        warning_calls = [
+            c for c in mock_jlog.call_args_list
+            if c.args and isinstance(c.args[0], dict) and c.args[0].get("kind") == "story_warning"
+        ]
+        assert len(warning_calls) == 0
+    assert story.characters[0].is_main is True

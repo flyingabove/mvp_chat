@@ -634,3 +634,29 @@ def test_belief_section_snapshot_layout_is_stable():
         "2. IU knows this but the player does not yet know with high confidence: My phone and lyric notebook were missing after the killing."
     )
     assert section == expected
+
+
+# ─── BUG-12: _relationship_role_prose handles "npc" and generic roles ────────
+
+def test_relationship_role_prose_npc_returns_helpful_message():
+    """BUG-12: 'npc' role should not produce the ugly 'The relationship type is npc.' message."""
+    from backend.app.engine.prompt_builder import _relationship_role_prose
+    result = _relationship_role_prose("npc")
+    assert "The relationship type is npc" not in result
+    assert len(result) > 0
+
+
+def test_relationship_role_prose_character_fallback():
+    """BUG-12: 'character' and 'other' and empty string are also handled."""
+    from backend.app.engine.prompt_builder import _relationship_role_prose
+    for role in ("character", "other", ""):
+        result = _relationship_role_prose(role)
+        assert f"The relationship type is {role}" not in result
+
+
+def test_relationship_role_prose_known_roles_unchanged():
+    """BUG-12: Verify known named roles still return their specific prose."""
+    from backend.app.engine.prompt_builder import _relationship_role_prose
+    assert "employer" in _relationship_role_prose("employer").lower()
+    assert "family" in _relationship_role_prose("family").lower()
+    assert "romantic" in _relationship_role_prose("lover").lower()

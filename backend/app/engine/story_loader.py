@@ -122,6 +122,11 @@ class StoryDefinition:
 
         # Ensure exactly one main flag if characters exist.
         if characters and not any(c.is_main for c in characters):
+            jlog({
+                "kind": "story_warning",
+                "msg": "No is_main character found in story JSON; defaulting to first character",
+                "character": characters[0].key,
+            })
             characters[0].is_main = True
 
         normalized = dict(data)

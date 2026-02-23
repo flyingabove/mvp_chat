@@ -4,14 +4,17 @@ Performed February 2026. Full read of all Python files under:
   backend/app/api/, backend/app/engine/, backend/app/config/,
   backend/app/knowledge/, scripts/scorer/story_agent_ui.py
 
+STATUS: All 13 bugs (BUG-01 through BUG-13) have been FIXED as of February 2026.
+Tests added to cover each fix. 255 tests pass.
+
 Bugs are ordered by severity: HIGH → MEDIUM → LOW.
-Each entry includes: file:line, description, impact, correct behavior.
+Each entry includes: file:line, description, impact, correct behavior, fix.
 
 ================================================================================
 HIGH SEVERITY
 ================================================================================
 
-BUG-01 · add_transient_entry ignores all parameters except text
+BUG-01 · add_transient_entry ignores all parameters except text  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/engine/state.py:239–255
 
@@ -43,7 +46,7 @@ Correct behavior:
     self.transient_entries.append(TransientKnowledge(text=text.strip(), turns_remaining=turns_remaining))
 
 
-BUG-02 · clear_location_transient_entries is a no-op
+BUG-02 · clear_location_transient_entries is a no-op  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/engine/state.py:264–265
 
@@ -80,7 +83,7 @@ Correct behavior:
 MEDIUM SEVERITY
 ================================================================================
 
-BUG-03 · STATE tag regex fails silently on nested JSON objects
+BUG-03 · STATE tag regex fails silently on nested JSON objects  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/engine/state.py:328–345
 
@@ -110,7 +113,7 @@ Correct behavior:
   Then let json.loads() validate the captured content.
 
 
-BUG-04 · __character_location_marker__ entries written but never read
+BUG-04 · __character_location_marker__ entries written but never read  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/api/prompt_engine.py:391–410
 
@@ -136,7 +139,7 @@ Correct behavior:
   b) Or document clearly that these are debug-only markers and have no logic effect.
 
 
-BUG-05 · FAISS score filtering uses O(n²) list membership
+BUG-05 · FAISS score filtering uses O(n²) list membership  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/knowledge/runtime/retrieve.py:61–65
 
@@ -163,7 +166,7 @@ Correct behavior:
             faiss_scores_filtered.append(float(score))
 
 
-BUG-06 · manifest_mode uses location string for matching, not location_id
+BUG-06 · manifest_mode uses location string for matching, not location_id  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/engine/gameplay.py:23–47
 
@@ -190,7 +193,7 @@ Correct behavior:
   location IDs.
 
 
-BUG-07 · Belief claims hard-capped at 10 without any warning
+BUG-07 · Belief claims hard-capped at 10 without any warning  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/engine/prompt_builder.py (belief injection section)
 
@@ -217,7 +220,7 @@ Correct behavior:
     for claim in claims_list[:10]:
 
 
-BUG-08 · Silent exception in epistemic seeding drops canonical facts without notice
+BUG-08 · Silent exception in epistemic seeding drops canonical facts without notice  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/api/prompt_engine.py (inside _seed_epistemic_from_story)
 
@@ -243,7 +246,7 @@ Correct behavior:
 LOW SEVERITY
 ================================================================================
 
-BUG-09 · _certainty_word silently returns "mixed" for unexpected float values
+BUG-09 · _certainty_word silently returns "mixed" for unexpected float values  [NOT A BUG]
 ------------------------------------------------------------------------
 File: backend/app/engine/prompt_builder.py (_certainty_word function)
 
@@ -264,7 +267,7 @@ Correct behavior:
   values between 0.0 and 1.0 are present in the dict.
 
 
-BUG-10 · GameState.character_locations can contain empty-string location values
+BUG-10 · GameState.character_locations can contain empty-string location values  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/api/prompt_engine.py (character_locations seeding)
 
@@ -292,7 +295,7 @@ Correct behavior:
     return {k: v for k, v in runtime_locs.items() if k and v}
 
 
-BUG-11 · advance_time advances world_clock even if world clock doesn't track dialog time
+BUG-11 · advance_time advances world_clock even if world clock doesn't track dialog time  [FIXED - doc comment added]
 ------------------------------------------------------------------------
 File: backend/app/engine/gameplay.py:67–71
 
@@ -327,7 +330,7 @@ Correct behavior:
   on resolver side effects.
 
 
-BUG-12 · _relationship_role_prose: character role "npc" falls through to generic message
+BUG-12 · _relationship_role_prose: character role "npc" falls through to generic message  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/engine/prompt_builder.py (_relationship_role_prose)
 
@@ -348,7 +351,7 @@ Correct behavior:
         return "This is a general relationship with no specific role defined."
 
 
-BUG-13 · Story loader silently mutates first character's is_main flag
+BUG-13 · Story loader silently mutates first character's is_main flag  [FIXED]
 ------------------------------------------------------------------------
 File: backend/app/engine/story_loader.py (character finalization)
 

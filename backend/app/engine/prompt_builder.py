@@ -357,7 +357,15 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
         beliefs = getattr(state, "beliefs", {}) or {}
         bs = beliefs.get(state.main_character_id or "")
         if bs:
-            for claim in (getattr(bs, "claims", []) or [])[:10]:
+            claims_list = getattr(bs, "claims", []) or []
+            if len(claims_list) > 10:
+                _jlog({
+                    "kind": "belief_claims_truncated",
+                    "character": state.main_character_id,
+                    "total": len(claims_list),
+                    "injected": 10,
+                })
+            for claim in claims_list[:10]:
                 text = (getattr(claim, "content", "") or "").strip()
                 if not text:
                     continue
@@ -616,6 +624,8 @@ def _relationship_role_prose(edge_type: str) -> str:
         return "This is a suspect relationship, so caution, leverage, and defensive framing dominate."
     if token == "witness":
         return "This is a witness relationship, so credibility and selective disclosure matter."
+    if token in ("npc", "character", "other", ""):
+        return "This is a general acquaintance relationship with no specific role dynamic."
     return f"The relationship type is {token}."
 
 
