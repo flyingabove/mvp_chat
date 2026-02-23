@@ -1259,6 +1259,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
   .layer-tag.details { background: #a29bfe20; color: #dfe6e9; }
   .layer-tag.truth { background: #d6336c20; color: #f06595; }
   .layer-tag.hint { background: #fdcb6e20; color: #fdcb6e; }
+  .layer-tag.transient { background: #00cec920; color: #81ecec; }
 
   /* Scrollbar styling for modal */
   .context-modal-body::-webkit-scrollbar,
@@ -2310,6 +2311,18 @@ HTML_PAGE = r"""<!DOCTYPE html>
     if (pd.truth_mode != null) gameLines.push('Truth:     ' + (pd.truth_mode ? 'ON' : 'OFF'));
     if (pd.trimmed_history != null) gameLines.push('History:   ' + pd.trimmed_history + ' turns');
     if (gameLines.length) sections.push({title: 'Game State', content: gameLines.join('\n'), open: true});
+
+    // 1b. Transient Buffer
+    const transientEntries = db.transient_entries || [];
+    if (transientEntries.length) {
+      const transientLines = transientEntries.map(function(e, i) {
+        const ttl = 'TTL:' + (e.turns_remaining != null ? e.turns_remaining : '?');
+        return '[' + (i + 1) + '] ' + ttl + '  ' + String(e.text || '');
+      });
+      sections.push({title: 'Transient Buffer (' + transientEntries.length + ' entries)', content: transientLines.join('\n'), open: false, tag: 'transient'});
+    } else if (db.transient_count != null && db.transient_count > 0) {
+      sections.push({title: 'Transient Buffer', content: '(' + db.transient_count + ' entries — no detail available)', open: false, tag: 'transient'});
+    }
 
     // 2. Player Input
     if (playerMsg) {

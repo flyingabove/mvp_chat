@@ -1,6 +1,6 @@
 
 def test_authoring_checklist_structure():
-    from backend.app.knowledge.authoring_checklist import AUTHORING_CHECKLIST
+    from backend.app.engine.authoring_checklist import AUTHORING_CHECKLIST
 
     assert isinstance(AUTHORING_CHECKLIST, list)
     assert len(AUTHORING_CHECKLIST) >= 3

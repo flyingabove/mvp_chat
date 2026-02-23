@@ -1522,12 +1522,17 @@ async def chat_handler(data: dict):
         user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
         speakers = _debug_speakers(state)
 
+        raw_entries = getattr(state, "transient_entries", []) or []
         debug_box = {
             "timestamp": ts,
             "location": user_loc,
             "location_uuid": getattr(state, "location_uuid", ""),
             "speakers": speakers if speakers else None,
-            "transient_count": len(getattr(state, "transient_entries", []) or []),
+            "transient_count": len(raw_entries),
+            "transient_entries": [
+                {"text": e.text, "turns_remaining": e.turns_remaining}
+                for e in raw_entries
+            ],
         }
 
     # Apply Chinese translation if chinese_mode is enabled

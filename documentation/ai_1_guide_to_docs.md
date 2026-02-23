@@ -44,6 +44,8 @@ assembled LLM prompt, and dispatches the API call. Its test file mirrors the pat
 ### Story authoring/content tasks
 - [documentation/ai_learnings_mistakes/ai_game_structure.txt](documentation/ai_learnings_mistakes/ai_game_structure.txt)
 - [documentation/human_north_star_docs/StoriesChatNorthStar.txt](documentation/human_north_star_docs/StoriesChatNorthStar.txt)
+- Knowledge authoring invariant rules: `backend/app/engine/authoring_checklist.py`
+  (enforced at authoring time — engine never sees rumor-vs-fact labels)
 
 ### Frontend/UI tasks
 - [documentation/ai_learnings_mistakes/ai_ui_workflow.txt](documentation/ai_learnings_mistakes/ai_ui_workflow.txt)
