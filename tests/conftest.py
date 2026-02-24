@@ -36,7 +36,7 @@ import pytest
 # XFAIL POLICY (single explicit quarantine only)
 # ---------------------------------------------------------------------------
 _ALLOWED_XFAIL_NODEIDS = {
-    "tests/backend/integration/test_iu_identity_correction.py::test_iu_identity_correction",
+    "tests/backend/app/api/test_prompt_engine.py::test_iu_identity_correction",
 }
 
 

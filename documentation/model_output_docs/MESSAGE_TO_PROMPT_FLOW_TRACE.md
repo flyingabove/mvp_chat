@@ -1,5 +1,18 @@
 # Message → Prompt Flow Trace (Current Code Path)
 
+## Purpose
+Provide a deterministic, code-aligned trace from incoming user message to outgoing renderer prompt.
+
+## Load When
+- You are debugging prompt assembly.
+- You need to verify where extraction, retrieval, and state mutation happen.
+- You need the exact runtime order for prompt engine changes.
+
+## Canonical Code
+- `backend/app/api/prompt_engine.py`
+- `backend/app/engine/prompt_builder.py`
+- `tests/backend/app/api/test_prompt_engine.py`
+
 This document traces the exact runtime path from one completed LLM response to the next outgoing LLM request.
 
 ## 0) Starting Point: Prior LLM Response Exists

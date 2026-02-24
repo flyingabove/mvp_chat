@@ -1,5 +1,18 @@
 # Integration Test Playback Design (UI + Harness)
 
+## Purpose
+Define a reusable structure for integration scenarios that can run in pytest and playback UI flows.
+
+## Load When
+- You add a new integration scenario.
+- You convert an integration path into deterministic playback.
+- You need scenario metadata/tag standards.
+
+## Canonical Code
+- `backend/app/integration_playback/**`
+- `tests/backend/app/api/test_prompt_engine.py`
+- `tests/backend/app/config/test_epistemic_flags.py`
+
 Goal: All integration tests (chat, extractor-only, cached LLM, live LLM) can be played back in a UI submenu as auto-running dialogues with consistent structure. Tests remain executable via pytest but also expose a uniform, serializable script the UI can consume.
 
 ## Core Concepts
@@ -43,11 +56,11 @@ Delay = lambda ms=400: Step(kind="delay", payload={"ms": ms})
 - UI reads the same registry (import or JSON export) to list scenarios.
 
 ## How existing tests map to scenarios
-- **test_api_play_5_turns_world_time**: Steps are UserMessage(s) for each turn + Assertions on minute/location. LLM calls are mocked (cached deterministic replies). Mode: `cached`.
-- **test_location_extractor_e2e**: Steps include UserMessage with movement text, LLMCall(kind="extractor", mode="live" or `cached` when provided), Assertion on extracted destination. Could provide cached response to allow offline playback.
-- **test_hybrid_retrieval**: SystemAction to load indexes, LLMCall for embedder (live/cached), Assertions on recall thresholds. UI playback can skip heavy compute by using cached results.
-- **test_epistemic_state_iu_flow**: Cached (no API). Steps are SystemAction(init), multiple UserMessage/LLMCall pairs if we later add extractor/renderer, Assertions on epistemic log state.
-- **knowledge-resolution flow (new)**: UserMessage + renderer LLMCall + post-reply knowledge extractor LLMCall + Assertions on:
+- **test_prompt_engine** (canonical path): includes multi-turn API flow checks (time/location movement and scene context) with deterministic mocks.
+- **test_location_extractor** (canonical path): movement extraction assertions with live/cached behavior options.
+- **test_hybrid** (canonical path): hybrid retrieval assertions and score behavior checks.
+- **test_epistemic_flags** (canonical path): layer toggle behavior and gating assertions.
+- **knowledge-resolution flow (single-call extractor)**: UserMessage + renderer LLMCall with turn extractor output carrying knowledge updates + Assertions on:
   - belief graph claim upsert (`kr::<speaker>::<chunk_id>`),
   - transient knowledge object existence,
   - 8-turn TTL expiration behavior.
@@ -75,8 +88,8 @@ Delay = lambda ms=400: Step(kind="delay", payload={"ms": ms})
 - Provide a script to refresh caches (opt-in) with live calls; not used in CI.
 
 ## Storage/Paths
-- Registry lives in `tests/backend/integration/scenario_registry.py`.
-- Cached payloads can be embedded inline in the scenario or stored under `tests/backend/integration/cached/{scenario_id}/step_{n}.json` and referenced.
+- Registry should live under canonical playback modules (for example `backend/app/integration_playback/**`).
+- Cached payloads can be embedded inline in scenario objects or stored under a canonical playback cache path (for example `backend/app/integration_playback/cached/{scenario_id}/step_{n}.json`).
 
 ## Implementation Plan (incremental)
 1) Add Scenario/Step classes + registry file; add authoring helpers.

@@ -550,7 +550,7 @@ def _upsert_belief_claim_for_resolution(
         existing.maybe_known_by = []
 
 
-def _apply_knowledge_resolution_updates(
+def apply_knowledge_resolution_updates(
     *,
     state: GameState,
     updates: list[TurnKnowledgeResolution],
@@ -1444,7 +1444,7 @@ async def chat_handler(data: dict):
                 },
             )
 
-            knowledge_resolution_updates = _apply_knowledge_resolution_updates(
+            knowledge_resolution_updates = apply_knowledge_resolution_updates(
                 state=state,
                 updates=extraction.knowledge_updates,
                 candidate_chunks=previous_candidate_chunks,

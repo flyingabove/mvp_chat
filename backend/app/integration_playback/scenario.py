@@ -171,6 +171,10 @@ class IntegrationScenario(ABC):
     def run_as_test(cls) -> None:
         """Run this scenario through the playback runner and assert all steps pass."""
         from backend.app.integration_playback.runner import run_scenario
+        from backend.app.integration_playback.scenario_registry import list_scenarios, register_scenario
+
+        if cls.scenario_id not in list_scenarios():
+            register_scenario(_build_scenario_from_class(cls))
 
         # Ensure API key presence (prefers env var, falls back to .env.test when available)
         cls._ensure_openai_api_key()

@@ -1,5 +1,18 @@
 # Single-Call Turn Extractor Design (Canonical)
 
+## Purpose
+Lock extractor architecture to one LLM extractor call per regular turn.
+
+## Load When
+- You are changing extraction behavior.
+- You are investigating extraction latency/cost.
+- You are validating extractor JSON parse/validation behavior.
+
+## Canonical Code
+- `backend/app/engine/extractors/turn_extractor.py`
+- `backend/app/api/prompt_engine.py`
+- `tests/backend/app/api/test_prompt_engine.py`
+
 ## Goal
 Guarantee **exactly one extractor LLM call per regular turn** in the prompt engine, with strict JSON output that is easy to parse and validate.
 
