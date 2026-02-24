@@ -1,14 +1,14 @@
 Documentation map (single AI index)
 
-Use this file as the only doc index: `documentation/ai_1_guide_to_docs.md`.
+Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 
 ## Fast routing by task
 
 ### Safety/process first (read before coding)
-- [documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt](documentation/ai_learnings_mistakes/ai_fatal_mistakes.txt)
-- [documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt](documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt)
-- [documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt](documentation/ai_learnings_mistakes/ai_learnings_pushing_code.txt)
-- [documentation/ai_learnings_mistakes/ai_logical_bugs.txt](documentation/ai_learnings_mistakes/ai_logical_bugs.txt)
+- [documentation/ai_learnings_mistakes/AI_FATAL_MISTAKES.md](documentation/ai_learnings_mistakes/AI_FATAL_MISTAKES.md)
+- [documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md](documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md)
+- [documentation/ai_learnings_mistakes/AI_LEARNINGS_PUSHING_CODE.md](documentation/ai_learnings_mistakes/AI_LEARNINGS_PUSHING_CODE.md)
+- [documentation/ai_learnings_mistakes/AI_LOGICAL_BUGS.md](documentation/ai_learnings_mistakes/AI_LOGICAL_BUGS.md)
 
 ### Prompt engine and turn orchestration
 - Source of truth code: `backend/app/api/prompt_engine.py`
@@ -24,18 +24,18 @@ Use this file as the only doc index: `documentation/ai_1_guide_to_docs.md`.
 - [documentation/model_output_docs/LAYER_COVERAGE_MAPPING.md](documentation/model_output_docs/LAYER_COVERAGE_MAPPING.md)
 
 ### Tests and integration playback
-- [documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt](documentation/ai_learnings_mistakes/ai_learnings_running_tests.txt)
-- [documentation/ai_learnings_mistakes/ai_learnings_integration_requirements.txt](documentation/ai_learnings_mistakes/ai_learnings_integration_requirements.txt)
+- [documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md](documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md)
+- [documentation/ai_learnings_mistakes/AI_LEARNINGS_INTEGRATION_REQUIREMENTS.md](documentation/ai_learnings_mistakes/AI_LEARNINGS_INTEGRATION_REQUIREMENTS.md)
 - [documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md](documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md)
 
 ### Story and content authoring
-- [documentation/ai_learnings_mistakes/ai_game_structure.txt](documentation/ai_learnings_mistakes/ai_game_structure.txt)
+- [documentation/ai_learnings_mistakes/AI_GAME_STRUCTURE.md](documentation/ai_learnings_mistakes/AI_GAME_STRUCTURE.md)
 - Authoring invariant code: `backend/app/engine/authoring_checklist.py`
 
 ### UI/scorer/flags
-- [documentation/ai_learnings_mistakes/ai_ui_workflow.txt](documentation/ai_learnings_mistakes/ai_ui_workflow.txt)
-- [documentation/ai_learnings_mistakes/ai_scorer_system.txt](documentation/ai_learnings_mistakes/ai_scorer_system.txt)
-- [documentation/ai_learnings_mistakes/ai_create_new_flag.txt](documentation/ai_learnings_mistakes/ai_create_new_flag.txt)
+- [documentation/ai_learnings_mistakes/AI_UI_WORKFLOW.md](documentation/ai_learnings_mistakes/AI_UI_WORKFLOW.md)
+- [documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md](documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md)
+- [documentation/ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md](documentation/ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md)
 
 ### Coding style standards
 - [documentation/model_output_docs/PYTHON_CODING_STYLE_GUIDE.md](documentation/model_output_docs/PYTHON_CODING_STYLE_GUIDE.md)
@@ -57,12 +57,14 @@ Use this file as the only doc index: `documentation/ai_1_guide_to_docs.md`.
 ### Archive/historical docs
 - [documentation/model_output_docs/ARCHIVE_EPISTEMIC_ENGINE_TODO.md](documentation/model_output_docs/ARCHIVE_EPISTEMIC_ENGINE_TODO.md)
 - [documentation/model_output_docs/ARCHIVE_TODO_REGISTER.md](documentation/model_output_docs/ARCHIVE_TODO_REGISTER.md)
-- [documentation/model_output_docs/old designs/ARCHIVE_EPISTEMIC_REDESIGN.md](documentation/model_output_docs/old%20designs/ARCHIVE_EPISTEMIC_REDESIGN.md)
+- [documentation/model_output_docs/ARCHIVE_EPISTEMIC_REDESIGN.md](documentation/model_output_docs/ARCHIVE_EPISTEMIC_REDESIGN.md)
+- [documentation/model_output_docs/ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md](documentation/model_output_docs/ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md)
+- [documentation/plans_scratch/ARCHIVE_DOC_REWRITE_ENFORCEMENT_2026_02_23.md](documentation/plans_scratch/ARCHIVE_DOC_REWRITE_ENFORCEMENT_2026_02_23.md)
 
 ## Verification ledger
 
 All doc/code mismatches fixed during active work and all open uncertainties are tracked in:
-- [documentation/model_output_docs/errors.txt](documentation/model_output_docs/errors.txt)
+- [documentation/model_output_docs/ERRORS.md](documentation/model_output_docs/ERRORS.md)
 
 ## Read-only human vision docs
 

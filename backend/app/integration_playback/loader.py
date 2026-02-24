@@ -41,13 +41,18 @@ def _import_scenarios(
 
 def ensure_scenarios_loaded() -> None:
     global _loaded
-    force_reload = False
-    if _loaded:
-        from backend.app.integration_playback.scenario_registry import SCENARIOS
+    from backend.app.integration_playback.scenario_registry import SCENARIOS
 
-        if SCENARIOS:
-            return
-        force_reload = True
+    if _loaded and SCENARIOS:
+        return
+
+    # If SCENARIOS is empty and scenario modules were already imported into sys.modules
+    # (e.g. after a test reset via SCENARIOS.clear()), force_reload so module-level
+    # register_scenario() calls and __init_subclass__ hooks fire again.
+    force_reload = not SCENARIOS and any(
+        k.startswith("backend.app.integration_playback.scenarios.")
+        for k in sys.modules
+    )
 
     # Ensure project root is on sys.path so the tests package is importable
     root = Path(__file__).resolve().parents[3]

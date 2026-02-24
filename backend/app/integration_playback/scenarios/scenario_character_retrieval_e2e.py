@@ -12,12 +12,12 @@ def _default_character_id() -> str:
     env = os.getenv("TEST_CHARACTER_ID")
     if env:
         return env
-    base_dir = Path(__file__).resolve().parents[2] / "knowledge" / "base"
-    if base_dir.exists():
-        for child in sorted(base_dir.iterdir()):
+    chars_dir = Path(__file__).resolve().parents[2] / "knowledge" / "characters"
+    if chars_dir.exists():
+        for child in sorted(chars_dir.iterdir()):
             if child.is_dir() and not child.name.startswith("__"):
                 return child.name
-    return "iu"
+    return "1_iu"
 
 
 @dataclass

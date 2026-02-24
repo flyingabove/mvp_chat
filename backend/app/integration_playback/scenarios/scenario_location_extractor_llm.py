@@ -1,3 +1,5 @@
+"""Playback scenario for LocationExtractor real OpenAI calls."""
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
@@ -35,8 +37,11 @@ class LocationExtractorContext:
 
 class LocationExtractorScenario(IntegrationScenario):
     scenario_id = "location_extractor_llm"
-    title = "Location extractor live checks"
-    description = "Runs LocationExtractor against OpenAI for realistic movement phrasing."
+    title = "Location extractor: realistic phrasing against OpenAI"
+    description = (
+        "Runs the LocationExtractor against real OpenAI for a variety of human-sounding movement phrases, including "
+        "a knowledge-guided disambiguation. The assertions are unchanged; only the narration is more natural."
+    )
     tags = ["integration", "extractor", "llm"]
     requires_api_key = True
     player_role = "Player"
@@ -53,73 +58,102 @@ class LocationExtractorScenario(IntegrationScenario):
         self.state = ctx
         if not get_openai_api_key():
             raise RuntimeError("OPENAI_API_KEY is required for playback")
-        return {"reply": "*Spinning up LocationExtractor scenario.*", **self.debug_info()}
+        return {
+            "reply": "*Spinning up the LocationExtractor with a small, easy-to-reason-about world graph.*",
+            **self.debug_info(),
+        }
 
-    async def _extract_expect_move(self, message: str, min_conf: float = 0.7):
+    # -- Helper methods (not steps) --
+
+    async def extract_expect_move(self, message: str, min_conf: float = 0.7):
         res = await self.state.extractor.extract(message, world_graph=self.state.world_graph)
         self.state.last_result = res
         assert res.intent == LocationIntent.MOVE
         assert res.destination_id in self.state.world_graph.locations
         assert res.confidence >= min_conf
-        return self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence})
+        return [
+            self.say_user(message),
+            self.say_llm("Extractor", f"*Move detected -> {res.destination_id}.* Confidence: {res.confidence:.2f}."),
+            self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
+        ]
 
-    async def _extract_expect_none(self, message: str):
+    async def extract_expect_none(self, message: str):
         res = await self.state.extractor.extract(message, world_graph=self.state.world_graph)
         self.state.last_result = res
         assert res.intent == LocationIntent.NONE
         assert res.destination_id is None
-        return self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence})
+        display_msg = message if message.strip() else "(empty)"
+        return [
+            self.say_user(display_msg),
+            self.say_llm("Extractor", "*No movement intent detected — treating as conversation.*"),
+            self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
+        ]
 
-    async def _extract_ambiguous(self, message: str):
+    async def extract_ambiguous(self, message: str):
         res = await self.state.extractor.extract(message, world_graph=self.state.world_graph)
         self.state.last_result = res
         assert res.intent == LocationIntent.MOVE
-        return self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence})
+        assert isinstance(res.destination_id, (str, type(None)))
+        return [
+            self.say_user(message),
+            self.say_llm("Extractor", f"*Movement intent detected, destination ambiguous:* \"{res.destination_id or 'unknown'}\" (conf {res.confidence:.2f})."),
+            self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence}),
+        ]
 
-    async def _extract_with_knowledge(self, message: str):
-        res = await self.state.extractor.extract(message, world_graph=self.state.world_graph, knowledge_chunks=self.state.knowledge_chunks)
+    async def extract_with_knowledge(self, message: str):
+        res = await self.state.extractor.extract(
+            message,
+            world_graph=self.state.world_graph,
+            knowledge_chunks=self.state.knowledge_chunks,
+        )
         self.state.last_result = res
         assert res.intent == LocationIntent.MOVE
         assert res.destination_id in self.state.world_graph.locations
         assert res.confidence >= 0.5
-        return self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence, "knowledge_used": True})
+        return [
+            self.say_user(message),
+            self.say_llm("Extractor", f"*Knowledge-guided routing -> {res.destination_id}.* Confidence: {res.confidence:.2f}."),
+            self.debug_info({"intent": res.intent.value, "destination_id": res.destination_id, "confidence": res.confidence, "knowledge_used": True}),
+        ]
 
-    @step(kind="assert", description="Explicit go-to", uses_llm=True)
+    # -- Steps --
+
+    @step(kind="assert", description="Explicit 'go to' command", uses_llm=True)
     async def explicit_go_to(self):
-        return await self._extract_expect_move("go to office lobby", 0.7)
+        return await self.extract_expect_move("go to office lobby", 0.7)
 
-    @step(kind="assert", description="Natural language", uses_llm=True)
+    @step(kind="assert", description="Natural language movement", uses_llm=True)
     async def natural_language(self):
-        return await self._extract_expect_move("i'm going to the workplace lobby", 0.7)
+        return await self.extract_expect_move("i'm going to the workplace lobby", 0.7)
 
-    @step(kind="assert", description="head-to", uses_llm=True)
+    @step(kind="assert", description="'head to' variant", uses_llm=True)
     async def head_to_variant(self):
-        return await self._extract_expect_move("head to the coffee shop", 0.7)
+        return await self.extract_expect_move("head to the coffee shop", 0.7)
 
     @step(kind="assert", description="Reject question", uses_llm=True)
     async def reject_question(self):
-        return await self._extract_expect_none("can we go to the office?")
+        return await self.extract_expect_none("can we go to the office?")
 
-    @step(kind="assert", description="Reject should-I", uses_llm=True)
+    @step(kind="assert", description="Reject 'should I go'", uses_llm=True)
     async def reject_should_i(self):
-        return await self._extract_expect_none("should I head to the apartment?")
+        return await self.extract_expect_none("should I head to the apartment?")
 
     @step(kind="assert", description="Ambiguous extraction", uses_llm=True)
     async def ambiguous(self):
-        return await self._extract_ambiguous("go to office")
+        return await self.extract_ambiguous("go to office")
 
-    @step(kind="assert", description="Long narrative", uses_llm=True)
+    @step(kind="assert", description="Long narrative movement", uses_llm=True)
     async def long_narrative(self):
-        return await self._extract_expect_move("actually I'm going to your workplace see you in a bit", 0.7)
+        return await self.extract_expect_move("actually I'm going to your workplace see you in a bit", 0.7)
 
-    @step(kind="assert", description="Whitespace input", uses_llm=True)
+    @step(kind="assert", description="Handle empty/whitespace", uses_llm=True)
     async def empty_input(self):
-        return await self._extract_expect_none("")
+        return await self.extract_expect_none("")
 
-    @step(kind="assert", description="move-to variant", uses_llm=True)
+    @step(kind="assert", description="'move to' variant", uses_llm=True)
     async def move_to_variant(self):
-        return await self._extract_expect_move("move to conference room", 0.0)
+        return await self.extract_expect_move("move to conference room", 0.0)
 
-    @step(kind="assert", description="Knowledge disambiguation", uses_llm=True)
+    @step(kind="assert", description="Disambiguate with knowledge", uses_llm=True)
     async def disambiguate_with_knowledge(self):
-        return await self._extract_with_knowledge("I'm going to IU's old workplace")
+        return await self.extract_with_knowledge("I'm going to IU's old workplace")

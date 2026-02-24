@@ -5,6 +5,7 @@ from typing import Any
 
 from backend.app.config.epistemic_flags import narrative_enabled
 from backend.app.integration_playback.scenario_registry import get_scenario
+from backend.app.integration_playback.loader import ensure_scenarios_loaded
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +339,7 @@ def _strip_state(fn_result: Any) -> Any:
 
 
 def run_scenario(scenario_id: str, live: bool = True, debug: bool = False):
+    ensure_scenarios_loaded()
     runner = ScenarioRunner(live=live, debug=debug)
     # In test/CLI contexts there may be no running loop; use asyncio.run.
     result = asyncio.run(runner.run_async(scenario_id))
@@ -345,6 +347,7 @@ def run_scenario(scenario_id: str, live: bool = True, debug: bool = False):
 
 
 async def run_scenario_async(scenario_id: str, live: bool = True, debug: bool = False):
+    ensure_scenarios_loaded()
     runner = ScenarioRunner(live=live, debug=debug)
     result = await runner.run_async(scenario_id)
     return {"result": result, "log": runner.log}

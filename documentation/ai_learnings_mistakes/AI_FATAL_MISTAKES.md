@@ -61,7 +61,7 @@ MITIGATIONS ADDED:
      This is a last-resort safety net — it does NOT prevent bugs, but it
      ensures users see an error message instead of a blank page.
 
-  2. Documentation: ai_learnings_pushing_code.txt was created with rules
+  2. Documentation: AI_LEARNINGS_PUSHING_CODE.md was created with rules
      for AI to follow when editing single-file frontends:
      - Always check for orphaned statements after function refactors
      - Verify nothing sits between function definitions that doesn't

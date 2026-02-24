@@ -132,7 +132,7 @@ Other commands are caught by isCommand() in handleName/handleGender
 and forwarded to the backend via send().
 
 COMMAND_PATTERNS array must stay in sync with backend token detection.
-See documentation/ai_learnings_mistakes/ai_create_new_flag.txt.
+See documentation/ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md.
 
 ────────────────────────────────────────
 RENDERING PIPELINE (markdown)
@@ -190,7 +190,7 @@ Two layers:
 
 Both exist because a previous incident left ~80 lines of orphaned code
 outside any function scope, which killed the entire script and produced
-a blank page with no error visible. See ai_fatal_mistakes.txt.
+a blank page with no error visible. See AI_FATAL_MISTAKES.md.
 
 ────────────────────────────────────────
 API ENDPOINTS

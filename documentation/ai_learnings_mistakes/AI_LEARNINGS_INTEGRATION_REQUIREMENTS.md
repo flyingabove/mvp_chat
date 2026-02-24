@@ -20,7 +20,7 @@ Technical requirements (numbered)
       - Uses .env.test OPENAI_API_KEY.
    3. Unit-only: python -m pytest -m "not integration" -r s
       - No API key needed.
-   - Use the vscode get_output_via_markers wrapper if quoting breaks in PowerShell (see ai_learnings_running_tests.txt for exact command forms).
+   - Use the vscode get_output_via_markers wrapper if quoting breaks in PowerShell (see AI_LEARNINGS_RUNNING_TESTS.md for exact command forms).
 
 3) Scenario message formatting
    - Chat outputs must carry a single role tag per message block ([USER] or [LLM]), not per sentence.
