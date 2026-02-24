@@ -11,7 +11,7 @@ This file is historical context only.
 
 ## Current source of truth
 - `documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md`
-- `documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md`
+- `documentation/model_output_docs/ARCHIVE_EPISTEMIC_ENGINE_TODO.md`
 - `documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md`
 
 ## Note

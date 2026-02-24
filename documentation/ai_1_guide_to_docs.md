@@ -55,9 +55,9 @@ Use this file as the only doc index: `documentation/ai_1_guide_to_docs.md`.
 - [documentation/auto_update_docs/ARCHITECTURE_DIAGRAM.mmd](documentation/auto_update_docs/ARCHITECTURE_DIAGRAM.mmd)
 
 ### Archive/historical docs
-- [documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md](documentation/model_output_docs/EPISTEMIC_ENGINE_TODO.md)
-- [documentation/model_output_docs/TODO_REGISTER.md](documentation/model_output_docs/TODO_REGISTER.md)
-- [documentation/model_output_docs/old designs/EPISTEMIC_REDESIGN.md](documentation/model_output_docs/old%20designs/EPISTEMIC_REDESIGN.md)
+- [documentation/model_output_docs/ARCHIVE_EPISTEMIC_ENGINE_TODO.md](documentation/model_output_docs/ARCHIVE_EPISTEMIC_ENGINE_TODO.md)
+- [documentation/model_output_docs/ARCHIVE_TODO_REGISTER.md](documentation/model_output_docs/ARCHIVE_TODO_REGISTER.md)
+- [documentation/model_output_docs/old designs/ARCHIVE_EPISTEMIC_REDESIGN.md](documentation/model_output_docs/old%20designs/ARCHIVE_EPISTEMIC_REDESIGN.md)
 
 ## Verification ledger
 
