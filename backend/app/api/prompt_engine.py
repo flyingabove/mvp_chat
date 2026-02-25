@@ -316,6 +316,7 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "canonical_truth": src.get("canonical_truth") or [],
         "characters": characters,
         "relationships": src.get("relationships") or {},
+        "character_self_knowledge": src.get("character_self_knowledge") or [],
     }
 
 
@@ -324,6 +325,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
     canonical_top_keys = {
         "id", "title", "theme", "instance", "opening", "world", "time", "emotion",
         "goal", "win_detection", "epistemic_seed", "canonical_truth", "characters", "relationships",
+        "character_self_knowledge",  # injected directly into system prompt; not via FAISS
     }
 
     details: list[str] = []

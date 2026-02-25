@@ -698,3 +698,37 @@ def test_relationship_role_prose_known_roles_unchanged():
     assert "employer" in _relationship_role_prose("employer").lower()
     assert "family" in _relationship_role_prose("family").lower()
     assert "romantic" in _relationship_role_prose("lover").lower()
+
+
+def test_character_identity_section_injected_when_present():
+    """character_self_knowledge entries are directly injected as a named section."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "character_self_knowledge": [
+            "You are a ghost.",
+            "You died in this apartment.",
+        ]
+    }
+    st.characters["ghost"] = CharacterState(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### CHARACTER IDENTITY" in sysmsg
+    assert "- You are a ghost." in sysmsg
+    assert "- You died in this apartment." in sysmsg
+    assert "the player must never walk away confused" in sysmsg
+
+
+def test_character_identity_section_absent_when_not_defined():
+    """No CHARACTER IDENTITY section when story_cfg has no character_self_knowledge."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["npc"] = CharacterState(key="npc", name="NPC", role="guard")
+    st.main_character_id = "npc"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### CHARACTER IDENTITY" not in sysmsg

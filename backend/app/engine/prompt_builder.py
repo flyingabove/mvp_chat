@@ -516,6 +516,12 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
                             lines.append(f"{idx}. {it.text} {visibility}")
                         else:
                             lines.append(f"{idx}. {it.text}")
+                if group_key == "focal":
+                    lines.append(
+                        "⚑ If the player's message implies any of the above focal facts are "
+                        "false or belong to a different person, correct this directly and "
+                        "in character — do not silently accept the false premise."
+                    )
         else:
             for idx, it in enumerate(items, 1):
                 if _is_legacy_relationship_telemetry(it.text):
@@ -784,6 +790,34 @@ def _relationship_scene_section(state: GameState) -> str:
     )
 
 
+def _character_identity_section(state) -> str:
+    """
+    Directly injects character_self_knowledge entries as a named system prompt
+    section with explicit first-person behavioral instructions. Always present
+    when the story defines self-knowledge; never FAISS-dependent.
+    """
+    cfg = getattr(state, "story_cfg", {}) or {}
+    entries = cfg.get("character_self_knowledge") or []
+    if not entries:
+        return ""
+
+    lines = [
+        "\n────────────────────────────────────────",
+        "### CHARACTER IDENTITY",
+        "────────────────────────────────────────",
+        "The following are your first-person facts about who you are. "
+        "You own these facts. They are not someone else's story.\n\n"
+        "When the player asks about something described below as if it belongs to a different person: "
+        "your response — narration or dialogue — must make your identity clear. "
+        "You may be emotionally guarded in what you say aloud. "
+        "But the player must never walk away confused about who you are. "
+        "If you cannot bring yourself to say it directly, the narration must show it unmistakably.\n",
+    ]
+    for entry in entries:
+        lines.append(f"- {entry}")
+    return "\n".join(lines) + "\n"
+
+
 def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
     main_char = getattr(state, "main_character", None)
     main_name = (getattr(main_char, "name", "") or "the main character").strip() or "the main character"
@@ -868,6 +902,8 @@ Write compact cinematic paragraphs that blend narration and dialogue. You are no
 
 Spoken lines must appear as **bold quotes** and narration should remain vivid without becoming repetitive. Never break the fourth wall and never end with meta prompts such as "What do you do?" or "What will you say?".
 
+The narrator has access to canonical truth. Even when a character's dialogue is guarded or evasive, the narration does not collude to hide their identity or canonical facts from the player. If a character's identity is relevant to what the player just asked, the narration makes it clear — even if the character's spoken words do not.
+
 ────────────────────────────────────────
 ### AGENCY AND CONTINUITY CONTRACT
 ────────────────────────────────────────
@@ -882,6 +918,8 @@ Characters behave like real people — not like NPCs performing a mystery. A cha
 ────────────────────────────────────────
 The focal character is {char_name}. Current emotional posture is {emotion}.
 """
+
+    character_identity = _character_identity_section(state)
 
     scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)
 
@@ -931,17 +969,21 @@ EXAMPLE (WRONG — do NOT do this):
                 truth_override += f"- {fact}\n"
 
     # Assemble all layers into the final prompt.
+    # character_identity is placed last (before truth_override) so it is the
+    # most recent instruction the LLM sees before processing the user's message.
     full_prompt = (
         base_prompt
         + scene_brief
         + knowledge_stack_section
         + relationship_section
+        + character_identity
         + truth_override
     )
 
     if return_layers:
         layers = {
             "base_prompt": base_prompt,
+            "character_identity": character_identity,
             "scene_brief": scene_brief,
             "knowledge_stack": knowledge_stack_section,
             "knowledge_chunks": knowledge_stack_debug,

@@ -86,14 +86,15 @@ THE CHARACTER'S RESPONSE:
 
 EVALUATION CRITERIA:
 The response PASSES if ANY of the following are true:
-1. The character explicitly states or strongly implies that SHE is the previous tenant.
-2. The character says something like "that was me", "I am the one who...", "I was found...", "I died here", etc.
-3. The character corrects the misconception that the tenant is a separate person.
-4. The character speaks about the tenant's death in the first person.
+1. The character's dialogue explicitly states she is the previous tenant ("that was me", "I died here", "I am the one", etc.).
+2. The narration identifies IU with the previous tenant in any form — including poetic: "her own demise", "her own death", "the memory of her death", "specter of that tenant" + first-person death reference, "she WAS the previous tenant", "the one who died there", etc.
+3. The overall response makes it sufficiently clear to a careful reader that IU experienced that death herself — even if not stated in plain terms.
 
-The response FAILS if:
-1. The character talks about the previous tenant as if they are a different person.
-2. The character confirms the false assumption that IU and the tenant are separate people.
+The response FAILS ONLY if:
+1. Neither dialogue NOR narration gives any indication that IU is connected to the previous tenant's death.
+2. The character explicitly agrees that IU and the previous tenant are two entirely different people.
+
+IMPORTANT: IU may be evasive in dialogue. Grade the FULL response holistically. If a reader would finish reading and understand that IU IS (or very likely is) the previous tenant, it PASSES. "Her own demise" or "the memory of her death" count — they establish IU has a first-person relationship with a death in this apartment.
 
 Answer with EXACTLY one word: TRUE or FALSE'''
 
