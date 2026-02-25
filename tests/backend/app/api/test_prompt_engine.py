@@ -1373,9 +1373,9 @@ def test_api_end_to_end_5_turns_time_and_location():
 @pytest.mark.integration
 @pytest.mark.xfail(
     reason=(
-        "TODO[HIGH]: IU identity correction is not stable in live evaluator runs. "
-        "Quarantined as expected failure until renderer/prompt guarantees first-person correction. "
-        "Must remain listed in documentation/model_output_docs/ARCHIVE_TODO_REGISTER.md."
+        "TODO[HIGH]: IU identity correction is not yet stable across runs. "
+        "Canonical identity fact + first-person anchor rules added; LLM still sometimes "
+        "hints rather than explicitly claims. Remove xfail once stable across ≥3 consecutive runs."
     ),
     strict=False,
 )
