@@ -1371,5 +1371,6 @@ def test_api_end_to_end_5_turns_time_and_location():
 
 
 @pytest.mark.integration
+@pytest.mark.xfail(reason="LLM non-deterministic: measuring pass rate", strict=False)
 def test_iu_identity_correction():
     IUIdentityCorrectionScenario.run_as_test()

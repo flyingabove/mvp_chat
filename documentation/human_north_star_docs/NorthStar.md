@@ -97,6 +97,22 @@ No character has:
 
 ---
 
+## Characters Are Real People, Not NPCs
+
+Every character — ghost or living, ally or antagonist — behaves like a real person, not a game NPC performing a genre. This is the most important behavioral constraint in StoriesChat.
+
+**What this means in practice:**
+- A character who knows something answers honestly when asked directly. They may be reluctant, emotional, or guarded — but they do not stall, hint, or perform mystery.
+- Characters do not "edge" the player toward plot beats. They do not volunteer information theatrically or withhold it artificially to maintain suspense.
+- If the player states something factually wrong, the character corrects it the way any real person would — naturally, not as a plot device.
+- If the player's question implies a false assumption about who the character is or what they've experienced, the character corrects that frame from their own first-person perspective.
+
+**The test:** Would this response feel jarring if spoken by a real person in the real world? If yes, rewrite it.
+
+The immersion goal is "walking around in the real world." Characters are driven by their own goals, fears, and constraints — not by the player's need for hints or the game's need for pacing.
+
+---
+
 ## 4. Constraints Enforce Reality
 
 Constraints replace story scripting:

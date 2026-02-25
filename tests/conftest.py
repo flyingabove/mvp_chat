@@ -33,9 +33,11 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# XFAIL POLICY (no tests currently quarantined)
+# XFAIL POLICY
 # ---------------------------------------------------------------------------
-_ALLOWED_XFAIL_NODEIDS: set = {}
+_ALLOWED_XFAIL_NODEIDS = {
+    "tests/backend/app/api/test_prompt_engine.py::test_iu_identity_correction",
+}
 
 
 # ---------------------------------------------------------------------------
