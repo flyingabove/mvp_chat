@@ -448,10 +448,18 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
     return chunks
 
 
+_CANONICAL_SUBHEADINGS = {
+    "common": "Common knowledge — everyone in this story is aware of the following:",
+    "focal": "Known to the focal character (private or not widely shared):",
+    "others": "Known by others — the focal character does not know this:",
+}
+
+
 def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) -> tuple[str, list[dict]]:
     chunks = _knowledge_chunks_from_state(state, retrieved_chunks)
     characters = getattr(state, "characters", {}) or {}
     active_keys = _scene_presence_keys(state)
+    speaker_id = (getattr(state, "main_character_id", "") or "").strip().lower()
 
     tier_order = [
         "CANONICAL_CORE",
@@ -472,27 +480,65 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
             continue
         heading = _TIER_HEADINGS.get(tier, f"{tier}:")
         lines = [heading]
-        for idx, it in enumerate(items, 1):
-            if _is_legacy_relationship_telemetry(it.text):
-                continue
-            if tier == "SUBJECTIVE_BELIEF":
-                lines.append(_belief_line(it, characters, idx, active_characters=active_keys))
-            else:
-                visibility = _visibility_prose(it, characters, active_characters=active_keys)
-                if visibility:
-                    lines.append(f"{idx}. {it.text} {visibility}")
+
+        if tier == "CANONICAL_CORE":
+            sub_groups: dict[str, list[KnowledgeChunk]] = {"common": [], "focal": [], "others": []}
+            for it in items:
+                if _is_legacy_relationship_telemetry(it.text):
+                    continue
+                if "all_characters" in it.known_by or "all" in it.known_by:
+                    sub_groups["common"].append(it)
+                elif speaker_id and speaker_id in it.known_by:
+                    sub_groups["focal"].append(it)
                 else:
-                    lines.append(f"{idx}. {it.text}")
-            debug_chunks.append({
-                "id": it.id,
-                "tier": it.tier,
-                "source": it.source,
-                "certainty": it.certainty,
-                "text": it.text,
-                "known_by": list(it.known_by),
-                "not_known_by": list(it.not_known_by),
-                "maybe_known_by": list(it.maybe_known_by),
-            })
+                    sub_groups["others"].append(it)
+                debug_chunks.append({
+                    "id": it.id,
+                    "tier": it.tier,
+                    "source": it.source,
+                    "certainty": it.certainty,
+                    "text": it.text,
+                    "known_by": list(it.known_by),
+                    "not_known_by": list(it.not_known_by),
+                    "maybe_known_by": list(it.maybe_known_by),
+                })
+            for group_key in ("common", "focal", "others"):
+                group_items = sub_groups[group_key]
+                if not group_items:
+                    continue
+                lines.append(f"\n{_CANONICAL_SUBHEADINGS[group_key]}")
+                for idx, it in enumerate(group_items, 1):
+                    if group_key == "common":
+                        lines.append(f"{idx}. {it.text}")
+                    else:
+                        visibility = _visibility_prose(it, characters, active_characters=active_keys)
+                        if visibility:
+                            lines.append(f"{idx}. {it.text} {visibility}")
+                        else:
+                            lines.append(f"{idx}. {it.text}")
+        else:
+            for idx, it in enumerate(items, 1):
+                if _is_legacy_relationship_telemetry(it.text):
+                    continue
+                if tier == "SUBJECTIVE_BELIEF":
+                    lines.append(_belief_line(it, characters, idx, active_characters=active_keys))
+                else:
+                    visibility = _visibility_prose(it, characters, active_characters=active_keys)
+                    if visibility:
+                        lines.append(f"{idx}. {it.text} {visibility}")
+                    else:
+                        lines.append(f"{idx}. {it.text}")
+                debug_chunks.append({
+                    "id": it.id,
+                    "tier": it.tier,
+                    "source": it.source,
+                    "certainty": it.certainty,
+                    "text": it.text,
+                    "known_by": list(it.known_by),
+                    "not_known_by": list(it.not_known_by),
+                    "maybe_known_by": list(it.maybe_known_by),
+                })
+
         if len(lines) > 1:
             sections.append("\n".join(lines))
 
@@ -505,14 +551,18 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
         "────────────────────────────────────────\n"
         "The following sections describe what is true in this story and who knows what. "
         "Earlier sections outrank later sections when facts conflict. "
-        "Each fact includes a plain-English note about which characters know it, "
-        "do not know it, or may be partially aware of it.\n\n"
+        "Canonical facts are grouped by epistemic ownership: common knowledge (all characters aware), "
+        "focal-character knowledge (private to the speaker), and third-party knowledge (others know, speaker does not).\n\n"
         "When a fact says a character does not know something, that character must not "
         "state, hint at, or act on that information. "
         "When a fact says everyone knows something, treat it as common knowledge. "
         "When uncertain about whether a character would know a detail not listed here, "
         "hedge naturally instead of asserting certainty. "
         "Never state as fact anything the active speaker does not know.\n\n"
+        "Facts in the focal-character knowledge group are that character's private first-person truth. "
+        "When those facts describe the focal character's own identity, history, or experience, "
+        "the character speaks from within that perspective — they do not describe themselves in "
+        "the third person or treat their own story as someone else's.\n\n"
     )
 
     return preface + "\n\n".join(sections) + "\n", debug_chunks
@@ -805,7 +855,6 @@ def system_prompt(
     disclaimer = "This is a fictional scenario."
 
     emotion = state.emotion or EMOTION_START
-    rel = int(state.relationship if state.relationship is not None else REL_START)
 
     base_prompt = f"""
 You are the narrative scene engine for an interactive story game.
@@ -828,10 +877,12 @@ Maintain factual continuity with canonical truth and graph constraints. If playe
 
 Do not be afraid to correct the user when they have a misunderstanding. If the player states something factually wrong about the story world, a character, an event, or anything else within your knowledge, gently but clearly correct them in-character rather than validating the error.
 
+When the player's question implies that the focal character's own identity, history, status, or experiences belong to a separate unnamed third party, the focal character corrects the frame in first person. This applies whenever the player references something the focal character privately knows about themselves as if it were someone else's story.
+
 ────────────────────────────────────────
 ### FOCAL STATE
 ────────────────────────────────────────
-The focal character is {char_name}. Current emotional posture is {emotion}. Current relationship baseline is {rel}.
+The focal character is {char_name}. Current emotional posture is {emotion}.
 """
 
     scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)

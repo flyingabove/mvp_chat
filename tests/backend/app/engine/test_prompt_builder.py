@@ -211,7 +211,9 @@ def test_prompt_knowledge_stack_renders_visibility_labels():
 
     sysmsg = pb.system_prompt(st)
     assert "EPISTEMIC KNOWLEDGE STACK" in sysmsg
-    assert "Everyone knows this" in sysmsg
+    # common-knowledge facts now appear under the grouped sub-heading rather than
+    # with an inline "Everyone knows this." annotation
+    assert "Common knowledge" in sysmsg
     assert "IU does not yet know" in sysmsg
     assert "Bob may have some awareness" not in sysmsg
 
