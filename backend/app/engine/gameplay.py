@@ -26,12 +26,16 @@ def manifest_mode(state) -> str:
     Works with GameState objects.
 
     Preferred config key (exact match against state.location_id):
-        rules.manifestation.apartment_location_ids: ["iu_apartment_room", ...]
+        rules.manifestation.location_ids: ["home_room", ...]
 
     Legacy fallback (substring match against state.location display name):
-        rules.manifestation.apartment_location_contains: ["apartment", ...]
+        rules.manifestation.location_name_contains: ["home", ...]
 
     If neither key is present, always materializes (safe default for new stories).
+
+    Backward-compatible aliases (deprecated, use generic keys above):
+        rules.manifestation.apartment_location_ids
+        rules.manifestation.apartment_location_contains
     """
 
     # Safe access to story_cfg
@@ -39,7 +43,12 @@ def manifest_mode(state) -> str:
     manifest_cfg = (cfg.get("rules") or {}).get("manifestation") or {}
 
     # Preferred: exact location_id matching (canonical and unambiguous).
-    location_ids = manifest_cfg.get("apartment_location_ids") or []
+    # New generic key takes priority; fall back to deprecated apartment-specific key.
+    location_ids = (
+        manifest_cfg.get("location_ids")
+        or manifest_cfg.get("apartment_location_ids")
+        or []
+    )
     if location_ids:
         loc_id = (getattr(state, "location_id", "") or "").strip().lower()
         if not loc_id:
@@ -49,7 +58,11 @@ def manifest_mode(state) -> str:
 
     # Legacy fallback: substring matching on display name (fragile, kept for
     # backward compatibility with stories that haven't defined location_ids yet).
-    manifest_rules = manifest_cfg.get("apartment_location_contains") or []
+    manifest_rules = (
+        manifest_cfg.get("location_name_contains")
+        or manifest_cfg.get("apartment_location_contains")
+        or []
+    )
     if not manifest_rules:
         return "materialize"
     loc = (getattr(state, "location", "") or "").lower()

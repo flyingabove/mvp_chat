@@ -15,10 +15,10 @@ def test_word_count_and_sanitize_location():
     assert sanitize_location("<b>Room</b>\n\n302") == "Room 302"
 
 
-def test_manifest_mode_defaults_and_inside_apartment():
+def test_manifest_mode_defaults_and_inside_location():
     st = init_state()
-    # With manifestation rules from story config
-    st.story_cfg = {"rules": {"manifestation": {"apartment_location_contains": ["officetel", "studio"]}}}
+    # With manifestation rules from story config (generic key)
+    st.story_cfg = {"rules": {"manifestation": {"location_name_contains": ["officetel", "studio"]}}}
     st.location = "Nonhyeon-dong officetel"
     assert manifest_mode(st) == "materialize"
 
@@ -71,27 +71,51 @@ def test_win_condition_detected_with_config_patterns():
 
 # ─── BUG-06: manifest_mode uses location_id, not display string ─────────────
 
-def test_manifest_mode_uses_location_id_when_apartment_location_ids_defined():
-    """BUG-06: Preferred path uses state.location_id exact match."""
+def test_manifest_mode_uses_location_id_when_location_ids_defined():
+    """Preferred path uses state.location_id exact match."""
     st = init_state()
-    st.story_cfg = {"rules": {"manifestation": {"apartment_location_ids": ["iu_apartment_room"]}}}
-    st.location_id = "iu_apartment_room"
+    st.story_cfg = {"rules": {"manifestation": {"location_ids": ["home_room"]}}}
+    st.location_id = "home_room"
     assert manifest_mode(st) == "materialize"
 
-    st.location_id = "workplace_hallway"
+    st.location_id = "outside_plaza"
     assert manifest_mode(st) == "whisper"
 
 
 def test_manifest_mode_location_id_empty_returns_whisper():
-    """BUG-06: If apartment_location_ids is set but location_id is empty, whisper."""
+    """If location_ids is set but location_id is empty, whisper."""
     st = init_state()
-    st.story_cfg = {"rules": {"manifestation": {"apartment_location_ids": ["iu_apartment_room"]}}}
+    st.story_cfg = {"rules": {"manifestation": {"location_ids": ["home_room"]}}}
     st.location_id = ""
     assert manifest_mode(st) == "whisper"
 
 
 def test_manifest_mode_falls_back_to_display_name_when_no_location_ids():
-    """BUG-06: Legacy apartment_location_contains still works when location_ids absent."""
+    """location_name_contains substring match works when location_ids absent."""
+    st = init_state()
+    st.story_cfg = {"rules": {"manifestation": {"location_name_contains": ["officetel"]}}}
+    st.location = "Nonhyeon-dong officetel"
+    assert manifest_mode(st) == "materialize"
+
+    st.location = "Outside Park"
+    assert manifest_mode(st) == "whisper"
+
+
+# ─── Backward-compat: deprecated apartment_* keys still work ─────────────────
+
+def test_manifest_mode_backward_compat_apartment_location_ids():
+    """Deprecated apartment_location_ids key is still honoured."""
+    st = init_state()
+    st.story_cfg = {"rules": {"manifestation": {"apartment_location_ids": ["legacy_room"]}}}
+    st.location_id = "legacy_room"
+    assert manifest_mode(st) == "materialize"
+
+    st.location_id = "other_room"
+    assert manifest_mode(st) == "whisper"
+
+
+def test_manifest_mode_backward_compat_apartment_location_contains():
+    """Deprecated apartment_location_contains key is still honoured."""
     st = init_state()
     st.story_cfg = {"rules": {"manifestation": {"apartment_location_contains": ["officetel"]}}}
     st.location = "Nonhyeon-dong officetel"

@@ -1361,8 +1361,8 @@ async def chat_handler(data: dict):
 
     # --- KNOWLEDGE RETRIEVAL (must happen BEFORE location extraction) ---
     # This retrieval provides context that helps LocationExtractor disambiguate ambiguous location
-    # references. For example, "I'm going to IU's old workplace" needs FAISS knowledge context to
-    # resolve "old workplace" to the specific location ID (e.g., EDAM entertainment building).
+    # references. For example, "I'm going to her old studio" needs FAISS knowledge context to
+    # resolve "old studio" to the specific location ID (e.g., "downtown_recording_studio").
     try:
         # Route retrieval to the correct character bundle for this story.
         if getattr(state, "knowledge_character_id", ""):

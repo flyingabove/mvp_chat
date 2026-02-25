@@ -74,7 +74,7 @@ class CharacterState:
 
     - key: internal ID, e.g. "main"
     - name: human-friendly name e.g. ("Danny")
-    - role: "ghost", "victim", "suspect", etc.
+    - role: character's story role, e.g. "ally", "antagonist", "neutral"
     - emotion: emotional descriptor ("wary", "cold", "soft")
     - relationship: relationship metric with player
     """

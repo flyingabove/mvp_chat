@@ -727,9 +727,9 @@ def _relationship_role_prose(edge_type: str) -> str:
     if token == "lover":
         return "This is a romantic relationship, so intimacy and emotional volatility are both in play."
     if token == "suspect":
-        return "This is a suspect relationship, so caution, leverage, and defensive framing dominate."
+        return "This is an adversarial or under-scrutiny relationship, so wariness and strategic information control dominate."
     if token == "witness":
-        return "This is a witness relationship, so credibility and selective disclosure matter."
+        return "This is an observer relationship, so credibility, perspective gaps, and selective disclosure matter."
     if token in ("npc", "character", "other", ""):
         return "This is a general acquaintance relationship with no specific role dynamic."
     return f"The relationship type is {token}."
