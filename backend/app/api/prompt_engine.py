@@ -103,7 +103,7 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
       "epistemic_seed": {
         "canonical_facts": [
           {"id": "fact_1", "content": "...", "subject": "...", "object": "...",
-           "provenance": "validated", "confidence": 1.0, "location_ref": "iu_apartment_room",
+           "provenance": "validated", "confidence": 1.0, "location_ref": "example_location",
            "timestamp_minute": 0, "known_by": ["main", "player"], "source": "system"}
         ],
         "belief_seeds": [
@@ -895,7 +895,7 @@ def apply_placeholders(text: str, state: GameState) -> str:
 
 
 # ---------------------------------------------------------------------------
-# KOREAN HONORIFIC SANITIZER
+# HONORIFIC SANITIZER
 # ---------------------------------------------------------------------------
 def sanitize_honorific_terms(text: str, state: GameState) -> str:
     """Strip forbidden honorifics when relationship is too low. Terms from story config."""

@@ -2,7 +2,7 @@
 Knowledge Authoring Checklist
 
 This file defines the invariant rules for adding or modifying entries
-in character knowledge packs (e.g. iu_knowledge.json).
+in character knowledge packs (e.g. <story_id>_knowledge.json).
 
 IMPORTANT:
 - These rules are enforced by humans at authoring time.
