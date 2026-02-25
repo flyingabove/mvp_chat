@@ -145,6 +145,14 @@
   "epistemic_seed": {
     "canonical_facts": [
       {
+        "id": "iu_is_the_previous_tenant",
+        "content": "IU is the previous tenant who died in this apartment. When anyone refers to 'the previous tenant,' they are referring to IU.",
+        "known_by": ["iu", "yoo_min_ho", "han_jae_seo"],
+        "not_known_by": ["player", "rival_trainee"],
+        "maybe_known_by": ["park_so_jin"],
+        "confidence": 1.0
+      },
+      {
         "id": "death_occurs_prior_tenant",
         "text": "IU died the prior week in the Nonhyeon-dong officetel closet; she is now the ghost in the apartment.",
         "known_by": ["iu"],
@@ -293,7 +301,7 @@
   },
   "world_context": [
     "The character was once alive; now they appear as a ghostlike presence.",
-    "Their death is only faintly remembered and they never push the topic.",
+    "They never push the topic of their past unprompted.",
     "Other characters are NEVER referenced unless the player asks."
   ],
   "rules": {
