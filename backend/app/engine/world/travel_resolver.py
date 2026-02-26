@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .clock import WorldClock
-from .exposure import ExposurePacket, ExposureResolver
+from .exposure import ExposureResolver, TravelExposure
 from .graph import WorldGraph
 from .ids import LocationId
 from .travel_rules import TravelRoute, TravelRules
@@ -34,7 +34,7 @@ class TravelResult:
 
     request: TravelRequest
     route: TravelRoute
-    exposure: ExposurePacket
+    exposure: TravelExposure
     start_minute: int
     end_minute: int
 
@@ -82,7 +82,7 @@ class TravelResolver:
         for seg in route.segments:
             self._clock.advance_minutes(seg.edge.minutes)
 
-        # 4) Exposure packet (what the AI is allowed to know)
+        # 4) Exposure (what the AI is allowed to know)
         exposure = self._exposure.roll(intermediate_id=intermediate_id)
 
         end_minute = self._clock.now_minute()
@@ -94,22 +94,14 @@ class TravelResolver:
             end_minute=end_minute,
         )
 
-    def resolve(self, from_id: str, to_id: str):
+    def resolve(self, from_id: str, to_id: str) -> TravelExposure:
         """Compatibility API for unit tests.
 
-        Executes travel from `from_id` to `to_id` and returns a TravelExposure
-        (older naming). New code should prefer `execute(TravelRequest(...))`.
+        Executes travel from `from_id` to `to_id` and returns a TravelExposure.
+        New code should prefer `execute(TravelRequest(...))`.
         """
         result = self.execute(TravelRequest(LocationId(from_id), LocationId(to_id)))
-        # If the exposure is already a TravelExposure (e.g., stubbed in tests),
-        # just return it. Otherwise convert from the canonical ExposurePacket.
-        try:
-            from .exposure import TravelExposure  # local import to avoid cycles
-            if isinstance(result.exposure, TravelExposure):
-                return result.exposure
-            return TravelExposure.from_packet(result.exposure)
-        except Exception:
-            return result.exposure
+        return result.exposure
 
     def current_minute(self) -> int:
         return self._clock.now_minute()

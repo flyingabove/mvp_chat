@@ -11,9 +11,8 @@ Last updated: 2026-02-25
 | Class | File | What it is |
 |---|---|---|
 | `StoryDefinition` | `backend/app/engine/story_loader.py` | Top-level container parsed from the story JSON. Holds characters, relationships, raw config. |
-| `StoryCharacter` | `backend/app/engine/story_loader.py` | One character entry from the story JSON. Static authoring data only (key, name, role, is_main, knowledge_character_id, tags). |
 
-**Note:** `StoryCharacter` is authoring-time data. It gets transformed into `CharacterState` at game start. `self_knowledge` currently lives in `story_cfg["character_self_knowledge"]` (story level), not on the character — this is a known structural gap.
+**Note:** `StoryCharacter` was deleted — it is now an alias for `Character` (see Runtime State below). Authoring-time character data is parsed directly into `Character` objects.
 
 ---
 
@@ -22,10 +21,14 @@ Last updated: 2026-02-25
 | Class | File | What it is |
 |---|---|---|
 | `GameState` | `backend/app/engine/state.py` | The entire session container. Holds all sub-objects below. |
-| `CharacterState` | `backend/app/engine/state.py` | Runtime per-character data: emotion, relationship score, role, uuid. |
+| `Character` | `backend/app/engine/state.py` | Unified character object — authoring identity fields (key, name, role, is_main, is_suspect, knowledge_character_id, uuid, tags, meta, self_knowledge) merged with runtime state (emotion, relationship). Replaces the former StoryCharacter + CharacterState split. |
 | `UserState` | `backend/app/engine/state.py` | The human player as seen in-story: display name, formal name, gender. |
 
 `GameState` is the single object passed through the entire engine. Everything else hangs off it.
+
+**Backward-compat aliases (do not use in new code):**
+- `CharacterState = Character` (in `state.py`)
+- `StoryCharacter = Character` (in `story_loader.py`)
 
 ---
 
@@ -44,16 +47,18 @@ Last updated: 2026-02-25
 
 | Class | File | What it is |
 |---|---|---|
-| `EpistemicEntry` | `backend/app/engine/epistemic_state.py` | Base dataclass for all knowledge records (id, content, known_by, confidence, status). |
-| `EpistemicFact` | `backend/app/engine/epistemic_state.py` | Canonical world truth. Confidence always 1.0. Directly injected into system prompt. |
-| `EpistemicClaim` | `backend/app/engine/epistemic_state.py` | Subjective claim made by a character. Can have variable confidence. |
-| `Observation` | `backend/app/engine/epistemic_state.py` | What a character saw or heard. Same fields as EpistemicEntry. |
-| `BeliefState` | `backend/app/engine/epistemic_state.py` | All claims + observations for one character. |
-| `EpistemicStatus` | `backend/app/engine/epistemic_state.py` | Enum: ASSERTED, CONTESTED, RESOLVED. |
-| `KnowledgeChunk` | `backend/app/engine/knowledge_chunks.py` | Discrete knowledge unit with tier, source, certainty, and known_by visibility rules. Used in the prompt knowledge stack. |
-| `CharacterIndexBundle` | `backend/app/knowledge/contracts/index_bundle.py` | Runtime FAISS + BM25 index for one character's knowledge chunks. |
+| `KnowledgeChunk` | `backend/app/engine/knowledge_chunks.py` | **Universal knowledge unit.** Replaces EpistemicEntry / EpistemicFact / EpistemicClaim / Observation. Fields: id, text, content (alias for text), tier, source, certainty, known_by, not_known_by, maybe_known_by, kind ("fact"/"claim"/"observation"), subject, object, timestamp_minute, location_ref, confidence, provenance, status, resolution. Used by canonical truth, belief layer, and FAISS/BM25 retrieval. |
+| `BeliefState` | `backend/app/engine/epistemic_state.py` | All claims + observations for one character. Both fields are `List[KnowledgeChunk]`. |
+| `EpistemicStatus` | `backend/app/engine/epistemic_state.py` | Enum: ASSERTED, CONTESTED, RESOLVED. Still used for comparison; KnowledgeChunk.status stores matching string values. |
+| `CharacterIndexBundle` | `backend/app/knowledge/contracts/index_bundle.py` | Runtime FAISS + BM25 index for one character's knowledge chunks. `chunks` is still `List[dict]` (raw JSONL dicts); conversion to KnowledgeChunk objects is a future cleanup. |
 
-**Overlap note:** `EpistemicFact`, `EpistemicClaim`, and `Observation` are three subclasses of `EpistemicEntry` with identical fields. They differ only by usage context, not structure.
+**Backward-compat aliases in `epistemic_state.py` (do not use in new code):**
+- `EpistemicEntry = KnowledgeChunk`
+- `EpistemicFact = KnowledgeChunk`
+- `EpistemicClaim = KnowledgeChunk`
+- `Observation = KnowledgeChunk`
+
+Use `kind="fact"`, `kind="claim"`, `kind="observation"` on `KnowledgeChunk` to distinguish.
 
 ---
 
@@ -78,15 +83,12 @@ Last updated: 2026-02-25
 | `TravelSegment` | `backend/app/engine/world/travel_rules.py` | One hop in a route (wraps a PathEdge). |
 | `TravelRules` | `backend/app/engine/world/travel_rules.py` | Seeded, deterministic route selection logic. |
 | `TravelRequest` | `backend/app/engine/world/travel_resolver.py` | A travel intent: from_id + to_id. |
-| `TravelResult` | `backend/app/engine/world/travel_resolver.py` | Result of executing travel: route, exposure, start/end minutes. |
+| `TravelResult` | `backend/app/engine/world/travel_resolver.py` | Result of executing travel: route, exposure (TravelExposure), start/end minutes. |
 | `TravelTiming` | `backend/app/engine/world/travel_resolver.py` | Timing parameters (e.g., exit_minutes). |
 | `TravelResolver` | `backend/app/engine/world/travel_resolver.py` | Executes travel, advances world clock. |
-| `TravelExposure` | `backend/app/engine/world/exposure.py` | Backward-compat exposure shape (exit_event, pass_intermediate, enter_event, etc.). |
-| `ExposurePacket` | `backend/app/engine/world/exposure.py` | Internal v2 exposure packet. `TravelExposure` wraps this. |
+| `TravelExposure` | `backend/app/engine/world/exposure.py` | What the AI is allowed to know about a travel event: exit_event, pass_intermediate, event_at_intermediate, enter_event, describe_destination, intermediate_id. Single exposure class (ExposurePacket was deleted). |
 | `ExposureConfig` | `backend/app/engine/world/exposure.py` | Probability slots for travel exposure events. |
-| `ExposureResolver` | `backend/app/engine/world/exposure.py` | Rolls exposure events according to probability config. |
-
-**Overlap note:** `TravelExposure` exists only for backward compat with `ExposurePacket`. They represent the same data.
+| `ExposureResolver` | `backend/app/engine/world/exposure.py` | Rolls exposure events according to probability config. Returns TravelExposure directly. |
 
 ---
 
@@ -165,8 +167,5 @@ Last updated: 2026-02-25
 
 | Issue | Current state | Better state |
 |---|---|---|
-| `character_self_knowledge` at story level | `story_cfg["character_self_knowledge"]` — flat list on the story, not the character | Move to `StoryCharacter.self_knowledge` → `CharacterState.self_knowledge` |
-| `EpistemicFact` / `EpistemicClaim` / `Observation` | Three subclasses with identical fields, differentiated only by usage | Could be one class with a `kind` enum |
-| `TravelExposure` / `ExposurePacket` | Two classes for the same data shape | `TravelExposure` exists only for backward compat; can be deleted once callers are updated |
-| `WorldLoadResult` | A bag of disparate objects returned by the loader | Not a real domain object; could just be a named tuple or eliminated |
-| `StoryCharacter` vs `CharacterState` | Authoring-time vs runtime split is correct, but no explicit migration path | Add explicit `CharacterState.from_story_character()` factory |
+| `CharacterIndexBundle.chunks` | `List[dict]` — raw JSONL dicts loaded from disk | Convert to `List[KnowledgeChunk]` at load time; update all retrieval callers |
+| `EpistemicStatus` enum vs string `status` field | `KnowledgeChunk.status` is a plain string; `EpistemicStatus` enum is still used for comparison | Eventually make `KnowledgeChunk.status` typed as `EpistemicStatus` or remove the enum |

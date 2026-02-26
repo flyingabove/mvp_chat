@@ -5,72 +5,12 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from backend.app.engine.character_graph import CharacterGraph
+from backend.app.engine.state import Character
 from backend.app.utils.logging_utils import jlog
 
 
-@dataclass
-class StoryCharacter:
-    key: str
-    name: str
-    role: str = ""
-    is_main: bool = False
-    is_suspect: bool = False
-    knowledge_character_id: str = ""
-    uuid: str = ""
-    tags: List[str] = field(default_factory=list)
-    meta: Dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StoryCharacter":
-        data = data or {}
-        key = str(data.get("key") or data.get("id") or data.get("name") or "character").strip() or "character"
-        name = str(data.get("name") or key).strip() or key
-        role = str(data.get("role") or "").strip()
-        is_main = bool(data.get("is_main"))
-        is_suspect = bool(data.get("is_suspect") or data.get("suspect"))
-        knowledge_character_id = str(data.get("knowledge_character_id") or "").strip()
-        uuid = str(data.get("uuid") or "").strip()
-        tags = list(data.get("tags") or [])
-
-        # Preserve any extra attributes for forward-compatibility.
-        known_keys = {
-            "key",
-            "id",
-            "name",
-            "role",
-            "is_main",
-            "is_suspect",
-            "suspect",
-            "knowledge_character_id",
-            "uuid",
-            "tags",
-        }
-        meta = {k: v for k, v in data.items() if k not in known_keys}
-
-        return cls(
-            key=key,
-            name=name,
-            role=role,
-            is_main=is_main,
-            is_suspect=is_suspect,
-            knowledge_character_id=knowledge_character_id,
-            uuid=uuid,
-            tags=tags,
-            meta=meta,
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "key": self.key,
-            "name": self.name,
-            "role": self.role,
-            "is_main": self.is_main,
-            "is_suspect": self.is_suspect,
-            "knowledge_character_id": self.knowledge_character_id,
-            "uuid": self.uuid,
-            "tags": self.tags,
-            **(self.meta or {}),
-        }
+# Backward-compat alias — external code that imports StoryCharacter still works.
+StoryCharacter = Character
 
 
 @dataclass
@@ -80,7 +20,7 @@ class StoryDefinition:
     title: str = ""
     theme: str = ""
     instance: int = 1
-    characters: List[StoryCharacter] = field(default_factory=list)
+    characters: List[Character] = field(default_factory=list)
     relationships: Optional[CharacterGraph] = None
 
     @classmethod
@@ -94,10 +34,10 @@ class StoryDefinition:
         except Exception:
             instance = 1
 
-        characters: List[StoryCharacter] = []
+        characters: List[Character] = []
         for c in data.get("characters") or []:
             try:
-                characters.append(StoryCharacter.from_dict(c))
+                characters.append(Character.from_dict(c))
             except Exception:
                 continue
 
@@ -108,7 +48,7 @@ class StoryDefinition:
                 main_cfg = dict(main_cfg)
                 main_cfg.setdefault("is_main", True)
                 try:
-                    characters.append(StoryCharacter.from_dict(main_cfg))
+                    characters.append(Character.from_dict(main_cfg))
                 except Exception:
                     pass
 
@@ -116,7 +56,7 @@ class StoryDefinition:
                 sus_cfg = dict(sus)
                 sus_cfg.setdefault("is_suspect", True)
                 try:
-                    characters.append(StoryCharacter.from_dict(sus_cfg))
+                    characters.append(Character.from_dict(sus_cfg))
                 except Exception:
                     continue
 
@@ -175,14 +115,14 @@ class StoryDefinition:
         return bool(self.raw)
 
     @property
-    def main_character(self) -> Optional[StoryCharacter]:
+    def main_character(self) -> Optional[Character]:
         for c in self.characters:
             if c.is_main:
                 return c
         return self.characters[0] if self.characters else None
 
     @property
-    def suspects(self) -> List[StoryCharacter]:
+    def suspects(self) -> List[Character]:
         return [c for c in self.characters if c.is_suspect]
 
     @property

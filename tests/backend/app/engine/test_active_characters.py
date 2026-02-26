@@ -9,16 +9,16 @@ from backend.app.engine.active_characters import (
     get_on_call_character_keys,
     get_location_speaker_keys,
 )
-from backend.app.engine.state import CharacterState, GameState
+from backend.app.engine.state import Character, GameState
 
 
 def _make_characters():
     return {
-        "iu": CharacterState(key="iu", name="IU", role="ghost"),
-        "yoo_min_ho": CharacterState(key="yoo_min_ho", name="Yoo Min-ho", role="manager"),
-        "han_jae_seo": CharacterState(key="han_jae_seo", name="Han Jae-seo", role="ceo"),
-        "park_so_jin": CharacterState(key="park_so_jin", name="Park So-jin", role="friend"),
-        "rival_trainee": CharacterState(key="rival_trainee", name="Unnamed Rival Trainee", role="other"),
+        "iu": Character(key="iu", name="IU", role="ghost"),
+        "yoo_min_ho": Character(key="yoo_min_ho", name="Yoo Min-ho", role="manager"),
+        "han_jae_seo": Character(key="han_jae_seo", name="Han Jae-seo", role="ceo"),
+        "park_so_jin": Character(key="park_so_jin", name="Park So-jin", role="friend"),
+        "rival_trainee": Character(key="rival_trainee", name="Unnamed Rival Trainee", role="other"),
     }
 
 
@@ -69,7 +69,7 @@ def test_short_name_exact_match():
 def test_short_token_no_false_positive():
     """Tokens under 3 chars should not cause false positives."""
     chars = {
-        "li_na": CharacterState(key="li_na", name="Li Na", role="npc"),
+        "li_na": Character(key="li_na", name="Li Na", role="npc"),
     }
     # "li" is 2 chars, should NOT match "earlier" via token matching
     result = detect_mentioned_characters("I came here earlier today", chars, "main")
@@ -105,7 +105,7 @@ def test_location_speakers_maps_name_to_key():
     state = GameState()
     state.location_id = "room_a"
     state.characters = {
-        "steve": CharacterState(key="steve", name="Steve", role="suspect"),
+        "steve": Character(key="steve", name="Steve", role="suspect"),
     }
     state.story_cfg = {
         "world": {"location_speakers": {"room_a": "Steve"}},
@@ -118,8 +118,8 @@ def test_location_speakers_list_format():
     state = GameState()
     state.location_id = "room_b"
     state.characters = {
-        "alice": CharacterState(key="alice", name="Alice", role="npc"),
-        "bob": CharacterState(key="bob", name="Bob", role="npc"),
+        "alice": Character(key="alice", name="Alice", role="npc"),
+        "bob": Character(key="bob", name="Bob", role="npc"),
     }
     state.story_cfg = {
         "world": {"location_speakers": {"room_b": ["Alice", "Bob"]}},
@@ -145,8 +145,8 @@ def test_location_speakers_no_story_cfg():
 def test_character_location_index_maps_all_bindings():
     state = GameState()
     state.characters = {
-        "iu": CharacterState(key="iu", name="IU", role="ghost"),
-        "han_jae_seo": CharacterState(key="han_jae_seo", name="Han Jae-seo", role="ceo"),
+        "iu": Character(key="iu", name="IU", role="ghost"),
+        "han_jae_seo": Character(key="han_jae_seo", name="Han Jae-seo", role="ceo"),
     }
     state.story_cfg = {
         "world": {
@@ -166,8 +166,8 @@ def test_character_location_index_prefers_runtime_state():
     """state.character_locations takes priority over location_speakers in story_cfg."""
     state = GameState()
     state.characters = {
-        "iu": CharacterState(key="iu", name="IU", role="ghost"),
-        "yoo_min_ho": CharacterState(key="yoo_min_ho", name="Yoo Min-ho", role="manager"),
+        "iu": Character(key="iu", name="IU", role="ghost"),
+        "yoo_min_ho": Character(key="yoo_min_ho", name="Yoo Min-ho", role="manager"),
     }
     # Set runtime locations (from character_start_locations seeded at game start)
     state.character_locations = {
@@ -192,7 +192,7 @@ def test_character_location_index_empty_runtime_falls_back_to_location_speakers(
     """When character_locations is empty, fall back to location_speakers."""
     state = GameState()
     state.characters = {
-        "steve": CharacterState(key="steve", name="Steve", role="suspect"),
+        "steve": Character(key="steve", name="Steve", role="suspect"),
     }
     state.character_locations = {}  # empty runtime
     state.story_cfg = {

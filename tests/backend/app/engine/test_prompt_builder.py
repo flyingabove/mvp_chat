@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from backend.app.engine.state import init_state, CharacterState
+from backend.app.engine.state import init_state, Character
 
 
 def test_system_prompt_includes_epistemic_stack(monkeypatch):
@@ -12,7 +12,7 @@ def test_system_prompt_includes_epistemic_stack(monkeypatch):
     st.story_cfg = {
         "meta": {"disclaimer": "fiction"},
     }
-    st.characters["IU"] = CharacterState(key="IU", name="IU", role="ghost")
+    st.characters["IU"] = Character(key="IU", name="IU", role="ghost")
     st.main_character_id = "IU"
 
     memory = pb._format_memory_block([
@@ -32,7 +32,7 @@ def test_build_messages_trims_history_and_adds_header(monkeypatch):
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["IU"] = CharacterState(key="IU", name="IU", role="ghost")
+    st.characters["IU"] = Character(key="IU", name="IU", role="ghost")
     st.main_character_id = "IU"
 
     # Create a long log and ensure prompt_builder trims it.
@@ -63,7 +63,7 @@ def test_prompt_includes_relationship_section():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}, "setting": {}, "victim": {}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [{
@@ -84,7 +84,7 @@ def test_prompt_uses_storyteller_mode_language():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
 
     sysmsg = pb.system_prompt(st, current_user_msg="hello")
@@ -98,8 +98,8 @@ def test_scene_brief_includes_people_present_and_speakers():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.characters["park_so_jin"] = CharacterState(key="park_so_jin", name="Park So-jin", role="producer")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.characters["park_so_jin"] = Character(key="park_so_jin", name="Park So-jin", role="producer")
     st.main_character_id = "iu"
 
     st.add_transient_entry(
@@ -140,7 +140,7 @@ def test_prompt_ignores_story_specific_fields_and_uses_canonical_facts():
         "prompt_suggestions": ["this should not appear"],
         "characters": [{"key": "iu", "name": "IU", "motive": "hidden motive"}],
     }
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.add_canonical_fact(EpistemicFact(id="f1", content="Canonical fact for IU", known_by=["iu"]))
 
@@ -157,7 +157,7 @@ def test_prompt_layers_dict_has_new_keys():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}, "setting": {}, "victim": {}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],
@@ -175,7 +175,7 @@ def test_prompt_labels_canonical_truths_with_known_by_visibility():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
 
     st.add_canonical_fact(EpistemicFact(id="visible", content="IU known fact", known_by=["iu"]))
@@ -193,7 +193,7 @@ def test_prompt_knowledge_stack_renders_visibility_labels():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
 
     st.add_canonical_fact(EpistemicFact(
@@ -229,8 +229,8 @@ def test_prompt_filters_graph_edges_by_active_characters():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.characters["bob"] = CharacterState(key="bob", name="Bob", role="suspect")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.characters["bob"] = Character(key="bob", name="Bob", role="suspect")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [
@@ -264,7 +264,7 @@ def test_prompt_hides_active_character_markers_from_text():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
 
     st.add_transient_entry(
@@ -295,8 +295,8 @@ def test_prompt_filters_character_extras_by_active_set():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.characters["bob"] = CharacterState(key="bob", name="Bob", role="suspect")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.characters["bob"] = Character(key="bob", name="Bob", role="suspect")
     st.main_character_id = "iu"
 
     # Bob extras (should be filtered since bob is not active)
@@ -340,8 +340,8 @@ def test_prompt_backward_compat_no_markers():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.characters["bob"] = CharacterState(key="bob", name="Bob", role="suspect")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.characters["bob"] = Character(key="bob", name="Bob", role="suspect")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [
@@ -365,7 +365,7 @@ def test_prompt_does_not_duplicate_relationship_context_in_knowledge_stack():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],
@@ -385,7 +385,7 @@ def test_prompt_filters_legacy_relationship_telemetry_from_stack():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],
@@ -413,8 +413,8 @@ def test_prompt_hides_offscene_visibility_names_from_epistemic_stack():
         "world": {"location_speakers": {"iu_apartment": ["IU"]}},
     }
     st.location_id = "iu_apartment"
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.characters["han_jae_seo"] = CharacterState(key="han_jae_seo", name="Han Jae-seo", role="ceo")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.characters["han_jae_seo"] = Character(key="han_jae_seo", name="Han Jae-seo", role="ceo")
     st.main_character_id = "iu"
 
     st.add_canonical_fact(EpistemicFact(
@@ -445,7 +445,7 @@ def test_prompt_world_context_uses_natural_place_prose():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.location_id = "iu_apartment"
     st.world_runtime = _RT()
@@ -461,8 +461,8 @@ def test_relationship_section_uses_natural_prose_and_role_details():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.characters["han_jae_seo"] = CharacterState(key="han_jae_seo", name="Han Jae-seo", role="ceo")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.characters["han_jae_seo"] = Character(key="han_jae_seo", name="Han Jae-seo", role="ceo")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [
@@ -517,7 +517,7 @@ def test_visibility_prose_single_knower():
         id="t1", text="x", tier="t", source="s", certainty="c",
         known_by=["iu"],
     )
-    chars = {"iu": CharacterState(key="iu", name="IU")}
+    chars = {"iu": Character(key="iu", name="IU")}
     assert _visibility_prose(chunk, chars) == "Currently only IU knows this."
 
 
@@ -532,9 +532,9 @@ def test_visibility_prose_known_and_not_known():
         maybe_known_by=["han_jae_seo", "park_so_jin"],
     )
     chars = {
-        "iu": CharacterState(key="iu", name="IU"),
-        "han_jae_seo": CharacterState(key="han_jae_seo", name="Han Jae-seo"),
-        "park_so_jin": CharacterState(key="park_so_jin", name="Park So-jin"),
+        "iu": Character(key="iu", name="IU"),
+        "han_jae_seo": Character(key="han_jae_seo", name="Han Jae-seo"),
+        "park_so_jin": Character(key="park_so_jin", name="Park So-jin"),
     }
     result = _visibility_prose(chunk, chars)
     assert "IU knows this" in result
@@ -558,7 +558,7 @@ def test_knowledge_stack_uses_numbered_list():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.add_canonical_fact(EpistemicFact(id="f1", content="Fact one", known_by=["iu"]))
     st.add_canonical_fact(EpistemicFact(id="f2", content="Fact two", known_by=["all_characters"]))
@@ -575,7 +575,7 @@ def test_debug_chunks_structure_unchanged():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.add_canonical_fact(EpistemicFact(
         id="f1", content="Test fact",
@@ -621,7 +621,7 @@ def test_belief_section_includes_certainty_words_before_fact_text():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
 
     bs = BeliefState(character_id="iu")
@@ -644,8 +644,8 @@ def test_belief_section_snapshot_layout_is_stable():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
-    st.characters["player"] = CharacterState(key="player", name="The Player", role="detective")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.characters["player"] = Character(key="player", name="The Player", role="detective")
     st.main_character_id = "iu"
 
     bs = BeliefState(character_id="iu")
@@ -711,7 +711,7 @@ def test_character_identity_section_injected_when_present():
             "You died in this apartment.",
         ]
     }
-    st.characters["ghost"] = CharacterState(key="ghost", name="Ghost", role="ghost")
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
     st.main_character_id = "ghost"
 
     sysmsg = pb.system_prompt(st)
@@ -727,7 +727,7 @@ def test_character_identity_section_absent_when_not_defined():
 
     st = init_state()
     st.story_cfg = {"meta": {"disclaimer": "fiction"}}
-    st.characters["npc"] = CharacterState(key="npc", name="NPC", role="guard")
+    st.characters["npc"] = Character(key="npc", name="NPC", role="guard")
     st.main_character_id = "npc"
 
     sysmsg = pb.system_prompt(st)

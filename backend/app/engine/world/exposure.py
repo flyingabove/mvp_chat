@@ -35,23 +35,10 @@ class ExposureConfig:
 
 
 @dataclass(frozen=True)
-class ExposurePacket:
-    """Canonical v2 exposure packet (internal shape)."""
-
-    exit_event_at_A: bool
-    pass_intermediate_C: bool
-    event_at_C: bool
-    enter_event_at_B: bool
-    describe_B: bool
-    intermediate_id: Optional[LocationId] = None
-
-
-@dataclass(frozen=True)
 class TravelExposure:
-    """Backwards-compatible exposure shape used by older tests/callers.
+    """What the AI is allowed to know about a travel event.
 
-    Tests in this repo (and legacy code) expect these attribute names.
-    TravelResolver.resolve() converts from ExposurePacket to this type.
+    Fields use short, readable names (A = origin, C = intermediate, B = destination).
     """
 
     exit_event: bool
@@ -60,17 +47,6 @@ class TravelExposure:
     enter_event: bool
     describe_destination: bool
     intermediate_id: Optional[LocationId] = None
-
-    @classmethod
-    def from_packet(cls, packet: ExposurePacket) -> "TravelExposure":
-        return cls(
-            exit_event=packet.exit_event_at_A,
-            pass_intermediate=packet.pass_intermediate_C,
-            event_at_intermediate=packet.event_at_C,
-            enter_event=packet.enter_event_at_B,
-            describe_destination=packet.describe_B,
-            intermediate_id=packet.intermediate_id,
-        )
 
 
 class ExposureResolver:
@@ -112,38 +88,31 @@ class ExposureResolver:
 
         return random.Random(self._seed)
 
-    def roll(self, intermediate_id: Optional[LocationId]):
-        """Return a TravelExposure (legacy shape) for compatibility.
-
-        The engine internally uses ExposurePacket, but returning TravelExposure
-        makes the public surface stable and keeps existing tests green.
-        """
+    def roll(self, intermediate_id: Optional[LocationId]) -> TravelExposure:
+        """Return a TravelExposure describing what the AI may know about this travel event."""
 
         r = self._rng()
 
         exit_event = r.random() < self._config.p_exit_A
 
-        # If there is no intermediate in the chosen route, C cannot be exposed.
         if intermediate_id is None:
-            packet = ExposurePacket(
-                exit_event_at_A=exit_event,
-                pass_intermediate_C=False,
-                event_at_C=False,
-                enter_event_at_B=(r.random() < self._config.p_enter_B),
-                describe_B=(r.random() < self._config.p_describe_B),
+            return TravelExposure(
+                exit_event=exit_event,
+                pass_intermediate=False,
+                event_at_intermediate=False,
+                enter_event=(r.random() < self._config.p_enter_B),
+                describe_destination=(r.random() < self._config.p_describe_B),
                 intermediate_id=None,
             )
-            return TravelExposure.from_packet(packet)
 
         pass_c = r.random() < self._config.p_pass_C
         event_c = pass_c and (r.random() < self._config.p_event_at_C)
 
-        packet = ExposurePacket(
-            exit_event_at_A=exit_event,
-            pass_intermediate_C=pass_c,
-            event_at_C=event_c,
-            enter_event_at_B=(r.random() < self._config.p_enter_B),
-            describe_B=(r.random() < self._config.p_describe_B),
+        return TravelExposure(
+            exit_event=exit_event,
+            pass_intermediate=pass_c,
+            event_at_intermediate=event_c,
+            enter_event=(r.random() < self._config.p_enter_B),
+            describe_destination=(r.random() < self._config.p_describe_B),
             intermediate_id=(intermediate_id if pass_c else None),
         )
-        return TravelExposure.from_packet(packet)

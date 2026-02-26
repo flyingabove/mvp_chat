@@ -4,7 +4,7 @@ from backend.app.engine.state import (
     init_state,
     apply_state_tag,
     extract_state_tag,
-    CharacterState,
+    Character,
 )
 
 
@@ -17,7 +17,7 @@ def test_init_state_defaults():
 
 def test_apply_state_tag_clamps_relationship_and_updates_main_character():
     st = init_state()
-    st.characters["IU"] = CharacterState(key="IU", name="IU", role="ghost")
+    st.characters["IU"] = Character(key="IU", name="IU", role="ghost")
     st.main_character_id = "IU"
 
     apply_state_tag(st, {"emotion": "soft", "rel_delta": 1})
@@ -55,7 +55,7 @@ def test_apply_state_tag_updates_character_graph():
     from backend.app.engine.character_graph import CharacterGraph
 
     st = init_state()
-    st.characters["iu"] = CharacterState(key="iu", name="IU", role="ghost")
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
     st.main_character_id = "iu"
     st.character_graph = CharacterGraph.from_dict({
         "edges": [{"id": "e1", "from": "iu", "to": "player", "type": "OTHER"}],

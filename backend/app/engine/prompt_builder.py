@@ -792,12 +792,17 @@ def _relationship_scene_section(state: GameState) -> str:
 
 def _character_identity_section(state) -> str:
     """
-    Directly injects character_self_knowledge entries as a named system prompt
+    Directly injects character self_knowledge entries as a named system prompt
     section with explicit first-person behavioral instructions. Always present
-    when the story defines self-knowledge; never FAISS-dependent.
+    when the main character has self_knowledge; never FAISS-dependent.
     """
-    cfg = getattr(state, "story_cfg", {}) or {}
-    entries = cfg.get("character_self_knowledge") or []
+    main_char = getattr(state, "main_character", None)
+    entries = list(getattr(main_char, "self_knowledge", None) or [])
+    # Fallback: legacy story_cfg path for tests that set story_cfg directly
+    if not entries:
+        cfg = getattr(state, "story_cfg", {}) or {}
+        if isinstance(cfg, dict):
+            entries = list(cfg.get("character_self_knowledge") or [])
     if not entries:
         return ""
 

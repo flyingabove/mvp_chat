@@ -49,12 +49,12 @@ from backend.app.engine.state import (
 
     GameState,
 
-    CharacterState,
+    Character,
 
 )
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim
 from backend.app.engine.knowledge_chunks import normalize_parties
-from backend.app.engine.story_loader import load_story, StoryDefinition, StoryCharacter
+from backend.app.engine.story_loader import load_story, StoryDefinition
 from backend.app.engine.gameplay import (
 
     advance_time,
@@ -316,7 +316,6 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "canonical_truth": src.get("canonical_truth") or [],
         "characters": characters,
         "relationships": src.get("relationships") or {},
-        "character_self_knowledge": src.get("character_self_knowledge") or [],
     }
 
 
@@ -1244,18 +1243,23 @@ async def chat_handler(data: dict):
         if not characters:
             legacy_main = (story_def.get("main_character", {}) or {}) if hasattr(story_def, "get") else {}
             if legacy_main:
-                main_char_def = StoryCharacter.from_dict({**legacy_main, "is_main": True})
+                main_char_def = Character.from_dict({**legacy_main, "is_main": True})
                 characters.append(main_char_def)
             for sus in (story_def.get("suspects", []) or []) if hasattr(story_def, "get") else []:
-                characters.append(StoryCharacter.from_dict({**sus, "is_suspect": True}))
+                characters.append(Character.from_dict({**sus, "is_suspect": True}))
 
         if not characters:
-            main_char_def = StoryCharacter.from_dict({"key": "MAIN", "name": fallback_name, "role": "npc", "is_main": True})
+            main_char_def = Character.from_dict({"key": "MAIN", "name": fallback_name, "role": "npc", "is_main": True})
             characters.append(main_char_def)
 
         # Finalize main pointer
         if not main_char_def and characters:
             main_char_def = next((c for c in characters if c.is_main), characters[0])
+
+        # story-level self_knowledge belongs to the main character
+        story_self_knowledge = list(
+            (story_def.get("character_self_knowledge") or []) if hasattr(story_def, "get") else []
+        )
 
         for ch in characters:
             ch_uuid = ch.uuid or build_deterministic_uuid(
@@ -1264,15 +1268,21 @@ async def chat_handler(data: dict):
                 instance=new_state.instance,
                 entity_id=ch.key,
             )
-            cs = CharacterState(
+            game_char = Character(
                 key=ch.key,
                 name=ch.name,
                 role=ch.role or "npc",
+                is_main=ch.is_main,
+                is_suspect=ch.is_suspect,
+                knowledge_character_id=ch.knowledge_character_id,
+                uuid=ch_uuid,
+                tags=list(ch.tags),
+                meta=dict(ch.meta),
+                self_knowledge=story_self_knowledge if ch.is_main else [],
                 emotion=new_state.emotion,
                 relationship=new_state.relationship,
-                uuid=ch_uuid,
             )
-            new_state.characters[ch.key] = cs
+            new_state.characters[ch.key] = game_char
             if ch.is_main:
                 new_state.main_character_id = ch.key
             if ch.is_main and ch.knowledge_character_id and not new_state.knowledge_character_id:

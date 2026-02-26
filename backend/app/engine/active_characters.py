@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from typing import Dict, Set
 
-from backend.app.engine.state import GameState, CharacterState
+from backend.app.engine.state import GameState, Character
 
 
 def detect_mentioned_characters(
     text: str,
-    characters: Dict[str, CharacterState],
+    characters: Dict[str, Character],
     main_character_id: str = "",
 ) -> Set[str]:
     """Scan *text* for mentions of any character by key or display name.

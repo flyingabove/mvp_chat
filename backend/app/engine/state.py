@@ -15,12 +15,8 @@ from backend.app.config.settings import (
 )
 
 from backend.app.engine.character_graph import CharacterGraph
-from backend.app.engine.epistemic_state import (
-    BeliefState,
-    EpistemicClaim,
-    EpistemicFact,
-    Observation,
-)
+from backend.app.engine.epistemic_state import BeliefState
+from backend.app.engine.knowledge_chunks import KnowledgeChunk
 from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
 from backend.app.engine.transient_buffer import (
     SceneKnowledge,
@@ -64,26 +60,88 @@ class UserState:
 
 
 # ======================================================================
-# CHARACTER STATE
+# CHARACTER (merged from StoryCharacter + CharacterState)
 # ======================================================================
 
 @dataclass
-class CharacterState:
+class Character:
     """
-    Represents any character in the story world.
+    Single unified character object — authoring-time identity fields and
+    runtime state merged into one class.
 
-    - key: internal ID, e.g. "main"
-    - name: human-friendly name e.g. ("Danny")
-    - role: character's story role, e.g. "ally", "antagonist", "neutral"
-    - emotion: emotional descriptor ("wary", "cold", "soft")
+    Authoring fields (from story JSON):
+    - key: internal ID, e.g. "iu"
+    - name: display name, e.g. "IU"
+    - role: story role, e.g. "ghost", "ally", "antagonist"
+    - is_main: the focal NPC of the session
+    - is_suspect: flagged as a story suspect
+    - knowledge_character_id: FAISS/BM25 index bundle directory
+    - uuid: deterministic UUID for logging/tracing
+    - tags: optional category labels (e.g. ["idol", "ghost"])
+    - meta: forward-compat bucket for unknown JSON keys
+    - self_knowledge: first-person identity facts injected directly into prompt
+
+    Runtime state (set at game init / updated during play):
+    - emotion: current emotional descriptor ("wary", "cold", "soft")
     - relationship: relationship metric with player
     """
     key: str
     name: str
     role: str = ""
+    is_main: bool = False
+    is_suspect: bool = False
+    knowledge_character_id: str = ""
+    uuid: str = ""
+    tags: List[str] = field(default_factory=list)
+    meta: Dict[str, Any] = field(default_factory=dict)
+    self_knowledge: List[str] = field(default_factory=list)
     emotion: str = EMOTION_START
     relationship: int = REL_START
-    uuid: str = ""
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Character":
+        data = data or {}
+        key = str(data.get("key") or data.get("id") or data.get("name") or "character").strip() or "character"
+        name = str(data.get("name") or key).strip() or key
+        role = str(data.get("role") or "").strip()
+        is_main = bool(data.get("is_main"))
+        is_suspect = bool(data.get("is_suspect") or data.get("suspect"))
+        knowledge_character_id = str(data.get("knowledge_character_id") or "").strip()
+        uuid = str(data.get("uuid") or "").strip()
+        tags = list(data.get("tags") or [])
+        known_keys = {
+            "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
+            "knowledge_character_id", "uuid", "tags",
+        }
+        meta = {k: v for k, v in data.items() if k not in known_keys}
+        return cls(
+            key=key,
+            name=name,
+            role=role,
+            is_main=is_main,
+            is_suspect=is_suspect,
+            knowledge_character_id=knowledge_character_id,
+            uuid=uuid,
+            tags=tags,
+            meta=meta,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "key": self.key,
+            "name": self.name,
+            "role": self.role,
+            "is_main": self.is_main,
+            "is_suspect": self.is_suspect,
+            "knowledge_character_id": self.knowledge_character_id,
+            "uuid": self.uuid,
+            "tags": self.tags,
+            **(self.meta or {}),
+        }
+
+
+# Backward-compat alias (deprecated — use Character directly)
+CharacterState = Character
 
 
 # ======================================================================
@@ -138,16 +196,16 @@ class GameState:
     # Structured objects
     # ==============================================================
     user: UserState = field(default_factory=UserState)
-    characters: Dict[str, CharacterState] = field(default_factory=dict)
+    characters: Dict[str, Character] = field(default_factory=dict)
     main_character_id: Optional[str] = None
 
     # ==============================================================
     # Epistemic structures
     # ==============================================================
-    canonical_facts: List[EpistemicFact] = field(default_factory=list)
+    canonical_facts: List[KnowledgeChunk] = field(default_factory=list)
     canonical_truth: List[str] = field(default_factory=list)
-    epistemic_log: List[EpistemicClaim] = field(default_factory=list)
-    observation_log: List[Observation] = field(default_factory=list)
+    epistemic_log: List[KnowledgeChunk] = field(default_factory=list)
+    observation_log: List[KnowledgeChunk] = field(default_factory=list)
     beliefs: Dict[str, BeliefState] = field(default_factory=dict)
 
     # ==============================================================
@@ -211,7 +269,7 @@ class GameState:
         setattr(self, key, value)
 
     @property
-    def main_character(self) -> Optional[CharacterState]:
+    def main_character(self) -> Optional[Character]:
         """Convenience accessor for the primary NPC."""
         if self.main_character_id and self.main_character_id in self.characters:
             return self.characters[self.main_character_id]
@@ -226,9 +284,11 @@ class GameState:
             self.beliefs[character_id] = BeliefState(character_id=character_id)
         return self.beliefs[character_id]
 
-    def record_observation(self, **kwargs) -> Observation:
+    def record_observation(self, **kwargs) -> KnowledgeChunk:
         """Append an observation to the shared observation log."""
-        obs = Observation(**kwargs)
+        if "kind" not in kwargs:
+            kwargs["kind"] = "observation"
+        obs = KnowledgeChunk(**kwargs)
         if belief_enabled():
             self.observation_log.append(obs)
         return obs
@@ -236,12 +296,12 @@ class GameState:
     # ==============================================================
     # Epistemic helpers (toggle-aware)
     # ==============================================================
-    def add_canonical_fact(self, fact: EpistemicFact) -> None:
+    def add_canonical_fact(self, fact: KnowledgeChunk) -> None:
         """Append to canonical facts if truth layer is enabled."""
         if truth_enabled():
             self.canonical_facts.append(fact)
 
-    def add_epistemic_claims(self, *claims: EpistemicClaim) -> None:
+    def add_epistemic_claims(self, *claims: KnowledgeChunk) -> None:
         """Append claims to epistemic log if belief layer is enabled."""
         if belief_enabled():
             self.epistemic_log.extend(claims)
