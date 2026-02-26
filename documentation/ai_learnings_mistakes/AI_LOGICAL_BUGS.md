@@ -337,7 +337,7 @@ File: backend/app/engine/prompt_builder.py (_relationship_role_prose)
 Problem:
   The function has specific prose for: employer, employee, family, friend, enemy,
   lover, suspect, witness. The most common role in the codebase is "npc" (used as
-  the default fallback in CharacterState). "npc" falls through to the generic
+  the default fallback in Character). "npc" falls through to the generic
   `f"The relationship type is npc."` which is unhelpful and slightly awkward in
   the rendered prompt.
 
@@ -362,7 +362,7 @@ Problem:
     if characters and not any(c.is_main for c in characters):
         characters[0].is_main = True
 
-  This mutation happens on the loaded StoryCharacter object, which the caller
+  This mutation happens on the loaded Character object, which the caller
   may not expect to be modified. The game may also start with the wrong focal
   character (whoever was listed first in the JSON).
 

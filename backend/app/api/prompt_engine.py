@@ -122,6 +122,7 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
         try:
             fact = EpistemicFact(
                 id=str(fact_cfg.get("id") or uuid.uuid4()),
+                kind="fact",
                 content=str(
                     fact_cfg.get("content")
                     or fact_cfg.get("text")
@@ -160,6 +161,7 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
                         continue
                     claim = EpistemicClaim(
                         id=f"seed_{fact.id}_{char_id}",
+                        kind="claim",
                         content=fact.content,
                         subject=fact.subject,
                         object=fact.object,
@@ -210,6 +212,7 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
             try:
                 claim = EpistemicClaim(
                     id=str(claim_cfg.get("id") or uuid.uuid4()),
+                    kind="claim",
                     content=str(
                         claim_cfg.get("content")
                         or claim_cfg.get("text")
@@ -531,6 +534,7 @@ def _upsert_belief_claim_for_resolution(
     if existing is None:
         claim = EpistemicClaim(
             id=claim_id,
+            kind="claim",
             content=content,
             source="knowledge_resolution_extractor",
             confidence=confidence,

@@ -56,7 +56,7 @@ When a chunk is not explicitly marked `known_by` and not explicitly marked `not_
 1. Prompt instructions require the LLM to make a best reasonable determination (with hedging if uncertain).
 2. On the next turn's pre-render phase, a **single-call turn extractor** evaluates prior-turn dialogue + candidate chunks.
 3. Extractor outputs deterministic updates per chunk in one JSON payload: `chunk_id`, `knows`, `confidence`, `reason`.
-4. Engine writes these to the speaker's belief graph as `EpistemicClaim` entries (`source=knowledge_resolution_extractor`, `provenance=inferred_dialogue`).
+4. Engine writes these to the speaker's belief graph as `KnowledgeChunk` entries with `kind='claim'` (`source=knowledge_resolution_extractor`, `provenance=inferred_dialogue`).
 5. Engine writes a mirrored knowledge object into transient buffer with TTL = 8 turns (`meta.source=knowledge_resolution`).
 
 This means ambiguous retrieval memory is converted into explicit epistemic state over time using dialogue evidence, without running separate extractor calls in a single turn.

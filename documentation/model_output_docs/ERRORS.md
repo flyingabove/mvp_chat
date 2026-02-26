@@ -1,6 +1,56 @@
 Documentation/code reconciliation log
 Date: 2026-02-23
 
+---
+
+Date: 2026-02-25
+
+ACCOMPLISHED — 3-part data model consolidation
+
+1. TravelExposure / ExposurePacket → single TravelExposure
+   - Deleted ExposurePacket class from backend/app/engine/world/exposure.py
+   - Deleted TravelExposure.from_packet() classmethod
+   - ExposureResolver.roll() now builds TravelExposure directly
+   - TravelResult.exposure typed as TravelExposure (was ExposurePacket)
+   - Removed ExposurePacket from world/__init__.py
+
+2. StoryCharacter + CharacterState → unified Character
+   - Created Character dataclass in backend/app/engine/state.py with all authoring fields
+     (key, name, role, is_main, is_suspect, knowledge_character_id, uuid, tags, meta, self_knowledge)
+     and runtime fields (emotion, relationship)
+   - Backward-compat aliases: CharacterState = Character (state.py), StoryCharacter = Character (story_loader.py)
+   - character_self_knowledge moved from story_cfg dict to Character.self_knowledge at game init
+   - _character_identity_section() reads from state.main_character.self_knowledge (with story_cfg fallback for tests)
+   - Updated: story_loader.py, prompt_engine.py, prompt_builder.py, active_characters.py, 3 test files
+
+3. EpistemicFact / EpistemicClaim / Observation / EpistemicEntry + KnowledgeChunk → single KnowledgeChunk
+   - Expanded KnowledgeChunk with: content (synced with text via __post_init__), kind, subject, object,
+     timestamp_minute, location_ref, confidence, provenance, status, resolution
+   - Added methods: contested_with(), resolve_conflict(), as_prompt_snippet()
+   - Backward-compat aliases in epistemic_state.py: EpistemicEntry = EpistemicFact = EpistemicClaim = Observation = KnowledgeChunk
+   - BeliefState fields updated to List[KnowledgeChunk]
+   - CharacterIndexBundle.chunks left as List[dict] (FAISS/BM25 pipeline uses raw JSONL dicts — future cleanup)
+
+ALSO FIXED — silent kind= bug
+   - Every EpistemicFact/EpistemicClaim call in prompt_engine.py was creating KnowledgeChunk(kind=None)
+     because the seeding code never passed kind= kwarg. Fixed 4 constructor calls:
+     - _seed_epistemic_from_story() canonical facts: kind="fact"
+     - _seed_epistemic_from_story() belief mirrors: kind="claim"
+     - _seed_epistemic_from_story() belief seeds: kind="claim"
+     - _upsert_belief_claim_for_resolution(): kind="claim"
+
+NOTE — auto-generated docs are stale
+   - documentation/auto_update_docs/COMPREHENSIVE_DOCUMENTATION.md
+   - documentation/auto_update_docs/QUICK_REFERENCE.md
+   - documentation/auto_update_docs/ARCHITECTURE_DIAGRAM.mmd
+   These still reference old class names (StoryCharacter, CharacterState, EpistemicFact/Claim etc.).
+   They are marked "never behavior source of truth" in AI_DOC_INDEX.md — safe to ignore for code decisions.
+
+VALIDATION
+- Full test suite: 266 passed.
+
+---
+
 ACCOMPLISHED (in progress and completed)
 - Added canonical Python style doc: documentation/model_output_docs/PYTHON_CODING_STYLE_GUIDE.md
 - Renamed runtime helper from _apply_knowledge_resolution_updates to apply_knowledge_resolution_updates in backend/app/api/prompt_engine.py

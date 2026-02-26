@@ -120,7 +120,7 @@ Prompt context contract (runtime)
 - For chunks without explicit `known_by` and without explicit `not_known_by` for the active speaker,
   the LLM is instructed to make a best reasonable determination from dialogue context.
 - After each reply, `KnowledgeResolutionExtractor` evaluates unknown chunks and writes explicit
-  `knows` / `does_not_know` updates into the speaker belief graph (`EpistemicClaim`).
+  `knows` / `does_not_know` updates into the speaker belief graph (`KnowledgeChunk` with `kind='claim'`).
 - Each resolved knowledge object is also written to transient buffer as `TransientKnowledge(text, turns_remaining)`
   with fixed turn TTL from `backend/app/config/settings.py` (`TRANSIENT_KNOWLEDGE_TURNS = 8`).
 - No other free-form story JSON fields are injected directly into prompt text.

@@ -255,7 +255,7 @@ Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and susp
 
 ### Belief Certainty (0.0 to 1.0)
 
-Belief confidence is stored on `EpistemicClaim.confidence` in the range 0.0–1.0.
+Belief confidence is stored on `KnowledgeChunk.confidence` (for chunks with `kind='claim'`) in the range 0.0–1.0.
 Internally, that value is rounded to the nearest 0.1 and converted to a deterministic certainty label:
 
 | Value | Word |
@@ -364,7 +364,7 @@ Each fact's `known_by`, `not_known_by`, and `maybe_known_by` lists are converted
 **Name resolution** (`_resolve_name`):
 - `"player"` → `"the player"`
 - `"all_characters"` → `"everyone"`
-- Known character key → `CharacterState.name` (e.g. `"iu"` → `"IU"`)
+- Known character key → `Character.name` (e.g. `"iu"` → `"IU"`)
 - Unknown key fallback → `key.replace("_", " ").title()` (e.g. `"rival_trainee"` → `"Rival Trainee"`)
 
 ### Preface instructions

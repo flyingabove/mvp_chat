@@ -204,7 +204,7 @@ Strategy field is injected into chatter agent's system prompt.
 Story Context for Scoring
 -------------------------
 The scorer fetches GET /api/stories/{story_id}/context which returns:
-- character_self_knowledge (identity facts NPC must embody)
+- character_self_knowledge (identity facts NPC must embody; at runtime these live on `Character.self_knowledge`, read by `_character_identity_section()` in `prompt_builder.py`)
 - canonical_facts (ground truth with known_by attribution)
 - characters (key, name, role, is_main, is_suspect, tags)
 - protagonist (player character details)
