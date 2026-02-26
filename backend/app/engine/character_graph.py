@@ -24,10 +24,20 @@ ordered (from_id, to_id) pair is enforced via canonical key.
 EDGE FIELDS
 ───────────
 Each RelationshipEdge tracks:
-  state        — four numeric dimensions (trust, fear, affection, suspicion)
+  state        — five numeric dimensions (trust, fear, affection, suspicion, jealousy)
   label        — static authored context, never changes ("former manager, dispute")
   narrative    — dynamic runtime note, replaced on each update by the LLM
   narrative_log — append-only session history of all narrative notes
+
+RELATIONSHIP TRAIT DIMENSIONS
+──────────────────────────────
+  trust      -1..1   How much A trusts B. Negative = active distrust.
+  fear        0..1   How afraid A is of B. High fear + low trust = defensive/hostile.
+  affection  -1..1   Emotional warmth. Negative = resentment/hatred.
+  suspicion   0..1   How much A suspects B of wrongdoing.
+  jealousy    0..1   How jealous A is toward B. 5 discrete levels: 0, 0.25, 0.5, 0.75, 1.0.
+                     Increments are bounded by REL_TRAIT_DELTA_MIN and REL_TRAIT_DELTA_MAX
+                     in backend/app/config/settings.py.
 
 QUERY INTERFACE
 ───────────────
@@ -112,6 +122,16 @@ _SUSPICION_WORDS = {
     ])
 }
 
+# Jealousy has 5 discrete levels at 0.25 intervals (0..1 range).
+# See REL_TRAIT_DELTA_MIN / REL_TRAIT_DELTA_MAX in settings.py for increment bounds.
+_JEALOUSY_WORDS: dict[float, str] = {
+    0.00: "secure",
+    0.25: "mild",
+    0.50: "moderate",
+    0.75: "strong",
+    1.00: "consuming",
+}
+
 
 def _clamp_unit(value: float) -> float:
     return max(-1.0, min(1.0, float(value)))
@@ -128,6 +148,18 @@ def _normalize_zero_to_one(value: float) -> float:
 
 def _word_from_scale(scale: dict[float, str], normalized_value: float) -> str:
     return scale[_round_tenth(normalized_value)]
+
+
+def _round_quarter(value: float) -> float:
+    """Snap a 0..1 value to the nearest 0.25 step (0.0, 0.25, 0.5, 0.75, 1.0)."""
+    v = max(0.0, min(1.0, float(value)))
+    steps = [0.0, 0.25, 0.5, 0.75, 1.0]
+    return min(steps, key=lambda s: abs(v - s))
+
+
+def _word_from_jealousy(value: float) -> str:
+    """Return the deterministic word for a jealousy value (0..1, 5 discrete levels)."""
+    return _JEALOUSY_WORDS[_round_quarter(value)]
 
 
 def _stance_sentence(*, trust_n: float, fear_n: float, affection_n: float, suspicion_n: float) -> str:
@@ -151,17 +183,20 @@ def describe_relationship_state(state: "RelationshipState") -> dict[str, str | f
     affection_n = _round_tenth(state.affection)
     fear_n = _normalize_zero_to_one(state.fear)
     suspicion_n = _normalize_zero_to_one(state.suspicion)
+    jealousy_n = _round_quarter(state.jealousy)
 
     trust_w = _word_from_scale(_TRUST_WORDS, trust_n)
     fear_w = _word_from_scale(_FEAR_WORDS, fear_n)
     affection_w = _word_from_scale(_AFFECTION_WORDS, affection_n)
     suspicion_w = _word_from_scale(_SUSPICION_WORDS, suspicion_n)
+    jealousy_w = _word_from_jealousy(jealousy_n)
 
     summary = (
         f"Trust is {trust_w}; "
         f"fear is {fear_w}; "
         f"affection is {affection_w}; "
-        f"suspicion is {suspicion_w}."
+        f"suspicion is {suspicion_w}; "
+        f"jealousy is {jealousy_w}."
     )
 
     stance = _stance_sentence(
@@ -176,10 +211,12 @@ def describe_relationship_state(state: "RelationshipState") -> dict[str, str | f
         "fear_normalized": fear_n,
         "affection_normalized": affection_n,
         "suspicion_normalized": suspicion_n,
+        "jealousy_normalized": jealousy_n,
         "trust_word": trust_w,
         "fear_word": fear_w,
         "affection_word": affection_w,
         "suspicion_word": suspicion_w,
+        "jealousy_word": jealousy_w,
         "summary": summary,
         "stance": stance,
     }
@@ -224,11 +261,20 @@ class RelationshipType(str, Enum):
 
 @dataclass
 class RelationshipState:
-    """Multi-dimensional relationship state (A's perspective toward B)."""
+    """Multi-dimensional relationship state (A's perspective toward B).
+
+    trust      -1..1   How much A trusts B. Negative = active distrust.
+    fear        0..1   How afraid A is of B.
+    affection  -1..1   Emotional warmth. Negative = resentment/hatred.
+    suspicion   0..1   How much A suspects B of wrongdoing.
+    jealousy    0..1   How jealous A is toward B. 5 discrete word levels at 0.25 intervals.
+                       Per-turn increments bounded by REL_TRAIT_DELTA_MIN/MAX in settings.py.
+    """
     trust: float = 0.0       # -1..1  How much A trusts B
     fear: float = 0.0        # 0..1   How afraid A is of B
     affection: float = 0.0   # -1..1  Emotional warmth (negative = resentment)
     suspicion: float = 0.0   # 0..1   How much A suspects B of wrongdoing
+    jealousy: float = 0.0    # 0..1   How jealous A is toward B (5 discrete levels)
 
     def __post_init__(self) -> None:
         self._clamp()
@@ -238,6 +284,7 @@ class RelationshipState:
         self.fear = max(0.0, min(1.0, float(self.fear)))
         self.affection = max(-1.0, min(1.0, float(self.affection)))
         self.suspicion = max(0.0, min(1.0, float(self.suspicion)))
+        self.jealousy = max(0.0, min(1.0, float(self.jealousy)))
 
     def collapse(self) -> int:
         """Map multi-dimensional state to legacy integer score (-5..+5)."""
@@ -262,6 +309,7 @@ class RelationshipState:
             fear=float(d.get("fear", 0.0)),
             affection=float(d.get("affection", 0.0)),
             suspicion=float(d.get("suspicion", 0.0)),
+            jealousy=float(d.get("jealousy", 0.0)),
         )
 
 
@@ -392,6 +440,7 @@ class CharacterGraph:
         fear_delta: float = 0.0,
         affection_delta: float = 0.0,
         suspicion_delta: float = 0.0,
+        jealousy_delta: float = 0.0,
         narrative: str = "",
     ) -> bool:
         """Apply dimensional deltas and an optional narrative note to an existing edge.
@@ -399,6 +448,8 @@ class CharacterGraph:
         Returns True if the edge was found and updated, False if not found.
         narrative replaces edge.narrative and is appended to narrative_log.
         Only edges that already exist in the graph can be updated.
+        Delta values should stay within [REL_TRAIT_DELTA_MIN, REL_TRAIT_DELTA_MAX]
+        per interaction (or 0 if nothing changed) — see settings.py.
         """
         edge = self.get_edge(from_id, to_id)
         if edge is None:
@@ -408,6 +459,7 @@ class CharacterGraph:
             fear=fear_delta,
             affection=affection_delta,
             suspicion=suspicion_delta,
+            jealousy=jealousy_delta,
         )
         if narrative:
             edge.narrative = narrative.strip()
@@ -516,6 +568,7 @@ class CharacterGraph:
                             fear=edge.state.fear,
                             affection=edge.state.affection,
                             suspicion=edge.state.suspicion,
+                            jealousy=edge.state.jealousy,
                         ),
                         label=edge.label,
                         narrative=edge.narrative,

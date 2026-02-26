@@ -96,14 +96,36 @@ RelationshipEdge:
 
 ### RelationshipState (multi-dimensional)
 
-| Dimension   | Range  | What it means |
-|-------------|--------|---------------|
-| `trust`     | -1..1  | How much A trusts B. Negative = active distrust. |
-| `fear`      | 0..1   | How afraid A is of B. High fear + low trust = defensive/hostile. |
-| `affection` | -1..1  | Emotional warmth. Negative = resentment/hatred. |
-| `suspicion` | 0..1   | How much A suspects B of wrongdoing. |
+| Dimension   | Range  | Levels | What it means |
+|-------------|--------|--------|---------------|
+| `trust`     | -1..1  | 21 (0.1 step) | How much A trusts B. Negative = active distrust. |
+| `fear`      | 0..1   | 21 (0.1 step) | How afraid A is of B. High fear + low trust = defensive/hostile. |
+| `affection` | -1..1  | 21 (0.1 step) | Emotional warmth. Negative = resentment/hatred. |
+| `suspicion` | 0..1   | 21 (0.1 step) | How much A suspects B of wrongdoing. |
+| `jealousy`  | 0..1   | 5 (0.25 step) | How jealous A is toward B. Five named levels (see below). |
 
 These dimensions are independent. A suspect can have high fear (0.9) AND moderate trust (0.3) toward the detective simultaneously — they're scared but believe the detective will honor a deal. This nuance is impossible with a single integer score.
+
+### Jealousy Levels (5 discrete word levels)
+
+| Value | Word | Meaning |
+|-------|------|---------|
+| 0.00 | `secure` | No jealousy — relationship feels unthreatened |
+| 0.25 | `mild` | Low-level envy or mild possessiveness |
+| 0.50 | `moderate` | Noticeable jealousy influencing behavior |
+| 0.75 | `strong` | Openly jealous, likely to act on it |
+| 1.00 | `consuming` | Obsessive jealousy dominating all interactions |
+
+### Per-Interaction Increment Bounds
+
+All five dimensions are bounded per turn. Constants stored in `backend/app/config/settings.py`:
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `REL_TRAIT_DELTA_MIN` | 0.05 | Smallest non-zero change per interaction |
+| `REL_TRAIT_DELTA_MAX` | 0.20 | Largest change per interaction |
+
+A delta of 0 is also valid (nothing changed this turn). These are tunable without touching game logic.
 
 ### RelationshipType
 

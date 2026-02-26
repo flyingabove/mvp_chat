@@ -769,10 +769,15 @@ def _relationship_scene_section(state: GameState) -> str:
         fear_word = _humanize_rel_word(described["fear_word"])
         affection_word = _humanize_rel_word(described["affection_word"])
         suspicion_word = _humanize_rel_word(described["suspicion_word"])
+        jealousy_n = described.get("jealousy_normalized", 0.0)
+        jealousy_part = (
+            f", and {_humanize_rel_word(described['jealousy_word'])} jealousy"
+            if jealousy_n >= 0.25 else ""
+        )
         sentence = (
             f"{idx}. {main_name} currently reads {target_name} with "
             f"{trust_word} trust, {fear_word} fear, "
-            f"{affection_word} affection, and {suspicion_word} suspicion. "
+            f"{affection_word} affection, {suspicion_word} suspicion{jealousy_part}. "
             f"{role_line} {stance}."
         )
         label = (getattr(edge, "label", "") or "").strip()
@@ -860,6 +865,8 @@ def _summarize_room_relationships(edges: list, characters: dict) -> str:
             fear_ba = ba.state.fear if ba else 0.0
             susp_ab = ab.state.suspicion if ab else 0.0
             susp_ba = ba.state.suspicion if ba else 0.0
+            jeal_ab = ab.state.jealousy if ab else 0.0
+            jeal_ba = ba.state.jealousy if ba else 0.0
 
             # Fear (highest signal — checked first)
             if fear_ab >= 0.5 and fear_ba >= 0.5:
@@ -876,6 +883,18 @@ def _summarize_room_relationships(edges: list, characters: dict) -> str:
                 sentences.append(f"{na} regards {nb} with deep suspicion.")
             elif susp_ba >= 0.5:
                 sentences.append(f"{nb} regards {na} with deep suspicion.")
+
+            # Jealousy (direct field — separate from affection-based rivalry triangle below)
+            if jeal_ab >= 0.5 and jeal_ba >= 0.5:
+                sentences.append(f"{na} and {nb} are consumed by mutual jealousy.")
+            elif jeal_ab >= 0.5:
+                sentences.append(f"{na} is openly jealous of {nb}.")
+            elif jeal_ba >= 0.5:
+                sentences.append(f"{nb} is openly jealous of {na}.")
+            elif jeal_ab >= 0.25:
+                sentences.append(f"{na} feels a mild jealousy toward {nb}.")
+            elif jeal_ba >= 0.25:
+                sentences.append(f"{nb} feels a mild jealousy toward {na}.")
 
             # Affection / warmth / hostility
             mutual_devotion = aff_ab >= 0.6 and aff_ba >= 0.6

@@ -25,6 +25,12 @@ REL_MIN: int = -5
 REL_MAX: int = 5
 REL_START: int = 0
 
+# --- Relationship trait delta constraints per interaction ---
+# These bound how much any single trait (trust, fear, affection, suspicion, jealousy)
+# can change in one turn. Tunable without touching game logic.
+REL_TRAIT_DELTA_MIN: float = 0.05   # smallest non-zero change per interaction
+REL_TRAIT_DELTA_MAX: float = 0.20   # largest change per interaction (0 is also valid)
+
 EMOTION_START: str = "neutral"
 
 # --- Deterministic IDs ---
