@@ -1,43 +1,108 @@
 # backend/app/engine/character_graph.py
 """
-Character relationship graph — multi-dimensional directed edges between characters.
+Character relationship graph — directed edges between character nodes.
 
-Each edge carries trust/fear/affection/suspicion state, a typed relationship label,
-and an optional human-readable context string for prompt injection.
+CHARACTER TYPES
+───────────────
+Every participant in the game is a Character with a CharacterType:
 
-Adapted from the retired story_schema_v2.py RelationshipState/Edge/Graph into
-a standalone production module.
+  USER      — The human player. Always key="player". Auto-created at game init;
+               not defined in story JSON. Has relationship edges to all authored NPCs.
+  MAIN      — The focal NPC of the session (is_main=True in story JSON). The character
+               the player primarily interacts with. Has a full knowledge/lore bundle.
+  CANONICAL — Authored NPC with a defined story role and optional knowledge bundle.
+               Fully scripted backstory, motivations, and relationships.
+  NPC       — Incidental or emergent character. May be introduced by the LLM in
+               dialogue. No authored knowledge bundle; exists at runtime only.
+
+GRAPH DESIGN
+────────────
+CharacterGraph stores both character nodes (Dict[key, Character]) and directed
+relationship edges (Dict["from->to", RelationshipEdge]). Exactly one edge per
+ordered (from_id, to_id) pair is enforced via canonical key.
+
+EDGE FIELDS
+───────────
+Each RelationshipEdge tracks:
+  state        — four numeric dimensions (trust, fear, affection, suspicion)
+  label        — static authored context, never changes ("former manager, dispute")
+  narrative    — dynamic runtime note, replaced on each update by the LLM
+  narrative_log — append-only session history of all narrative notes
+
+QUERY INTERFACE
+───────────────
+All query methods return RelationshipEdge or List[RelationshipEdge]:
+
+  get_character(key)              → Character node, or None
+  get_edge(a, b)                  → RelationshipEdge from a to b, or None
+  get_edges_from(a)               → List[RelationshipEdge] outgoing from a
+  get_edges_to(a)                 → List[RelationshipEdge] incoming to a
+  get_all_relationships(a)        → List[RelationshipEdge] involving a (in or out)
+  get_room_relationships(ids)     → List[RelationshipEdge] between any pair in ids
+
+ROOM SCENARIO
+─────────────
+When a player enters a location with IU and Steve present:
+
+    edges = graph.get_room_relationships({"player", "iu", "steve"})
+    # → [iu→player, iu→steve, steve→player, steve→iu, player→iu, ...]
+
+    summary = graph.summarize_relationships(edges)
+    # → "IU and Steve regard each other with mutual suspicion. IU is drawn to
+    #    the player, who keeps their distance. Steve is visibly afraid of IU."
+
+The summary is deterministic (rule-based, no LLM) and is injected into the
+system prompt under the [RELATIONSHIPS] section each turn.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from backend.app.engine.state import Character
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Word-scale mappings for human-readable relationship descriptions
+# ──────────────────────────────────────────────────────────────────────────────
 
 _TENTHS = [round(-1.0 + 0.1 * i, 1) for i in range(21)]
 
 _TRUST_WORDS = {
     t: w for t, w in zip(_TENTHS, [
-        "betrayed", "treacherous", "hostile", "distrustful", "wary", "skeptical", "guarded", "reserved", "cautious", "unsure", "neutral", "open", "receptive", "cooperative", "confident", "reliant", "trusting", "devoted", "steadfast", "unshakable", "absolute",
+        "betrayed", "treacherous", "hostile", "distrustful", "wary", "skeptical",
+        "guarded", "reserved", "cautious", "unsure", "neutral", "open", "receptive",
+        "cooperative", "confident", "reliant", "trusting", "devoted", "steadfast",
+        "unshakable", "absolute",
     ])
 }
 
 _AFFECTION_WORDS = {
     t: w for t, w in zip(_TENTHS, [
-        "hateful", "resentful", "cold", "bitter", "hostile", "distant", "aloof", "detached", "dry", "reserved", "neutral", "warm", "friendly", "fond", "caring", "attached", "affectionate", "devoted", "tender", "adoring", "deeply_bonded",
+        "hateful", "resentful", "cold", "bitter", "hostile", "distant", "aloof",
+        "detached", "dry", "reserved", "neutral", "warm", "friendly", "fond",
+        "caring", "attached", "affectionate", "devoted", "tender", "adoring",
+        "deeply_bonded",
     ])
 }
 
 _FEAR_WORDS = {
     t: w for t, w in zip(_TENTHS, [
-        "fearless", "calm", "steady", "composed", "unfazed", "alert", "watchful", "uneasy", "nervous", "tense", "guarded", "anxious", "shaken", "alarmed", "frightened", "panicked", "terrified", "horrified", "petrified", "overwhelmed", "paralyzed",
+        "fearless", "calm", "steady", "composed", "unfazed", "alert", "watchful",
+        "uneasy", "nervous", "tense", "guarded", "anxious", "shaken", "alarmed",
+        "frightened", "panicked", "terrified", "horrified", "petrified",
+        "overwhelmed", "paralyzed",
     ])
 }
 
 _SUSPICION_WORDS = {
     t: w for t, w in zip(_TENTHS, [
-        "fully_trusting", "trusting", "accepting", "open-minded", "unconcerned", "relaxed", "attentive", "questioning", "doubtful", "uncertain", "guarded", "skeptical", "wary", "dubious", "suspicious", "highly_suspicious", "convinced", "accusatory", "paranoid", "hypervigilant", "obsessed",
+        "fully_trusting", "trusting", "accepting", "open-minded", "unconcerned",
+        "relaxed", "attentive", "questioning", "doubtful", "uncertain", "guarded",
+        "skeptical", "wary", "dubious", "suspicious", "highly_suspicious",
+        "convinced", "accusatory", "paranoid", "hypervigilant", "obsessed",
     ])
 }
 
@@ -114,6 +179,26 @@ def describe_relationship_state(state: "RelationshipState") -> dict[str, str | f
     }
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Character type — structural role in the engine (distinct from story role)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class CharacterType(str, Enum):
+    """Engine-level classification of every participant in the game.
+
+    This is separate from the story-level `role` string (e.g. "ghost", "ally").
+    character_type controls how the engine creates, routes, and tracks each character.
+    """
+    USER = "user"
+    MAIN = "main"
+    CANONICAL = "canonical"
+    NPC = "npc"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Relationship types — the nature of the connection between two characters
+# ──────────────────────────────────────────────────────────────────────────────
+
 class RelationshipType(str, Enum):
     FRIEND = "FRIEND"
     ENEMY = "ENEMY"
@@ -127,9 +212,13 @@ class RelationshipType(str, Enum):
     OTHER = "OTHER"
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# RelationshipState — numeric dimensions on a single directed edge
+# ──────────────────────────────────────────────────────────────────────────────
+
 @dataclass
 class RelationshipState:
-    """Multi-dimensional relationship state between two characters."""
+    """Multi-dimensional relationship state (A's perspective toward B)."""
     trust: float = 0.0       # -1..1  How much A trusts B
     fear: float = 0.0        # 0..1   How afraid A is of B
     affection: float = 0.0   # -1..1  Emotional warmth (negative = resentment)
@@ -145,11 +234,7 @@ class RelationshipState:
         self.suspicion = max(0.0, min(1.0, float(self.suspicion)))
 
     def collapse(self) -> int:
-        """Map multi-dimensional state to legacy integer score (-5..+5).
-
-        Formula: weighted sum of affection (dominant) and trust, reduced by
-        fear and suspicion, then scaled to the -5..+5 range.
-        """
+        """Map multi-dimensional state to legacy integer score (-5..+5)."""
         raw = (self.affection * 0.5 + self.trust * 0.3
                - self.fear * 0.1 - self.suspicion * 0.1)
         return max(-5, min(5, round(raw * 5)))
@@ -174,16 +259,28 @@ class RelationshipState:
         )
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# RelationshipEdge — one directed edge representing how from_id feels about to_id
+# ──────────────────────────────────────────────────────────────────────────────
+
 @dataclass
 class RelationshipEdge:
-    """Directed edge from one character to another."""
+    """A directed edge: from_id's perspective toward to_id.
+
+    label        — static authored context, never changes at runtime
+                   e.g. "former manager; contract dispute ended badly"
+    narrative    — dynamic runtime note, replaced on each update
+                   e.g. "IU now believes Steve is hiding something"
+    narrative_log — append-only history of all narrative notes this session
+    """
     id: str
     from_id: str
     to_id: str
     type: RelationshipType = RelationshipType.OTHER
     state: RelationshipState = field(default_factory=RelationshipState)
-    label: str = ""           # Human-readable context for prompt injection
-    symmetric: bool = False
+    label: str = ""
+    narrative: str = ""
+    narrative_log: List[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, edge_id: str, d: Dict[str, Any] | None) -> "RelationshipEdge":
@@ -200,106 +297,359 @@ class RelationshipEdge:
             type=rel_type,
             state=RelationshipState.from_dict(d.get("state")),
             label=str(d.get("label", "")),
-            symmetric=bool(d.get("symmetric", False)),
+            narrative=str(d.get("narrative", "")),
         )
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# CharacterGraph — the authoritative container of character nodes + edges
+# ──────────────────────────────────────────────────────────────────────────────
+
 @dataclass
 class CharacterGraph:
-    """Directed graph of character-to-character relationships."""
-    edges: Dict[str, RelationshipEdge] = field(default_factory=dict)
+    """Directed graph of character nodes and relationship edges.
 
-    def get_edges_from(self, character_id: str) -> List[RelationshipEdge]:
-        """All edges originating from a given character."""
-        return [e for e in self.edges.values() if e.from_id == character_id]
+    Node storage:
+        characters: Dict[str, Character]  — keyed by character.key
+
+    Edge storage:
+        edges: Dict[str, RelationshipEdge] — keyed "{from_id}->{to_id}"
+        Uniqueness: exactly one edge per ordered (from_id, to_id) pair.
+
+    All query methods return RelationshipEdge or List[RelationshipEdge].
+    """
+    characters: Dict[str, Any] = field(default_factory=dict)   # key → Character
+    edges: Dict[str, RelationshipEdge] = field(default_factory=dict)  # "a->b" → edge
+
+    # ── Internal ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _edge_key(from_id: str, to_id: str) -> str:
+        """Canonical storage key for a directed edge (O(1) lookup)."""
+        return f"{from_id}->{to_id}"
+
+    # ── Character node queries ────────────────────────────────────────────────
+
+    def add_character(self, character: "Character") -> None:
+        """Add or replace a character node in the graph."""
+        self.characters[character.key] = character
+
+    def get_character(self, character_id: str) -> Optional["Character"]:
+        """Return a character node by key, or None."""
+        return self.characters.get(character_id)
+
+    # ── Edge queries — all return RelationshipEdge or List[RelationshipEdge] ──
 
     def get_edge(self, from_id: str, to_id: str) -> Optional[RelationshipEdge]:
-        """Find a specific edge, respecting symmetric edges."""
-        for e in self.edges.values():
-            if e.from_id == from_id and e.to_id == to_id:
-                return e
-            if e.symmetric and e.from_id == to_id and e.to_id == from_id:
-                return e
-        return None
+        """Return the directed edge from from_id to to_id, or None."""
+        return self.edges.get(self._edge_key(from_id, to_id))
 
-    def apply_rel_delta(self, from_id: str, to_id: str, rel_delta: int) -> None:
-        """Phase 1 backward compat: map legacy rel_delta (-1/0/+1) to affection."""
+    def get_edges_from(self, character_id: str) -> List[RelationshipEdge]:
+        """All edges where character_id is the source (outgoing)."""
+        return [e for e in self.edges.values() if e.from_id == character_id]
+
+    def get_edges_to(self, character_id: str) -> List[RelationshipEdge]:
+        """All edges where character_id is the target (incoming)."""
+        return [e for e in self.edges.values() if e.to_id == character_id]
+
+    def get_all_relationships(self, character_id: str) -> List[RelationshipEdge]:
+        """All edges where character_id appears as either source or target."""
+        return [
+            e for e in self.edges.values()
+            if e.from_id == character_id or e.to_id == character_id
+        ]
+
+    def get_room_relationships(self, character_ids: set[str]) -> List[RelationshipEdge]:
+        """All edges between any pair of characters within character_ids.
+
+        Use this when entering a location: pass the set of characters present
+        (including "player") to retrieve every directed relationship in the room.
+
+        Example — room with player, iu, steve:
+            graph.get_room_relationships({"player", "iu", "steve"})
+            → [iu→player, iu→steve, steve→player, steve→iu, player→iu, ...]
+        """
+        ids = set(character_ids)
+        return [
+            e for e in self.edges.values()
+            if e.from_id in ids and e.to_id in ids
+        ]
+
+    # ── Edge mutations ────────────────────────────────────────────────────────
+
+    def update_edge(
+        self,
+        from_id: str,
+        to_id: str,
+        *,
+        trust_delta: float = 0.0,
+        fear_delta: float = 0.0,
+        affection_delta: float = 0.0,
+        suspicion_delta: float = 0.0,
+        narrative: str = "",
+    ) -> bool:
+        """Apply dimensional deltas and an optional narrative note to an existing edge.
+
+        Returns True if the edge was found and updated, False if not found.
+        narrative replaces edge.narrative and is appended to narrative_log.
+        Only edges that already exist in the graph can be updated.
+        """
         edge = self.get_edge(from_id, to_id)
         if edge is None:
-            return
-        # Map ±1 integer to ±0.1 affection delta
-        edge.state.apply_delta(affection=rel_delta * 0.1)
+            return False
+        edge.state.apply_delta(
+            trust=trust_delta,
+            fear=fear_delta,
+            affection=affection_delta,
+            suspicion=suspicion_delta,
+        )
+        if narrative:
+            edge.narrative = narrative.strip()
+            edge.narrative_log.append(narrative.strip())
+        return True
+
+    def apply_rel_delta(self, from_id: str, to_id: str, rel_delta: int) -> None:
+        """Backward compat: map legacy rel_delta (-1/0/+1) to affection delta."""
+        self.update_edge(from_id, to_id, affection_delta=rel_delta * 0.1)
+
+    # ── Relationship summarizer ───────────────────────────────────────────────
+
+    def _resolve_name(self, character_id: str) -> str:
+        """Resolve a character key to a display name, falling back to the key."""
+        if character_id == "player":
+            return "the player"
+        char = self.characters.get(character_id)
+        return getattr(char, "name", None) or character_id
+
+    def summarize_relationships(self, edges: List[RelationshipEdge]) -> str:
+        """Deterministically generate prose describing relationships in a scene.
+
+        Takes a list of edges (e.g. from get_room_relationships()) and produces
+        a human-readable paragraph covering: mutual warmth, hostility, one-sided
+        attraction, fear, suspicion, and jealousy/rivalry triangles.
+
+        No LLM is involved — output is fully rule-based and deterministic.
+        This paragraph is injected into the system prompt under [RELATIONSHIPS].
+
+        Returns empty string if no notable patterns are detected.
+        """
+        if not edges:
+            return ""
+
+        # O(1) edge lookup by (from_id, to_id)
+        edge_map: Dict[tuple, RelationshipEdge] = {
+            (e.from_id, e.to_id): e for e in edges
+        }
+
+        # All character keys referenced by any edge in this set
+        chars = set()
+        for e in edges:
+            chars.add(e.from_id)
+            chars.add(e.to_id)
+
+        sentences: List[str] = []
+        pairs_processed: set = set()
+
+        # ── Pairwise analysis ────────────────────────────────────────────────
+        for a in sorted(chars):
+            for b in sorted(chars):
+                if a >= b:
+                    continue
+                if (a, b) in pairs_processed:
+                    continue
+                pairs_processed.add((a, b))
+
+                ab = edge_map.get((a, b))
+                ba = edge_map.get((b, a))
+                if ab is None and ba is None:
+                    continue
+
+                na = self._resolve_name(a)
+                nb = self._resolve_name(b)
+
+                aff_ab = ab.state.affection if ab else 0.0
+                aff_ba = ba.state.affection if ba else 0.0
+                fear_ab = ab.state.fear if ab else 0.0
+                fear_ba = ba.state.fear if ba else 0.0
+                susp_ab = ab.state.suspicion if ab else 0.0
+                susp_ba = ba.state.suspicion if ba else 0.0
+
+                # Fear (checked first — overrides softer affection sentences)
+                if fear_ab >= 0.5 and fear_ba >= 0.5:
+                    sentences.append(f"{na} and {nb} are both afraid of each other.")
+                elif fear_ab >= 0.5:
+                    sentences.append(f"{na} is visibly afraid of {nb}.")
+                elif fear_ba >= 0.5:
+                    sentences.append(f"{nb} is visibly afraid of {na}.")
+
+                # Suspicion
+                if susp_ab >= 0.5 and susp_ba >= 0.5:
+                    sentences.append(f"{na} and {nb} regard each other with mutual suspicion.")
+                elif susp_ab >= 0.5:
+                    sentences.append(f"{na} regards {nb} with deep suspicion.")
+                elif susp_ba >= 0.5:
+                    sentences.append(f"{nb} regards {na} with deep suspicion.")
+
+                # Affection / warmth / hostility
+                mutual_devotion = aff_ab >= 0.6 and aff_ba >= 0.6
+                both_warm = aff_ab >= 0.3 and aff_ba >= 0.3
+                both_hostile = aff_ab <= -0.3 and aff_ba <= -0.3
+                a_warm_b_cold = aff_ab >= 0.4 and aff_ba < 0.0
+                b_warm_a_cold = aff_ba >= 0.4 and aff_ab < 0.0
+
+                if mutual_devotion:
+                    sentences.append(f"{na} and {nb} share a deep, devoted bond.")
+                elif both_warm:
+                    sentences.append(f"{na} and {nb} share a warm rapport.")
+                elif both_hostile:
+                    sentences.append(f"{na} and {nb} are openly hostile toward each other.")
+                elif a_warm_b_cold:
+                    sentences.append(f"{na} is drawn to {nb}, who remains cold or indifferent.")
+                elif b_warm_a_cold:
+                    sentences.append(f"{nb} is drawn to {na}, who remains cold or indifferent.")
+
+                # Include live narrative notes if set (already prose, append directly)
+                if ab and ab.narrative:
+                    sentences.append(ab.narrative)
+                if ba and ba.narrative:
+                    sentences.append(ba.narrative)
+
+        # ── Jealousy / rivalry triangle ──────────────────────────────────────
+        # Detect: A and B both drawn to C, but A and B have neutral-to-negative relation
+        char_list = sorted(chars)
+        jealousy_seen: set = set()
+        for pivot in char_list:
+            admirers = [
+                other for other in char_list
+                if other != pivot
+                and (e := edge_map.get((other, pivot))) is not None
+                and e.state.affection >= 0.4
+            ]
+            if len(admirers) < 2:
+                continue
+            for i, a in enumerate(admirers):
+                for b in admirers[i + 1:]:
+                    key = tuple(sorted([a, b, pivot]))
+                    if key in jealousy_seen:
+                        continue
+                    jealousy_seen.add(key)
+                    ab_e = edge_map.get((a, b))
+                    ba_e = edge_map.get((b, a))
+                    ab_aff = ab_e.state.affection if ab_e else 0.0
+                    ba_aff = ba_e.state.affection if ba_e else 0.0
+                    if ab_aff <= 0.1 or ba_aff <= 0.1:
+                        sentences.append(
+                            f"There is unspoken tension between {self._resolve_name(a)} "
+                            f"and {self._resolve_name(b)}, both drawn to "
+                            f"{self._resolve_name(pivot)}."
+                        )
+
+        if not sentences:
+            return ""
+
+        return " ".join(sentences)
+
+    # ── Prompt formatting ─────────────────────────────────────────────────────
 
     def format_for_prompt(
         self,
         speaker_id: str,
-        characters: dict,
+        characters: dict | None = None,
         active_characters: set[str] | None = None,
     ) -> str:
-        """Build the relationship context section for the system prompt.
+        """Build the relationship context block for the system prompt.
 
         Args:
-            speaker_id: the character whose perspective we're building for
-            characters: dict of key -> CharacterState (or any object with .name)
-            active_characters: if provided, only include edges targeting these keys
+            speaker_id:        character whose outgoing relationships to show
+            characters:        optional external name-lookup dict (falls back to
+                               self.characters if omitted)
+            active_characters: if provided, only include edges to these character keys
 
         Returns:
-            Formatted string for prompt injection, or empty string if no edges.
+            Formatted multi-line string, or empty string if no relevant edges.
         """
+        char_lookup = characters if characters is not None else self.characters
+
         edges = self.get_edges_from(speaker_id)
         if not edges:
             return ""
 
-        # Filter to active characters if specified
         if active_characters is not None:
             edges = [e for e in edges if e.to_id in active_characters]
             if not edges:
                 return ""
 
-        # Cap at 6 edges for prompt size control
+        # Cap at 6 edges for prompt size
         edges = edges[:6]
 
         lines = []
         for e in edges:
-            # Resolve display name
-            target = characters.get(e.to_id)
+            target = char_lookup.get(e.to_id)
             name = getattr(target, "name", None) or e.to_id
             if e.to_id == "player":
                 name = "The Player"
 
+            label_name = f"{name} ({e.to_id})"
             type_label = e.type.value.lower().replace("_", " ")
             described = describe_relationship_state(e.state)
-
-            if e.to_id == "player":
-                label_name = f"{name} ({e.to_id})"
-            else:
-                label_name = f"{name} ({e.to_id})"
 
             line = f"- {label_name} ({type_label}): {described['summary']}"
             line += f"\n  {described['stance']}"
             if e.label:
-                line += f"\n  {e.label}"
+                line += f"\n  [Context] {e.label}"
+            if e.narrative:
+                line += f"\n  [Now] {e.narrative}"
             lines.append(line)
 
         return "\n".join(lines)
+
+    # ── Factory ───────────────────────────────────────────────────────────────
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any] | None) -> "CharacterGraph":
         """Parse from story JSON relationships section.
 
-        Supports both dict-keyed edges and list-of-dicts with 'id' field.
+        Accepts dict-keyed or list-of-dicts edge format.
+        Edges are stored with canonical '{from_id}->{to_id}' keys for O(1) lookup.
+        Authored edges with symmetric=true generate an explicit reverse edge so
+        both directions are queryable without runtime flag checks.
         """
         if not d:
             return cls()
+
         raw_edges = d.get("edges") or {}
         if isinstance(raw_edges, list):
-            edges = {}
-            for item in raw_edges:
-                eid = str(item.get("id", f"edge_{len(edges)}"))
-                edges[eid] = RelationshipEdge.from_dict(eid, item)
+            raw_list = raw_edges
         else:
-            edges = {
-                eid: RelationshipEdge.from_dict(eid, edata)
-                for eid, edata in raw_edges.items()
-            }
-        return cls(edges=edges)
+            raw_list = [{"id": eid, **edata} for eid, edata in raw_edges.items()]
+
+        graph = cls()
+        for item in raw_list:
+            eid = str(item.get("id", f"edge_{len(graph.edges)}"))
+            edge = RelationshipEdge.from_dict(eid, item)
+            if not edge.from_id or not edge.to_id:
+                continue
+
+            key = cls._edge_key(edge.from_id, edge.to_id)
+            graph.edges[key] = edge
+
+            # Authored symmetric=true → create explicit reverse edge for O(1) lookup
+            if item.get("symmetric"):
+                rev_key = cls._edge_key(edge.to_id, edge.from_id)
+                if rev_key not in graph.edges:
+                    graph.edges[rev_key] = RelationshipEdge(
+                        id=f"{eid}_rev",
+                        from_id=edge.to_id,
+                        to_id=edge.from_id,
+                        type=edge.type,
+                        state=RelationshipState(
+                            trust=edge.state.trust,
+                            fear=edge.state.fear,
+                            affection=edge.state.affection,
+                            suspicion=edge.state.suspicion,
+                        ),
+                        label=edge.label,
+                        narrative=edge.narrative,
+                    )
+
+        return graph

@@ -14,7 +14,7 @@ from backend.app.config.settings import (
     TRANSIENT_KNOWLEDGE_TURNS,
 )
 
-from backend.app.engine.character_graph import CharacterGraph
+from backend.app.engine.character_graph import CharacterGraph, CharacterType
 from backend.app.engine.epistemic_state import BeliefState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk
 from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
@@ -88,6 +88,7 @@ class Character:
     key: str
     name: str
     role: str = ""
+    character_type: CharacterType = CharacterType.CANONICAL
     is_main: bool = False
     is_suspect: bool = False
     knowledge_character_id: str = ""
@@ -109,15 +110,25 @@ class Character:
         knowledge_character_id = str(data.get("knowledge_character_id") or "").strip()
         uuid = str(data.get("uuid") or "").strip()
         tags = list(data.get("tags") or [])
+        # Determine character_type: is_main → MAIN; else parse from JSON or default CANONICAL
+        if is_main:
+            character_type = CharacterType.MAIN
+        else:
+            type_raw = str(data.get("character_type") or "").strip().lower()
+            try:
+                character_type = CharacterType(type_raw)
+            except ValueError:
+                character_type = CharacterType.CANONICAL
         known_keys = {
             "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
-            "knowledge_character_id", "uuid", "tags",
+            "knowledge_character_id", "uuid", "tags", "character_type",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
         return cls(
             key=key,
             name=name,
             role=role,
+            character_type=character_type,
             is_main=is_main,
             is_suspect=is_suspect,
             knowledge_character_id=knowledge_character_id,
@@ -131,6 +142,7 @@ class Character:
             "key": self.key,
             "name": self.name,
             "role": self.role,
+            "character_type": self.character_type.value,
             "is_main": self.is_main,
             "is_suspect": self.is_suspect,
             "knowledge_character_id": self.knowledge_character_id,
@@ -138,6 +150,21 @@ class Character:
             "tags": self.tags,
             **(self.meta or {}),
         }
+
+
+def make_player_character(display_name: str = "Player") -> Character:
+    """Create the USER-type Character node representing the human player.
+
+    Always uses key="player" so relationship edges authored in story JSON
+    that target "player" resolve correctly.  Call once at game init and store
+    in GameState.characters["player"] and CharacterGraph.characters["player"].
+    """
+    return Character(
+        key="player",
+        name=display_name,
+        character_type=CharacterType.USER,
+        role="player",
+    )
 
 
 # Backward-compat alias (deprecated — use Character directly)
