@@ -2,7 +2,7 @@
 
 Complete list of every data model / class in the engine. Reference this when deciding where new data belongs or whether a new class is needed.
 
-Last updated: 2026-02-25
+Last updated: 2026-02-26
 
 ---
 
@@ -21,7 +21,7 @@ Last updated: 2026-02-25
 | Class | File | What it is |
 |---|---|---|
 | `GameState` | `backend/app/engine/state.py` | The entire session container. Holds all sub-objects below. |
-| `Character` | `backend/app/engine/state.py` | Unified character object — authoring identity fields (key, name, role, is_main, is_suspect, knowledge_character_id, uuid, tags, meta, self_knowledge) merged with runtime state (emotion, relationship). Replaces the former StoryCharacter + CharacterState split. |
+| `Character` | `backend/app/engine/state.py` | Unified character object — authoring identity fields (key, name, role, character_type, is_main, is_suspect, knowledge_character_id, uuid, tags, meta, self_knowledge) merged with runtime state (emotion, relationship). Replaces the former StoryCharacter + CharacterState split. |
 | `UserState` | `backend/app/engine/state.py` | The human player as seen in-story: display name, formal name, gender. |
 
 `GameState` is the single object passed through the entire engine. Everything else hangs off it.
@@ -36,10 +36,13 @@ Last updated: 2026-02-25
 
 | Class | File | What it is |
 |---|---|---|
-| `CharacterGraph` | `backend/app/engine/character_graph.py` | Directed graph of all character-to-character edges. |
-| `RelationshipEdge` | `backend/app/engine/character_graph.py` | One directed edge: from_id → to_id, with type + multi-dimensional state. |
-| `RelationshipState` | `backend/app/engine/character_graph.py` | Four float dimensions: trust, fear, affection, suspicion. |
+| `CharacterType` | `backend/app/engine/character_graph.py` | Engine-level character classification: `USER` (human player, key="player"), `MAIN` (focal NPC, is_main=True), `CANONICAL` (authored NPC with knowledge bundle), `NPC` (incidental/hallucinated). Distinct from the free-form `role` string. |
+| `CharacterGraph` | `backend/app/engine/character_graph.py` | Directed graph storing both character nodes (`characters: Dict[str, Character]`) and relationship edges (`edges: Dict[str, RelationshipEdge]` keyed `"{from_id}->{to_id}"`). One edge per ordered pair, enforced. Query methods: `get_edge`, `get_edges_from`, `get_edges_to`, `get_all_relationships`, `get_room_relationships`. Summarizer: `summarize_relationships(edges) → str` (deterministic prose, no LLM). |
+| `RelationshipEdge` | `backend/app/engine/character_graph.py` | One directed edge (from_id → to_id): type, state (4D numeric), `label` (static authored context), `narrative` (dynamic runtime note, replaced each update), `narrative_log` (append-only session history). |
+| `RelationshipState` | `backend/app/engine/character_graph.py` | Four float dimensions: trust (-1..1), fear (0..1), affection (-1..1), suspicion (0..1). |
 | `RelationshipType` | `backend/app/engine/character_graph.py` | Enum: FRIEND, ENEMY, FAMILY, LOVER, EMPLOYER, EMPLOYEE, SUSPECT, VICTIM, WITNESS, OTHER. |
+
+**Factory**: `make_player_character(display_name)` in `state.py` creates the `USER` node (`key="player"`) at game init. Not defined in story JSON.
 
 ---
 

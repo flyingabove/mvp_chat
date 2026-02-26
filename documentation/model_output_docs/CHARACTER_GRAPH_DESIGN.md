@@ -1,229 +1,355 @@
-# Character Graph Design (Implemented)
+# Character Graph Design
+
+Last updated: 2026-02-26
 
 ## What Is the Character Graph?
 
-The character graph is a directed graph that models every character in a story and how they relate to each other. Each character is a node. Each relationship between two characters is a directed edge carrying structured state (trust, fear, affection, suspicion). "Directed" means Steve's feelings toward Bob can differ from Bob's feelings toward Steve.
+The character graph is a directed graph that models every participant in the story — including the human player — and how they relate to each other. Every participant is a **node** (a `Character` object). Every relationship between two participants is a **directed edge** (`RelationshipEdge`) carrying structured numeric state plus human-readable prose.
 
 The graph serves three purposes:
-1. **Prompt construction** — tell the AI how a character feels about the people in the scene so it can calibrate tone, hostility, willingness to cooperate.
-2. **Game mechanics** — relationship thresholds can gate behaviors (e.g., a suspect only confesses when trust > 0.5 and fear > 0.7).
+1. **Prompt construction** — tell the AI how a character feels about the people in the scene so it can calibrate tone, hostility, and willingness to cooperate.
+2. **Game mechanics** — relationship thresholds can gate behaviors (e.g., a suspect only confesses when `trust > 0.5` and `fear > 0.7`).
 3. **Debug visibility** — the developer can inspect the full relationship state at any point to verify the AI's behavior makes sense.
 
-## Current State (what exists today)
+---
 
-Today the engine has a single integer `relationship` field on `GameState` (range -5 to +5). Every turn, the AI outputs a `rel_delta` of -1, 0, or +1, and the engine adds it. This score is global — it represents the player's relationship with "the character" as a whole, not between specific character pairs.
+## Character Types
 
-Problems:
-- **One dimension collapses everything.** A suspect can fear the detective AND trust them simultaneously (classic interrogation dynamic). A single score can't represent this.
-- **No character-to-character relationships.** Steve's opinion of Bob matters for interrogation strategy (can you play them against each other?) but isn't modeled.
-- **No typed edges.** The system doesn't know if two characters are friends, enemies, family, or co-conspirators. The prompt builder can't use this information because it doesn't exist structurally.
+Every participant — including the human player — is a `Character` object with a `CharacterType`. The `character_type` field is the engine-level structural role, distinct from the free-form story `role` string (e.g. "ghost", "ally").
 
-## Implemented Runtime Design
+| CharacterType | Key convention | Description |
+|---|---|---|
+| `USER` | `"player"` | The human player. Auto-created at game init via `make_player_character()`. Not defined in story JSON. Has authored relationship edges to all authored NPCs. |
+| `MAIN` | set by author | The focal NPC of the session (`is_main: true` in story JSON). Has a full knowledge/lore bundle and is the primary conversation partner. Inferred automatically from `is_main`. |
+| `CANONICAL` | set by author | Authored NPC with a defined story role and optional knowledge bundle. Fully scripted backstory, motivations, and relationships. Default for any authored character without a `character_type` field. |
+| `NPC` | any | Incidental or emergent character. May be introduced by the LLM in dialogue. No authored knowledge bundle; exists at runtime only. |
 
-### Nodes: CharacterModel (generic)
+Story JSON does not define a `USER` character — the engine creates it automatically:
+```python
+from backend.app.engine.state import make_player_character
+player = make_player_character(display_name="Player")
+# → Character(key="player", character_type=CharacterType.USER, ...)
+```
 
-Each character in the story becomes a `CharacterModel` node in the graph. A character has:
+---
 
-- **Identity**: display name, archetype (e.g., "nervous suspect"), tags (e.g., `["suspect", "ex-boyfriend"]`).
-- **Traits/Motivation**: can exist in authoring JSON, but runtime canonical character objects keep only basic attributes (`key,name,role,is_main,is_suspect,knowledge_character_id,uuid,tags`).
-  Non-canonical details are routed to transient/retrieval context, not stored as canonical character fields.
-- **Epistemic profile**: what this character knows (chunk IDs), believes, and has forgotten. Determines what information they can share.
-- **Anchors**: identity anchors that must never be contradicted (e.g., "You are IU. You are a ghost."). These are injected into the prompt every turn.
-- **Location binding**: which locations this character appears at (if any). A character in Interview Room A is not available in Interview Room B.
+## Graph Structure
 
-### Edges: RelationshipEdge
+`CharacterGraph` stores both nodes and edges:
 
-An edge connects two characters with:
+```
+CharacterGraph
+├── characters: Dict[str, Character]         # key → Character node
+└── edges: Dict[str, RelationshipEdge]       # "{from_id}->{to_id}" → edge
+```
+
+**Edge uniqueness**: exactly one directed edge per `(from_id, to_id)` pair. Internally keyed as `"{from_id}->{to_id}"` for O(1) lookup. Uniqueness is enforced on write — no duplicate edges can exist.
+
+**Directed means asymmetric**: IU's feelings toward the player are a separate edge from the player's feelings toward IU. They can differ.
+
+---
+
+## Node: Character
+
+The `Character` dataclass (in `state.py`) is the node type:
+
+```
+Character:
+  key: str                        # unique identifier (e.g. "iu", "steve", "player")
+  name: str                       # display name (e.g. "IU")
+  role: str                       # story-level role (free-form: "ghost", "suspect", "ally")
+  character_type: CharacterType   # engine-level type: USER / MAIN / CANONICAL / NPC
+  is_main: bool                   # True for the focal NPC (drives character_type=MAIN)
+  is_suspect: bool
+  knowledge_character_id: str     # FAISS/BM25 index bundle directory
+  uuid: str
+  tags: List[str]
+  self_knowledge: List[str]       # first-person identity facts injected into prompt
+  emotion: str                    # current emotional descriptor
+  relationship: int               # legacy -5..+5 score (kept for backward compat)
+```
+
+Characters are also stored in `CharacterGraph.characters` so the graph is self-contained for lookups.
+
+---
+
+## Edge: RelationshipEdge
+
+Each directed edge represents how `from_id` feels about `to_id`:
 
 ```
 RelationshipEdge:
-  id: str                    # unique edge identifier
-  from_character_id: str     # who holds this opinion
-  to_character_id: str       # about whom
-  type: RelationshipType     # FRIEND, ENEMY, FAMILY, LOVER, SUSPECT, VICTIM, etc.
-  state: RelationshipState   # multi-dimensional emotional state
-  supporting_chunk_ids: []   # evidence/events that shaped this relationship
-  symmetric: bool            # if true, the reverse edge mirrors this one
+  id: str                           # canonical "{from_id}->{to_id}" storage key
+  from_id: str                      # who holds this perspective
+  to_id: str                        # about whom
+  type: RelationshipType            # FRIEND, ENEMY, FAMILY, LOVER, EMPLOYER, EMPLOYEE,
+                                    # SUSPECT, VICTIM, WITNESS, OTHER
+  state: RelationshipState          # numeric dimensions (see below)
+  label: str                        # static authored context, never changes at runtime
+                                    # e.g. "former manager; contract dispute ended badly"
+  narrative: str                    # dynamic runtime note, replaced on each update
+                                    # e.g. "IU now believes Steve is hiding something"
+  narrative_log: List[str]          # append-only session history of all narrative notes
 ```
+
+`label` is set once by the story author and frozen. `narrative` is updated by the LLM via the STATE tag as the scene evolves. `narrative_log` records every narrative note ever written for this edge during the session.
 
 ### RelationshipState (multi-dimensional)
 
-Instead of one integer, each edge carries:
+| Dimension   | Range  | What it means |
+|-------------|--------|---------------|
+| `trust`     | -1..1  | How much A trusts B. Negative = active distrust. |
+| `fear`      | 0..1   | How afraid A is of B. High fear + low trust = defensive/hostile. |
+| `affection` | -1..1  | Emotional warmth. Negative = resentment/hatred. |
+| `suspicion` | 0..1   | How much A suspects B of wrongdoing. |
 
-| Dimension  | Range  | What it means |
-|------------|--------|---------------|
-| `trust`    | -1..1  | How much A trusts B. Negative = active distrust. |
-| `fear`     | 0..1   | How afraid A is of B. High fear + low trust = defensive/hostile. |
-| `affection`| -1..1  | Emotional warmth. Negative = resentment/hatred. |
-| `suspicion`| 0..1   | How much A suspects B of wrongdoing. |
-| `custom`   | dict   | Story-specific dimensions (e.g., `"guilt": 0.8`). |
+These dimensions are independent. A suspect can have high fear (0.9) AND moderate trust (0.3) toward the detective simultaneously — they're scared but believe the detective will honor a deal. This nuance is impossible with a single integer score.
 
-These dimensions are independent. A suspect can have high fear (0.9) AND moderate trust (0.3) toward the detective — they're scared but believe the detective will honor the cooperation deal. This nuance is impossible with a single score.
-
-## Deterministic Language Layer (Current Prompt Behavior)
-
-The prompt relationship section now uses deterministic wording rather than raw numeric-only labels.
-
-### Normalization philosophy
-
-- `trust` and `affection` are already interpreted on `-1..1`.
-- `fear` and `suspicion` are stored as `0..1` but normalized to `-1..1` for language generation using:
-  - `normalized = (value * 2) - 1`
-- This creates one common semantic scale where:
-  - `-1` = strongly low/positive-safe state for that dimension
-  - `+1` = strongly high/negative-intense state for that dimension
-
-### Word mapping and determinism
-
-- Each normalized value is clamped to `[-1, 1]`, rounded to the nearest `0.1`, then mapped to a fixed word.
-- No randomness is used in this mapping.
-- The runtime helper is `describe_relationship_state()` in `backend/app/engine/character_graph.py`.
-
-### Prompt output format
-
-Per relationship edge, prompt text now includes deterministic prose summaries (not raw numbers), for example:
-- `IU currently reads the player with neutral trust, guarded fear, neutral affection, and guarded suspicion.`
-- Followed by a deterministic stance sentence derived from the same dimensions.
-
-This gives stable, readable interpretation while preserving underlying numeric state for mechanics.
-
-### RelationshipType enum
+### RelationshipType
 
 ```
 FRIEND, ENEMY, FAMILY, LOVER, EMPLOYER, EMPLOYEE, SUSPECT, VICTIM, WITNESS, OTHER
 ```
 
-The type is the "label" on the edge. It's set at story creation time and can change during gameplay (e.g., FRIEND becomes ENEMY after a betrayal). The type informs prompt construction — knowing Steve and Bob are CO_CONSPIRATORS tells the AI they'll protect each other until pressure breaks them.
+Set at story creation time. Can change during gameplay (e.g., FRIEND becomes ENEMY after a betrayal).
 
-## How the Graph Gets Used
+---
 
-### 1. Prompt injection
+## Query Interface
 
-When building the prompt for a turn, the engine:
-1. Identifies the current speaker (from location → speaker mapping).
-2. Looks up all edges FROM that speaker.
-3. Injects a relationship summary into the prompt as scene prose under relationship context headings.
-4. The `supporting_chunk_ids` can optionally pull in the specific events that shaped the relationship, giving the AI concrete memories to reference.
+All query methods return `RelationshipEdge` or `List[RelationshipEdge]`:
 
-Prompt input source boundaries (enforced):
-- Canonical runtime sources: character basics, story canonical truths, character graph, belief graph, places graph.
-- Retrieval/runtime context sources: BM25/FAISS chunks and transient buffer.
-- No other free-form story JSON fields are injected directly into the prompt.
+```python
+# Node queries
+graph.add_character(character)          # add/replace a character node
+graph.get_character(key)                # → Character | None
 
-### 2. Behavior gating
+# Single edge
+graph.get_edge(from_id, to_id)          # → RelationshipEdge | None (O(1))
 
-Relationship thresholds can trigger game events:
-- Steve confesses only when `fear > 0.8` AND `trust > 0.3` (scared enough to talk, trusts the deal enough to take it).
-- Bob turns on Steve only when `suspicion(Bob→Steve) > 0.6` (believes Steve will betray him).
-- A character becomes hostile when `affection < -0.5`.
+# Edge lists
+graph.get_edges_from(character_id)      # → List[RelationshipEdge] — outgoing only
+graph.get_edges_to(character_id)        # → List[RelationshipEdge] — incoming only
+graph.get_all_relationships(character_id)  # → List[RelationshipEdge] — in + out
 
-### 3. Delta application
+# Room-level: all edges between any pair in a set
+graph.get_room_relationships({"player", "iu", "steve"})
+# → every directed edge where both from_id AND to_id are in the set
+```
 
-Each turn, the AI outputs relationship deltas (currently `rel_delta: -1|0|1`). In the new system, the extractor would output per-dimension deltas:
+---
 
+## Room Scenario: How It Works
+
+When a player enters a location with IU and Steve present, the engine:
+
+```python
+# Step 1: query all edges between everyone in the room
+room_edges = graph.get_room_relationships({"player", "iu", "steve"})
+# → [iu→player, iu→steve, steve→player, steve→iu, player→iu, ...]
+
+# Step 2: summarize into deterministic prose for the LLM
+summary = graph.summarize_relationships(room_edges)
+# → "IU regards Steve with deep suspicion. IU and Steve are openly hostile
+#    toward each other. There is unspoken tension between IU and Steve,
+#    both drawn to the player."
+
+# Step 3: also build per-speaker detail (for the main speaker's perspective)
+speaker_detail = graph.format_for_prompt(
+    speaker_id="iu",
+    active_characters={"player", "steve"}
+)
+```
+
+Both `summary` and `speaker_detail` are injected into the [RELATIONSHIPS] section of the system prompt.
+
+---
+
+## Relationship Summarizer
+
+`CharacterGraph.summarize_relationships(edges)` produces a deterministic (no LLM) prose paragraph from a list of edges. It detects:
+
+| Pattern | Condition | Example output |
+|---------|-----------|----------------|
+| Mutual warmth | both `affection >= 0.3` | "IU and Steve share a warm rapport." |
+| Deep bond | both `affection >= 0.6` | "IU and Steve share a deep, devoted bond." |
+| Mutual hostility | both `affection <= -0.3` | "IU and Steve are openly hostile toward each other." |
+| One-sided attraction | one `>= 0.4`, other `< 0.0` | "IU is drawn to Steve, who remains cold or indifferent." |
+| Mutual fear | both `fear >= 0.5` | "IU and Steve are both afraid of each other." |
+| One-sided fear | one `>= 0.5` | "IU is visibly afraid of Steve." |
+| Mutual suspicion | both `suspicion >= 0.5` | "IU and Steve regard each other with mutual suspicion." |
+| One-sided suspicion | one `>= 0.5` | "IU regards Steve with deep suspicion." |
+| Jealousy triangle | A and B both `affection >= 0.4` toward C, A↔B have friction | "There is unspoken tension between IU and Steve, both drawn to the player." |
+| Live narrative | edge has `narrative` set | narrative appended verbatim |
+
+---
+
+## Per-Speaker Detail (format_for_prompt)
+
+`format_for_prompt(speaker_id, active_characters)` formats the active speaker's outgoing edges as structured prompt text, including both static context and live narrative:
+
+```
+- The Player (player) (witness): Trust is guarded; fear is watchful; affection is neutral; suspicion is doubtful.
+  Behavior tendency: guarded defense, likely to hedge and reveal selectively.
+  [Context] First meeting; IU initially treated them as a routine fan.
+  [Now] IU grew colder after the player's evasive answer about the night of the incident.
+
+- Steve (steve) (suspect): Trust is wary; fear is nervous; affection is cold; suspicion is highly_suspicious.
+  Behavior tendency: defensive-hostile, likely to resist, deflect, or confront.
+  [Context] Former manager; their relationship soured after the contract dispute.
+  [Now] IU now believes Steve is hiding what happened that night.
+```
+
+`[Context]` = static `label` (authored, never changes). `[Now]` = dynamic `narrative` (current runtime note). Both are omitted if empty.
+
+---
+
+## Deterministic Language Layer
+
+Numeric dimension values are converted to human-readable words deterministically (no LLM, no randomness):
+
+- `trust` and `affection`: already on -1..1 scale.
+- `fear` and `suspicion`: stored as 0..1, normalized to -1..1 via `(value * 2) - 1`.
+- Each normalized value is clamped to [-1, 1], rounded to nearest 0.1, then mapped to a fixed vocabulary word.
+- Runtime helper: `describe_relationship_state()` in `character_graph.py`.
+
+---
+
+## Edge Mutation
+
+### Legacy backward-compat (still works)
+```python
+graph.apply_rel_delta(from_id="iu", to_id="player", rel_delta=-1)
+# Maps ±1 integer to ±0.1 affection delta. Preserved for existing story JSONs.
+```
+
+### Full 4D update
+```python
+graph.update_edge(
+    from_id="iu",
+    to_id="steve",
+    trust_delta=-0.1,
+    suspicion_delta=0.2,
+    narrative="IU now believes Steve is hiding what happened that night."
+)
+# Returns True if edge found and updated, False if edge doesn't exist.
+# narrative replaces edge.narrative and is appended to narrative_log.
+```
+
+Only edges that already exist in the graph can be updated — the engine cannot hallucinate new edges.
+
+### STATE tag format (applied each turn by apply_state_tag())
+
+Legacy (backward compat — updates affection on main NPC → player edge):
 ```json
-{
+[[STATE]]{"emotion": "cold", "rel_delta": -1}[[/STATE]]
+```
+
+Full 4D multi-edge updates (planned, see plan):
+```json
+[[STATE]]{
+  "emotion": "suspicious",
   "rel_updates": [
-    {"target": "steve", "trust_delta": 0.1, "fear_delta": -0.05}
+    {
+      "from": "iu", "to": "player",
+      "affection_delta": -0.2, "suspicion_delta": 0.1,
+      "narrative": "IU grew colder after the player's evasive answer."
+    },
+    {
+      "from": "iu", "to": "steve",
+      "trust_delta": -0.3, "suspicion_delta": 0.4,
+      "narrative": "IU now believes Steve is hiding what happened that night."
+    }
   ]
-}
+}[[/STATE]]
 ```
 
-The engine applies these deltas and clamps values to their valid ranges.
-
-### 4. Debug panel
-
-The debug box can show the full relationship state:
-```
-Relationships (Steve's perspective):
-  → Bob: trust=0.4, fear=0.2, affection=0.3, suspicion=0.1
-  → Player: trust=-0.3, fear=0.7, affection=-0.1, suspicion=0.0
-```
-
-This lets the developer verify the AI's behavior aligns with the underlying state.
-
-## Migration from Current System
-
-The current single `relationship` integer maps most closely to `affection` in the new system. Migration path:
-
-1. **Phase 1 (backward compatible):** Keep the existing `rel_delta` output format. The engine maps it to `affection` on the player→character edge. Other dimensions default to neutral.
-2. **Phase 2 (multi-dimensional extraction):** Update the extractor to output per-dimension deltas. Update the prompt builder to inject the full relationship summary.
-3. **Phase 3 (character-to-character):** Add edges between NPCs (e.g., Steve↔Bob). These start from story JSON and evolve based on gameplay events.
+---
 
 ## Story JSON Format
-
-Characters and relationships are defined in the story JSON:
 
 ```json
 {
   "characters": [
     {
+      "key": "iu",
+      "name": "IU",
+      "role": "ghost",
+      "is_main": true,
+      "character_type": "main"
+    },
+    {
       "key": "steve",
       "name": "Steve",
-      "role": "Fictional ex-boyfriend",
+      "role": "ex-manager",
       "is_suspect": true,
-      "tags": ["suspect"],
-      "motivation": {
-        "primary": "Avoid prison",
-        "fears": ["being betrayed by Bob", "life sentence"],
-        "needs": ["the cooperation deal"]
-      }
+      "character_type": "canonical"
     }
   ],
   "relationships": {
     "edges": [
       {
-        "id": "steve_to_bob",
-        "from": "steve",
-        "to": "bob",
-        "type": "FRIEND",
-        "state": {"trust": 0.5, "fear": 0.1, "affection": 0.4, "suspicion": 0.2},
-        "symmetric": false
+        "id": "iu_to_player",
+        "from": "iu",
+        "to": "player",
+        "type": "WITNESS",
+        "state": {"trust": 0.0, "fear": 0.1, "affection": 0.1, "suspicion": 0.3},
+        "label": "First meeting; IU initially treated them as a routine fan."
       },
       {
-        "id": "bob_to_steve",
-        "from": "bob",
+        "id": "iu_to_steve",
+        "from": "iu",
         "to": "steve",
-        "type": "FRIEND",
-        "state": {"trust": 0.3, "fear": 0.3, "affection": 0.3, "suspicion": 0.5}
+        "type": "SUSPECT",
+        "state": {"trust": -0.4, "fear": 0.2, "affection": -0.5, "suspicion": 0.7},
+        "label": "Former manager; their relationship soured after the contract dispute."
+      },
+      {
+        "id": "steve_to_iu",
+        "from": "steve",
+        "to": "iu",
+        "type": "ENEMY",
+        "state": {"trust": -0.3, "fear": 0.4, "affection": -0.4, "suspicion": 0.3},
+        "label": "Resents IU for ending the professional relationship."
       }
     ]
   }
 }
 ```
 
-Note that Steve→Bob and Bob→Steve have different states. Bob is more suspicious of Steve than Steve is of Bob. This asymmetry drives gameplay: Bob might crack first if the detective plays on his suspicion.
+Notes:
+- `"player"` is a valid `to` target without defining a player character in JSON — the engine creates the `USER` node automatically.
+- Omit `character_type` for authored NPCs; the engine defaults to `CANONICAL` (or `MAIN` if `is_main: true`).
+- `symmetric: true` on an edge automatically creates an explicit reverse edge with mirrored state at load time. Use explicit separate edges when asymmetric state matters (which is usually the case).
 
-## Relationship to Location Binding
-
-Characters exist at specific locations. Runtime now distinguishes:
-- `people_present` (world location occupancy)
-- `speakers` (current-turn speaking cast)
-
-`people_present` is computed per turn from world location + character location index. `speakers` comes from turn-level scene extraction and can carry over from previous turn only when location is unchanged.
-
-The character graph complements this: it tells you not just WHO is present, but how they FEEL about others in the active cast. When the player is in Interview Room A with Steve, the prompt needs both:
-- Steve is physically present in this location (scene presence)
-- Steve is a current-turn speaker when selected by turn context
-- Steve's relationship state toward the player and toward Bob (from the character graph)
-
-## Open Questions
-
-1. **Should relationship edges be mutable or append-only?** Mutable is simpler. Append-only (with snapshots) enables time-travel debugging ("what was Steve's trust in Bob at turn 5?").
-2. **How granular should extractor deltas be?** Per-dimension floats give precision but demand more from the extractor LLM. Coarser options: the extractor outputs a sentiment label (e.g., "more trusting") and the engine maps it to a fixed delta.
-3. **Should the player node exist in the graph?** Currently the player is not a character node — they're the void that characters react to. Adding a player node would let NPCs have structured opinions about the player, but it adds complexity.
+---
 
 ## Implementation Status
 
-**Phase 1 (backward compatible) is implemented.** The following modules make this work:
+**All three phases are implemented.**
 
-- **`backend/app/engine/character_graph.py`** — Production module with `RelationshipType`, `RelationshipState`, `RelationshipEdge`, and `CharacterGraph` classes.
-- **Story JSONs** — Both `iu_murder_mystery_story.json` and `jennie_murder_mini_story.json` have `"relationships": { "edges": [...] }` sections with initial character-to-character edges.
-- **`backend/app/engine/story_loader.py`** — Parses `relationships` into `CharacterGraph` as part of `StoryDefinition`.
-- **`backend/app/engine/state.py`** — `GameState.character_graph` field; `apply_state_tag()` routes `rel_delta` through `CharacterGraph.apply_rel_delta()` (maps to affection delta).
-- **`backend/app/engine/prompt_builder.py`** — Injects scene-scoped relationship prose (from character graph state) into `RELATIONSHIP CONTEXT IN THIS SCENE`.
-- **`scripts/scorer/story_agent_ui.py`** — Scorer context modal shows relationship layer with color-coded tag.
+### Files
 
-The legacy `rel_delta` (-1/0/+1) output format is preserved. The integer `state.relationship` continues to work in parallel.
+| File | Role |
+|---|---|
+| `backend/app/engine/character_graph.py` | `CharacterType`, `RelationshipType`, `RelationshipState`, `RelationshipEdge`, `CharacterGraph` (nodes + edges + queries + summarizer) |
+| `backend/app/engine/state.py` | `Character` (with `character_type` field), `make_player_character()`, `GameState.character_graph`, `apply_state_tag()` |
+| `backend/app/engine/story_loader.py` | Parses `relationships` into `CharacterGraph`; parses characters into `Character` objects |
+| `backend/app/engine/prompt_builder.py` | Injects relationship prose via `format_for_prompt()` and `summarize_relationships()` |
+| `backend/app/api/prompt_engine.py` | Applies `rel_delta` post-turn via `CharacterGraph.apply_rel_delta()` |
 
-**Phase 2 (multi-dimensional extraction) and Phase 3 (NPC-to-NPC runtime updates)** are future work.
+### What is built
+- `CharacterGraph` stores both character nodes and directed edges
+- `CharacterType` enum classifies every participant structurally
+- `make_player_character()` creates the USER node for game init
+- O(1) edge lookup via canonical `"{from_id}->{to_id}"` key
+- Full query API: `get_edge`, `get_edges_from`, `get_edges_to`, `get_all_relationships`, `get_room_relationships`
+- `update_edge()` with full 4D delta + narrative
+- `summarize_relationships()` — deterministic prose paragraph for room-level LLM context
+- `format_for_prompt()` — per-speaker detail with `[Context]` and `[Now]` labels
+- `narrative` + `narrative_log` on each edge for runtime evolution tracking
+- `symmetric=true` in story JSON expands to explicit reverse edge at load time
+
+### What is pending (see plan)
+- `rel_updates` array in STATE tag for LLM to drive multi-edge 4D updates (wired in `apply_state_tag()`)
+- Prompt builder section for `summarize_relationships()` injected at room entry
