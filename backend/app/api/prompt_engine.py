@@ -1364,6 +1364,19 @@ async def chat_handler(data: dict):
     _upsert_active_character_markers(state, _pre_active_chars)
     _upsert_people_present_markers(state, _people_present)
 
+    # First-meeting detection: initialize prejudice on edges for pairs meeting for the
+    # first time. Idempotent — once met_at is set on an edge it is never reset.
+    # Called on every turn with the current room set so NPC walk-ins are also captured.
+    _graph = getattr(state, "character_graph", None)
+    if _graph is not None:
+        _room_ids = set(_pre_active_chars) | {"player"}
+        _room_ids.discard("")
+        _graph.process_first_meetings(
+            room_ids=_room_ids,
+            state=state,
+            current_minute=int(getattr(state, "minute", 0) or 0),
+        )
+
     # NOTE: advance_time is called AFTER location extraction (below) so that
     # the canonicalized movement message (e.g. "go to interview_room_bob") is
     # used instead of the raw user text which may not match the strict regex.

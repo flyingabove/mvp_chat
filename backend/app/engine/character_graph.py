@@ -72,12 +72,13 @@ prose generation functions (in prompt_builder.py):
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from backend.app.engine.state import Character
+    from backend.app.engine.state import Character, GameState
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -321,11 +322,14 @@ class RelationshipState:
 class RelationshipEdge:
     """A directed edge: from_id's perspective toward to_id.
 
-    label        — static authored context, never changes at runtime
-                   e.g. "former manager; contract dispute ended badly"
-    narrative    — dynamic runtime note, replaced on each update
-                   e.g. "IU now believes Steve is hiding something"
+    label         — static authored context, never changes at runtime
+                    e.g. "former manager; contract dispute ended badly"
+    narrative     — dynamic runtime note, replaced on each update
+                    e.g. "IU now believes Steve is hiding something"
     narrative_log — append-only history of all narrative notes this session
+    met_at        — game minute of the first physical co-location this session.
+                    None = characters have not yet physically shared a location.
+                    Set to 0 at load time if the story JSON marks met_before_game=true.
     """
     id: str
     from_id: str
@@ -335,6 +339,7 @@ class RelationshipEdge:
     label: str = ""
     narrative: str = ""
     narrative_log: List[str] = field(default_factory=list)
+    met_at: Optional[int] = None   # None = not yet physically met this session
 
     @classmethod
     def from_dict(cls, edge_id: str, d: Dict[str, Any] | None) -> "RelationshipEdge":
@@ -344,6 +349,8 @@ class RelationshipEdge:
             rel_type = RelationshipType(type_raw)
         except ValueError:
             rel_type = RelationshipType.OTHER
+        # met_before_game=true → characters knew each other before the game started
+        met_at: Optional[int] = 0 if d.get("met_before_game") else None
         return cls(
             id=edge_id,
             from_id=str(d.get("from_id") or d.get("from", "")),
@@ -352,7 +359,125 @@ class RelationshipEdge:
             state=RelationshipState.from_dict(d.get("state")),
             label=str(d.get("label", "")),
             narrative=str(d.get("narrative", "")),
+            met_at=met_at,
         )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Prejudice initialization — deterministic first-meeting trait calculation
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Role keyword → (trust_delta, fear_delta, suspicion_delta, affection_delta)
+_ROLE_PRIORS: list[tuple[list[str], tuple[float, float, float, float]]] = [
+    (["suspect", "criminal", "killer", "murderer", "villain"],  (-0.15, +0.05, +0.25, -0.10)),
+    (["antagonist", "enemy", "rival"],                          (-0.10, +0.05, +0.10, -0.05)),
+    (["ally", "partner", "friend", "helper"],                   (+0.10,  0.00, -0.05, +0.10)),
+    (["authority", "detective", "inspector", "officer", "doctor"],
+                                                                (+0.05, +0.05,  0.00,  0.00)),
+    (["victim", "witness"],                                     ( 0.00,  0.00, -0.05, +0.05)),
+]
+
+# Tag keyword → (trust_delta, fear_delta, suspicion_delta, affection_delta)
+_TAG_PRIORS: list[tuple[list[str], tuple[float, float, float, float]]] = [
+    (["dangerous", "violent", "criminal", "threatening"],       ( 0.00, +0.05, +0.10,  0.00)),
+    (["friendly", "trustworthy", "kind", "loyal"],              (+0.05,  0.00,  0.00, +0.05)),
+]
+
+_NEGATIVE_FACT_KEYWORDS = re.compile(
+    r"\b(killed|murdered|stole|lied|deceived|threatened|attacked|violent|crime|assault)\b",
+    re.IGNORECASE,
+)
+_POSITIVE_FACT_KEYWORDS = re.compile(
+    r"\b(helped|saved|honest|trustworthy|kind|loyal|protected)\b",
+    re.IGNORECASE,
+)
+
+
+def _compute_prejudice_state(
+    a_char: "Character",
+    b_char: "Character",
+    state: "GameState",
+) -> "tuple[RelationshipState, RelationshipType]":
+    """Compute A's initial RelationshipState toward B using deterministic prejudice rules.
+
+    Called when A and B physically meet for the first time and no authored edge exists.
+    Signals used (all deterministic, no LLM):
+      A. b_char.role keyword match → role-based prior
+      B. b_char.is_suspect flag → suspicion/trust adjustment
+      C. b_char.tags keyword match → tag-based prior
+      D. Canonical facts A knows about B → negative/positive keyword scan
+
+    Returns (RelationshipState, inferred RelationshipType).
+    All deltas are clamped via RelationshipState._clamp() at end.
+    """
+    trust = 0.0
+    fear = 0.0
+    suspicion = 0.0
+    affection = 0.0
+
+    # A. Role-based prior
+    b_role = (getattr(b_char, "role", "") or "").lower()
+    for keywords, (t, f, s, aff) in _ROLE_PRIORS:
+        if any(kw in b_role for kw in keywords):
+            trust += t; fear += f; suspicion += s; affection += aff
+            break  # only apply the first matching group
+
+    # B. is_suspect flag
+    if getattr(b_char, "is_suspect", False):
+        suspicion += 0.15
+        trust -= 0.10
+
+    # C. Tag-based prior
+    b_tags = [t.lower() for t in (getattr(b_char, "tags", None) or [])]
+    for keywords, (t, f, s, aff) in _TAG_PRIORS:
+        if any(kw in tag for kw in keywords for tag in b_tags):
+            trust += t; fear += f; suspicion += s; affection += aff
+
+    # D. Canonical facts that A knows about B
+    a_key = getattr(a_char, "key", "")
+    b_key = getattr(b_char, "key", "")
+    b_name = (getattr(b_char, "name", "") or "").lower()
+    canonical_facts = getattr(state, "canonical_facts", None) or []
+
+    neg_hits = 0
+    pos_hits = 0
+    for chunk in canonical_facts:
+        # Check if A knows this fact
+        known_by = getattr(chunk, "known_by", None) or []
+        if a_key not in known_by and "all_characters" not in known_by:
+            continue
+        # Check if fact is about B
+        fact_text = str(getattr(chunk, "text", "") or getattr(chunk, "content", "") or "").lower()
+        fact_subject = str(getattr(chunk, "subject", "") or "").lower()
+        if b_key not in fact_text and b_name not in fact_text and b_key not in fact_subject:
+            continue
+        # Keyword scan
+        if neg_hits < 2 and _NEGATIVE_FACT_KEYWORDS.search(fact_text):
+            trust -= 0.10
+            suspicion += 0.10
+            neg_hits += 1
+        if pos_hits < 2 and _POSITIVE_FACT_KEYWORDS.search(fact_text):
+            trust += 0.10
+            affection += 0.05
+            pos_hits += 1
+
+    rs = RelationshipState(trust=trust, fear=fear, affection=affection, suspicion=suspicion)
+    # _clamp() is called in __post_init__ already, but apply it explicitly after assignment
+    rs._clamp()
+
+    # E. Infer RelationshipType from computed state
+    if rs.suspicion >= 0.30:
+        rel_type = RelationshipType.SUSPECT
+    elif rs.trust <= -0.20 and rs.affection <= -0.10:
+        rel_type = RelationshipType.ENEMY
+    elif rs.affection >= 0.20 and rs.trust >= 0.10:
+        rel_type = RelationshipType.FRIEND
+    elif rs.fear >= 0.25:
+        rel_type = RelationshipType.WITNESS
+    else:
+        rel_type = RelationshipType.OTHER
+
+    return rs, rel_type
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -524,6 +649,50 @@ class CharacterGraph:
 
         return "\n".join(lines)
 
+    # ── First-meeting detection + prejudice initialization ─────────────────────
+
+    def process_first_meetings(
+        self,
+        room_ids: "Set[str]",
+        state: "GameState",
+        current_minute: int,
+    ) -> None:
+        """Detect first physical meetings and initialize prejudice on new edges.
+
+        Called each time a location change occurs. For each ordered pair (A, B)
+        in the room:
+          - If the A→B edge exists and met_at is None: mark met_at = current_minute.
+          - If the A→B edge does not exist: create it with prejudice-initialized
+            values computed from available identity and epistemic signals.
+
+        Idempotent: once met_at is set on an edge, subsequent calls skip that pair.
+        """
+        ids = sorted(room_ids)  # deterministic ordering
+        for a_id in ids:
+            for b_id in ids:
+                if a_id == b_id:
+                    continue
+                edge = self.get_edge(a_id, b_id)
+                if edge is not None:
+                    if edge.met_at is None:
+                        edge.met_at = current_minute
+                else:
+                    # No authored edge — create one with prejudice-initialized values
+                    a_char = self.characters.get(a_id)
+                    b_char = self.characters.get(b_id)
+                    if a_char is None or b_char is None:
+                        continue
+                    init_state, inferred_type = _compute_prejudice_state(a_char, b_char, state)
+                    new_edge = RelationshipEdge(
+                        id=self._edge_key(a_id, b_id),
+                        from_id=a_id,
+                        to_id=b_id,
+                        type=inferred_type,
+                        state=init_state,
+                        met_at=current_minute,
+                    )
+                    self.edges[self._edge_key(a_id, b_id)] = new_edge
+
     # ── Factory ───────────────────────────────────────────────────────────────
 
     @classmethod
@@ -572,6 +741,7 @@ class CharacterGraph:
                         ),
                         label=edge.label,
                         narrative=edge.narrative,
+                        met_at=edge.met_at,
                     )
 
         return graph
