@@ -32,6 +32,9 @@ Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 - [documentation/ai_learnings_mistakes/AI_GAME_STRUCTURE.md](documentation/ai_learnings_mistakes/AI_GAME_STRUCTURE.md)
 - Authoring invariant code: `backend/app/engine/authoring_checklist.py`
 
+### Data model reference
+- [documentation/model_output_docs/DATA_MODEL_INVENTORY.md](documentation/model_output_docs/DATA_MODEL_INVENTORY.md)
+
 ### UI/scorer/flags
 - [documentation/ai_learnings_mistakes/AI_UI_WORKFLOW.md](documentation/ai_learnings_mistakes/AI_UI_WORKFLOW.md)
 - [documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md](documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md)
