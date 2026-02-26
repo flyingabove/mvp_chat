@@ -778,6 +778,9 @@ def _relationship_scene_section(state: GameState) -> str:
         label = (getattr(edge, "label", "") or "").strip()
         if label:
             sentence += f" Context: {label}"
+        narrative = (getattr(edge, "narrative", "") or "").strip()
+        if narrative:
+            sentence += f" [{narrative}]"
         lines.append(sentence)
 
     return (
@@ -786,6 +789,187 @@ def _relationship_scene_section(state: GameState) -> str:
         "────────────────────────────────────────\n"
         "Use this relationship context to shape who speaks, who withholds, who pressures, and how tension evolves between characters currently in play.\n\n"
         + "\n".join(lines)
+        + "\n"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Room relationship prose — called on location entry
+#
+# Architecture: CharacterGraph is a pure data layer. It returns raw
+# List[RelationshipEdge] only. All prose generation happens here.
+#
+# Pipeline (location A → B):
+#   1. Extractor detects movement, resolves characters present at B
+#   2. prompt_engine passes character set to _room_relationship_section()
+#   3. _room_relationship_section() calls graph.get_room_relationships() → raw edges
+#   4. _summarize_room_relationships() converts raw edges → deterministic prose
+#   5. Prose injected into system prompt under [ROOM DYNAMICS]
+# ---------------------------------------------------------------------------
+
+def _resolve_char_name(character_id: str, characters: dict) -> str:
+    """Resolve a character key to a display name, falling back to the key."""
+    if character_id == "player":
+        return "the player"
+    char = characters.get(character_id)
+    return getattr(char, "name", None) or character_id
+
+
+def _summarize_room_relationships(edges: list, characters: dict) -> str:
+    """Generate deterministic prose from a list of raw RelationshipEdge objects.
+
+    Called with the output of CharacterGraph.get_room_relationships().
+    Detects: mutual warmth/devotion, mutual hostility, one-sided attraction,
+    fear, suspicion, live narrative notes, and jealousy/rivalry triangles.
+
+    CharacterGraph returns data only. This function is the prose-generation layer.
+    Returns empty string if no notable patterns are detected.
+    """
+    if not edges:
+        return ""
+
+    edge_map = {(e.from_id, e.to_id): e for e in edges}
+    chars = set()
+    for e in edges:
+        chars.add(e.from_id)
+        chars.add(e.to_id)
+
+    sentences: list[str] = []
+    pairs_processed: set = set()
+
+    # Pairwise analysis
+    for a in sorted(chars):
+        for b in sorted(chars):
+            if a >= b:
+                continue
+            if (a, b) in pairs_processed:
+                continue
+            pairs_processed.add((a, b))
+
+            ab = edge_map.get((a, b))
+            ba = edge_map.get((b, a))
+            if ab is None and ba is None:
+                continue
+
+            na = _resolve_char_name(a, characters)
+            nb = _resolve_char_name(b, characters)
+
+            aff_ab = ab.state.affection if ab else 0.0
+            aff_ba = ba.state.affection if ba else 0.0
+            fear_ab = ab.state.fear if ab else 0.0
+            fear_ba = ba.state.fear if ba else 0.0
+            susp_ab = ab.state.suspicion if ab else 0.0
+            susp_ba = ba.state.suspicion if ba else 0.0
+
+            # Fear (highest signal — checked first)
+            if fear_ab >= 0.5 and fear_ba >= 0.5:
+                sentences.append(f"{na} and {nb} are both afraid of each other.")
+            elif fear_ab >= 0.5:
+                sentences.append(f"{na} is visibly afraid of {nb}.")
+            elif fear_ba >= 0.5:
+                sentences.append(f"{nb} is visibly afraid of {na}.")
+
+            # Suspicion
+            if susp_ab >= 0.5 and susp_ba >= 0.5:
+                sentences.append(f"{na} and {nb} regard each other with mutual suspicion.")
+            elif susp_ab >= 0.5:
+                sentences.append(f"{na} regards {nb} with deep suspicion.")
+            elif susp_ba >= 0.5:
+                sentences.append(f"{nb} regards {na} with deep suspicion.")
+
+            # Affection / warmth / hostility
+            mutual_devotion = aff_ab >= 0.6 and aff_ba >= 0.6
+            both_warm = aff_ab >= 0.3 and aff_ba >= 0.3
+            both_hostile = aff_ab <= -0.3 and aff_ba <= -0.3
+            a_warm_b_cold = aff_ab >= 0.4 and aff_ba < 0.0
+            b_warm_a_cold = aff_ba >= 0.4 and aff_ab < 0.0
+
+            if mutual_devotion:
+                sentences.append(f"{na} and {nb} share a deep, devoted bond.")
+            elif both_warm:
+                sentences.append(f"{na} and {nb} share a warm rapport.")
+            elif both_hostile:
+                sentences.append(f"{na} and {nb} are openly hostile toward each other.")
+            elif a_warm_b_cold:
+                sentences.append(f"{na} is drawn to {nb}, who remains cold or indifferent.")
+            elif b_warm_a_cold:
+                sentences.append(f"{nb} is drawn to {na}, who remains cold or indifferent.")
+
+            # Live narrative notes from edges (LLM-authored, already prose)
+            if ab and getattr(ab, "narrative", ""):
+                sentences.append(ab.narrative)
+            if ba and getattr(ba, "narrative", ""):
+                sentences.append(ba.narrative)
+
+    # Jealousy / rivalry triangle: A and B both drawn to C, A↔B have friction
+    char_list = sorted(chars)
+    jealousy_seen: set = set()
+    for pivot in char_list:
+        admirers = [
+            other for other in char_list
+            if other != pivot
+            and edge_map.get((other, pivot)) is not None
+            and edge_map[(other, pivot)].state.affection >= 0.4
+        ]
+        if len(admirers) < 2:
+            continue
+        for i, a in enumerate(admirers):
+            for b in admirers[i + 1:]:
+                triple = tuple(sorted([a, b, pivot]))
+                if triple in jealousy_seen:
+                    continue
+                jealousy_seen.add(triple)
+                ab_e = edge_map.get((a, b))
+                ba_e = edge_map.get((b, a))
+                ab_aff = ab_e.state.affection if ab_e else 0.0
+                ba_aff = ba_e.state.affection if ba_e else 0.0
+                if ab_aff <= 0.1 or ba_aff <= 0.1:
+                    sentences.append(
+                        f"There is unspoken tension between "
+                        f"{_resolve_char_name(a, characters)} and "
+                        f"{_resolve_char_name(b, characters)}, both drawn to "
+                        f"{_resolve_char_name(pivot, characters)}."
+                    )
+
+    if not sentences:
+        return ""
+    return " ".join(sentences)
+
+
+def _room_relationship_section(state: GameState, room_character_ids: set) -> str:
+    """Build the room-level relationship section for the system prompt.
+
+    Called when a player enters a new location. Queries CharacterGraph for all
+    directed edges between characters present (raw data only), then generates
+    deterministic prose via _summarize_room_relationships().
+
+    Args:
+        state: current game state
+        room_character_ids: set of character keys in the location, including "player"
+
+    Returns:
+        Formatted [ROOM DYNAMICS] section string, or empty string if no dynamics.
+    """
+    graph = getattr(state, "character_graph", None)
+    if not graph or not room_character_ids:
+        return ""
+
+    raw_edges = graph.get_room_relationships(set(room_character_ids))
+    if not raw_edges:
+        return ""
+
+    chars = getattr(state, "characters", {}) or {}
+    prose = _summarize_room_relationships(raw_edges, chars)
+    if not prose:
+        return ""
+
+    return (
+        "\n────────────────────────────────────────\n"
+        "### ROOM DYNAMICS\n"
+        "────────────────────────────────────────\n"
+        "Social dynamics between everyone currently in this scene. "
+        "Use this to calibrate tension, alliances, and subtext.\n\n"
+        + prose
         + "\n"
     )
 

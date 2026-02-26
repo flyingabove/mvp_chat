@@ -42,17 +42,23 @@ All query methods return RelationshipEdge or List[RelationshipEdge]:
 
 ROOM SCENARIO
 ─────────────
+CharacterGraph is a pure data layer. It returns edges; it never generates prose.
+All prose generation happens in prompt_builder.py.
+
 When a player enters a location with IU and Steve present:
 
+    # Step 1 — query raw data from the graph (pure data, no prose)
     edges = graph.get_room_relationships({"player", "iu", "steve"})
-    # → [iu→player, iu→steve, steve→player, steve→iu, player→iu, ...]
+    # → List[RelationshipEdge]: iu→player, iu→steve, steve→player, steve→iu, ...
 
-    summary = graph.summarize_relationships(edges)
+    # Step 2 — generate prose in prompt_builder (not in the graph)
+    section = _room_relationship_section(state, {"player", "iu", "steve"})
     # → "IU and Steve regard each other with mutual suspicion. IU is drawn to
     #    the player, who keeps their distance. Steve is visibly afraid of IU."
 
-The summary is deterministic (rule-based, no LLM) and is injected into the
-system prompt under the [RELATIONSHIPS] section each turn.
+prose generation functions (in prompt_builder.py):
+  _summarize_room_relationships(edges, characters) → str
+  _room_relationship_section(state, room_character_ids) → str
 """
 from __future__ import annotations
 
@@ -411,143 +417,6 @@ class CharacterGraph:
     def apply_rel_delta(self, from_id: str, to_id: str, rel_delta: int) -> None:
         """Backward compat: map legacy rel_delta (-1/0/+1) to affection delta."""
         self.update_edge(from_id, to_id, affection_delta=rel_delta * 0.1)
-
-    # ── Relationship summarizer ───────────────────────────────────────────────
-
-    def _resolve_name(self, character_id: str) -> str:
-        """Resolve a character key to a display name, falling back to the key."""
-        if character_id == "player":
-            return "the player"
-        char = self.characters.get(character_id)
-        return getattr(char, "name", None) or character_id
-
-    def summarize_relationships(self, edges: List[RelationshipEdge]) -> str:
-        """Deterministically generate prose describing relationships in a scene.
-
-        Takes a list of edges (e.g. from get_room_relationships()) and produces
-        a human-readable paragraph covering: mutual warmth, hostility, one-sided
-        attraction, fear, suspicion, and jealousy/rivalry triangles.
-
-        No LLM is involved — output is fully rule-based and deterministic.
-        This paragraph is injected into the system prompt under [RELATIONSHIPS].
-
-        Returns empty string if no notable patterns are detected.
-        """
-        if not edges:
-            return ""
-
-        # O(1) edge lookup by (from_id, to_id)
-        edge_map: Dict[tuple, RelationshipEdge] = {
-            (e.from_id, e.to_id): e for e in edges
-        }
-
-        # All character keys referenced by any edge in this set
-        chars = set()
-        for e in edges:
-            chars.add(e.from_id)
-            chars.add(e.to_id)
-
-        sentences: List[str] = []
-        pairs_processed: set = set()
-
-        # ── Pairwise analysis ────────────────────────────────────────────────
-        for a in sorted(chars):
-            for b in sorted(chars):
-                if a >= b:
-                    continue
-                if (a, b) in pairs_processed:
-                    continue
-                pairs_processed.add((a, b))
-
-                ab = edge_map.get((a, b))
-                ba = edge_map.get((b, a))
-                if ab is None and ba is None:
-                    continue
-
-                na = self._resolve_name(a)
-                nb = self._resolve_name(b)
-
-                aff_ab = ab.state.affection if ab else 0.0
-                aff_ba = ba.state.affection if ba else 0.0
-                fear_ab = ab.state.fear if ab else 0.0
-                fear_ba = ba.state.fear if ba else 0.0
-                susp_ab = ab.state.suspicion if ab else 0.0
-                susp_ba = ba.state.suspicion if ba else 0.0
-
-                # Fear (checked first — overrides softer affection sentences)
-                if fear_ab >= 0.5 and fear_ba >= 0.5:
-                    sentences.append(f"{na} and {nb} are both afraid of each other.")
-                elif fear_ab >= 0.5:
-                    sentences.append(f"{na} is visibly afraid of {nb}.")
-                elif fear_ba >= 0.5:
-                    sentences.append(f"{nb} is visibly afraid of {na}.")
-
-                # Suspicion
-                if susp_ab >= 0.5 and susp_ba >= 0.5:
-                    sentences.append(f"{na} and {nb} regard each other with mutual suspicion.")
-                elif susp_ab >= 0.5:
-                    sentences.append(f"{na} regards {nb} with deep suspicion.")
-                elif susp_ba >= 0.5:
-                    sentences.append(f"{nb} regards {na} with deep suspicion.")
-
-                # Affection / warmth / hostility
-                mutual_devotion = aff_ab >= 0.6 and aff_ba >= 0.6
-                both_warm = aff_ab >= 0.3 and aff_ba >= 0.3
-                both_hostile = aff_ab <= -0.3 and aff_ba <= -0.3
-                a_warm_b_cold = aff_ab >= 0.4 and aff_ba < 0.0
-                b_warm_a_cold = aff_ba >= 0.4 and aff_ab < 0.0
-
-                if mutual_devotion:
-                    sentences.append(f"{na} and {nb} share a deep, devoted bond.")
-                elif both_warm:
-                    sentences.append(f"{na} and {nb} share a warm rapport.")
-                elif both_hostile:
-                    sentences.append(f"{na} and {nb} are openly hostile toward each other.")
-                elif a_warm_b_cold:
-                    sentences.append(f"{na} is drawn to {nb}, who remains cold or indifferent.")
-                elif b_warm_a_cold:
-                    sentences.append(f"{nb} is drawn to {na}, who remains cold or indifferent.")
-
-                # Include live narrative notes if set (already prose, append directly)
-                if ab and ab.narrative:
-                    sentences.append(ab.narrative)
-                if ba and ba.narrative:
-                    sentences.append(ba.narrative)
-
-        # ── Jealousy / rivalry triangle ──────────────────────────────────────
-        # Detect: A and B both drawn to C, but A and B have neutral-to-negative relation
-        char_list = sorted(chars)
-        jealousy_seen: set = set()
-        for pivot in char_list:
-            admirers = [
-                other for other in char_list
-                if other != pivot
-                and (e := edge_map.get((other, pivot))) is not None
-                and e.state.affection >= 0.4
-            ]
-            if len(admirers) < 2:
-                continue
-            for i, a in enumerate(admirers):
-                for b in admirers[i + 1:]:
-                    key = tuple(sorted([a, b, pivot]))
-                    if key in jealousy_seen:
-                        continue
-                    jealousy_seen.add(key)
-                    ab_e = edge_map.get((a, b))
-                    ba_e = edge_map.get((b, a))
-                    ab_aff = ab_e.state.affection if ab_e else 0.0
-                    ba_aff = ba_e.state.affection if ba_e else 0.0
-                    if ab_aff <= 0.1 or ba_aff <= 0.1:
-                        sentences.append(
-                            f"There is unspoken tension between {self._resolve_name(a)} "
-                            f"and {self._resolve_name(b)}, both drawn to "
-                            f"{self._resolve_name(pivot)}."
-                        )
-
-        if not sentences:
-            return ""
-
-        return " ".join(sentences)
 
     # ── Prompt formatting ─────────────────────────────────────────────────────
 

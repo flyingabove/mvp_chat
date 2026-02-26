@@ -37,7 +37,7 @@ Last updated: 2026-02-26
 | Class | File | What it is |
 |---|---|---|
 | `CharacterType` | `backend/app/engine/character_graph.py` | Engine-level character classification: `USER` (human player, key="player"), `MAIN` (focal NPC, is_main=True), `CANONICAL` (authored NPC with knowledge bundle), `NPC` (incidental/hallucinated). Distinct from the free-form `role` string. |
-| `CharacterGraph` | `backend/app/engine/character_graph.py` | Directed graph storing both character nodes (`characters: Dict[str, Character]`) and relationship edges (`edges: Dict[str, RelationshipEdge]` keyed `"{from_id}->{to_id}"`). One edge per ordered pair, enforced. Query methods: `get_edge`, `get_edges_from`, `get_edges_to`, `get_all_relationships`, `get_room_relationships`. Summarizer: `summarize_relationships(edges) → str` (deterministic prose, no LLM). |
+| `CharacterGraph` | `backend/app/engine/character_graph.py` | **Pure data layer.** Directed graph storing character nodes (`characters: Dict[str, Character]`) and edges (`edges` keyed `"{from_id}->{to_id}"`). One edge per ordered pair, enforced. Query methods: `get_edge`, `get_edges_from`, `get_edges_to`, `get_all_relationships`, `get_room_relationships`. Returns raw edges only — all prose generation is in `prompt_builder.py`. |
 | `RelationshipEdge` | `backend/app/engine/character_graph.py` | One directed edge (from_id → to_id): type, state (4D numeric), `label` (static authored context), `narrative` (dynamic runtime note, replaced each update), `narrative_log` (append-only session history). |
 | `RelationshipState` | `backend/app/engine/character_graph.py` | Four float dimensions: trust (-1..1), fear (0..1), affection (-1..1), suspicion (0..1). |
 | `RelationshipType` | `backend/app/engine/character_graph.py` | Enum: FRIEND, ENEMY, FAMILY, LOVER, EMPLOYER, EMPLOYEE, SUSPECT, VICTIM, WITNESS, OTHER. |
@@ -132,9 +132,12 @@ Use `kind="fact"`, `kind="claim"`, `kind="observation"` on `KnowledgeChunk` to d
 
 ## Prompt Assembly
 
-| Class | File | What it is |
+| Class / Function | File | What it is |
 |---|---|---|
 | `PromptInput` | `backend/app/engine/prompt_builder.py` | Single source of truth for all model-bound inputs: state, log, user_msg, knowledge_chunks, truth_mode. |
+| `_summarize_room_relationships(edges, chars)` | `backend/app/engine/prompt_builder.py` | Deterministic prose generator from raw `List[RelationshipEdge]`. Detects warmth, hostility, fear, suspicion, attraction, jealousy triangles. No LLM. |
+| `_room_relationship_section(state, room_ids)` | `backend/app/engine/prompt_builder.py` | Calls `graph.get_room_relationships(room_ids)` → raw edges → `_summarize_room_relationships` → `[ROOM DYNAMICS]` prompt section. Called on location entry. |
+| `_relationship_scene_section(state)` | `backend/app/engine/prompt_builder.py` | Per-speaker relationship detail (outgoing edges from main NPC, with word-mapped dimensions + `[Context]` + `[Now]` narrative). Always injected. |
 
 ---
 

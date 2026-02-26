@@ -139,35 +139,56 @@ graph.get_room_relationships({"player", "iu", "steve"})
 
 ---
 
-## Room Scenario: How It Works
+## Layered Architecture: Data vs. Prose
 
-When a player enters a location with IU and Steve present, the engine:
+**`CharacterGraph` is a pure data layer.** It stores nodes and edges and provides query methods that return raw `RelationshipEdge` objects. It never generates prose or makes decisions about formatting.
+
+**All prose generation belongs in `prompt_builder.py`.** The prompt builder reads raw graph data and converts it to human-readable text for injection into the LLM system prompt.
+
+```
+CharacterGraph (character_graph.py)         prompt_builder.py
+──────────────────────────────────          ──────────────────────────────────────────
+stores nodes + edges                  →     _room_relationship_section(state, ids)
+get_room_relationships(ids)                   calls graph.get_room_relationships()
+  → List[RelationshipEdge]            →       passes raw edges to ↓
+                                            _summarize_room_relationships(edges, chars)
+                                              → deterministic prose paragraph
+```
+
+---
+
+## Room Scenario: Location Entry Pipeline
+
+When a player moves from location A to location B, the engine:
 
 ```python
-# Step 1: query all edges between everyone in the room
-room_edges = graph.get_room_relationships({"player", "iu", "steve"})
-# → [iu→player, iu→steve, steve→player, steve→iu, player→iu, ...]
+# Step 1 — extractor detects movement, resolves who is at B
+room_ids = {"player", "iu", "steve"}   # characters present at B
 
-# Step 2: summarize into deterministic prose for the LLM
-summary = graph.summarize_relationships(room_edges)
-# → "IU regards Steve with deep suspicion. IU and Steve are openly hostile
-#    toward each other. There is unspoken tension between IU and Steve,
-#    both drawn to the player."
+# Step 2 — pure data query (no prose, no formatting)
+raw_edges = graph.get_room_relationships(room_ids)
+# → List[RelationshipEdge]: iu→player, iu→steve, steve→player, steve→iu, ...
 
-# Step 3: also build per-speaker detail (for the main speaker's perspective)
+# Step 3 — prompt builder generates prose from raw data
+section = _room_relationship_section(state, room_ids)
+# internally calls graph.get_room_relationships() + _summarize_room_relationships()
+# → "[ROOM DYNAMICS]\nIU regards Steve with deep suspicion..."
+
+# Step 4 — also build per-speaker detail for the main NPC
 speaker_detail = graph.format_for_prompt(
     speaker_id="iu",
     active_characters={"player", "steve"}
 )
+# → "[RELATIONSHIP CONTEXT IN THIS SCENE]\n1. IU currently reads..."
 ```
 
-Both `summary` and `speaker_detail` are injected into the [RELATIONSHIPS] section of the system prompt.
+Both sections are injected into the system prompt before each LLM call.
 
 ---
 
-## Relationship Summarizer
+## Relationship Summarizer (in prompt_builder.py)
 
-`CharacterGraph.summarize_relationships(edges)` produces a deterministic (no LLM) prose paragraph from a list of edges. It detects:
+`_summarize_room_relationships(edges, characters)` produces a deterministic (no LLM) prose paragraph from a list of raw edges. It detects:
 
 | Pattern | Condition | Example output |
 |---------|-----------|----------------|
@@ -332,10 +353,10 @@ Notes:
 
 | File | Role |
 |---|---|
-| `backend/app/engine/character_graph.py` | `CharacterType`, `RelationshipType`, `RelationshipState`, `RelationshipEdge`, `CharacterGraph` (nodes + edges + queries + summarizer) |
+| `backend/app/engine/character_graph.py` | **Pure data layer.** `CharacterType`, `RelationshipType`, `RelationshipState`, `RelationshipEdge`, `CharacterGraph` (nodes + edges + queries only — no prose) |
 | `backend/app/engine/state.py` | `Character` (with `character_type` field), `make_player_character()`, `GameState.character_graph`, `apply_state_tag()` |
 | `backend/app/engine/story_loader.py` | Parses `relationships` into `CharacterGraph`; parses characters into `Character` objects |
-| `backend/app/engine/prompt_builder.py` | Injects relationship prose via `format_for_prompt()` and `summarize_relationships()` |
+| `backend/app/engine/prompt_builder.py` | **Prose-generation layer.** `_summarize_room_relationships(edges, chars)` — deterministic prose from raw edges. `_room_relationship_section(state, room_ids)` — calls graph query + summarizer. `_relationship_scene_section(state)` — per-speaker detail (existing). |
 | `backend/app/api/prompt_engine.py` | Applies `rel_delta` post-turn via `CharacterGraph.apply_rel_delta()` |
 
 ### What is built
