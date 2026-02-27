@@ -32,6 +32,9 @@ Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 - [documentation/ai_learnings_mistakes/AI_GAME_STRUCTURE.md](documentation/ai_learnings_mistakes/AI_GAME_STRUCTURE.md)
 - Authoring invariant code: `backend/app/engine/authoring_checklist.py`
 
+### NPC lifecycle + sidequests
+- [documentation/model_output_docs/NPC_SIDEQUEST_DESIGN.md](documentation/model_output_docs/NPC_SIDEQUEST_DESIGN.md)
+
 ### Data model reference
 - [documentation/model_output_docs/DATA_MODEL_INVENTORY.md](documentation/model_output_docs/DATA_MODEL_INVENTORY.md)
 
@@ -51,6 +54,7 @@ Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 - [documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md](documentation/model_output_docs/CHARACTER_GRAPH_DESIGN.md)
 - [documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md](documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md)
 - [documentation/model_output_docs/SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md](documentation/model_output_docs/SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md)
+- [documentation/model_output_docs/NPC_SIDEQUEST_DESIGN.md](documentation/model_output_docs/NPC_SIDEQUEST_DESIGN.md)
 
 ### Generated references (never behavior source of truth)
 - [documentation/auto_update_docs/QUICK_REFERENCE.md](documentation/auto_update_docs/QUICK_REFERENCE.md)
