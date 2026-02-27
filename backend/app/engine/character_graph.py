@@ -39,6 +39,15 @@ Each RelationshipEdge tracks:
     prior_intimacy     — ever been sexually intimate
     in_relationship    — currently in a relationship
 
+PLAYER AS CHARACTER
+────────────────────
+The player (key="player", character_type=USER) is a full first-class node.
+player→NPC edges are created by process_first_meetings() and updated each turn
+by RelationshipStateUpdate objects extracted from the player's message (small
+±0.10 deltas on trust/fear/affection/suspicion/jealousy).
+See turn_extractor.py for RelationshipStateUpdate; see prompt_builder.py for
+how the player's attitude is surfaced in the NPC's prompt context.
+
 RELATIONSHIP TRAIT DIMENSIONS
 ──────────────────────────────
   trust      -1..1   How much A trusts B. Negative = active distrust.

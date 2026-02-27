@@ -138,6 +138,47 @@ The extractor only sets these when dialogue provides clear confirmation. Ambiguo
 
 **Familiarity** (derived, not stored): `meeting_count / total_game_days`. Left blank for most characters; can be computed on-demand when needed.
 
+---
+
+## Player as a Character
+
+The player is a full first-class character in the graph (`character_type = USER`, key = `"player"`). Player→NPC edges are created by `process_first_meetings()` just like NPC→NPC edges. The player's relationship state toward each NPC is tracked independently and updated by three mechanisms:
+
+| Update source | What it updates | When |
+|---|---|---|
+| `process_first_meetings()` | `met_at`, `last_met_at`, `meeting_count` on player→NPC edge | Each room entry |
+| `TurnExtractor` `relationship_state_updates` | Trust/fear/affection/suspicion/jealousy deltas on player→NPC edge | Each turn — inferred from player's message |
+| `TurnExtractor` `relationship_history_updates` | `prior_relationship`, `prior_intimacy`, `in_relationship` on player→NPC edge | When player's dialogue explicitly confirms |
+
+### Player Attitude Deltas (RelationshipStateUpdate)
+
+`RelationshipStateUpdate` captures small incremental changes to the player's attitude toward an NPC, extracted from the player's current message:
+
+```
+RelationshipStateUpdate:
+  from_id: str          # always "player"
+  to_id: str            # NPC character key
+  trust_delta: float    # [-0.10, +0.10] — negative = distrust, positive = trust
+  fear_delta: float     # [0.0, +0.10]   — fear is 0..1, never decremented by extractor
+  affection_delta: float # [-0.10, +0.10] — negative = coldness/anger, positive = warmth
+  suspicion_delta: float # [0.0, +0.10]   — suspicion is 0..1
+  jealousy_delta: float  # [0.0, +0.10]   — jealousy is 0..1
+  reason: str            # brief extraction explanation
+```
+
+**Extraction rules:**
+- Only from player's perspective (`from_id = "player"` always)
+- Deltas are small: typically 0.05–0.10 per turn; never exceed 0.10
+- Omit the entry entirely if the player's words are emotionally neutral
+- Omit individual delta fields that are zero
+- Multiple extractions per turn are allowed (one entry per NPC)
+
+### Player Attitude in the NPC's Prompt
+
+The NPC's relationship context section (`[RELATIONSHIP CONTEXT IN THIS SCENE]`) shows the NPC→player edge as normal. Additionally, when the player→NPC reverse edge has been updated, a `[Player's attitude toward {NPC}: ...]` tag is appended to show the NPC how the player is currently treating them. This lets the NPC calibrate their response to the player's revealed attitude.
+
+---
+
 ### RelationshipState (multi-dimensional)
 
 | Dimension   | Range  | Levels | What it means |
@@ -434,7 +475,9 @@ Notes:
 | `backend/app/engine/state.py` | `Character` (with `character_type` field), `make_player_character()`, `GameState.character_graph`, `apply_state_tag()` |
 | `backend/app/engine/story_loader.py` | Parses `relationships` into `CharacterGraph`; parses characters into `Character` objects |
 | `backend/app/engine/prompt_builder.py` | **Prose-generation layer.** `_summarize_room_relationships(edges, chars)` — deterministic prose from raw edges. `_room_relationship_section(state, room_ids)` — calls graph query + summarizer. `_relationship_scene_section(state)` — per-speaker detail (existing). |
-| `backend/app/api/prompt_engine.py` | Applies `rel_delta` post-turn via `CharacterGraph.apply_rel_delta()` |
+| `backend/app/api/prompt_engine.py` | Applies `rel_delta` post-turn; applies `relationship_state_updates` and `relationship_history_updates` from `TurnExtractor` |
+| `backend/app/engine/extractors/turn_extractor.py` | `RelationshipStateUpdate` (player attitude deltas), `RelationshipHistoryUpdate` (history flags), `TurnExtraction` |
+| `backend/app/integration_playback/scenarios/scenario_turn_extractor_relationships_llm.py` | Real-LLM integration scenario: 6 steps testing relationship extraction accuracy |
 
 ### What is built
 - `CharacterGraph` stores both character nodes and directed edges
@@ -446,10 +489,12 @@ Notes:
 - `update_edge_history()` — applies LLM-extracted relationship history fields to an edge
 - `process_first_meetings()` — detects first physical meetings, initializes prejudice on new edges, tracks `met_at`/`last_met_at`/`meeting_count`
 - `summarize_relationships()` — deterministic prose paragraph for room-level LLM context
-- `format_for_prompt()` — per-speaker detail with `[Context]`, `[Now]`, and `[History]` labels
+- `format_for_prompt()` — per-speaker detail with `[Context]`, `[Now]`, `[History]`, and `[Player's attitude]` labels
 - `narrative` + `narrative_log` on each edge for runtime evolution tracking
 - `symmetric=true` in story JSON expands to explicit reverse edge at load time
 - Relationship history fields: `met_at`, `last_met_at`, `meeting_count` (engine-tracked); `prior_relationship`, `prior_intimacy`, `in_relationship` (LLM-extracted via `TurnExtractor`)
+- **Player as character**: player→NPC edges created and tracked; player attitude deltas extracted each turn via `RelationshipStateUpdate`; NPC prompt surfaces `[Player's attitude]` tag
+- Integration playback scenario: 6 LLM-backed steps cover distrust/suspicion, fear, warmth/trust, past relationship, current relationship, jealousy
 
 ### What is pending (see plan)
 - `rel_updates` array in STATE tag for LLM to drive multi-edge 4D updates (wired in `apply_state_tag()`)

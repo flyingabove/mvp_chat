@@ -801,6 +801,24 @@ def _relationship_scene_section(state: GameState) -> str:
             hist_parts.append("past intimacy confirmed")
         if hist_parts:
             sentence += f" [History: {'; '.join(hist_parts)}]"
+
+        # Player-as-character: show how the player feels toward this NPC (reciprocal edge).
+        # Gives the NPC insight into how the player is approaching them.
+        if edge.to_id == "player":
+            player_edge = graph.get_edge("player", main_id)
+            if player_edge is not None:
+                p_desc = describe_relationship_state(player_edge.state)
+                p_trust = _humanize_rel_word(p_desc["trust_word"])
+                p_aff = _humanize_rel_word(p_desc["affection_word"])
+                p_susp_n = p_desc.get("suspicion_normalized", -1.0)
+                p_fear_n = p_desc.get("fear_normalized", -1.0)
+                p_parts = [f"{p_trust} trust", f"{p_aff} affection"]
+                if p_fear_n >= 0.0:
+                    p_parts.append(f"{_humanize_rel_word(p_desc['fear_word'])} fear")
+                if p_susp_n >= 0.0:
+                    p_parts.append(f"{_humanize_rel_word(p_desc['suspicion_word'])} suspicion")
+                sentence += f" [Player's attitude toward {main_name}: {', '.join(p_parts)}]"
+
         lines.append(sentence)
 
     return (

@@ -710,3 +710,168 @@ def test_turn_extractor_allows_player_in_history_updates():
     result = TurnExtractor._parse_json(payload, set(), {"iu"})
     assert len(result.relationship_history_updates) == 1
     assert result.relationship_history_updates[0].prior_relationship is True
+
+
+# ---------------------------------------------------------------------------
+# TurnExtractor — RelationshipStateUpdate parsing
+# ---------------------------------------------------------------------------
+
+def _minimal_payload(**extra) -> str:
+    """Minimal valid TurnExtractor JSON payload with optional overrides."""
+    import json
+    base = {
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [],
+        "relationship_state_updates": [],
+    }
+    base.update(extra)
+    return json.dumps(base)
+
+
+def test_relationship_state_update_dataclass_defaults():
+    """RelationshipStateUpdate has correct frozen dataclass defaults."""
+    from backend.app.engine.extractors.turn_extractor import RelationshipStateUpdate
+    u = RelationshipStateUpdate(from_id="player", to_id="mia")
+    assert u.from_id == "player"
+    assert u.to_id == "mia"
+    assert u.trust_delta == 0.0
+    assert u.fear_delta == 0.0
+    assert u.affection_delta == 0.0
+    assert u.suspicion_delta == 0.0
+    assert u.jealousy_delta == 0.0
+    assert u.reason == ""
+
+
+def test_turn_extractor_parses_relationship_state_updates():
+    """_parse_json correctly parses relationship_state_updates array."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [],
+        "relationship_state_updates": [
+            {
+                "from_id": "player",
+                "to_id": "mia",
+                "trust_delta": -0.08,
+                "suspicion_delta": 0.07,
+                "reason": "player accused mia of lying",
+            }
+        ],
+    })
+
+    result = TurnExtractor._parse_json(payload, set(), {"mia"})
+    assert len(result.relationship_state_updates) == 1
+    su = result.relationship_state_updates[0]
+    assert su.from_id == "player"
+    assert su.to_id == "mia"
+    assert abs(su.trust_delta - (-0.08)) < 0.001
+    assert abs(su.suspicion_delta - 0.07) < 0.001
+    assert su.reason == "player accused mia of lying"
+
+
+def test_turn_extractor_clamps_state_update_deltas():
+    """Deltas exceeding 0.10 are clamped to 0.10."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [],
+        "relationship_state_updates": [
+            {
+                "from_id": "player",
+                "to_id": "mia",
+                "trust_delta": -0.99,    # way too large — should clamp to -0.10
+                "fear_delta": 0.99,      # way too large — should clamp to 0.10
+                "affection_delta": 0.50, # too large — should clamp to 0.10
+            }
+        ],
+    })
+
+    result = TurnExtractor._parse_json(payload, set(), {"mia"})
+    su = result.relationship_state_updates[0]
+    assert su.trust_delta == -0.10, f"Expected -0.10, got {su.trust_delta}"
+    assert su.fear_delta == 0.10, f"Expected 0.10, got {su.fear_delta}"
+    assert su.affection_delta == 0.10, f"Expected 0.10, got {su.affection_delta}"
+
+
+def test_turn_extractor_drops_state_update_with_non_player_from_id():
+    """relationship_state_updates with from_id != 'player' are dropped."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [],
+        "relationship_state_updates": [
+            {
+                "from_id": "mia",    # not "player" — should be dropped
+                "to_id": "steve",
+                "trust_delta": -0.10,
+            }
+        ],
+    })
+
+    result = TurnExtractor._parse_json(payload, set(), {"mia", "steve"})
+    assert len(result.relationship_state_updates) == 0, (
+        "Extractor should only accept from_id='player' in relationship_state_updates"
+    )
+
+
+def test_turn_extractor_drops_state_update_with_unknown_to_id():
+    """relationship_state_updates with unrecognized to_id are dropped."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [],
+        "relationship_state_updates": [
+            {
+                "from_id": "player",
+                "to_id": "unknown_npc",   # not in allowed chars — should be dropped
+                "trust_delta": -0.05,
+            }
+        ],
+    })
+
+    result = TurnExtractor._parse_json(payload, set(), {"mia"})
+    assert len(result.relationship_state_updates) == 0
+
+
+def test_turn_extractor_fear_and_suspicion_clamp_non_negative():
+    """fear_delta and suspicion_delta can't go below 0 (both are 0..1 scales)."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [],
+        "relationship_state_updates": [
+            {
+                "from_id": "player",
+                "to_id": "mia",
+                "fear_delta": -0.50,       # negative — should clamp to 0
+                "suspicion_delta": -0.50,  # negative — should clamp to 0
+            }
+        ],
+    })
+
+    result = TurnExtractor._parse_json(payload, set(), {"mia"})
+    su = result.relationship_state_updates[0]
+    assert su.fear_delta == 0.0, f"fear_delta should be 0.0, got {su.fear_delta}"
+    assert su.suspicion_delta == 0.0, f"suspicion_delta should be 0.0, got {su.suspicion_delta}"

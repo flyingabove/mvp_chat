@@ -1492,6 +1492,17 @@ async def chat_handler(data: dict):
                         prior_intimacy=_hist_update.prior_intimacy,
                         in_relationship=_hist_update.in_relationship,
                     )
+                # Apply player attitude deltas (player→npc edges — small increments from user msg)
+                for _su in (extraction.relationship_state_updates or []):
+                    _rel_graph.update_edge(
+                        _su.from_id,
+                        _su.to_id,
+                        trust_delta=_su.trust_delta,
+                        fear_delta=_su.fear_delta,
+                        affection_delta=_su.affection_delta,
+                        suspicion_delta=_su.suspicion_delta,
+                        jealousy_delta=_su.jealousy_delta,
+                    )
 
             if extraction.movement_intent == "MOVE" and extraction.destination_id:
                 if extraction.destination_id in runtime.world_graph.locations:

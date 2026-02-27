@@ -34,6 +34,28 @@ class RelationshipHistoryUpdate:
 
 
 @dataclass(frozen=True)
+class RelationshipStateUpdate:
+    """Small incremental delta to a directed relationship edge's numeric state.
+
+    Extracted from the CURRENT USER MESSAGE to capture the player's revealed
+    attitude toward an NPC.
+
+    Rules enforced at parse time:
+    - from_id must be "player" (extractor only captures player's perspective)
+    - All deltas are clamped to [-0.10, 0.10] (0..0.10 for fear/suspicion/jealousy)
+    - Omit fields that are 0 (save tokens); omit entire entry if message is neutral
+    """
+    from_id: str          # always "player"
+    to_id: str            # NPC character key
+    trust_delta: float = 0.0       # negative = distrust expressed, positive = trust shown
+    fear_delta: float = 0.0        # 0..0.10 only; player shows fear toward NPC
+    affection_delta: float = 0.0   # negative = coldness/anger, positive = warmth
+    suspicion_delta: float = 0.0   # 0..0.10 only; player voices suspicion
+    jealousy_delta: float = 0.0    # 0..0.10 only; player expresses jealousy
+    reason: str = ""               # brief plain-text explanation
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -43,6 +65,7 @@ class TurnExtraction:
     previous_reply_speakers: List[str] = field(default_factory=list)
     knowledge_updates: List[TurnKnowledgeResolution] = field(default_factory=list)
     relationship_history_updates: List[RelationshipHistoryUpdate] = field(default_factory=list)
+    relationship_state_updates: List[RelationshipStateUpdate] = field(default_factory=list)
 
 
 class TurnExtractor:
@@ -122,6 +145,15 @@ class TurnExtractor:
                     )
                 )
 
+        def _opt_bool(val: Any) -> Optional[bool]:
+            return None if val is None else bool(val)
+
+        def _clamp_delta(val: Any, lo: float, hi: float) -> float:
+            try:
+                return max(lo, min(hi, float(val or 0.0)))
+            except Exception:
+                return 0.0
+
         raw_history = obj.get("relationship_history_updates")
         relationship_history_updates: List[RelationshipHistoryUpdate] = []
         if isinstance(raw_history, list):
@@ -132,24 +164,46 @@ class TurnExtractor:
                 h_to = str(item.get("to_id") or "").strip().lower()
                 if not h_from or not h_to:
                     continue
-                # Validate both IDs are in the allowed character set (or "player")
                 if allowed_character_keys:
                     if h_from not in allowed_character_keys and h_from != "player":
                         continue
                     if h_to not in allowed_character_keys and h_to != "player":
                         continue
-                # Parse each optional bool field — None means "not mentioned in dialogue"
-                def _parse_opt_bool(val: Any) -> Optional[bool]:
-                    if val is None:
-                        return None
-                    return bool(val)
                 relationship_history_updates.append(
                     RelationshipHistoryUpdate(
                         from_id=h_from,
                         to_id=h_to,
-                        prior_relationship=_parse_opt_bool(item.get("prior_relationship")),
-                        prior_intimacy=_parse_opt_bool(item.get("prior_intimacy")),
-                        in_relationship=_parse_opt_bool(item.get("in_relationship")),
+                        prior_relationship=_opt_bool(item.get("prior_relationship")),
+                        prior_intimacy=_opt_bool(item.get("prior_intimacy")),
+                        in_relationship=_opt_bool(item.get("in_relationship")),
+                    )
+                )
+
+        raw_state = obj.get("relationship_state_updates")
+        relationship_state_updates: List[RelationshipStateUpdate] = []
+        if isinstance(raw_state, list):
+            for item in raw_state:
+                if not isinstance(item, dict):
+                    continue
+                s_from = str(item.get("from_id") or "").strip().lower()
+                s_to = str(item.get("to_id") or "").strip().lower()
+                if not s_from or not s_to:
+                    continue
+                # Only player's perspective allowed from the extractor
+                if s_from != "player":
+                    continue
+                if allowed_character_keys and s_to not in allowed_character_keys:
+                    continue
+                relationship_state_updates.append(
+                    RelationshipStateUpdate(
+                        from_id=s_from,
+                        to_id=s_to,
+                        trust_delta=_clamp_delta(item.get("trust_delta", 0.0), -0.10, 0.10),
+                        fear_delta=_clamp_delta(item.get("fear_delta", 0.0), 0.0, 0.10),
+                        affection_delta=_clamp_delta(item.get("affection_delta", 0.0), -0.10, 0.10),
+                        suspicion_delta=_clamp_delta(item.get("suspicion_delta", 0.0), 0.0, 0.10),
+                        jealousy_delta=_clamp_delta(item.get("jealousy_delta", 0.0), 0.0, 0.10),
+                        reason=str(item.get("reason") or "").strip(),
                     )
                 )
 
@@ -162,6 +216,7 @@ class TurnExtractor:
             previous_reply_speakers=speakers,
             knowledge_updates=knowledge_updates,
             relationship_history_updates=relationship_history_updates,
+            relationship_state_updates=relationship_state_updates,
         )
 
     async def extract(
@@ -214,12 +269,22 @@ class TurnExtractor:
             "   in_relationship=true only if characters explicitly state they are currently together.\n"
             "   Omit the field (or use null) if dialogue is ambiguous or does not address it.\n"
             "   Use from_id and to_id from allowed character keys.\n"
+            "7) relationship_state_updates: ONLY from player's perspective (from_id must be 'player').\n"
+            "   Extract small deltas from CURRENT USER MESSAGE when the player's words reveal attitude.\n"
+            "   trust_delta: +0.05..+0.10 when player expresses trust; -0.05..-0.10 for distrust.\n"
+            "   fear_delta: +0.05..+0.10 when player shows fear. Never negative.\n"
+            "   affection_delta: +0.05..+0.10 for warmth/gratitude; -0.05..-0.10 for coldness/anger.\n"
+            "   suspicion_delta: +0.05..+0.10 when player voices suspicion. Never negative.\n"
+            "   jealousy_delta: +0.05..+0.10 when player expresses jealousy. Never negative.\n"
+            "   Omit the entry if player's words are neutral or no attitude change is expressed.\n"
+            "   Omit individual delta fields that are 0. Include 'reason' (1 short phrase).\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
             '  "previous_scene": {"location_id": "string|null", "speakers": ["character_key"]},\n'
             '  "knowledge_updates": [{"chunk_id": "string", "knows": true, "confidence": 0.0, "reason": "string"}],\n'
-            '  "relationship_history_updates": [{"from_id": "character_key", "to_id": "character_key", "prior_relationship": true|false|null, "prior_intimacy": true|false|null, "in_relationship": true|false|null}]\n'
+            '  "relationship_history_updates": [{"from_id": "character_key", "to_id": "character_key", "prior_relationship": true|false|null, "prior_intimacy": true|false|null, "in_relationship": true|false|null}],\n'
+            '  "relationship_state_updates": [{"from_id": "player", "to_id": "character_key", "trust_delta": 0.0, "fear_delta": 0.0, "affection_delta": 0.0, "suspicion_delta": 0.0, "jealousy_delta": 0.0, "reason": "string"}]\n'
             "}\n"
         )
 
@@ -248,7 +313,7 @@ class TurnExtractor:
             "model": self.model,
             "messages": messages,
             "temperature": 0,
-            "max_tokens": 560,
+            "max_tokens": 700,
         }
 
         try:
