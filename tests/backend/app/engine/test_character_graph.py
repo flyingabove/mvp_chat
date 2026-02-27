@@ -469,3 +469,244 @@ def test_relationship_type_inferred_as_friend_when_warm():
 
     _, rel_type = _compute_prejudice_state(a, b, state)
     assert rel_type == RelationshipType.FRIEND
+
+
+# ---------------------------------------------------------------------------
+# Relationship history fields — new in RelationshipEdge
+# ---------------------------------------------------------------------------
+
+def test_relationship_edge_history_fields_default_values():
+    """New history fields default to safe zero/None/False values."""
+    edge = RelationshipEdge.from_dict("e1", {"from": "iu", "to": "player"})
+    assert edge.last_met_at is None
+    assert edge.meeting_count == 0
+    assert edge.prior_relationship is False
+    assert edge.prior_intimacy is False
+    assert edge.in_relationship is False
+
+
+def test_relationship_edge_history_fields_from_dict():
+    """History fields are parsed from story JSON."""
+    edge = RelationshipEdge.from_dict("e1", {
+        "from": "iu",
+        "to": "steve",
+        "met_before_game": True,
+        "meeting_count": 25,
+        "prior_relationship": True,
+        "prior_intimacy": False,
+        "in_relationship": True,
+    })
+    assert edge.met_at == 0            # met_before_game → 0
+    assert edge.meeting_count == 25
+    assert edge.prior_relationship is True
+    assert edge.prior_intimacy is False
+    assert edge.in_relationship is True
+
+
+def test_first_meeting_sets_last_met_at_and_meeting_count():
+    """First physical meeting sets last_met_at and meeting_count=1."""
+    cg = _make_graph_with_edge("iu", "player")
+    cg.add_character(_make_char("iu"))
+    cg.add_character(_make_char("player"))
+
+    state = _make_state()
+    cg.process_first_meetings(room_ids={"iu", "player"}, state=state, current_minute=10)
+
+    edge = cg.get_edge("iu", "player")
+    assert edge.met_at == 10
+    assert edge.last_met_at == 10
+    assert edge.meeting_count == 1
+
+
+def test_is_new_encounter_increments_meeting_count():
+    """Subsequent encounters with is_new_encounter=True increment meeting_count."""
+    cg = _make_graph_with_edge("iu", "player", met_at=5)
+    cg.get_edge("iu", "player").last_met_at = 5
+    cg.get_edge("iu", "player").meeting_count = 1
+    cg.add_character(_make_char("iu"))
+    cg.add_character(_make_char("player"))
+
+    state = _make_state()
+    cg.process_first_meetings(
+        room_ids={"iu", "player"}, state=state, current_minute=20, is_new_encounter=True
+    )
+
+    edge = cg.get_edge("iu", "player")
+    assert edge.met_at == 5            # first meeting unchanged
+    assert edge.last_met_at == 20
+    assert edge.meeting_count == 2
+
+
+def test_not_new_encounter_does_not_increment_meeting_count():
+    """When is_new_encounter=False, meeting_count is not changed for already-met pairs."""
+    cg = _make_graph_with_edge("iu", "player", met_at=5)
+    cg.get_edge("iu", "player").last_met_at = 5
+    cg.get_edge("iu", "player").meeting_count = 1
+    cg.add_character(_make_char("iu"))
+    cg.add_character(_make_char("player"))
+
+    state = _make_state()
+    cg.process_first_meetings(
+        room_ids={"iu", "player"}, state=state, current_minute=30, is_new_encounter=False
+    )
+
+    edge = cg.get_edge("iu", "player")
+    assert edge.meeting_count == 1     # unchanged — not a new encounter
+    assert edge.last_met_at == 5       # unchanged
+
+
+def test_new_edge_from_process_first_meetings_has_meeting_count_one():
+    """Newly created (unscripted) edges get meeting_count=1 and last_met_at set."""
+    cg = CharacterGraph()
+    cg.add_character(_make_char("iu"))
+    cg.add_character(_make_char("steve"))
+
+    state = _make_state()
+    cg.process_first_meetings(room_ids={"iu", "steve"}, state=state, current_minute=15)
+
+    edge = cg.get_edge("iu", "steve")
+    assert edge.meeting_count == 1
+    assert edge.last_met_at == 15
+
+
+def test_update_edge_history_sets_fields():
+    """update_edge_history applies only the provided non-None fields."""
+    cg = _make_graph_with_edge("iu", "player")
+    edge = cg.get_edge("iu", "player")
+    assert edge.prior_relationship is False
+    assert edge.in_relationship is False
+
+    result = cg.update_edge_history("iu", "player", prior_relationship=True, in_relationship=True)
+
+    assert result is True
+    assert edge.prior_relationship is True
+    assert edge.in_relationship is True
+    assert edge.prior_intimacy is False  # not passed → unchanged
+
+
+def test_update_edge_history_none_does_not_overwrite():
+    """update_edge_history with None does not overwrite existing values."""
+    cg = _make_graph_with_edge("iu", "player")
+    edge = cg.get_edge("iu", "player")
+    edge.prior_relationship = True
+
+    cg.update_edge_history("iu", "player", prior_relationship=None)
+
+    assert edge.prior_relationship is True  # None → no change
+
+
+def test_update_edge_history_missing_edge_returns_false():
+    """update_edge_history returns False when the edge doesn't exist."""
+    cg = CharacterGraph()
+    result = cg.update_edge_history("nobody", "player", in_relationship=True)
+    assert result is False
+
+
+def test_symmetric_edge_copies_history_fields():
+    """symmetric=true reverse edge copies all history fields from the forward edge."""
+    cg = CharacterGraph.from_dict({
+        "edges": [{
+            "id": "e1",
+            "from": "iu",
+            "to": "player",
+            "symmetric": True,
+            "met_before_game": True,
+            "meeting_count": 10,
+            "prior_relationship": True,
+            "in_relationship": True,
+        }],
+    })
+    fwd = cg.get_edge("iu", "player")
+    rev = cg.get_edge("player", "iu")
+
+    assert rev is not None
+    assert rev.met_at == fwd.met_at
+    assert rev.meeting_count == fwd.meeting_count
+    assert rev.prior_relationship == fwd.prior_relationship
+    assert rev.in_relationship == fwd.in_relationship
+
+
+# ---------------------------------------------------------------------------
+# TurnExtractor — RelationshipHistoryUpdate parsing
+# ---------------------------------------------------------------------------
+
+def test_relationship_history_update_dataclass_defaults():
+    """RelationshipHistoryUpdate has correct frozen dataclass defaults."""
+    from backend.app.engine.extractors.turn_extractor import RelationshipHistoryUpdate
+    u = RelationshipHistoryUpdate(from_id="iu", to_id="player")
+    assert u.from_id == "iu"
+    assert u.to_id == "player"
+    assert u.prior_relationship is None
+    assert u.prior_intimacy is None
+    assert u.in_relationship is None
+
+
+def test_turn_extractor_parses_relationship_history_updates():
+    """TurnExtractor._parse_json correctly parses relationship_history_updates array."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [
+            {
+                "from_id": "iu",
+                "to_id": "steve",
+                "prior_relationship": True,
+                "prior_intimacy": False,
+                "in_relationship": None,
+            }
+        ],
+    })
+
+    allowed_locs: set[str] = set()
+    allowed_chars = {"iu", "steve"}
+    result = TurnExtractor._parse_json(payload, allowed_locs, allowed_chars)
+
+    assert len(result.relationship_history_updates) == 1
+    upd = result.relationship_history_updates[0]
+    assert upd.from_id == "iu"
+    assert upd.to_id == "steve"
+    assert upd.prior_relationship is True
+    assert upd.prior_intimacy is False
+    assert upd.in_relationship is None
+
+
+def test_turn_extractor_drops_history_updates_with_unknown_character():
+    """relationship_history_updates entries with unrecognized character keys are dropped."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [
+            {"from_id": "ghost_nobody", "to_id": "player", "in_relationship": True},
+        ],
+    })
+
+    result = TurnExtractor._parse_json(payload, set(), {"iu", "steve"})
+    # "ghost_nobody" not in allowed_chars and not "player" → dropped
+    assert len(result.relationship_history_updates) == 0
+
+
+def test_turn_extractor_allows_player_in_history_updates():
+    """'player' is always a valid target in relationship_history_updates."""
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    import json
+
+    payload = json.dumps({
+        "movement": {"intent": "NONE", "destination_id": None, "confidence": 0.0, "destination_text": ""},
+        "previous_scene": {"location_id": None, "speakers": []},
+        "knowledge_updates": [],
+        "relationship_history_updates": [
+            {"from_id": "iu", "to_id": "player", "prior_relationship": True},
+        ],
+    })
+
+    result = TurnExtractor._parse_json(payload, set(), {"iu"})
+    assert len(result.relationship_history_updates) == 1
+    assert result.relationship_history_updates[0].prior_relationship is True

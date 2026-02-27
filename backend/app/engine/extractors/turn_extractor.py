@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -18,6 +18,22 @@ class TurnKnowledgeResolution:
 
 
 @dataclass(frozen=True)
+class RelationshipHistoryUpdate:
+    """LLM-extracted update to a relationship edge's history fields.
+
+    Only set fields that dialogue explicitly confirms — omit or leave None for ambiguous cases.
+    prior_relationship: characters mention a past romantic relationship.
+    prior_intimacy:     characters confirm or strongly imply past sexual intimacy.
+    in_relationship:    characters explicitly state they are currently together.
+    """
+    from_id: str
+    to_id: str
+    prior_relationship: Optional[bool] = None
+    prior_intimacy: Optional[bool] = None
+    in_relationship: Optional[bool] = None
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -26,6 +42,7 @@ class TurnExtraction:
     previous_reply_location_id: str = ""
     previous_reply_speakers: List[str] = field(default_factory=list)
     knowledge_updates: List[TurnKnowledgeResolution] = field(default_factory=list)
+    relationship_history_updates: List[RelationshipHistoryUpdate] = field(default_factory=list)
 
 
 class TurnExtractor:
@@ -105,6 +122,37 @@ class TurnExtractor:
                     )
                 )
 
+        raw_history = obj.get("relationship_history_updates")
+        relationship_history_updates: List[RelationshipHistoryUpdate] = []
+        if isinstance(raw_history, list):
+            for item in raw_history:
+                if not isinstance(item, dict):
+                    continue
+                h_from = str(item.get("from_id") or "").strip().lower()
+                h_to = str(item.get("to_id") or "").strip().lower()
+                if not h_from or not h_to:
+                    continue
+                # Validate both IDs are in the allowed character set (or "player")
+                if allowed_character_keys:
+                    if h_from not in allowed_character_keys and h_from != "player":
+                        continue
+                    if h_to not in allowed_character_keys and h_to != "player":
+                        continue
+                # Parse each optional bool field — None means "not mentioned in dialogue"
+                def _parse_opt_bool(val: Any) -> Optional[bool]:
+                    if val is None:
+                        return None
+                    return bool(val)
+                relationship_history_updates.append(
+                    RelationshipHistoryUpdate(
+                        from_id=h_from,
+                        to_id=h_to,
+                        prior_relationship=_parse_opt_bool(item.get("prior_relationship")),
+                        prior_intimacy=_parse_opt_bool(item.get("prior_intimacy")),
+                        in_relationship=_parse_opt_bool(item.get("in_relationship")),
+                    )
+                )
+
         return TurnExtraction(
             movement_intent=intent,
             destination_id=destination_id,
@@ -113,6 +161,7 @@ class TurnExtractor:
             previous_reply_location_id=previous_loc,
             previous_reply_speakers=speakers,
             knowledge_updates=knowledge_updates,
+            relationship_history_updates=relationship_history_updates,
         )
 
     async def extract(
@@ -159,11 +208,18 @@ class TurnExtractor:
             "3) previous_scene extracts from PREVIOUS TURN ASSISTANT REPLY only.\n"
             "4) previous_scene.speakers must be character keys from allowed list.\n"
             "5) knowledge_updates must only reference provided candidate chunk_ids. Omit uncertain updates.\n"
+            "6) relationship_history_updates: only add entries when dialogue EXPLICITLY confirms a fact.\n"
+            "   prior_relationship=true only if characters confirm a past romantic relationship.\n"
+            "   prior_intimacy=true only if characters explicitly confirm past sexual intimacy.\n"
+            "   in_relationship=true only if characters explicitly state they are currently together.\n"
+            "   Omit the field (or use null) if dialogue is ambiguous or does not address it.\n"
+            "   Use from_id and to_id from allowed character keys.\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
             '  "previous_scene": {"location_id": "string|null", "speakers": ["character_key"]},\n'
-            '  "knowledge_updates": [{"chunk_id": "string", "knows": true, "confidence": 0.0, "reason": "string"}]\n'
+            '  "knowledge_updates": [{"chunk_id": "string", "knows": true, "confidence": 0.0, "reason": "string"}],\n'
+            '  "relationship_history_updates": [{"from_id": "character_key", "to_id": "character_key", "prior_relationship": true|false|null, "prior_intimacy": true|false|null, "in_relationship": true|false|null}]\n'
             "}\n"
         )
 
@@ -192,7 +248,7 @@ class TurnExtractor:
             "model": self.model,
             "messages": messages,
             "temperature": 0,
-            "max_tokens": 420,
+            "max_tokens": 560,
         }
 
         try:

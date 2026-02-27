@@ -1365,8 +1365,9 @@ async def chat_handler(data: dict):
     _upsert_people_present_markers(state, _people_present)
 
     # First-meeting detection: initialize prejudice on edges for pairs meeting for the
-    # first time. Idempotent — once met_at is set on an edge it is never reset.
-    # Called on every turn with the current room set so NPC walk-ins are also captured.
+    # first time. Tracks last_met_at and meeting_count on each new encounter.
+    # is_new_encounter=True when the player just entered a new location (location_changed).
+    # Called every turn so NPC walk-ins are also captured.
     _graph = getattr(state, "character_graph", None)
     if _graph is not None:
         _room_ids = set(_pre_active_chars) | {"player"}
@@ -1375,6 +1376,7 @@ async def chat_handler(data: dict):
             room_ids=_room_ids,
             state=state,
             current_minute=int(getattr(state, "minute", 0) or 0),
+            is_new_encounter=_location_changed,
         )
 
     # NOTE: advance_time is called AFTER location extraction (below) so that
@@ -1478,7 +1480,19 @@ async def chat_handler(data: dict):
                 updates=extraction.knowledge_updates,
                 candidate_chunks=previous_candidate_chunks,
             )
-            
+
+            # Apply LLM-extracted relationship history updates (prior_relationship, etc.)
+            _rel_graph = getattr(state, "character_graph", None)
+            if _rel_graph is not None:
+                for _hist_update in (extraction.relationship_history_updates or []):
+                    _rel_graph.update_edge_history(
+                        _hist_update.from_id,
+                        _hist_update.to_id,
+                        prior_relationship=_hist_update.prior_relationship,
+                        prior_intimacy=_hist_update.prior_intimacy,
+                        in_relationship=_hist_update.in_relationship,
+                    )
+
             if extraction.movement_intent == "MOVE" and extraction.destination_id:
                 if extraction.destination_id in runtime.world_graph.locations:
                     original_msg = msg

@@ -90,9 +90,53 @@ RelationshipEdge:
   narrative: str                    # dynamic runtime note, replaced on each update
                                     # e.g. "IU now believes Steve is hiding something"
   narrative_log: List[str]          # append-only session history of all narrative notes
+
+  # ── Relationship History (see "Relationship History Fields" section below) ──
+  met_at: Optional[int]             # game minute of first physical co-location this session.
+                                    # None = haven't met yet. 0 = met before game started.
+  last_met_at: Optional[int]        # game minute of most recent co-location event.
+                                    # Updated each time process_first_meetings fires as a
+                                    # new encounter. None until first meeting.
+  meeting_count: int                # number of distinct encounters this session.
+                                    # Incremented on each new room-entry co-location.
+                                    # Pre-seeded from story JSON for pre-existing relationships.
+  prior_relationship: bool          # True if characters have/had a romantic relationship
+                                    # before or outside the current session. LLM-extracted.
+  prior_intimacy: bool              # True if characters have been sexually intimate.
+                                    # LLM-extracted from explicit dialogue.
+  in_relationship: bool             # True if characters are currently in a relationship.
+                                    # LLM-extracted.
 ```
 
 `label` is set once by the story author and frozen. `narrative` is updated by the LLM via the STATE tag as the scene evolves. `narrative_log` records every narrative note ever written for this edge during the session.
+
+### Relationship History Fields
+
+These fields track the shared history between two characters. They split into two update categories:
+
+**Deterministic (engine-tracked):**
+
+| Field | Updated by | Trigger |
+|-------|-----------|---------|
+| `met_at` | `process_first_meetings()` | First physical co-location; set once, never reset |
+| `last_met_at` | `process_first_meetings()` | Each new encounter (`is_new_encounter=True`) |
+| `meeting_count` | `process_first_meetings()` | Each new encounter (`is_new_encounter=True`) |
+
+A "new encounter" is when the player enters a room where both characters are present (`is_new_encounter=True` is passed from `prompt_engine.py` when a location change is detected). NPC walk-ins (characters joining an existing room) also count.
+
+`met_at = 0` is the convention for characters who knew each other before the game started (set via `met_before_game: true` in story JSON).
+
+**LLM-extracted (via TurnExtractor):**
+
+| Field | Meaning | When extracted |
+|-------|---------|----------------|
+| `prior_relationship` | Ever had a romantic relationship | Dialogue explicitly mentions a past romance |
+| `prior_intimacy` | Ever been sexually intimate | Dialogue explicitly confirms or strongly implies |
+| `in_relationship` | Currently in a relationship | Dialogue explicitly states current status |
+
+The extractor only sets these when dialogue provides clear confirmation. Ambiguous or speculative references are ignored (omitted from the `relationship_history_updates` array).
+
+**Familiarity** (derived, not stored): `meeting_count / total_game_days`. Left blank for most characters; can be computed on-demand when needed.
 
 ### RelationshipState (multi-dimensional)
 
@@ -345,7 +389,11 @@ Full 4D multi-edge updates (planned, see plan):
         "to": "steve",
         "type": "SUSPECT",
         "state": {"trust": -0.4, "fear": 0.2, "affection": -0.5, "suspicion": 0.7},
-        "label": "Former manager; their relationship soured after the contract dispute."
+        "label": "Former manager; their relationship soured after the contract dispute.",
+        "met_before_game": true,
+        "meeting_count": 50,
+        "prior_relationship": false,
+        "in_relationship": false
       },
       {
         "id": "steve_to_iu",
@@ -353,7 +401,11 @@ Full 4D multi-edge updates (planned, see plan):
         "to": "iu",
         "type": "ENEMY",
         "state": {"trust": -0.3, "fear": 0.4, "affection": -0.4, "suspicion": 0.3},
-        "label": "Resents IU for ending the professional relationship."
+        "label": "Resents IU for ending the professional relationship.",
+        "met_before_game": true,
+        "meeting_count": 50,
+        "prior_relationship": false,
+        "in_relationship": false
       }
     ]
   }
@@ -364,6 +416,9 @@ Notes:
 - `"player"` is a valid `to` target without defining a player character in JSON — the engine creates the `USER` node automatically.
 - Omit `character_type` for authored NPCs; the engine defaults to `CANONICAL` (or `MAIN` if `is_main: true`).
 - `symmetric: true` on an edge automatically creates an explicit reverse edge with mirrored state at load time. Use explicit separate edges when asymmetric state matters (which is usually the case).
+- `met_before_game: true` sets `met_at = 0` at load time — the convention for pre-existing relationships.
+- `meeting_count` in story JSON pre-seeds the counter for authored relationships with prior history.
+- `prior_relationship`, `prior_intimacy`, `in_relationship` can be pre-seeded in JSON or left as `false` for the extractor to discover during gameplay.
 
 ---
 
@@ -387,11 +442,14 @@ Notes:
 - `make_player_character()` creates the USER node for game init
 - O(1) edge lookup via canonical `"{from_id}->{to_id}"` key
 - Full query API: `get_edge`, `get_edges_from`, `get_edges_to`, `get_all_relationships`, `get_room_relationships`
-- `update_edge()` with full 4D delta + narrative
+- `update_edge()` with full 5D delta (trust/fear/affection/suspicion/jealousy) + narrative
+- `update_edge_history()` — applies LLM-extracted relationship history fields to an edge
+- `process_first_meetings()` — detects first physical meetings, initializes prejudice on new edges, tracks `met_at`/`last_met_at`/`meeting_count`
 - `summarize_relationships()` — deterministic prose paragraph for room-level LLM context
-- `format_for_prompt()` — per-speaker detail with `[Context]` and `[Now]` labels
+- `format_for_prompt()` — per-speaker detail with `[Context]`, `[Now]`, and `[History]` labels
 - `narrative` + `narrative_log` on each edge for runtime evolution tracking
 - `symmetric=true` in story JSON expands to explicit reverse edge at load time
+- Relationship history fields: `met_at`, `last_met_at`, `meeting_count` (engine-tracked); `prior_relationship`, `prior_intimacy`, `in_relationship` (LLM-extracted via `TurnExtractor`)
 
 ### What is pending (see plan)
 - `rel_updates` array in STATE tag for LLM to drive multi-edge 4D updates (wired in `apply_state_tag()`)

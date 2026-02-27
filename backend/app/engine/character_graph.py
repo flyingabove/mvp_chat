@@ -29,6 +29,16 @@ Each RelationshipEdge tracks:
   narrative    — dynamic runtime note, replaced on each update by the LLM
   narrative_log — append-only session history of all narrative notes
 
+  Relationship history (engine-tracked via process_first_meetings):
+    met_at        — game minute of first physical co-location (0 = pre-game)
+    last_met_at   — most recent encounter minute
+    meeting_count — distinct encounter count this session
+
+  Relationship history (LLM-extracted via TurnExtractor):
+    prior_relationship — ever been in a romantic relationship
+    prior_intimacy     — ever been sexually intimate
+    in_relationship    — currently in a relationship
+
 RELATIONSHIP TRAIT DIMENSIONS
 ──────────────────────────────
   trust      -1..1   How much A trusts B. Negative = active distrust.
@@ -327,9 +337,18 @@ class RelationshipEdge:
     narrative     — dynamic runtime note, replaced on each update
                     e.g. "IU now believes Steve is hiding something"
     narrative_log — append-only history of all narrative notes this session
-    met_at        — game minute of the first physical co-location this session.
-                    None = characters have not yet physically shared a location.
-                    Set to 0 at load time if the story JSON marks met_before_game=true.
+
+    Relationship history (engine-tracked):
+      met_at       — game minute of first physical co-location this session.
+                     None = haven't met yet. 0 = met before game started.
+      last_met_at  — game minute of most recent co-location encounter.
+                     Updated each time process_first_meetings fires as a new encounter.
+      meeting_count — distinct encounter count this session. Pre-seeded from JSON.
+
+    Relationship history (LLM-extracted via TurnExtractor):
+      prior_relationship — ever been in a romantic relationship
+      prior_intimacy     — ever been sexually intimate
+      in_relationship    — currently in a relationship
     """
     id: str
     from_id: str
@@ -339,7 +358,12 @@ class RelationshipEdge:
     label: str = ""
     narrative: str = ""
     narrative_log: List[str] = field(default_factory=list)
-    met_at: Optional[int] = None   # None = not yet physically met this session
+    met_at: Optional[int] = None        # None = not yet physically met this session
+    last_met_at: Optional[int] = None   # most recent encounter minute
+    meeting_count: int = 0              # distinct encounters this session
+    prior_relationship: bool = False    # ever been in a romantic relationship (LLM-extracted)
+    prior_intimacy: bool = False        # ever been sexually intimate (LLM-extracted)
+    in_relationship: bool = False       # currently in a relationship (LLM-extracted)
 
     @classmethod
     def from_dict(cls, edge_id: str, d: Dict[str, Any] | None) -> "RelationshipEdge":
@@ -351,6 +375,8 @@ class RelationshipEdge:
             rel_type = RelationshipType.OTHER
         # met_before_game=true → characters knew each other before the game started
         met_at: Optional[int] = 0 if d.get("met_before_game") else None
+        last_met_at_raw = d.get("last_met_at")
+        last_met_at: Optional[int] = int(last_met_at_raw) if last_met_at_raw is not None else None
         return cls(
             id=edge_id,
             from_id=str(d.get("from_id") or d.get("from", "")),
@@ -360,6 +386,11 @@ class RelationshipEdge:
             label=str(d.get("label", "")),
             narrative=str(d.get("narrative", "")),
             met_at=met_at,
+            last_met_at=last_met_at,
+            meeting_count=int(d.get("meeting_count", 0)),
+            prior_relationship=bool(d.get("prior_relationship", False)),
+            prior_intimacy=bool(d.get("prior_intimacy", False)),
+            in_relationship=bool(d.get("in_relationship", False)),
         )
 
 
@@ -595,6 +626,31 @@ class CharacterGraph:
         """Backward compat: map legacy rel_delta (-1/0/+1) to affection delta."""
         self.update_edge(from_id, to_id, affection_delta=rel_delta * 0.1)
 
+    def update_edge_history(
+        self,
+        from_id: str,
+        to_id: str,
+        *,
+        prior_relationship: Optional[bool] = None,
+        prior_intimacy: Optional[bool] = None,
+        in_relationship: Optional[bool] = None,
+    ) -> bool:
+        """Apply LLM-extracted relationship history fields to an existing edge.
+
+        Only fields passed as non-None are updated. Returns True if edge found.
+        Called by prompt_engine after processing TurnExtractor relationship_history_updates.
+        """
+        edge = self.get_edge(from_id, to_id)
+        if edge is None:
+            return False
+        if prior_relationship is not None:
+            edge.prior_relationship = prior_relationship
+        if prior_intimacy is not None:
+            edge.prior_intimacy = prior_intimacy
+        if in_relationship is not None:
+            edge.in_relationship = in_relationship
+        return True
+
     # ── Prompt formatting ─────────────────────────────────────────────────────
 
     def format_for_prompt(
@@ -656,16 +712,24 @@ class CharacterGraph:
         room_ids: "Set[str]",
         state: "GameState",
         current_minute: int,
+        is_new_encounter: bool = False,
     ) -> None:
         """Detect first physical meetings and initialize prejudice on new edges.
 
-        Called each time a location change occurs. For each ordered pair (A, B)
-        in the room:
-          - If the A→B edge exists and met_at is None: mark met_at = current_minute.
+        Called every turn with the current room set so NPC walk-ins are captured.
+        For each ordered pair (A, B) in the room:
+          - If the A→B edge exists and met_at is None: first meeting — set met_at,
+            last_met_at, and meeting_count = 1.
+          - If the A→B edge exists and met_at is set: if is_new_encounter, update
+            last_met_at and increment meeting_count.
           - If the A→B edge does not exist: create it with prejudice-initialized
             values computed from available identity and epistemic signals.
 
-        Idempotent: once met_at is set on an edge, subsequent calls skip that pair.
+        is_new_encounter=True should be passed when the player just entered a new
+        location (location_changed) or an NPC just walked into the room. Set False
+        for turns where the room composition hasn't changed.
+
+        Idempotent for first meetings: once met_at is set it is never reset.
         """
         ids = sorted(room_ids)  # deterministic ordering
         for a_id in ids:
@@ -675,7 +739,14 @@ class CharacterGraph:
                 edge = self.get_edge(a_id, b_id)
                 if edge is not None:
                     if edge.met_at is None:
+                        # First physical meeting this session
                         edge.met_at = current_minute
+                        edge.last_met_at = current_minute
+                        edge.meeting_count = 1
+                    elif is_new_encounter:
+                        # Re-entering same location or NPC walked in
+                        edge.last_met_at = current_minute
+                        edge.meeting_count += 1
                 else:
                     # No authored edge — create one with prejudice-initialized values
                     a_char = self.characters.get(a_id)
@@ -690,6 +761,8 @@ class CharacterGraph:
                         type=inferred_type,
                         state=init_state,
                         met_at=current_minute,
+                        last_met_at=current_minute,
+                        meeting_count=1,
                     )
                     self.edges[self._edge_key(a_id, b_id)] = new_edge
 
@@ -742,6 +815,11 @@ class CharacterGraph:
                         label=edge.label,
                         narrative=edge.narrative,
                         met_at=edge.met_at,
+                        last_met_at=edge.last_met_at,
+                        meeting_count=edge.meeting_count,
+                        prior_relationship=edge.prior_relationship,
+                        prior_intimacy=edge.prior_intimacy,
+                        in_relationship=edge.in_relationship,
                     )
 
         return graph

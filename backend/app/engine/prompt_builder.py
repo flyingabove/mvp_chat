@@ -786,6 +786,21 @@ def _relationship_scene_section(state: GameState) -> str:
         narrative = (getattr(edge, "narrative", "") or "").strip()
         if narrative:
             sentence += f" [{narrative}]"
+        # Relationship history: meeting count, prior relationship, current status
+        hist_parts: list[str] = []
+        meeting_count = getattr(edge, "meeting_count", 0) or 0
+        if meeting_count > 1:
+            hist_parts.append(f"met {meeting_count} times this session")
+        elif meeting_count == 1:
+            hist_parts.append("met once this session")
+        if getattr(edge, "in_relationship", False):
+            hist_parts.append("currently in a relationship")
+        elif getattr(edge, "prior_relationship", False):
+            hist_parts.append("formerly in a relationship")
+        if getattr(edge, "prior_intimacy", False):
+            hist_parts.append("past intimacy confirmed")
+        if hist_parts:
+            sentence += f" [History: {'; '.join(hist_parts)}]"
         lines.append(sentence)
 
     return (
@@ -913,6 +928,16 @@ def _summarize_room_relationships(edges: list, characters: dict) -> str:
                 sentences.append(f"{na} is drawn to {nb}, who remains cold or indifferent.")
             elif b_warm_a_cold:
                 sentences.append(f"{nb} is drawn to {na}, who remains cold or indifferent.")
+
+            # Relationship history: current relationship, prior relationship
+            in_rel_ab = ab and getattr(ab, "in_relationship", False)
+            in_rel_ba = ba and getattr(ba, "in_relationship", False)
+            prior_rel_ab = ab and getattr(ab, "prior_relationship", False)
+            prior_rel_ba = ba and getattr(ba, "prior_relationship", False)
+            if in_rel_ab or in_rel_ba:
+                sentences.append(f"{na} and {nb} are currently in a relationship.")
+            elif prior_rel_ab or prior_rel_ba:
+                sentences.append(f"{na} and {nb} were formerly in a relationship.")
 
             # Live narrative notes from edges (LLM-authored, already prose)
             if ab and getattr(ab, "narrative", ""):
