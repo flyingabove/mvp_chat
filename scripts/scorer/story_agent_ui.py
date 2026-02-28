@@ -308,6 +308,8 @@ async def ws_run(ws: WebSocket):
         # Test case mode: use scripted messages instead of LLM/fallback
         test_case_messages = config.get("test_case_messages", None)
         test_case_strategy = config.get("test_case_strategy", "")
+        # When True: play scripted messages first, then continue with LLM for num_turns extra
+        test_case_continue = config.get("test_case_continue", False)
         stop_on_game_end = config.get("stop_on_game_end", True)
 
         session_id = f"ui_{story_id}_{int(time.time())}"
@@ -388,7 +390,11 @@ async def ws_run(ws: WebSocket):
             # --- Play turns ---
             effective_turns = num_turns
             if test_case_messages:
-                effective_turns = len(test_case_messages)
+                # continue mode: scripted turns + num_turns free turns after
+                tc_len = len(test_case_messages)
+                effective_turns = tc_len + (num_turns if test_case_continue else 0)
+            else:
+                tc_len = 0
 
             game_ended_flag = False
 
@@ -398,8 +404,14 @@ async def ws_run(ws: WebSocket):
                     break
 
                 # Get player message
-                if test_case_messages:
-                    player_msg = test_case_messages[turn - 1] if turn - 1 < len(test_case_messages) else ""
+                use_tc = tc_len > 0 and turn - 1 < tc_len
+
+                # Announce the handoff from scripted → free-play on the first continuation turn
+                if test_case_continue and tc_len > 0 and turn - 1 == tc_len:
+                    await send("status", {"text": f"─── Script complete — {num_turns} free turn(s) continuing ───"})
+
+                if use_tc:
+                    player_msg = test_case_messages[turn - 1]
                 elif use_llm:
                     try:
                         history = "\n".join(
@@ -1939,7 +1951,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
     if (testCaseOverride) {
       wsConfig.test_case_messages = testCaseOverride.messages || [];
       wsConfig.test_case_strategy = testCaseOverride.strategy || '';
-      addSystemMsg('Running test case: ' + (testCaseOverride.name || 'unnamed'));
+      wsConfig.test_case_continue = !!testCaseOverride.continue_mode;
+      const label = testCaseOverride.continue_mode
+        ? 'Running test case: ' + (testCaseOverride.name || 'unnamed') + ' [+ ' + turns + ' free turns]'
+        : 'Running test case: ' + (testCaseOverride.name || 'unnamed');
+      addSystemMsg(label);
     }
 
     ws = new WebSocket('ws://' + location.host + '/ws/run');
@@ -2349,7 +2365,8 @@ HTML_PAGE = r"""<!DOCTYPE html>
       html += '<div class="tc-header">';
       html += '<span class="tc-name">' + escapeHtml(tc.name || 'Untitled') + '</span>';
       html += '<div class="tc-actions">';
-      html += '<button class="btn btn-primary btn-sm" onclick="runTestCase(' + i + ')" title="Run">\u25B6</button>';
+      html += '<button class="btn btn-primary btn-sm" onclick="runTestCase(' + i + ')" title="Run scripted messages only">\u25B6</button>';
+      html += '<button class="btn btn-secondary btn-sm" onclick="runTestCase(' + i + ', true)" title="Run scripted then continue with free turns">\u25B6+</button>';
       html += '<button class="btn btn-secondary btn-sm" onclick="editTestCase(' + i + ')" title="Edit">Edit</button>';
       html += '<button class="btn btn-danger btn-sm" onclick="deleteTestCase(' + i + ')" title="Delete">Del</button>';
       html += '</div></div>';
@@ -2423,8 +2440,9 @@ HTML_PAGE = r"""<!DOCTYPE html>
     html += '</div>';
 
     html += '<div class="btn-row">';
-    html += '<button class="btn btn-primary" onclick="runTestCase(' + editingTestCaseIdx + ')">\u25B6 Run This Test</button>';
-    html += '<button class="btn btn-secondary" onclick="saveTestCasesToServer()">Save All</button>';
+    html += '<button class="btn btn-primary" onclick="runTestCase(' + editingTestCaseIdx + ')" title="Run scripted messages only">\u25B6 Run</button>';
+    html += '<button class="btn btn-secondary" onclick="runTestCase(' + editingTestCaseIdx + ', true)" title="Run scripted then continue with free turns">\u25B6+ Continue</button>';
+    html += '<button class="btn btn-secondary" onclick="saveTestCasesToServer()">Save</button>';
     html += '</div>';
 
     html += '</div>';
@@ -2485,7 +2503,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     setTimeout(() => { toast.style.opacity = '0'; }, 2000);
   }
 
-  function runTestCase(idx) {
+  function runTestCase(idx, continueMode) {
     const tc = testCases[idx];
     if (!tc) return;
     // If test case has a story_id, set it
@@ -2496,6 +2514,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
       name: tc.name,
       messages: tc.messages || [],
       strategy: tc.strategy || '',
+      continue_mode: !!continueMode,
     });
   }
 
