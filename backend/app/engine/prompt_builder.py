@@ -1151,7 +1151,7 @@ Stay fully in-universe and write the next beat as story prose, not as assistant 
 ────────────────────────────────────────
 Write compact cinematic paragraphs that blend narration and dialogue. You are not any single character; you are the scene storyteller. Keep {char_name} as the focal character, but naturally include other relevant characters when they are present, on-call, or currently being discussed.
 
-Spoken lines must appear as **bold quotes** and narration should remain vivid without becoming repetitive. Never break the fourth wall and never end with meta prompts such as "What do you do?" or "What will you say?".
+Spoken lines must appear as **bold quotes** and narration should remain vivid without becoming repetitive. Never end with meta prompts such as "What do you do?" or "What will you say?".
 
 The narrator has access to canonical truth. Even when a character's dialogue is guarded or evasive, the narration does not collude to hide their identity or canonical facts from the player. If a character's identity is relevant to what the player just asked, the narration makes it clear — even if the character's spoken words do not.
 
@@ -1163,6 +1163,25 @@ Never speak as the player and never narrate the player's decisions, thoughts, em
 Maintain factual continuity with canonical truth and graph constraints. If player wording implies a false fact, stay anchored to canon. When uncertain about non-canonical details, hedge naturally rather than invent.
 
 Characters behave like real people — not like NPCs performing a mystery. A character who knows something answers honestly when asked directly. They may be reluctant, emotional, or guarded, but they do not perform mystery, stall dramatically, or pretend not to know things they actually know. If the player states something factually wrong about the world or about the character themselves, the character corrects it naturally — the way any person would, not theatrically.
+
+────────────────────────────────────────
+### DIRECT CHANNEL (OOC)
+────────────────────────────────────────
+When the player's message is wrapped in parentheses like (what does that mean?) or [brackets like this], they are speaking directly to you as the story's author — not as their in-game character. Step outside the scene completely. Respond in parentheses with a plain, direct author-voice explanation. No narrative prose, no character voice, no scene description.
+
+Example player input: (is IU alive or dead?)
+Example response: (IU died in this apartment before the story begins — she is a ghost. The player character moved in without knowing this.)
+
+If the user message header begins with [OOC:], treat the entire message the same way.
+
+────────────────────────────────────────
+### CANON CORRECTION — MANDATORY
+────────────────────────────────────────
+If the player is clearly operating under a false belief about a fundamental canonical fact — especially about {char_name}'s identity, nature, or history — do not let it persist. {char_name} must step briefly outside the scene with a parenthetical correction, then resume naturally.
+
+Example: "(Just to be clear — I'm not a living person. I died here before you moved in.)"
+
+This takes priority over immersion. A player who believes false canon cannot engage with the story. Correct early, correct plainly, then continue the scene.
 
 ────────────────────────────────────────
 ### FOCAL STATE
@@ -1318,6 +1337,25 @@ def build_messages(
     ]
     header_parts.append(f"Current Emotion: {state.emotion}.")
     header_parts.append(f"Relationship: {state.relationship}.")
+
+    # OOC detection: message fully wrapped in () or [] means player is speaking
+    # directly to the narrator/author — inject directive before other header parts.
+    _user_stripped = (user_msg or "").strip()
+    _is_ooc = (
+        len(_user_stripped) > 2
+        and (
+            (_user_stripped[0] == "(" and _user_stripped[-1] == ")")
+            or (_user_stripped[0] == "[" and _user_stripped[-1] == "]")
+        )
+    )
+    if _is_ooc:
+        header_parts.insert(
+            0,
+            "[OOC: Player is speaking directly to the narrator/author. "
+            "Step out of the scene. Respond in parentheses with a plain "
+            "author explanation. No narrative prose. No character voice.]",
+        )
+
     header = " ".join(header_parts)
 
     messages.append({

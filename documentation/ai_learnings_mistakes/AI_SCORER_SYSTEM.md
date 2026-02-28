@@ -285,6 +285,39 @@ Layer tag colors in context modal:
 - hint:          yellow (#fdcb6e)
 - transient:     cyan   (#81ecec)
 
+OOC Direct Channel (Out-of-Character)
+--------------------------------------
+Players can speak directly to the narrator/author by wrapping their message in `()` or `[]`:
+  - `(is IU alive or dead?)` → narrator steps out of scene and responds in `()`
+  - `[what happened before the game started?]` → same behavior
+
+How it works:
+- `build_messages()` in `prompt_builder.py` detects if `user_msg` is fully wrapped in `()` or `[]`.
+- If detected, prepends `[OOC: Player is speaking directly to the narrator/author...]` to the
+  message header before the LLM call.
+- The system prompt (base_prompt) instructs the LLM: respond in parentheses, plain explanation,
+  no narrative prose, no character voice.
+- The `[OOC:]` header tag is also recognised: if the header begins with `[OOC:]` the LLM treats
+  the whole message as out-of-character.
+
+Canon Correction — MANDATORY
+-----------------------------
+If the player operates under a false belief about a fundamental canonical fact (e.g. thinking
+IU is alive when she died before the story begins), the NPC must step briefly outside the scene:
+  - NPC wraps the correction in parentheses: "(Just to be clear — I'm not a living person.)"
+  - Then resumes the scene naturally.
+- Documented in base_prompt as a MANDATORY section: "CANON CORRECTION — MANDATORY".
+- This takes priority over immersion. A player with false canon cannot engage with the story.
+
+Agent Persona (Human Behavior)
+--------------------------------
+`AGENT_PERSONA` in `story_agent_ui.py` is written for naturalistic, human-like chat behaviour:
+- Writes like someone texting on their phone — short, casual, reactive.
+- NO preambles, no apologies, no meta-commentary ("I'll try a different approach", "Here's my
+  response:", "Given the context of the story...").
+- One or two sentences max. Reacts to what the character just said.
+- Still sends `[GAME ENDED]` sentinel when game-end strings are detected.
+
 Chat Text Formatting (important parity behavior)
 ------------------------------------------------
 - Scorer chat bubbles now use the same rich-text rendering style as the main game chat:
