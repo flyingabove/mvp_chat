@@ -60,11 +60,6 @@ One or two sentences max. React to what the character just said. \
 Ask follow-up questions when curious. Push back when skeptical. \
 Keep it real and human.
 
-STOP SIGNAL — read carefully: if and ONLY if the character's last message contains \
-the exact text "END GAME YOU WIN" or "Game already finished" or "END GAME", \
-the game has ended. In that case and ONLY that case, respond with this exact token \
-and nothing else: [@@GAME ENDED CONGRATS@@]
-Do NOT output this token for any other reason.
 """
 
 # Load scorer instructions from file
@@ -182,6 +177,48 @@ async def ollama_generate(model: str, system: str, user: str) -> str:
         })
         r.raise_for_status()
         return r.json()["message"]["content"]
+
+
+_GAME_END_SENTINEL = "[@@GAME ENDED CONGRATS@@]"
+
+_GAME_END_VERIFIER_SYSTEM = f"""\
+You are a game-state detector. Your ONLY job is to decide whether the game has ended.
+
+A game has ended when the NPC message contains an explicit termination signal such as:
+  "END GAME YOU WIN", "Game already finished", "END GAME",
+  or any equivalent win/loss/game-over declaration from the story engine.
+
+If the game HAS ended, output this token and nothing else:
+  {_GAME_END_SENTINEL}
+
+If the game has NOT ended, output this token and nothing else:
+  NO
+
+Output exactly one of those two tokens. Nothing else."""
+
+
+async def _verify_game_ended(npc_reply: str, model: str) -> bool:
+    """Ask the rater model — with laser focus — whether the game just ended.
+
+    Returns True only when the model emits the exact sentinel token.
+    Falls back to the literal-string heuristic if Ollama is unavailable.
+    """
+    # Fast-path: literal strings inserted by gameplay.py are definitive.
+    if (
+        "END GAME YOU WIN" in npc_reply
+        or "Game already finished" in npc_reply
+        or "END GAME" in npc_reply
+    ):
+        try:
+            result = await ollama_generate(
+                model, _GAME_END_VERIFIER_SYSTEM,
+                f"NPC message:\n{npc_reply}"
+            )
+            return result.strip() == _GAME_END_SENTINEL
+        except Exception:
+            # Ollama unavailable — trust the literal check.
+            return True
+    return False
 
 
 async def check_ollama() -> dict:
@@ -422,30 +459,6 @@ async def ws_run(ws: WebSocket):
                         prompt = f"Conversation so far:\n{history}\n\nTurn {turn}/{effective_turns}. What do you say next?"
                         player_msg = await ollama_generate(chatter_model, agent_system, prompt)
                         player_msg = player_msg.strip().strip('"').strip("'")
-                        # Chatter agent detected game-over from last NPC message.
-                        # The sentinel [@@GAME ENDED CONGRATS@@] is intentionally unusual so
-                        # small LLMs can't accidentally emit it on dramatic-but-non-terminal lines.
-                        # Double-check against the NPC reply regardless, as an extra safety net.
-                        last_npc_content = conversation[-1].get("content", "") if conversation else ""
-                        _npc_actually_ended = (
-                            "END GAME YOU WIN" in last_npc_content
-                            or "Game already finished" in last_npc_content
-                            or "END GAME" in last_npc_content
-                        )
-                        _chatter_sentinel = player_msg.strip() == "[@@GAME ENDED CONGRATS@@]"
-                        if (_chatter_sentinel and _npc_actually_ended) or "END GAME YOU WIN" in player_msg:
-                            game_ended_flag = True
-                            is_player_win = "END GAME YOU WIN" in last_npc_content
-                            if is_player_win:
-                                await send("status", {"text": "You won! \U0001F3C6"})
-                                if stop_on_game_end:
-                                    await send("game_won", {})
-                            else:
-                                await send("status", {"text": "Game over."})
-                            break
-                        if _chatter_sentinel:
-                            # Sentinel emitted but NPC didn't actually end the game — use fallback.
-                            player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
                     except Exception as e:
                         player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
                         await send("warning", {"text": f"LLM error, using fallback: {e}"})
@@ -486,13 +499,14 @@ async def ws_run(ws: WebSocket):
 
                 await send("progress", {"turn": turn, "total": effective_turns})
 
-                # "END GAME YOU WIN" is the specific win marker appended by the backend
-                # when win_condition_detected() fires (gameplay.py). A plain "END GAME"
-                # or "Game already finished" means the game ended without a player win.
-                is_win = "END GAME YOU WIN" in npc_reply
-                is_game_over = is_win or "Game already finished" in npc_reply or "END GAME" in npc_reply
+                # Two-stage game-end detection:
+                #  1. Fast literal check gates the LLM call (only fires if engine markers present)
+                #  2. Dedicated rater LLM call with laser-focused prompt confirms via the
+                #     unique sentinel [@@GAME ENDED CONGRATS@@] — impossible to hallucinate
+                is_game_over = await _verify_game_ended(npc_reply, rater_model)
                 if is_game_over:
                     game_ended_flag = True
+                    is_win = "END GAME YOU WIN" in npc_reply
                     if is_win:
                         await send("status", {"text": "You won! \U0001F3C6"})
                         if stop_on_game_end:
