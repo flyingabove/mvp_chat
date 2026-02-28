@@ -420,10 +420,19 @@ async def ws_run(ws: WebSocket):
                         prompt = f"Conversation so far:\n{history}\n\nTurn {turn}/{effective_turns}. What do you say next?"
                         player_msg = await ollama_generate(chatter_model, agent_system, prompt)
                         player_msg = player_msg.strip().strip('"').strip("'")
-                        # Chatter agent detected game-over from last NPC message
-                        if player_msg == "[GAME ENDED]" or "END GAME YOU WIN" in player_msg:
+                        # Chatter agent detected game-over from last NPC message.
+                        # IMPORTANT: only trust [GAME ENDED] if the NPC actually said a
+                        # real end-game marker — small LLMs hallucinate [GAME ENDED] on
+                        # dramatic-but-not-terminal NPC lines, which prematurely kills the run.
+                        last_npc_content = conversation[-1].get("content", "") if conversation else ""
+                        _npc_actually_ended = (
+                            "END GAME YOU WIN" in last_npc_content
+                            or "Game already finished" in last_npc_content
+                            or "END GAME" in last_npc_content
+                        )
+                        if (player_msg.strip() == "[GAME ENDED]" and _npc_actually_ended) or "END GAME YOU WIN" in player_msg:
                             game_ended_flag = True
-                            is_player_win = "END GAME YOU WIN" in (conversation[-1].get("content", "") if conversation else "")
+                            is_player_win = "END GAME YOU WIN" in last_npc_content
                             if is_player_win:
                                 await send("status", {"text": "You won! \U0001F3C6"})
                                 if stop_on_game_end:
@@ -431,6 +440,10 @@ async def ws_run(ws: WebSocket):
                             else:
                                 await send("status", {"text": "Game over."})
                             break
+                        if player_msg.strip() == "[GAME ENDED]":
+                            # Hallucinated sentinel — NPC didn't actually end the game.
+                            # Use a fallback message so the run continues.
+                            player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
                     except Exception as e:
                         player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
                         await send("warning", {"text": f"LLM error, using fallback: {e}"})
