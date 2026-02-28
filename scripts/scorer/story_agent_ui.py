@@ -304,6 +304,7 @@ async def ws_run(ws: WebSocket):
         # Test case mode: use scripted messages instead of LLM/fallback
         test_case_messages = config.get("test_case_messages", None)
         test_case_strategy = config.get("test_case_strategy", "")
+        stop_on_game_end = config.get("stop_on_game_end", True)
 
         session_id = f"ui_{story_id}_{int(time.time())}"
 
@@ -385,6 +386,8 @@ async def ws_run(ws: WebSocket):
             if test_case_messages:
                 effective_turns = len(test_case_messages)
 
+            game_ended_flag = False
+
             for turn in range(1, effective_turns + 1):
                 if active_runs.get(run_id, {}).get("status") == "stopped":
                     await send("status", {"text": "Stopped by user."})
@@ -442,8 +445,12 @@ async def ws_run(ws: WebSocket):
 
                 await send("progress", {"turn": turn, "total": effective_turns})
 
-                if "Game already finished" in npc_reply or "END GAME" in npc_reply:
+                game_ends_here = "Game already finished" in npc_reply or "END GAME" in npc_reply
+                if game_ends_here:
+                    game_ended_flag = True
                     await send("status", {"text": "Game over!"})
+                    if stop_on_game_end:
+                        await send("game_won", {})
                     break
 
             # --- Evaluate (scorer runs AFTER conversation is done) ---
@@ -558,6 +565,34 @@ async def ws_run(ws: WebSocket):
 
                 except Exception as e:
                     await send("error", {"text": f"Evaluation failed: {e}"})
+
+            # --- Post-game review (agent reads full transcript, gives open-ended thoughts) ---
+            if game_ended_flag:
+                await send("status", {"text": "Generating post-game thoughts..."})
+                try:
+                    transcript_review = "\n".join(
+                        f"{'PLAYER' if m['role'] == 'player' else 'NPC'}: {m['content']}"
+                        for m in conversation
+                    )
+                    review_system = (
+                        "You are a thoughtful beta tester who just finished playing a "
+                        "text-based narrative mystery game. Share honest, candid feedback."
+                    )
+                    review_prompt = (
+                        "You just played through this story from start to finish. "
+                        "Read the transcript carefully and share your open-ended thoughts:\n"
+                        "- What moments felt most compelling, tense, or immersive?\n"
+                        "- What felt flat, confusing, repetitive, or unsatisfying?\n"
+                        "- What did you think of the NPC's characterization, voice, and pacing?\n"
+                        "- Overall impressions — would a real player find this enjoyable?\n\n"
+                        "Be candid, specific, and reference actual moments from the transcript.\n\n"
+                        f"=== TRANSCRIPT ===\n{transcript_review}\n=== END ===\n\n"
+                        "Your thoughts:"
+                    )
+                    review_text = await ollama_generate(chatter_model, review_system, review_prompt)
+                    await send("post_game_review", {"text": review_text.strip()})
+                except Exception as rev_e:
+                    await send("warning", {"text": f"Post-game review failed: {rev_e}"})
 
             await send("done", {"conversation": conversation, "session_id": session_id})
 
@@ -1392,6 +1427,132 @@ HTML_PAGE = r"""<!DOCTYPE html>
     overflow-y: auto;
   }
   .tc-actions { display: flex; gap: 6px; }
+
+  /* ---- Advanced Options Panel (slide-out from left) ---- */
+  .advanced-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 499;
+    display: none;
+    cursor: pointer;
+  }
+  .advanced-panel-backdrop.open { display: block; }
+  .advanced-panel {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    width: 320px;
+    height: calc(100vh - 56px);
+    background: var(--surface);
+    border-right: 2px solid var(--accent);
+    z-index: 500;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow: 6px 0 32px rgba(0,0,0,0.5);
+  }
+  .advanced-panel.open { transform: translateX(0); }
+  .advanced-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .advanced-panel-close {
+    background: var(--surface3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .advanced-panel-close:hover { border-color: var(--red); color: var(--red); }
+
+  /* ---- YOU WIN overlay (Dark Souls style) ---- */
+  .you-win-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    cursor: pointer;
+    opacity: 0;
+    animation: youWinFadeIn 0.9s ease-out 0.4s forwards;
+  }
+  @keyframes youWinFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .you-win-overlay.fading-out {
+    animation: youWinFadeOut 1.2s ease-in forwards;
+  }
+  @keyframes youWinFadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+  .you-win-text {
+    font-family: var(--font-mono);
+    font-size: clamp(40px, 8vw, 84px);
+    font-weight: 700;
+    color: #c8a96e;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: youWinTextIn 1.4s cubic-bezier(0.2, 0.8, 0.4, 1) 1.1s forwards;
+    text-shadow: 0 0 80px rgba(200,169,110,0.25), 0 0 20px rgba(200,169,110,0.15);
+  }
+  @keyframes youWinTextIn {
+    from { opacity: 0; transform: scale(1.18); letter-spacing: 0.5em; }
+    to   { opacity: 1; transform: scale(1);    letter-spacing: 0.22em; }
+  }
+  .you-win-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(200,169,110,0.35);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-top: 40px;
+    opacity: 0;
+    animation: youWinSubIn 0.7s ease-out 2.8s forwards;
+  }
+  @keyframes youWinSubIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Post-game review card */
+  .postgame-review {
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .postgame-review h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  .postgame-review-body {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
 </style>
 </head>
 <body>
@@ -1508,6 +1669,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
       <button class="btn btn-secondary" style="width:100%" onclick="exportLog()">&#x1F4BE; Save conversation</button>
       <button class="btn btn-secondary" style="width:100%; margin-top:8px" onclick="createTestCaseFromConversation()">+ Create Test Case</button>
     </div>
+
+    <div>
+      <div class="section-label">More</div>
+      <button class="btn btn-secondary" style="width:100%" onclick="openAdvancedPanel()">&#9881; Advanced Options</button>
+    </div>
   </div>
 
   <!-- Center: Chat -->
@@ -1571,6 +1737,27 @@ HTML_PAGE = r"""<!DOCTYPE html>
     </div>
   </div>
 
+</div>
+
+<!-- Advanced Options slide-out panel -->
+<div class="advanced-panel-backdrop" id="advancedPanelBackdrop" onclick="closeAdvancedPanel()"></div>
+<div class="advanced-panel" id="advancedPanel">
+  <div class="advanced-panel-header">
+    <div class="section-label" style="margin:0">Advanced Options</div>
+    <button class="advanced-panel-close" onclick="closeAdvancedPanel()" title="Close">&times;</button>
+  </div>
+
+  <div>
+    <div class="section-label">Agent Behavior</div>
+    <div class="toggle-row">
+      <span class="toggle-label">Stop on game end</span>
+      <div class="toggle on" id="stopOnGameEndToggle" onclick="this.classList.toggle('on')" title="Stop the run and show victory screen when the NPC signals the game is over"></div>
+    </div>
+    <div class="hint" style="margin-top:6px">
+      When enabled, the agent stops as soon as the story reaches an end condition
+      and shows a victory screen. Disable to continue playing after game-over signals.
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1688,6 +1875,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
     const evalPersona = document.getElementById('raterPersonaSelect').value || 'curious_rookie';
     const chatterModel = document.getElementById('chatterModelSelect').value;
     const raterModel = document.getElementById('raterModelSelect').value;
+    const stopOnGameEnd = document.getElementById('stopOnGameEndToggle').classList.contains('on');
 
     // Reset
     conversation = [];
@@ -1722,6 +1910,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
       evaluate: evaluate,
       eval_persona: evalPersona,
       chatter_persona: chatterPersona,
+      stop_on_game_end: stopOnGameEnd,
     };
 
     // Test case override
@@ -1827,6 +2016,12 @@ HTML_PAGE = r"""<!DOCTYPE html>
         break;
       case 'evaluation':
         renderEval(msg);
+        break;
+      case 'game_won':
+        showYouWin();
+        break;
+      case 'post_game_review':
+        renderPostGameReview(msg.text || '');
         break;
       case 'done':
         if (msg.session_id) {
@@ -2655,6 +2850,63 @@ HTML_PAGE = r"""<!DOCTYPE html>
     s = String(s);
     if (!s) return '';
     return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ---- Advanced Panel ----
+  function openAdvancedPanel() {
+    document.getElementById('advancedPanel').classList.add('open');
+    document.getElementById('advancedPanelBackdrop').classList.add('open');
+  }
+  function closeAdvancedPanel() {
+    document.getElementById('advancedPanel').classList.remove('open');
+    document.getElementById('advancedPanelBackdrop').classList.remove('open');
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAdvancedPanel();
+  });
+
+  // ---- YOU WIN overlay ----
+  function showYouWin() {
+    // Remove any existing overlay first
+    const existing = document.getElementById('youWinOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'youWinOverlay';
+    overlay.className = 'you-win-overlay';
+    overlay.innerHTML =
+      '<div class="you-win-text">You Won</div>' +
+      '<div class="you-win-sub">click to continue</div>';
+
+    const dismiss = () => {
+      overlay.classList.add('fading-out');
+      setTimeout(() => overlay.remove(), 1200);
+    };
+
+    overlay.addEventListener('click', dismiss);
+
+    // Auto-dismiss after 7 seconds
+    setTimeout(dismiss, 7000);
+
+    document.body.appendChild(overlay);
+  }
+
+  // ---- Post-game review ----
+  function renderPostGameReview(text) {
+    document.getElementById('evalPlaceholder').style.display = 'none';
+    const container = document.getElementById('evalContent');
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '12px';
+
+    const card = document.createElement('div');
+    card.className = 'postgame-review';
+    card.innerHTML =
+      '<h3>&#x1F4AC; Agent Post-Game Thoughts</h3>' +
+      '<div class="postgame-review-body">' + escapeHtml(text) + '</div>';
+
+    // Prepend so it appears above any scorer evaluation
+    container.insertBefore(card, container.firstChild);
   }
 
   init();
