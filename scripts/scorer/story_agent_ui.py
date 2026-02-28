@@ -60,9 +60,11 @@ One or two sentences max. React to what the character just said. \
 Ask follow-up questions when curious. Push back when skeptical. \
 Keep it real and human.
 
-IMPORTANT: If the character's last message contains "END GAME YOU WIN" or \
-"Game already finished" or "END GAME", the game has ended. \
-Respond with exactly: [GAME ENDED]
+STOP SIGNAL — read carefully: if and ONLY if the character's last message contains \
+the exact text "END GAME YOU WIN" or "Game already finished" or "END GAME", \
+the game has ended. In that case and ONLY that case, respond with this exact token \
+and nothing else: [@@GAME ENDED CONGRATS@@]
+Do NOT output this token for any other reason.
 """
 
 # Load scorer instructions from file
@@ -421,16 +423,17 @@ async def ws_run(ws: WebSocket):
                         player_msg = await ollama_generate(chatter_model, agent_system, prompt)
                         player_msg = player_msg.strip().strip('"').strip("'")
                         # Chatter agent detected game-over from last NPC message.
-                        # IMPORTANT: only trust [GAME ENDED] if the NPC actually said a
-                        # real end-game marker — small LLMs hallucinate [GAME ENDED] on
-                        # dramatic-but-not-terminal NPC lines, which prematurely kills the run.
+                        # The sentinel [@@GAME ENDED CONGRATS@@] is intentionally unusual so
+                        # small LLMs can't accidentally emit it on dramatic-but-non-terminal lines.
+                        # Double-check against the NPC reply regardless, as an extra safety net.
                         last_npc_content = conversation[-1].get("content", "") if conversation else ""
                         _npc_actually_ended = (
                             "END GAME YOU WIN" in last_npc_content
                             or "Game already finished" in last_npc_content
                             or "END GAME" in last_npc_content
                         )
-                        if (player_msg.strip() == "[GAME ENDED]" and _npc_actually_ended) or "END GAME YOU WIN" in player_msg:
+                        _chatter_sentinel = player_msg.strip() == "[@@GAME ENDED CONGRATS@@]"
+                        if (_chatter_sentinel and _npc_actually_ended) or "END GAME YOU WIN" in player_msg:
                             game_ended_flag = True
                             is_player_win = "END GAME YOU WIN" in last_npc_content
                             if is_player_win:
@@ -440,9 +443,8 @@ async def ws_run(ws: WebSocket):
                             else:
                                 await send("status", {"text": "Game over."})
                             break
-                        if player_msg.strip() == "[GAME ENDED]":
-                            # Hallucinated sentinel — NPC didn't actually end the game.
-                            # Use a fallback message so the run continues.
+                        if _chatter_sentinel:
+                            # Sentinel emitted but NPC didn't actually end the game — use fallback.
                             player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
                     except Exception as e:
                         player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
