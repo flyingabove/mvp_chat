@@ -59,6 +59,10 @@ You are chatting with an NPC character. Your goal is to:
 4. Occasionally test edge cases (non sequiturs, repeated questions, odd inputs)
 5. Keep responses SHORT — 1-2 sentences max, like real chat messages
 
+IMPORTANT: If the character's last message contains "END GAME YOU WIN" or \
+"Game already finished" or "END GAME", the game has ended. \
+Respond with exactly: [GAME ENDED]
+
 Respond with ONLY your next message to the character. No commentary or meta-text.
 """
 
@@ -405,6 +409,17 @@ async def ws_run(ws: WebSocket):
                         prompt = f"Conversation so far:\n{history}\n\nTurn {turn}/{effective_turns}. What do you say next?"
                         player_msg = await ollama_generate(chatter_model, agent_system, prompt)
                         player_msg = player_msg.strip().strip('"').strip("'")
+                        # Chatter agent detected game-over from last NPC message
+                        if player_msg == "[GAME ENDED]" or "END GAME YOU WIN" in player_msg:
+                            game_ended_flag = True
+                            is_player_win = "END GAME YOU WIN" in (conversation[-1].get("content", "") if conversation else "")
+                            if is_player_win:
+                                await send("status", {"text": "You won! \U0001F3C6"})
+                                if stop_on_game_end:
+                                    await send("game_won", {})
+                            else:
+                                await send("status", {"text": "Game over."})
+                            break
                     except Exception as e:
                         player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
                         await send("warning", {"text": f"LLM error, using fallback: {e}"})
@@ -445,12 +460,19 @@ async def ws_run(ws: WebSocket):
 
                 await send("progress", {"turn": turn, "total": effective_turns})
 
-                game_ends_here = "Game already finished" in npc_reply or "END GAME" in npc_reply
-                if game_ends_here:
+                # "END GAME YOU WIN" is the specific win marker appended by the backend
+                # when win_condition_detected() fires (gameplay.py). A plain "END GAME"
+                # or "Game already finished" means the game ended without a player win.
+                is_win = "END GAME YOU WIN" in npc_reply
+                is_game_over = is_win or "Game already finished" in npc_reply or "END GAME" in npc_reply
+                if is_game_over:
                     game_ended_flag = True
-                    await send("status", {"text": "Game over!"})
-                    if stop_on_game_end:
-                        await send("game_won", {})
+                    if is_win:
+                        await send("status", {"text": "You won! \U0001F3C6"})
+                        if stop_on_game_end:
+                            await send("game_won", {})
+                    else:
+                        await send("status", {"text": "Game over."})
                     break
 
             # --- Evaluate (scorer runs AFTER conversation is done) ---
