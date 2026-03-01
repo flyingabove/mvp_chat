@@ -1,8 +1,13 @@
 Debug System — AI Learnings & Reference
 ==========================================
 
-> **Terminology**: Story master = NPC-generating AI (always /api/chat pipeline).
-> Player = AI that plays the human in test runs. Grader = AI that evaluates run quality.
+> **Terminology**:
+> - **Story master** = NPC-generating AI (always /api/chat pipeline).
+> - **Player** (or "player agent") = LLM AI that simulates a human in automated test runs. NOT a real human.
+> - **User** = real human interacting with the game via the browser.
+> - **Grader** = LLM AI that evaluates run quality.
+>
+> This distinction matters for future logging: user sessions come from humans; player sessions come from the debug engine's LLM agent.
 
 Overview
 --------
@@ -95,16 +100,23 @@ How a Run Works (WebSocket /beta/debug/ws)
 
 Player Brief (Anti-loop feature)
 ----------------------------------
-_build_player_brief() fetches /api/stories/{story_id}/context and builds:
-- STORY title
-- YOUR CHARACTER (protagonist name + personality)
-- PEOPLE IN THIS STORY (character names + public roles — excludes main NPC)
+_build_player_brief() fetches /api/story/{story_id} (the PUBLIC endpoint shown
+to real human users in the UI) and builds only what a real user would know:
+
+- STORY: title
+- YOUR ROLE: player_role from rules (e.g. "You are a detective")
+- HOW TO WIN: win_text_rule from goal (e.g. "Get a confession from the killer")
 - YOUR GOAL: Discover what happened and who is responsible.
 
-Canonical facts are EXCLUDED from the brief (they are spoilers).
-The brief is injected into the player's system prompt before the first turn.
+Deliberately NOT included (not shown to real users):
+- Character names / roles  → real users discover these through gameplay
+- Protagonist personality  → internal story JSON, never surfaced in UI
+- Canonical facts          → spoilers
+
+The brief is injected into the player agent's system prompt before turn 1.
 Combined with the 12-turn history window and anti-loop instruction, this
-prevents the player agent from asking the same questions repeatedly.
+simulates a realistic first-time player experience without giving the LLM
+an unfair information advantage over real users.
 
 WebSocket Events
 -----------------

@@ -109,43 +109,44 @@ async def test_build_player_brief_returns_empty_on_error():
 
 
 @pytest.mark.asyncio
-async def test_build_player_brief_excludes_canonical_facts():
-    """Player brief must NOT include canonical facts (they are spoilers)."""
-    ctx_data = {
-        "title": "The Manor",
-        "protagonist": {"name": "Alex", "personality": "curious"},
-        "characters": [{"name": "Murderer", "role": "suspect", "is_main": False}],
-        "canonical_facts": [{"text": "SECRET: butler did it", "known_by": []}],
+async def test_build_player_brief_includes_public_meta():
+    """Player brief includes title, player role, and win condition — same as real user sees."""
+    # Mirrors the /api/story/{story_id} response shape (public endpoint)
+    meta_data = {
+        "title": "The Manor Mystery",
+        "goal": {"win_text_rule": "Get a full confession from the killer."},
+        "rules": {"player_role": "You are a detective investigating a suspicious death."},
+        "known_locations": [],
     }
 
     with patch("backend.app.api.debug_engine.httpx.AsyncClient",
-               return_value=_make_mock_http_client(200, ctx_data)):
+               return_value=_make_mock_http_client(200, meta_data)):
         brief = await _build_player_brief("story_1", "http://localhost:8000")
 
-    assert "butler did it" not in brief
-    assert "SECRET" not in brief
-    assert "The Manor" in brief
-    assert "Alex" in brief
+    assert "The Manor Mystery" in brief
+    assert "detective" in brief
+    assert "confession" in brief
 
 
 @pytest.mark.asyncio
-async def test_build_player_brief_excludes_main_npc():
-    """Main NPC should NOT appear in the player brief (they'll meet them in game)."""
-    ctx_data = {
-        "title": "Test",
-        "characters": [
-            {"name": "Ghost IU", "role": "dead pop star", "is_main": True},
-            {"name": "Manager Kim", "role": "suspect", "is_main": False},
-        ],
-        "canonical_facts": [],
+async def test_build_player_brief_excludes_character_list():
+    """Player brief must NOT contain character names — real users discover them through gameplay."""
+    meta_data = {
+        "title": "Test Story",
+        "goal": {"win_text_rule": "Solve the case."},
+        "rules": {"player_role": "investigator"},
+        "known_locations": [],
     }
 
     with patch("backend.app.api.debug_engine.httpx.AsyncClient",
-               return_value=_make_mock_http_client(200, ctx_data)):
+               return_value=_make_mock_http_client(200, meta_data)):
         brief = await _build_player_brief("story_1", "http://localhost:8000")
 
+    # No character names or roles should leak through
     assert "Ghost IU" not in brief
-    assert "Manager Kim" in brief
+    assert "Manager Kim" not in brief
+    assert "butler" not in brief
+    assert "suspect" not in brief
 
 
 # ---------------------------------------------------------------------------

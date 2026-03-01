@@ -221,42 +221,46 @@ async def _verify_game_ended(npc_reply: str, model: str, *, local: bool) -> bool
 
 
 # ---------------------------------------------------------------------------
-# Player brief (public info only — no canonical facts / spoilers)
+# Player brief — mirrors ONLY what a real human user sees before playing
 # ---------------------------------------------------------------------------
 async def _build_player_brief(story_id: str, api_base: str) -> str:
-    """Fetch story context and return player-safe subset (no canonical facts)."""
+    """Fetch public story metadata (same endpoint the frontend uses) and build
+    a brief that matches exactly what a real human user knows at game start.
+
+    Uses /api/story/{story_id} (public endpoint shown to users in the UI),
+    NOT /api/stories/{story_id}/context (internal endpoint with full canon).
+
+    Deliberately excluded (not shown to real users):
+    - Character names and roles  (discovered through gameplay)
+    - Protagonist personality    (internal story JSON, never surfaced in UI)
+    - Canonical facts / crime details (spoilers)
+    """
     try:
         async with httpx.AsyncClient(timeout=10.0) as c:
-            r = await c.get(f"{api_base}/api/stories/{story_id}/context")
+            r = await c.get(f"{api_base}/api/story/{story_id}")
             if r.status_code != 200:
                 return ""
-            ctx = r.json()
+            meta = r.json()
     except Exception:
         return ""
 
     lines: list[str] = []
 
-    title = ctx.get("title", "")
+    title = meta.get("title", "")
     if title:
         lines.append(f'STORY: "{title}"')
 
-    protagonist = ctx.get("protagonist") or {}
-    if protagonist.get("name"):
-        personality = protagonist.get("personality", "")
-        lines.append(
-            f"YOUR CHARACTER: {protagonist['name']}"
-            + (f" — {personality}" if personality else "")
-        )
+    # Player role shown in the UI instructions box
+    rules = meta.get("rules") or {}
+    player_role = rules.get("player_role", "")
+    if player_role:
+        lines.append(f"YOUR ROLE: {player_role}")
 
-    # Include all characters except the main NPC (they'll meet them in game)
-    characters = ctx.get("characters") or []
-    char_lines = [
-        f"  - {ch['name']} — {ch.get('role', '')}"
-        for ch in characters
-        if not ch.get("is_main")
-    ]
-    if char_lines:
-        lines.append("PEOPLE IN THIS STORY:\n" + "\n".join(char_lines))
+    # Win condition shown in the UI instructions box (real users see this)
+    goal = meta.get("goal") or {}
+    win_text = goal.get("win_text_rule", "")
+    if win_text:
+        lines.append(f"HOW TO WIN: {win_text}")
 
     lines.append("YOUR GOAL: Discover what happened and who is responsible.")
     return "\n".join(lines)
