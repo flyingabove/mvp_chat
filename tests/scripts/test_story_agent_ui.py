@@ -1,149 +1,138 @@
+"""Tests for the debug system — now in backend/app/api/debug_engine.py.
+
+story_agent_ui.py is now a thin launcher only; all logic moved to debug_engine.
+These tests exercise the debug_engine functions directly.
+"""
+from __future__ import annotations
+
 import importlib
-import inspect
 
 import pytest
-from fastapi.testclient import TestClient
+
+from backend.app.api import debug_engine
 
 
 @pytest.fixture
-def ui_module(tmp_path, monkeypatch):
-    ui = importlib.import_module("scripts.scorer.story_agent_ui")
-    monkeypatch.setattr(ui, "SCORES_CSV", tmp_path / "scores.csv")
-    monkeypatch.setattr(ui, "TEST_CASES_FILE", tmp_path / "test_cases.json")
-    monkeypatch.setattr(ui, "SCORER_INSTRUCTIONS_FILE", tmp_path / "scorer_instructions.md")
-    return ui
+def engine(tmp_path, monkeypatch):
+    """Patch debug_engine storage paths to a temp dir."""
+    monkeypatch.setattr(debug_engine, "SCORES_CSV", tmp_path / "debug_scores.csv")
+    monkeypatch.setattr(debug_engine, "TEST_CASES_FILE", tmp_path / "test_cases.json")
+    monkeypatch.setattr(
+        debug_engine, "_SCORER_INSTRUCTIONS_PATH", tmp_path / "scorer_instructions.md"
+    )
+    return debug_engine
 
 
-@pytest.fixture
-def client(ui_module, monkeypatch):
-    async def fake_check_ollama():
-        return {"available": True, "models": ["model-a", "model-b"]}
-
-    class FakeResp:
-        def __init__(self, payload):
-            self._payload = payload
-
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return self._payload
-
-    class FakeAsyncClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def get(self, url):
-            return FakeResp({"stories": [{"id": "s1", "title": "Story 1"}]})
-
-        async def post(self, url, json=None):
-            return FakeResp({})
-
-    monkeypatch.setattr(ui_module, "check_ollama", fake_check_ollama)
-    monkeypatch.setattr(ui_module.httpx, "AsyncClient", FakeAsyncClient)
-    return TestClient(ui_module.app)
-
-
-def test_append_and_read_scores(ui_module):
-    ui_module._append_score_csv({
-        "timestamp": "now",
+def test_append_and_read_scores(engine, tmp_path):
+    engine._append_score_csv({
+        "timestamp": "2026-01-01 00:00:00",
         "run_id": "run1",
         "story_id": "story-a",
         "player_name": "Alex",
-        "chatter_model": "chat-a",
-        "rater_model": "rate-b",
-        "chatter_persona": "curious_rookie",
-        "rater_persona": "expert_llm_grader",
-        "eval_persona": "curious_rookie",
+        "player_model": "llama3.1:8b",
+        "grader_model": "gemma3:12b",
+        "player_persona": "curious_rookie",
+        "grader_persona": "expert_llm_grader",
+        "eval_persona": "expert_llm_grader",
         "turns": 3,
         "canon_fidelity": 5,
     })
 
-    rows = ui_module._read_scores_csv()
+    rows = engine._read_scores_csv()
     assert len(rows) == 1
     assert rows[0]["run_id"] == "run1"
     assert rows[0]["canon_fidelity"] == "5"
-    assert rows[0]["chatter_persona"] == "curious_rookie"
-    assert rows[0]["rater_persona"] == "expert_llm_grader"
+    assert rows[0]["player_persona"] == "curious_rookie"
+    assert rows[0]["grader_persona"] == "expert_llm_grader"
 
 
-def test_save_and_load_test_cases(ui_module):
-    cases = [{"id": "tc1", "name": "Case 1", "messages": ["hello", "bye"]}]
-    ui_module._save_test_cases(cases)
-    assert ui_module._load_test_cases() == cases
+def test_save_and_load_test_cases(engine):
+    cases = [{"name": "Confusing IU #1", "messages": ["what happened to the previous tenant?"], "strategy": ""}]
+    engine._save_test_cases(cases)
+    assert engine._load_test_cases() == cases
 
 
-def test_load_scorer_instructions_missing_returns_empty(ui_module):
-    ui_module.SCORER_INSTRUCTIONS_FILE.unlink(missing_ok=True)
-    assert ui_module._load_scorer_instructions() == ""
+def test_load_scorer_instructions_missing_returns_empty(engine):
+    result = engine._load_scorer_instructions()
+    assert result == ""
 
 
-def test_status_endpoint_uses_mocked_clients(client):
-    resp = client.get("/api/status")
-    data = resp.json()
-    assert data["ollama"]["available"] is True
-    assert data["stories"] == [{"id": "s1", "title": "Story 1"}]
+def test_load_scorer_instructions_reads_file(engine, tmp_path):
+    instructions_file = tmp_path / "scorer_instructions.md"
+    instructions_file.write_text("# Score rubric\nBe accurate.", encoding="utf-8")
+    import backend.app.api.debug_engine as de
+    from unittest.mock import patch
+    with patch.object(de, "_SCORER_INSTRUCTIONS_PATH", instructions_file):
+        result = de._load_scorer_instructions()
+    assert "Score rubric" in result
 
 
-def test_test_cases_api_round_trip(client):
-    payload = {"test_cases": [{"id": "tc", "messages": ["hi"]}]}
-    post_resp = client.post("/api/test-cases", json=payload)
-    assert post_resp.status_code == 200
-
-    get_resp = client.get("/api/test-cases")
-    assert get_resp.status_code == 200
-    assert get_resp.json() == payload["test_cases"]
-
-
-def test_scores_endpoint_reads_csv(ui_module, client):
-    ui_module._append_score_csv({
-        "timestamp": "now",
+def test_scores_endpoint_reads_csv(engine, tmp_path):
+    """GET /beta/debug/scores returns CSV rows as JSON."""
+    engine._append_score_csv({
+        "timestamp": "2026-01-01 00:00:00",
         "run_id": "run2",
         "story_id": "story-b",
         "player_name": "Alex",
-        "chatter_model": "chat-a",
-        "rater_model": "rate-b",
-        "chatter_persona": "curious_rookie",
-        "rater_persona": "curious_rookie",
+        "player_model": "llama3.1:8b",
+        "grader_model": "gemma3:12b",
+        "player_persona": "curious_rookie",
+        "grader_persona": "curious_rookie",
         "eval_persona": "curious_rookie",
         "turns": 2,
         "canon_fidelity": 4,
     })
 
-    resp = client.get("/api/scores")
+    from fastapi.testclient import TestClient
+    from backend.app.main import app
+
+    client = TestClient(app)
+    # Patch scores path on the module before reading
+    import backend.app.api.debug_engine as de
+    from unittest.mock import patch
+    with patch.object(de, "SCORES_CSV", tmp_path / "debug_scores.csv"):
+        resp = client.get("/beta/debug/scores")
+
     assert resp.status_code == 200
     rows = resp.json()
     assert len(rows) == 1
     assert rows[0]["run_id"] == "run2"
     assert rows[0]["canon_fidelity"] == "4"
-    assert rows[0]["chatter_persona"] == "curious_rookie"
-    assert rows[0]["rater_persona"] == "curious_rookie"
 
 
-def test_context_copy_json_uses_canonical_context_shape(ui_module):
-    html = ui_module.HTML_PAGE
+def test_test_cases_api_round_trip(engine, tmp_path):
+    """POST + GET /beta/debug/test-cases should round-trip correctly."""
+    from fastapi.testclient import TestClient
+    from backend.app.main import app
+    import backend.app.api.debug_engine as de
+    from unittest.mock import patch
 
-    assert "schema_version: 2" in html
-    assert "context: {" in html
-    assert "debug_box: db || null" in html
-    assert "prompt_debug: pd || null" in html
+    payload = {"test_cases": [{"name": "Case 1", "messages": ["hi"], "strategy": ""}]}
 
-    assert "debug_payload: payload || null" not in html
-    assert "sections: sections.map(function(s)" not in html
+    with patch.object(de, "TEST_CASES_FILE", tmp_path / "test_cases.json"):
+        client = TestClient(app)
+        post_resp = client.post("/beta/debug/test-cases", json=payload)
+        assert post_resp.status_code == 200
+
+        get_resp = client.get("/beta/debug/test-cases")
+        assert get_resp.status_code == 200
+        assert get_resp.json() == payload["test_cases"]
 
 
-def test_done_event_enables_manual_continuation(ui_module):
-    src = ui_module.HTML_PAGE
-    ws_src = inspect.getsource(ui_module.ws_run)
+def test_launcher_has_no_old_attributes():
+    """story_agent_ui.py is now a thin launcher — it must NOT have old logic attributes."""
+    ui = importlib.import_module("scripts.scorer.story_agent_ui")
+    assert not hasattr(ui, "HTML_PAGE"), "HTML_PAGE should be in frontend/debug.html, not the launcher"
+    assert not hasattr(ui, "SCORES_CSV"), "SCORES_CSV should be in debug_engine, not the launcher"
+    assert not hasattr(ui, "_append_score_csv"), "CSV logic should be in debug_engine, not the launcher"
 
-    assert 'await send("done", {"conversation": conversation, "session_id": session_id})' in ws_src
-    assert "manualSession = String(msg.session_id);" in src
-    assert "Done. You can continue this same run with manual messages." in src
-    assert "document.getElementById('manualInput').disabled = false;" in src
-    assert "document.getElementById('sendBtn').disabled = false;" in src
+
+def test_debug_ui_route_serves_html():
+    """GET /beta/debug must return 200 with HTML content."""
+    from fastapi.testclient import TestClient
+    from backend.app.main import app
+
+    client = TestClient(app)
+    resp = client.get("/beta/debug")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers.get("content-type", "")

@@ -7,6 +7,16 @@ from backend.app.config.credentials import get_openai_api_key
 OPENAI_API_KEY: str = get_openai_api_key()
 OPENAI_MODEL: str = "gpt-4o-mini"
 
+# --- Story master config ---
+# "Story master" = the AI that generates NPC/narrator responses.
+# Defaults to the OpenAI endpoint/key/model above. Override via env vars to
+# point at a local Ollama instance (http://localhost:11434/v1) or any other
+# OpenAI-compatible backend.
+import os as _os
+STORY_MASTER_BASE_URL: str = _os.getenv("STORY_MASTER_BASE_URL", "https://api.openai.com/v1")
+STORY_MASTER_API_KEY: str  = _os.getenv("STORY_MASTER_API_KEY",  OPENAI_API_KEY)
+STORY_MASTER_MODEL: str    = _os.getenv("STORY_MASTER_MODEL",    OPENAI_MODEL)
+
 MAX_TOKENS: int = 512
 TEMPERATURE: float = 0.8
 MEMORY_TURNS: int = 8

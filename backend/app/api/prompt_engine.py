@@ -30,6 +30,7 @@ from backend.app.utils.logging_utils import jlog as _log, truncate as _truncate
 from backend.app.config.settings import (
 
     OPENAI_API_KEY, OPENAI_MODEL,
+    STORY_MASTER_BASE_URL, STORY_MASTER_API_KEY, STORY_MASTER_MODEL,
 
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
     DEFAULT_USER_ID, DEFAULT_INSTANCE,
@@ -1596,11 +1597,13 @@ async def chat_handler(data: dict):
         "retrieved_chunk_ids": [c.get("chunk_id") for c in retrieved],
     })
 
+    # Story master call — uses configurable base URL/model so the same code
+    # works against OpenAI (online) or a local Ollama instance (local dev).
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json=payload,
+            f"{STORY_MASTER_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+            json={**payload, "model": STORY_MASTER_MODEL},
         )
 
     if r.status_code < 200 or r.status_code >= 300:
