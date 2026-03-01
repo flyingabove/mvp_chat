@@ -73,7 +73,7 @@ Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 All doc/code mismatches fixed during active work and all open uncertainties are tracked in:
 - [documentation/model_output_docs/ERRORS.md](documentation/model_output_docs/ERRORS.md)
 
-## Read-only human vision docs
+## Read-only human vision docs unless explicity stated
 
 - [documentation/human_north_star_docs/NorthStar.md](documentation/human_north_star_docs/NorthStar.md)
 - [documentation/human_north_star_docs/StoriesChatNorthStar.txt](documentation/human_north_star_docs/StoriesChatNorthStar.txt)

@@ -1,6 +1,8 @@
 ```markdown
 # StoriesChat — A Scalable Narrative Game Engine (MVP Spec)
 
+This north start doc is specific to describe log term vision of the app, it should not contain todo lists and details. I should describe the point of the app and how the app feels to the user and the user experience. While not mentioning any technical stuff. 
+
 ## Vision / North Star
 
 **StoriesChat is a narrative-first open-world game engine powered by LLMs, designed to create real games—not chatbots.**  
@@ -10,6 +12,17 @@ Players can wander, investigate, flirt, joke, waste time, or speedrun—but the 
 
 StoriesChat is **not one story**.  
 It is a **story engine** capable of running many different games, genres, and tones using the same core rules.
+
+---
+
+## UI Vision (PWA-First, Curated, App-Ready)
+
+- **PWA first:** ship the new interface as a web app first for speed and iteration.
+- **Web-in-app later:** publish mobile using a lightweight WebView wrapper that reuses the exact same web UI.
+- **Discovery should feel like Netflix:** game selection is row-based, visual, recommendation-driven, and easy to browse.
+- **Chat should feel like Character.AI:** clean message flow, strong character identity, and minimal friction to keep playing.
+- **Curated over chaotic:** show fewer, higher-quality game options and recommendations rather than exposing everything.
+- **MVP interaction loop:** pick a recommended game, enter chat quickly, stay immersed.
 
 ---
 
