@@ -1,6 +1,28 @@
 Game Structure (Data Model)
 ====================================
 
+## Core Design Philosophy: Discovery Over Introduction
+
+**Characters must be discovered through gameplay, never pre-announced.**
+
+Like the Legend of Zelda — you don't need a Ganondorf introduction before you meet him.
+You encounter characters organically by exploring locations and following the story.
+If a player agent (or real user) cannot discover a character through natural conversation
+and exploration, the game is broken and must be fixed. The solution is NEVER to leak
+character names to the player upfront.
+
+Consequences:
+- Player agent briefs NEVER include character names or roles (see debug_engine.py)
+- Story design MUST place characters in discoverable locations with clear narrative hooks
+- The NPC should naturally reference or introduce other characters during play
+- If nobody is ever mentioned, the knowledge base or scene design needs work
+
+This principle applies equally to real users and LLM player agents.
+The test for a well-designed game: does a player starting from zero naturally
+stumble upon every relevant character within a reasonable run?
+
+
+
 Key artifacts per game (one folder per game)
 - Naming: folders use `<integer>_<slug>` and the integer must be unique per game (1, 2, 3, …). If an integer collides, fix the overlap before proceeding.
 
