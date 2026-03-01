@@ -19,6 +19,7 @@ import asyncio
 import csv
 import json
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -58,8 +59,9 @@ No preambles. No apologies. No meta-commentary. Never say things like \
 "Given the context of the story" — just type what you'd actually say next. \
 One or two sentences max. React to what the character just said. \
 Ask follow-up questions when curious. Push back when skeptical. \
-Keep it real and human.
-
+Keep it real and human. No emojis ever. \
+Do NOT start your message with "PLAYER:", "NPC:", or any role label — \
+output only the raw message text.
 """
 
 # Load scorer instructions from file
@@ -459,6 +461,9 @@ async def ws_run(ws: WebSocket):
                         prompt = f"Conversation so far:\n{history}\n\nTurn {turn}/{effective_turns}. What do you say next?"
                         player_msg = await ollama_generate(chatter_model, agent_system, prompt)
                         player_msg = player_msg.strip().strip('"').strip("'")
+                        # Strip any role-label prefix the LLM may have copied from
+                        # the history format (e.g. "PLAYER: PLAYER: ..." or "NPC: ...")
+                        player_msg = re.sub(r'^(?:PLAYER|NPC)\s*:\s*', '', player_msg, flags=re.IGNORECASE).strip()
                     except Exception as e:
                         player_msg = FALLBACK_MESSAGES[(turn - 1) % len(FALLBACK_MESSAGES)]
                         await send("warning", {"text": f"LLM error, using fallback: {e}"})
