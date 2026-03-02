@@ -43,6 +43,10 @@ Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 - [documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md](documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md)
 - [documentation/ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md](documentation/ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md)
 
+### Infrastructure and deployment
+- [documentation/model_output_docs/INFRASTRUCTURE.md](documentation/model_output_docs/INFRASTRUCTURE.md)
+  — Railway (Docker, /data volume, env vars), Namecheap frontend, local dev launcher, known deployment issues
+
 ### Coding style standards
 - [documentation/model_output_docs/PYTHON_CODING_STYLE_GUIDE.md](documentation/model_output_docs/PYTHON_CODING_STYLE_GUIDE.md)
 

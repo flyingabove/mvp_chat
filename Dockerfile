@@ -26,6 +26,7 @@ RUN echo "🔥 Resetting /srv and /tmp" \
 WORKDIR /srv
 
 COPY backend/ /srv/backend/
+COPY frontend/ /srv/frontend/
 COPY tests/ /srv/tests/
 COPY scripts/ /srv/scripts/
 

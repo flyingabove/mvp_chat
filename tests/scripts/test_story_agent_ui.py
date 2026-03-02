@@ -127,12 +127,26 @@ def test_launcher_has_no_old_attributes():
     assert not hasattr(ui, "_append_score_csv"), "CSV logic should be in debug_engine, not the launcher"
 
 
-def test_debug_ui_route_serves_html():
-    """GET /beta/debug must return 200 with HTML content."""
-    from fastapi.testclient import TestClient
-    from backend.app.main import app
+def test_debug_ui_route_serves_html(tmp_path):
+    """GET /beta/debug must return 200 with HTML content.
 
-    client = TestClient(app)
-    resp = client.get("/beta/debug")
-    assert resp.status_code == 200
-    assert "text/html" in resp.headers.get("content-type", "")
+    Mocks _DEBUG_HTML_PATH to a temp file so the test is filesystem-independent
+    and passes both locally and in Railway (where frontend/ path layout may differ).
+    """
+    from fastapi.testclient import TestClient
+    import backend.app.main as main_module
+
+    fake_html = "<html><body><h1>Debug UI</h1></body></html>"
+    fake_path = tmp_path / "debug.html"
+    fake_path.write_text(fake_html, encoding="utf-8")
+
+    original = main_module._DEBUG_HTML_PATH
+    main_module._DEBUG_HTML_PATH = fake_path
+    try:
+        client = TestClient(main_module.app)
+        resp = client.get("/beta/debug")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+        assert "Debug UI" in resp.text
+    finally:
+        main_module._DEBUG_HTML_PATH = original
