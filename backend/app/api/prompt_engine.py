@@ -274,6 +274,30 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
         state.canonical_truth = seeded_texts
 
 
+def _seed_player_visibility(state: GameState) -> None:
+    """Label all knowledge chunks with player visibility at game init.
+
+    Chunks from chunks.jsonl default to player_visible=True (public biographical
+    knowledge that a real fan/player would bring to the game). Story designers can
+    hide specific chunks by adding ``"player_visible": false`` to a chunk entry in
+    chunks.jsonl.
+
+    Populates state.player_visible_chunk_ids with all visible chunk IDs so the
+    debug player agent can filter its retrieval to only public knowledge.
+    """
+    if not state.knowledge_character_id:
+        return
+    try:
+        bundle = IndexService.get(state.knowledge_character_id)
+        state.player_visible_chunk_ids = [
+            c["chunk_id"]
+            for c in bundle.chunks
+            if c.get("player_visible", True)
+        ]
+    except Exception:
+        state.player_visible_chunk_ids = []
+
+
 _BASIC_CHARACTER_KEYS = {
     "key",
     "id",
@@ -1313,6 +1337,9 @@ async def chat_handler(data: dict):
         # Fallback knowledge bundle for main
         if not new_state.knowledge_character_id and main_char_def:
             new_state.knowledge_character_id = main_char_def.knowledge_character_id
+
+        # Label all knowledge chunks with player visibility for debug player agent retrieval.
+        _seed_player_visibility(new_state)
 
         opening = story_def.get("opening", {}).get("text", "The room is quiet. A story begins.")
         opening = apply_placeholders(opening, new_state)

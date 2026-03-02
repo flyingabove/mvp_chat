@@ -12,6 +12,8 @@ from backend.app.api.debug_engine import (
     _build_scorer_context,
     _build_player_brief,
     _verify_game_ended,
+    _load_player_visible_chunks,
+    _retrieve_player_context,
     generate,
     ollama_generate,
     cloud_generate,
@@ -235,3 +237,114 @@ def test_debug_ui_route_200(tmp_path):
         assert "Debug" in resp.text
     finally:
         main_module._DEBUG_HTML_PATH = original
+
+
+# ---------------------------------------------------------------------------
+# _load_player_visible_chunks
+# ---------------------------------------------------------------------------
+
+def test_load_player_visible_chunks_unknown_story():
+    """Returns ('', empty set) when story does not exist."""
+    char_id, visible = _load_player_visible_chunks("nonexistent_story_xyz")
+    assert char_id == ""
+    assert visible == set()
+
+
+def test_load_player_visible_chunks_no_knowledge_char_id():
+    """Returns ('', empty set) when story has no knowledge_character_id."""
+    mock_story = MagicMock()
+    mock_story.as_dict.return_value = {"knowledge_character_id": ""}
+
+    with patch("backend.app.api.debug_engine.load_story", return_value=mock_story):
+        char_id, visible = _load_player_visible_chunks("any_story")
+    assert char_id == ""
+    assert visible == set()
+
+
+def test_load_player_visible_chunks_filters_hidden():
+    """Chunks with player_visible=false are excluded from visible set."""
+    mock_story = MagicMock()
+    mock_story.as_dict.return_value = {"knowledge_character_id": "iu"}
+
+    mock_bundle = MagicMock()
+    mock_bundle.chunks = [
+        {"chunk_id": "pub_1", "text": "Public fact"},
+        {"chunk_id": "hidden_1", "text": "Secret fact", "player_visible": False},
+        {"chunk_id": "pub_2", "text": "Another public fact", "player_visible": True},
+    ]
+
+    with patch("backend.app.api.debug_engine.load_story", return_value=mock_story), \
+         patch("backend.app.api.debug_engine.IndexService") as mock_svc:
+        mock_svc.get.return_value = mock_bundle
+        char_id, visible = _load_player_visible_chunks("iu_story")
+
+    assert char_id == "iu"
+    assert "pub_1" in visible
+    assert "pub_2" in visible
+    assert "hidden_1" not in visible
+
+
+# ---------------------------------------------------------------------------
+# _retrieve_player_context
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_retrieve_player_context_empty_query():
+    """Returns '' when query is empty."""
+    result = await _retrieve_player_context("", "iu", {"pub_1"})
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_retrieve_player_context_no_char_id():
+    """Returns '' when knowledge_char_id is empty."""
+    result = await _retrieve_player_context("some query", "", {"pub_1"})
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_retrieve_player_context_no_visible_chunks():
+    """Returns '' when visible_chunk_ids is empty (no public knowledge)."""
+    result = await _retrieve_player_context("some query", "iu", set())
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_retrieve_player_context_filters_hidden():
+    """Chunks not in visible_chunk_ids are excluded even if retrieved by FAISS/BM25."""
+    returned_chunks = [
+        {"chunk_id": "pub_1", "text": "IU's real name is Lee Ji-eun."},
+        {"chunk_id": "secret_1", "text": "IU was murdered."},  # not in visible set
+    ]
+    with patch("backend.app.api.debug_engine.IndexService"), \
+         patch("backend.app.api.debug_engine.retrieve_knowledge", return_value=(returned_chunks, {})):
+        result = await _retrieve_player_context(
+            "tell me about IU", "iu", {"pub_1"}  # secret_1 not in visible set
+        )
+    assert "Lee Ji-eun" in result
+    assert "murdered" not in result
+
+
+@pytest.mark.asyncio
+async def test_retrieve_player_context_returns_visible():
+    """Chunks in visible_chunk_ids are included in output."""
+    returned_chunks = [
+        {"chunk_id": "pub_1", "text": "IU debuted in 2008 under LOEN Entertainment."},
+        {"chunk_id": "pub_2", "text": "IU won multiple Daesang awards."},
+    ]
+    with patch("backend.app.api.debug_engine.IndexService"), \
+         patch("backend.app.api.debug_engine.retrieve_knowledge", return_value=(returned_chunks, {})):
+        result = await _retrieve_player_context(
+            "tell me about IU", "iu", {"pub_1", "pub_2"}
+        )
+    assert "debuted in 2008" in result
+    assert "Daesang" in result
+
+
+@pytest.mark.asyncio
+async def test_retrieve_player_context_graceful_on_error():
+    """Returns '' if retrieval raises (e.g., index not loaded)."""
+    with patch("backend.app.api.debug_engine.IndexService"), \
+         patch("backend.app.api.debug_engine.retrieve_knowledge", side_effect=Exception("index error")):
+        result = await _retrieve_player_context("query", "iu", {"pub_1"})
+    assert result == ""

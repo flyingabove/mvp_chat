@@ -32,6 +32,35 @@ Knowledge (retrieval inputs)
 - chunks.jsonl: derived from knowledge.json; flattened, windowed chunks with metadata for retrieval.
 - Artifacts produced by build pipeline: BM25/FAISS index files alongside chunks.jsonl. These are what the app loads at runtime; knowledge.json itself is authoring-time only.
 
+Player Visibility Labeling (REQUIRED understanding for game authors)
+---------------------------------------------------------------------
+At game init, every knowledge artifact is labeled player_visible or player_hidden.
+This determines what the debug player agent (and future real-user memory systems)
+can retrieve during gameplay.
+
+DEFAULT RULES (no authoring needed for most games):
+  chunks.jsonl          → player_visible = true  (public biographical/world knowledge)
+  canonical_facts       → player_visible = false (game secrets — the mystery itself)
+  character_self_knowledge → always hidden        (NPC private identity)
+  beliefs               → always hidden           (NPC private thoughts)
+  character_graph edges → always hidden           (NPC private relationships)
+  location descriptions → always visible          (shown on the public map)
+
+OVERRIDES:
+  To hide a specific chunk (e.g., "IU was found dead in her apartment" is a public
+  fact the player should NOT start knowing):
+    Add "player_visible": false to the chunk in chunks.jsonl.
+
+  To expose a canonical fact the player starts knowing (e.g., "The story is set in Seoul"):
+    Add "player" to the fact's known_by array in the story JSON:
+      { "id": "setting_fact", "text": "...", "known_by": ["all_characters", "player"], "confidence": 1.0 }
+
+Runtime: _seed_player_visibility() in prompt_engine._cmd_newgame populates
+state.player_visible_chunk_ids at game init. The debug player agent calls
+_retrieve_player_context() each turn to retrieve only visible chunks via the same
+FAISS/BM25 pipeline the story master uses. This lets the player agent draw on the same
+public knowledge a real fan/player would bring to the game — without ever seeing secrets.
+
 Story content
 - Path: backend\app\stories\<folder>/ where <folder> = `<int>_<slug>` (e.g., `1_iu_murder_mystery`, `2_jennie_murder_mini`)
 - Story JSON: either `<story_id>.json` or `<story_id>_story.json` (loader tries both).

@@ -210,6 +210,12 @@ class GameState:
     # Knowledge retrieval routing (character index bundle id/dirname)
     knowledge_character_id: str = ""
 
+    # Chunk IDs from chunks.jsonl visible to the player at game start.
+    # Populated by _seed_player_visibility() in prompt_engine._cmd_newgame.
+    # Defaults to all chunks if empty (no filtering applied).
+    # Story designers can mark specific chunks hidden via "player_visible": false in chunks.jsonl.
+    player_visible_chunk_ids: List[str] = field(default_factory=list)
+
     # ==============================================================
     # Story metadata
     # ==============================================================

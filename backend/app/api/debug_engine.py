@@ -28,6 +28,9 @@ from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
+from backend.app.engine.story_loader import load_story
+from backend.app.knowledge.runtime.index_service import IndexService
+from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -317,6 +320,73 @@ def _build_scorer_context(ctx: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Player-side knowledge retrieval (mirrors story master pipeline, filtered)
+# ---------------------------------------------------------------------------
+
+def _load_player_visible_chunks(story_id: str) -> tuple[str, set[str]]:
+    """At game init: determine which knowledge chunks are visible to the player.
+
+    Loads the character bundle for the story and returns the set of chunk IDs
+    that are player-visible (i.e., public knowledge a real fan/player would bring).
+
+    Labeling rules:
+    - chunks.jsonl defaults to player_visible=True (public biographical knowledge)
+    - Story designers can hide specific chunks: add ``"player_visible": false``
+      to a chunk entry in chunks.jsonl
+
+    Returns:
+        (knowledge_char_id, visible_chunk_ids) — empty string + empty set on any error.
+    """
+    try:
+        story = load_story(story_id)
+        cfg = story.as_dict() if hasattr(story, "as_dict") else (story or {})
+        knowledge_char_id = cfg.get("knowledge_character_id", "")
+        if not knowledge_char_id:
+            return "", set()
+        IndexService.set_active_character(knowledge_char_id)
+        bundle = IndexService.get(knowledge_char_id)
+        visible_ids = {
+            c["chunk_id"]
+            for c in bundle.chunks
+            if c.get("player_visible", True)   # default True = public knowledge
+        }
+        return knowledge_char_id, visible_ids
+    except Exception:
+        return "", set()
+
+
+async def _retrieve_player_context(
+    query: str,
+    knowledge_char_id: str,
+    visible_chunk_ids: set[str],
+) -> str:
+    """Retrieve public knowledge relevant to the current NPC message.
+
+    Mirrors the story master's FAISS/BM25 retrieval pipeline but filtered to
+    player_visible chunks only — ensuring the player agent only draws on
+    knowledge a real human player would plausibly know before playing.
+
+    Canonical facts, beliefs, character self-knowledge, and character graph
+    relationships are NOT returned here (they are game secrets handled
+    exclusively by the story master side).
+
+    Returns a bullet-list string for injection into the player's prompt, or ""
+    if nothing relevant or retrieval is unavailable.
+    """
+    if not knowledge_char_id or not query or not visible_chunk_ids:
+        return ""
+    try:
+        IndexService.set_active_character(knowledge_char_id)
+        chunks, _ = retrieve_knowledge(query, k_final=8)
+        visible = [c for c in chunks if c.get("chunk_id", "") in visible_chunk_ids]
+        if not visible:
+            return ""
+        return "\n".join(f"- {c['text']}" for c in visible[:3])
+    except Exception:
+        return ""
+
+
+# ---------------------------------------------------------------------------
 # CSV helpers
 # ---------------------------------------------------------------------------
 CSV_COLUMNS = [
@@ -484,6 +554,10 @@ async def ws_debug(websocket: WebSocket) -> None:
             await emit_debug(0, result)
             conversation: list[dict] = [{"role": "npc", "content": opening, "turn": 0}]
 
+            # Load player-visible knowledge once per run (public chunks the player may draw on).
+            # Game secrets (canonical facts, beliefs, character graph) are never included.
+            knowledge_char_id, player_visible_chunks = _load_player_visible_chunks(story_id)
+
             # Determine effective turns
             if test_case_messages:
                 tc_len = len(test_case_messages)
@@ -513,8 +587,21 @@ async def ws_debug(websocket: WebSocket) -> None:
                             f"{'PLAYER' if m['role'] == 'player' else 'NPC'}: {m['content']}"
                             for m in conversation[-12:]
                         )
+                        # Retrieve public knowledge relevant to the last NPC message.
+                        # Filters to player_visible chunks only — no game secrets leak through.
+                        last_npc = next(
+                            (m["content"] for m in reversed(conversation) if m["role"] == "npc"),
+                            "",
+                        )
+                        player_knowledge = await _retrieve_player_context(
+                            last_npc, knowledge_char_id, player_visible_chunks
+                        )
+                        retrieval_block = (
+                            f"\n\nKNOWLEDGE YOU MAY DRAW ON:\n{player_knowledge}"
+                            if player_knowledge else ""
+                        )
                         prompt = (
-                            f"Conversation so far:\n{history}\n\n"
+                            f"Conversation so far:\n{history}{retrieval_block}\n\n"
                             f"Turn {turn}/{effective_turns}. What do you say next?\n"
                             "IMPORTANT: Ask a NEW question or bring up a new topic — "
                             "do NOT repeat questions already asked. "
