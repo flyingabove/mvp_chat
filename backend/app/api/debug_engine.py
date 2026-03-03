@@ -660,11 +660,17 @@ async def ws_debug(websocket: WebSocket) -> None:
                     is_win = "END GAME YOU WIN" in npc_reply
                     if is_win:
                         await send("status", {"text": "You won! \U0001F3C6"})
-                        if stop_on_game_end:
-                            await send("game_won", {})
                     else:
                         await send("status", {"text": "Game over."})
-                    break
+                    # In scripted+free-turns mode, don't stop during the scripted phase —
+                    # the user explicitly asked for more turns after the script.
+                    in_scripted_phase = test_case_continue and tc_len > 0 and turn <= tc_len
+                    if stop_on_game_end and not in_scripted_phase:
+                        if is_win:
+                            await send("game_won", {})
+                        break
+                    elif in_scripted_phase:
+                        await send("status", {"text": "— Game-end during scripted phase, continuing free turns —"})
 
         # Save run JSON to persistent storage
         run_data = {

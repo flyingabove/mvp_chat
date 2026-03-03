@@ -1175,8 +1175,19 @@
   let debugPayloads = {};  // turn -> {debug_box, prompt_debug}
   let apiBase = null; // set from /beta/debug/status response
 
-  // ---- Mode chip ----
+  // ---- Backend URL detection (beta vs prod vs local) ----
   const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const _isBeta = !isLocal && (
+    location.hostname.includes('beta') ||
+    location.pathname.startsWith('/beta/')
+  );
+  const _backendHost = isLocal
+    ? (location.port ? `${location.hostname}:${location.port}` : location.hostname)
+    : _isBeta ? 'beta-api.storieschat.ai' : 'api.storieschat.ai';
+  const _wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const _debugBase = `${location.protocol}//${_backendHost}/beta/debug`;
+
+  // ---- Mode chip ----
   const chip = document.getElementById('modeChip');
   if (chip) {
     chip.textContent = isLocal ? '🟢 Local — Ollama' : '🔵 Online — Cloud API';
@@ -1218,11 +1229,11 @@
 
   // ---- Init ----
   async function init() {
-    const r = await fetch('/beta/debug/status');
+    const r = await fetch(`${_debugBase}/status`);
     const data = await r.json();
 
     // Store api_base for story API calls
-    apiBase = data.api_base || 'https://beta-api.storieschat.ai';
+    apiBase = data.api_base || `${location.protocol}//${_backendHost}`;
 
     const dot = document.getElementById('statusDot');
     const txt = document.getElementById('statusText');
@@ -1337,7 +1348,7 @@
       addSystemMsg(label);
     }
 
-    const wsUrl = `ws://${location.host}/beta/debug/ws`;
+    const wsUrl = `${_wsProto}//${_backendHost}/beta/debug/ws`;
     ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       ws.send(JSON.stringify(wsConfig));
@@ -1575,7 +1586,7 @@
     if (!msg) return;
     input.value = '';
 
-    const storyApiBase = apiBase || 'https://beta-api.storieschat.ai';
+    const storyApiBase = apiBase || `${location.protocol}//${_backendHost}`;
 
     if (!manualSession) {
       const storyId = document.getElementById('storySelect').value;
@@ -1665,7 +1676,7 @@
   async function loadLeaderboard() {
     const container = document.getElementById('leaderboardContent');
     try {
-      const r = await fetch('/beta/debug/scores');
+      const r = await fetch(`${_debugBase}/scores`);
       const rows = await r.json();
       if (!rows.length) {
         container.innerHTML = '<div class="eval-placeholder">No scores recorded yet. Run a test with Auto-evaluate enabled.</div>';
@@ -1724,7 +1735,7 @@
   // ---- Test Cases ----
   async function loadTestCases() {
     try {
-      const r = await fetch('/beta/debug/test-cases');
+      const r = await fetch(`${_debugBase}/test-cases`);
       testCases = await r.json();
     } catch (e) {
       testCases = [];
@@ -1872,7 +1883,7 @@
 
       testCases = normalized;
 
-      const resp = await fetch('/beta/debug/test-cases', {
+      const resp = await fetch(`${_debugBase}/test-cases`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ test_cases: testCases }),

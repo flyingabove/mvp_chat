@@ -150,3 +150,66 @@ def test_debug_ui_route_serves_html(tmp_path):
         assert "Debug UI" in resp.text
     finally:
         main_module._DEBUG_HTML_PATH = original
+
+
+def test_prod_debug_route_serves_html(tmp_path):
+    """GET /debug (prod debug URL) must serve the same debug HTML."""
+    from fastapi.testclient import TestClient
+    import backend.app.main as main_module
+
+    fake_html = "<html><body><h1>Debug UI</h1></body></html>"
+    fake_path = tmp_path / "debug.html"
+    fake_path.write_text(fake_html, encoding="utf-8")
+
+    original = main_module._DEBUG_HTML_PATH
+    main_module._DEBUG_HTML_PATH = fake_path
+    try:
+        client = TestClient(main_module.app)
+        resp = client.get("/debug")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+        assert "Debug UI" in resp.text
+    finally:
+        main_module._DEBUG_HTML_PATH = original
+
+
+def test_game_ui_root_serves_html(tmp_path):
+    """GET / must serve index.html (prod game UI)."""
+    from fastapi.testclient import TestClient
+    import backend.app.main as main_module
+
+    fake_html = "<html><body><h1>Game UI</h1></body></html>"
+    fake_path = tmp_path / "index.html"
+    fake_path.write_text(fake_html, encoding="utf-8")
+
+    original = main_module._INDEX_HTML_PATH
+    main_module._INDEX_HTML_PATH = fake_path
+    try:
+        client = TestClient(main_module.app)
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+        assert "Game UI" in resp.text
+    finally:
+        main_module._INDEX_HTML_PATH = original
+
+
+def test_beta_game_ui_route_serves_html(tmp_path):
+    """GET /beta/ must serve index.html (beta game UI, path triggers isBeta in JS)."""
+    from fastapi.testclient import TestClient
+    import backend.app.main as main_module
+
+    fake_html = "<html><body><h1>Game UI</h1></body></html>"
+    fake_path = tmp_path / "index.html"
+    fake_path.write_text(fake_html, encoding="utf-8")
+
+    original = main_module._INDEX_HTML_PATH
+    main_module._INDEX_HTML_PATH = fake_path
+    try:
+        client = TestClient(main_module.app)
+        resp = client.get("/beta/")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+        assert "Game UI" in resp.text
+    finally:
+        main_module._INDEX_HTML_PATH = original

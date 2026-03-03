@@ -18,6 +18,7 @@ from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
 
 _DEBUG_HTML_PATH = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
+_INDEX_HTML_PATH = Path(__file__).parent.parent.parent / "frontend" / "index.html"
 
 
 # --------------------------------------------------
@@ -122,8 +123,20 @@ app.add_websocket_route("/beta/debug/ws", ws_debug)
 
 
 # --------------------------------------------------
-# Debug UI page
+# Frontend pages (served by Railway; keeps Namecheap out of the loop)
 # --------------------------------------------------
+@app.get("/", response_class=HTMLResponse)
+async def game_ui_prod():
+    return _INDEX_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/beta/", response_class=HTMLResponse)
+@app.get("/beta", response_class=HTMLResponse)
+async def game_ui_beta():
+    return _INDEX_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/debug", response_class=HTMLResponse)
 @app.get("/beta/debug", response_class=HTMLResponse)
 async def debug_ui_page():
     return _DEBUG_HTML_PATH.read_text(encoding="utf-8")

@@ -78,24 +78,32 @@ Local dev has no `/data` → uses `./data` (created if missing).
 
 ---
 
-## Frontend (Namecheap)
+## URL Scheme
 
-- Static files hosted on Namecheap file manager
-- `frontend/index.html` — the player-facing game UI (main game)
-- `frontend/debug.html` — debug/scorer UI (served by Railway backend at `/beta/debug`)
-- The game UI (`index.html`) communicates with the Railway backend via:
-  - `POST /api/chat` — main chat endpoint
-  - `GET /api/stories` — story list
-  - `GET /api/story/{id}` — story metadata
-  - `GET /api/story-image/{path}` — map images
+All routes live under a single domain (no subdomain juggling):
 
-Note: `frontend/debug.html` is **not** served from Namecheap — it is served directly
-by the Railway backend via a FastAPI route:
-- **Beta debug UI**: `https://beta-api.storieschat.ai/beta/debug`
-- **Prod debug UI**: `https://api.storieschat.ai/beta/debug`
+| URL | What | Railway service |
+|-----|------|-----------------|
+| `https://storieschat.ai/` | Prod game UI | Prod (main branch) |
+| `https://storieschat.ai/debug` | Prod debug UI | Prod |
+| `https://storieschat.ai/beta/` | Beta game UI | Beta (beta branch) |
+| `https://storieschat.ai/beta/debug` | Beta debug UI | Beta |
 
-**Do NOT access `/beta/debug` via `storieschat.ai`** — that domain points to Namecheap
-static hosting which has no knowledge of the `/beta/debug` route and will return 404.
+**How DNS must be configured** (e.g., Cloudflare Workers or similar):
+- `storieschat.ai/beta/*` → Railway beta service (`beta-api.storieschat.ai`)
+- `storieschat.ai/*` → Railway prod service (`api.storieschat.ai`)
+
+**Beta/prod auto-detection (no config needed):**
+- `index.html` — if `location.pathname.startsWith('/beta/')` → uses beta API
+- `debug.html` — if `location.pathname.startsWith('/beta/')` → WebSocket/API point to beta Railway
+
+**FastAPI routes (present on both prod and beta Railway deployments):**
+- `GET /` → `frontend/index.html`
+- `GET /beta` or `GET /beta/` → `frontend/index.html`
+- `GET /debug` → `frontend/debug.html`
+- `GET /beta/debug` → `frontend/debug.html`
+- `WS /beta/debug/ws` → debug WebSocket
+- `POST /api/chat` etc. → game API
 
 ### Frontend-Lean Design Principle
 
@@ -103,17 +111,14 @@ Keep `frontend/index.html` as thin as possible. Heavy lifting, business logic, a
 even UI components should live in the backend when feasible.
 
 **Rationale:**
-- Updating Railway (push to beta/prod) deploys new UI immediately
-- Namecheap static hosting requires a manual file upload
+- Every push to Railway deploys new UI instantly — no manual file uploads
 - Keeping frontend minimal reduces the blast radius of frontend bugs
-- `debug.html` is a good example: it is served from Railway, so it updates on every push
+- `debug.html` is served by Railway, so it updates on every push with zero extra steps
 
 **Rules:**
 - Game logic, data processing, prompt assembly → always backend
-- The thin `index.html` on Namecheap should only handle: story selection, sending
-  messages, displaying responses, and basic UI chrome
-- Any new UI features that can live in the backend (e.g., debug panels, admin tools)
-  should go in `frontend/debug.html` or similar, served by Railway
+- `index.html` handles: story selection, sending messages, displaying responses only
+- New UI features (debug panels, admin tools) → `frontend/debug.html` served by Railway
 
 ---
 

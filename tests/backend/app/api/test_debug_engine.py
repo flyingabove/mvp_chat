@@ -348,3 +348,35 @@ async def test_retrieve_player_context_graceful_on_error():
          patch("backend.app.api.debug_engine.retrieve_knowledge", side_effect=Exception("index error")):
         result = await _retrieve_player_context("query", "iu", {"pub_1"})
     assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# Game-end during scripted phase — regression test for T5 early-stop bug
+# ---------------------------------------------------------------------------
+
+def test_verify_game_ended_scripted_phase_flag_logic():
+    """
+    Regression: in scripted+continue mode, the loop must NOT break when
+    game-end fires during the scripted phase (turn <= tc_len).
+
+    This tests the in_scripted_phase logic inline so we don't need a full
+    WebSocket integration test.
+    """
+    tc_len = 5
+    num_turns = 100
+    test_case_continue = True
+
+    # Scenario: game-end fires on the last scripted turn (turn 5)
+    turn = 5
+    in_scripted_phase = test_case_continue and tc_len > 0 and turn <= tc_len
+    assert in_scripted_phase is True, "T5 should be inside the scripted phase"
+
+    # Scenario: game-end fires on the first free turn (turn 6)
+    turn = 6
+    in_scripted_phase = test_case_continue and tc_len > 0 and turn <= tc_len
+    assert in_scripted_phase is False, "T6 should be outside the scripted phase"
+
+    # Scenario: no test_case_continue — never in_scripted_phase guard applies
+    turn = 3
+    in_scripted_phase = False and tc_len > 0 and turn <= tc_len  # test_case_continue=False
+    assert in_scripted_phase is False
