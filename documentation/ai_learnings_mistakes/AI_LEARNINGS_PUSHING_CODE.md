@@ -94,6 +94,43 @@ Option C — Use the gh CLI for auth (cleanest long-term solution):
 AI should NEVER force-push to main or prod. Always confirm with the user
 before pushing to main. Pushing to beta is generally safe for testing.
 
+
+PART 2 — "PUSH TO PROD" WORKFLOW
+---------------------------------
+
+When the user says **"push to prod"**, execute these exact steps in order:
+
+```bash
+# 1. Switch to main branch
+git checkout main
+
+# 2. Squash-merge beta into main (theirs = beta wins on conflicts)
+git merge --squash beta -X theirs
+
+# 3. Commit with a descriptive message summarising what's in the merge
+git commit -m "$(cat <<'EOF'
+chore: promote beta to prod
+
+<one-line summary of what's being promoted>
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+EOF
+)"
+
+# 4. Push main to remote
+git push
+
+# 5. Switch back to beta locally
+git checkout beta
+```
+
+**Rules:**
+- Always use `--squash` — keeps main history clean (one commit per promotion)
+- `-X theirs` — beta always wins on merge conflicts
+- Write a real commit message summarising the features/fixes being promoted
+- Always end by switching back to beta (never leave the user on main)
+- Never skip the `git checkout beta` at the end
+
 ### If push fails
 
 - "remote rejected" / 403 → credential expired. Ask the human to re-auth:
