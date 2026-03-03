@@ -90,7 +90,30 @@ Local dev has no `/data` → uses `./data` (created if missing).
   - `GET /api/story-image/{path}` — map images
 
 Note: `frontend/debug.html` is **not** served from Namecheap — it is served directly
-by the Railway backend at `storieschat.ai/beta/debug` via a FastAPI route.
+by the Railway backend via a FastAPI route:
+- **Beta debug UI**: `https://beta-api.storieschat.ai/beta/debug`
+- **Prod debug UI**: `https://api.storieschat.ai/beta/debug`
+
+**Do NOT access `/beta/debug` via `storieschat.ai`** — that domain points to Namecheap
+static hosting which has no knowledge of the `/beta/debug` route and will return 404.
+
+### Frontend-Lean Design Principle
+
+Keep `frontend/index.html` as thin as possible. Heavy lifting, business logic, and
+even UI components should live in the backend when feasible.
+
+**Rationale:**
+- Updating Railway (push to beta/prod) deploys new UI immediately
+- Namecheap static hosting requires a manual file upload
+- Keeping frontend minimal reduces the blast radius of frontend bugs
+- `debug.html` is a good example: it is served from Railway, so it updates on every push
+
+**Rules:**
+- Game logic, data processing, prompt assembly → always backend
+- The thin `index.html` on Namecheap should only handle: story selection, sending
+  messages, displaying responses, and basic UI chrome
+- Any new UI features that can live in the backend (e.g., debug panels, admin tools)
+  should go in `frontend/debug.html` or similar, served by Railway
 
 ---
 
