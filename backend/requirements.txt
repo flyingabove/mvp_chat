@@ -3,7 +3,7 @@ torch==2.1.2
 
 # --- Core API stack ---
 fastapi==0.110.0
-uvicorn==0.29.0
+uvicorn[standard]==0.29.0
 python-multipart==0.0.9
 pydantic==2.6.4
 pydantic-settings==2.2.1
