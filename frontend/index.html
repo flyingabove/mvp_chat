@@ -1,0 +1,1150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>terminal — storieschat.ai</title>
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="robots" content="noindex, nofollow" />
+
+  <!-- Automatically set base href based on environment -->
+  <script>
+    (function(){
+      var host = window.location.hostname.toLowerCase();
+      var path = window.location.pathname.toLowerCase();
+
+      var isBeta =
+        host.startsWith("beta.") ||
+        path.includes("/beta/") ||
+        path.endsWith("/beta");
+
+      document.write('<base href="' + (isBeta ? "/beta/" : "/") + '">');
+    })();
+  </script>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <style>
+    html, body {
+      margin:0; padding:0; height:100%;
+      background:#0c0c0c; color:#e6e6e6;
+      font:16px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #term {
+      height:100vh; overflow:auto; padding:16px;
+      -webkit-overflow-scrolling:touch;
+      padding-bottom:88px;
+    }
+    .line { margin:0 0 8px 0; }
+    .rich p { margin: 0 0 10px 0; }
+    .rich p + p { margin-top: 6px; }
+    .rich strong { font-weight: 700; }
+    .rich em { font-style: italic; }
+    .dialogue { display:inline; font-style: italic; }
+
+    .sys{color:#77dd77;}
+    .user{color:#8ab4f8;}
+    .bot{color:#ffd466;}
+    .err{color:#ff6b6b;}
+
+    /* Instructions box */
+    .box {
+      border:1px solid #2a2a2a;
+      background:#111;
+      border-radius:12px;
+      padding:12px 12px;
+      margin:0 0 12px 0;
+    }
+    .boxTitle {
+      font-weight:800;
+      margin:0 0 8px 0;
+      color:#e6e6e6;
+    }
+    .boxBody {
+      color:#d8d8d8;
+      font-size:14px;
+      line-height:1.55;
+      white-space:normal;
+    }
+
+    .map-img {
+      width:850px;
+      max-width:90%;
+      border-radius:8px;
+      margin:12px auto 12px auto;
+      display:block;
+      cursor:pointer;
+    }
+
+    /* Fullscreen map lightbox */
+    #mapLightbox {
+      display:none; position:fixed;
+      top:0; left:0; right:0; bottom:0;
+      z-index:10; background:rgba(0,0,0,0.92);
+      align-items:center; justify-content:center;
+      padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0)
+              env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);
+      cursor:zoom-out;
+    }
+    #mapLightbox.open { display:flex; }
+    #mapLightbox img {
+      max-width:96vw; max-height:92vh;
+      border-radius:8px;
+      object-fit:contain;
+      cursor:default;
+    }
+    #mapLightboxClose {
+      position:absolute;
+      top:calc(16px + env(safe-area-inset-top,0));
+      right:calc(16px + env(safe-area-inset-right,0));
+      width:44px; height:44px;
+      background:rgba(255,255,255,0.12);
+      border:1px solid rgba(255,255,255,0.25);
+      border-radius:50%; color:#fff;
+      font-size:22px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      -webkit-tap-highlight-color:transparent;
+    }
+    #mapLightboxClose:hover { background:rgba(255,255,255,0.25); }
+
+    #inputline { position:relative; }
+    #cursor {
+      display:inline-block;
+      width:8px;
+      background:#e6e6e6;
+      margin-left:2px;
+      animation:blink 1s step-start infinite;
+    }
+    @keyframes blink { 50% { background:transparent; } }
+
+    #ime {
+      position:fixed;
+      left:-9999px; top:-9999px;
+      opacity:0; width:1px; height:1px;
+    }
+
+    #toolbar {
+      position:fixed; left:0; right:0; bottom:0; z-index:3;
+      display:flex; gap:8px; align-items:center;
+      background:#0f0f0f; border-top:1px solid #222;
+      padding:10px 12px;
+      padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    }
+    #ghostInput {
+      flex:1; min-height:40px;
+      background:#121212; color:#e6e6e6;
+      border:1px solid #333; border-radius:8px;
+      padding:10px 12px; overflow:hidden;
+      white-space:nowrap; text-overflow:ellipsis;
+    }
+    .btn {
+      min-width:64px; height:40px;
+      border-radius:8px;
+      border:1px solid #2a2a2a;
+      background:#1a1a1a;
+      color:#e6e6e6;
+      font-weight:600;
+    }
+    #errbox {
+      position:fixed; left:8px; right:8px; bottom:96px;
+      background:#330; color:#ffd;
+      border:1px solid #662;
+      padding:8px 10px;
+      border-radius:6px;
+      display:none; z-index:4;
+      white-space:pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+<div id="term" aria-label="terminal" role="region"></div>
+<input id="ime" type="text" inputmode="text"
+       autocapitalize="off" autocorrect="off" spellcheck="false" />
+
+<div id="mapLightbox">
+  <button id="mapLightboxClose">&times;</button>
+  <img id="mapLightboxImg" alt="World Map (fullscreen)">
+</div>
+
+<div id="toolbar">
+  <div id="ghostInput" aria-live="polite"></div>
+  <button class="btn" id="enterBtn">Enter</button>
+  <button class="btn" id="bkspBtn">⌫</button>
+</div>
+
+<div id="errbox"></div>
+
+<script>
+// Early fatal-error guard: if the main script crashes during init,
+// show a visible error instead of a blank page.
+window.__appBooted = false;
+window.addEventListener("error", function(e){
+  if (window.__appBooted) return; // main handler will deal with it
+  var box = document.getElementById("errbox");
+  if (box) {
+    box.style.display = "block";
+    box.textContent = "Fatal init error: " + (e.message || e) + " — please refresh or check console.";
+  }
+  var term = document.getElementById("term");
+  if (term && !term.children.length) {
+    term.innerHTML = '<div class="err line" style="padding:24px;">Something went wrong loading the app. Check the browser console (F12) and refresh.</div>';
+  }
+});
+</script>
+
+<script>
+(function(){
+  /* ---------------- ENV DETECTION ---------------- */
+  var host = window.location.hostname.toLowerCase();
+  var path = window.location.pathname.toLowerCase();
+  var isBeta =
+    host.startsWith("beta.") ||
+    path.includes("/beta/") ||
+    path.endsWith("/beta");
+
+  var API_BASE = isBeta
+    ? "https://beta-api.storieschat.ai/api"
+    : "https://api.storieschat.ai/api";
+
+  var CHAT_ENDPOINT  = API_BASE + "/chat";
+  var STORY_ENDPOINT = API_BASE + "/story";   // GET /api/story/{story_id}
+  var PLAYBACK_LIST_ENDPOINT = API_BASE + "/integration_playback/scenarios";
+  var PLAYBACK_RUN_ENDPOINT  = API_BASE + "/integration_playback/run";
+
+  /* ---------------- ERROR HANDLING ---------------- */
+  function showErr(msg){
+    var box = document.getElementById("errbox");
+    box.style.display = "block";
+    box.textContent = String(msg);
+  }
+  window.onerror = function(m,s,l,c){ showErr("JS Error: " + m + " @ " + s + ":" + l + ":" + c); };
+  window.onunhandledrejection = function(e){ showErr("Promise rejection: " + (e && e.reason ? e.reason : e)); };
+
+  var term = document.getElementById("term");
+  var ime  = document.getElementById("ime");
+  var ghost= document.getElementById("ghostInput");
+  var enterBtn = document.getElementById("enterBtn");
+  var bkspBtn  = document.getElementById("bkspBtn");
+
+  var state = {
+    mode: "menu",
+    sid: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + ":" + Math.random()),
+    turns: 0,
+    story: null,
+    gender: null,
+    playerName: null,
+    storyMeta: null,
+    integrationOptions: [],
+    pendingIntegration: null,
+    integrationDebug: false
+  };
+
+  /* -------- PROMPT / INPUT LOCKING -------- */
+  var awaitingResponse = false;
+  var hasPrompt = false;
+
+  function scrollToBottom(force){
+    var d = term.scrollHeight - term.scrollTop - term.clientHeight;
+    if (force || d < 80) term.scrollTop = term.scrollHeight;
+  }
+
+  function newPrompt(){
+    if (hasPrompt) return;
+    hasPrompt = true;
+
+    var l = document.createElement("div");
+    l.id = "inputline";
+    l.innerHTML =
+      '<span class="sys">&gt; </span>' +
+      '<span id="buffer"></span>' +
+      '<span id="cursor">&nbsp;</span>' +
+      '<span id="afterCursor"></span>';
+
+    term.appendChild(l);
+    scrollToBottom(true);
+  }
+
+  function removeInputLine(){
+    var el = document.getElementById("inputline");
+    if (el) el.remove();
+    hasPrompt = false;
+  }
+
+  function unlockInput(){
+    awaitingResponse = false;
+    newPrompt();
+    ime.focus();
+  }
+
+  function escapeHTML(s){
+    return String(s)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#39;");
+  }
+
+  function formatInline(md){
+    return md
+      .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+      .replace(/(^|[^*])\*(.+?)\*(?!\*)/g, function(_,p,i){ return p + "<em>" + i + "</em>"; })
+      .replace(/"([^"]+)"/g,'<span class="dialogue">“$1”</span>')
+      .replace(/“([^”]+)”/g,'<span class="dialogue">“$1”</span>');
+  }
+
+  // IMPORTANT: converts literal "\n" sequences from story JSON into real newlines
+  function normalizeNewlines(text){
+    return String(text || "")
+      .replace(/\\r\\n|\\n|\\r/g, "\n")
+      .replace(/\r\n/g, "\n");
+  }
+
+  function toRichHTML(text){
+    var s = normalizeNewlines(text);
+    var safe = escapeHTML(s);
+    var parts = safe.split(/\n{2,}/);
+
+    return '<div class="rich">' + parts.map(function(p){
+      return "<p>" + formatInline(p.replace(/\n/g, "<br>")) + "</p>";
+    }).join("") + "</div>";
+  }
+
+  function writeLine(text, cls){
+    var d = document.createElement("div");
+    if (cls) d.className = cls + " line";
+    d.innerHTML = toRichHTML(text);
+    term.appendChild(d);
+    scrollToBottom(true);
+    return d;
+  }
+
+  function renderDebugBox(box, debugMode){
+    var allow = (debugMode === undefined) ? true : !!debugMode;
+    if (!box || !allow) return Promise.resolve();
+
+    var lines = [];
+    if (box.timestamp) lines.push("Timestamp: " + box.timestamp);
+    if (box.location) lines.push("User location: " + box.location);
+    if (box.location_id) lines.push("Location ID: " + box.location_id);
+    if (box.minute != null) lines.push("Minute: " + box.minute);
+    if (box.story) lines.push("Story: " + box.story);
+    if (box.scenario) lines.push("Scenario: " + box.scenario);
+    if (Array.isArray(box.speakers)) {
+      lines.push("Speakers:");
+      box.speakers.forEach(function(s){ lines.push("- " + s); });
+    }
+
+    var skip = {timestamp:1,location:1,location_id:1,minute:1,story:1,scenario:1,speakers:1,step:1};
+    Object.keys(box).forEach(function(k){
+      if (skip[k]) return;
+      var v = box[k];
+      if (Array.isArray(v)) {
+        lines.push(k + ":");
+        v.forEach(function(item){ lines.push("  - " + item); });
+      } else if (v && typeof v === "object") {
+        lines.push(k + ":");
+        Object.keys(v).forEach(function(vk){ lines.push("  " + vk + ": " + v[vk]); });
+      } else {
+        lines.push(k + ": " + v);
+      }
+    });
+
+    writeBox("DEBUG INFO", lines.join("\n"));
+    return Promise.resolve();
+  }
+
+  function writeBox(title, body){
+    var wrap = document.createElement("div");
+    wrap.className = "box";
+
+    var t = document.createElement("div");
+    t.className = "boxTitle";
+    t.textContent = title;
+
+    var b = document.createElement("div");
+    b.className = "boxBody";
+    b.innerHTML = toRichHTML(body);
+
+    wrap.appendChild(t);
+    wrap.appendChild(b);
+    term.appendChild(wrap);
+    scrollToBottom(true);
+  }
+
+  /* -------- WORLD MAP (reused everywhere) -------- */
+  var MAP_CMD_RE = /^\[m\]$|^\(m\)$|^\[map\]$|^\(map\)$/i;
+  var EXIT_CMD_RE = /^\s*(?:e|exit|\[e\]|\(e\)|\[exit\]|\(exit\))\s*$/i;
+
+  /* ---- map lightbox ---- */
+  function openMapLightbox(src){
+    var lb = document.getElementById("mapLightbox");
+    document.getElementById("mapLightboxImg").src = src;
+    lb.classList.add("open");
+  }
+  function closeMapLightbox(){
+    document.getElementById("mapLightbox").classList.remove("open");
+  }
+  document.getElementById("mapLightboxClose").onclick = closeMapLightbox;
+  document.getElementById("mapLightbox").onclick = function(e){
+    if (e.target === this) closeMapLightbox();
+  };
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && document.getElementById("mapLightbox").classList.contains("open")) {
+      closeMapLightbox();
+      e.preventDefault();
+    }
+  });
+
+  function renderWorldMap(meta){
+    if (!meta) {
+      writeLine("(No map available yet — select a story first.)", "err");
+      return;
+    }
+    if (meta.world_map_image) {
+      var img = document.createElement("img");
+      img.className = "map-img";
+      img.alt = "World Map";
+      img.onload = function(){ scrollToBottom(true); };
+      img.onerror = function(){
+        img.remove();
+        writeLine("(Map image failed to load: " + meta.world_map_image + ")", "err");
+      };
+      img.src = API_BASE + "/story-image/" + meta.world_map_image;
+      img.onclick = function(){ openMapLightbox(img.src); };
+      term.appendChild(img);
+      scrollToBottom(true);
+    }
+
+    var locs = (meta.known_locations || []);
+    if (locs.length) {
+      var mapLines = locs.map(function(loc){
+        var label = loc.name || loc.id;
+        if (loc.description) label += " — " + loc.description;
+        return label;
+      });
+      writeBox("World Map", mapLines.join("\n"));
+    }
+  }
+
+  function renderBuffer(){
+    var val = ime.value || "";
+    var pos = (ime.selectionStart != null) ? ime.selectionStart : val.length;
+    var before = val.slice(0, pos);
+    var after = val.slice(pos);
+
+    var b = document.getElementById("buffer");
+    if (b) b.textContent = before;
+
+    var a = document.getElementById("afterCursor");
+    if (a) a.textContent = after;
+
+    ghost.textContent = val;
+  }
+
+  /* -------- TYPEWRITER -------- */
+  var TYPE_DEFAULT = { charsPerTick: 3, tickMs: 15 };
+  var TYPE_OPENER  = { charsPerTick: 3, tickMs: 10 }; // ~50% faster feel
+
+  function typewrite(text, cls, opt){
+    var cfg = opt || TYPE_DEFAULT;
+
+    return new Promise(function(resolve){
+      var d = document.createElement("div");
+      if (cls) d.className = cls + " line";
+      term.appendChild(d);
+
+      var s = String(text || "");
+      var i = 0;
+
+      (function step(){
+        if (i >= s.length){
+          d.innerHTML = toRichHTML(s);
+          scrollToBottom(true);
+          resolve();
+          return;
+        }
+        i += cfg.charsPerTick;
+        d.innerHTML = toRichHTML(s.slice(0, i));
+        scrollToBottom(false);
+        setTimeout(step, cfg.tickMs);
+      })();
+    });
+  }
+
+  /* -------- VERSION (title + terminal header line) -------- */
+  var VERSION = "unknown";
+  var headerEl = null;
+
+  function setHeader(){
+    if (!headerEl) {
+      headerEl = writeLine("terminal — storieschat.ai (version: " + VERSION + ")", "sys");
+    } else {
+      headerEl.innerHTML = toRichHTML("terminal — storieschat.ai (version: " + VERSION + ")");
+    }
+    document.title = "terminal — storieschat.ai (version: " + VERSION + ")";
+  }
+
+  function loadVersion(){
+    fetch("version.json", { cache: "no-store" })
+      .then(function(r){
+        if (!r.ok) throw new Error("version.json not found");
+        return r.json();
+      })
+      .then(function(j){
+        VERSION = (j && j.version !== undefined) ? String(j.version) : "unknown";
+        setHeader();
+      })
+      .catch(function(){
+        VERSION = "unknown";
+        setHeader();
+      });
+  }
+
+  /* -------- BACKEND: story meta fetch -------- */
+  function fetchStoryMeta(storyId){
+    return fetch(STORY_ENDPOINT + "/" + encodeURIComponent(storyId), { cache: "no-store" })
+      .then(function(r){
+        if (!r.ok) throw new Error("Story meta fetch failed");
+        return r.json();
+      });
+  }
+
+  function renderInstructions(meta){
+    if (!meta) return;
+
+    var rules = meta.rules || {};
+    var goal  = (meta.goal && meta.goal.win_text_rule) ? meta.goal.win_text_rule : "";
+
+    var body =
+      "**Objective:** " + (goal || "Make the murderer admit to the crime.") + "\n\n" +
+      "**How to play:**\n" +
+      "- You are the investigator. Ask questions, push contradictions, and pressure suspects.\n" +
+      "- Your goal is a confession (not just “knowing” who did it).\n\n" +
+      "**Rules / gameplay:**\n Anything goes, figure it out. \n\n" +
+      "**Available Commands:**\n" +
+      "- Type `[D]`, `(D)`, `[DEBUG]`, or `(DEBUG)` to toggle debug mode (shows game state info)\n" +
+      "- Type `[M]`, `(M)`, `[MAP]`, or `(MAP)` to view the world map\n" +
+      "- Type `[E]`, `(E)`, `[EXIT]`, or `(EXIT)` to exit to the story menu\n" +
+      "- Type `[C]`, `(C)`, `[CHINESE]`, or `(CHINESE)` to toggle Chinese translation mode\n" +
+      "- Type `[T]`, `(T)`, `[TRUTH]`, or `(TRUTH)` to toggle truth mode (forces honest answers)\n" +
+      "- Type `[ES]`, `(ES)`, `[EPISTEMICSTATE]`, or `(EPISTEMICSTATE)` to toggle epistemic state layers on/off";
+
+    writeBox("Murder Mystery — Rules & Objective", body);
+  }
+
+  /* -------- SEND -------- */
+  function send(msg, done, typeOpt){
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", CHAT_ENDPOINT, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+
+      xhr.onreadystatechange = function(){
+        if (xhr.readyState !== 4) return;
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          var data;
+          try { data = JSON.parse(xhr.responseText); }
+          catch(e){
+            writeLine("Bad JSON: " + e, "err");
+            if (done) done();
+            return;
+          }
+
+          if (data && data.error) {
+            writeLine("error: " + data.error, "err");
+            if (done) done();
+            return;
+          }
+
+          typewrite((data && data.reply) ? data.reply : "", "bot", typeOpt || TYPE_DEFAULT)
+            .then(function(){ return renderDebugBox(data && data.debug_box, true); })
+            .then(function(){ if (done) done(); });
+
+        } else {
+          writeLine("HTTP " + xhr.status + " — " + xhr.responseText, "err");
+          if (done) done();
+        }
+      };
+
+      xhr.send(JSON.stringify({ message: msg, session_id: state.sid }));
+    } catch(e) {
+      writeLine("Failed to send: " + e, "err");
+      if (done) done();
+    }
+  }
+
+  /* -------- COMMAND DETECTION -------- */
+  var COMMAND_PATTERNS = [
+    /^\[d\]$/i, /^\(d\)$/i, /^\[debug\]$/i, /^\(debug\)$/i,
+    /^\[m\]$/i, /^\(m\)$/i, /^\[map\]$/i, /^\(map\)$/i,
+    /^\[c\]$/i, /^\(c\)$/i, /^\[chinese\]$/i, /^\(chinese\)$/i,
+    /^\[t\]$/i, /^\(t\)$/i, /^\[truth\]$/i, /^\(truth\)$/i,
+    /^\[es\]$/i, /^\(es\)$/i, /^\[epistemicstate\]$/i, /^\(epistemicstate\)$/i
+  ];
+
+  function isCommand(line){
+    var trimmed = line.trim();
+    for (var i = 0; i < COMMAND_PATTERNS.length; i++){
+      if (COMMAND_PATTERNS[i].test(trimmed)) return true;
+    }
+    return false;
+  }
+
+  /* -------- RE-PROMPT AFTER LOCAL COMMANDS -------- */
+  function repromptCurrentMode(){
+    if (state.mode === "name") writeLine("Enter your name:", "sys");
+    else if (state.mode === "gender") writeLine("Are you a girl (F) or boy (M)?", "sys");
+    newPrompt();
+    ime.focus();
+  }
+
+  function resetSessionState(){
+    state.sid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + ":" + Math.random());
+    state.turns = 0;
+    state.story = null;
+    state.gender = null;
+    state.playerName = null;
+    state.storyMeta = null;
+    state.pendingIntegration = null;
+    state.integrationDebug = false;
+  }
+
+  function exitToMenu(){
+    if (state.mode === "menu") {
+      writeLine("Already at the story menu. Pick a number to begin.", "sys");
+      newPrompt();
+      return;
+    }
+
+    resetSessionState();
+    state.mode = "menu";
+    writeLine("Exiting the current game. Returning to story selection…", "sys");
+    showMenu();
+  }
+
+  /* -------- INPUT FLOW -------- */
+  function commitLine(){
+    if (awaitingResponse) return;
+
+    var line = String(ime.value || "").trim();
+    ime.value = "";
+    renderBuffer();
+    removeInputLine();
+
+    if (!line) {
+      newPrompt();
+      ime.focus();
+      return;
+    }
+
+    writeLine("> " + line, "user");
+
+    if (EXIT_CMD_RE.test(line)) {
+      exitToMenu();
+      return;
+    }
+
+    // [M] / [MAP] handled locally at all times — no backend call needed
+    if (MAP_CMD_RE.test(line.trim())) {
+      renderWorldMap(state.storyMeta || null);
+      repromptCurrentMode();
+      return;
+    }
+
+    if (state.mode === "menu")   { handleMenu(line); return; }
+  if (state.mode === "integration_menu") { handleIntegrationMenu(line); return; }
+  if (state.mode === "integration_debug_prompt") { handleIntegrationDebugPrompt(line); return; }
+    if (state.mode === "name")   { handleName(line); return; }
+    if (state.mode === "gender") { handleGender(line); return; }
+
+    awaitingResponse = true;
+    state.turns++;
+    send(line, unlockInput, TYPE_DEFAULT);
+  }
+
+  function showMenu(){
+    setHeader();
+    writeLine("Loading stories...", "sys");
+    var promptShown = false;
+    var timeoutId = setTimeout(function(){
+      if (promptShown) return;
+      writeLine("(Story list is taking unusually long to load. Check connectivity / API and refresh if needed.)", "err");
+      newPrompt();
+      ime.focus();
+      promptShown = true;
+    }, 6000);
+
+    writeLine("Choose a story (type the number and press Enter):", "sys");
+    writeLine("0) Integration playback (replay tests)", "sys");
+    // Fetch story list dynamically so adding a new game is just dropping a JSON file.
+    fetch(API_BASE + "/stories")
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        clearTimeout(timeoutId);
+        var list = (data && data.stories) ? data.stories : [];
+        state.storyOptions = list;
+        if (!list.length) {
+          writeLine("(No stories found on server.)", "err");
+          if (!promptShown) {
+            newPrompt();
+            ime.focus();
+            promptShown = true;
+          }
+          return;
+        }
+        list.forEach(function(s, i){
+          writeLine((i+1) + ") " + (s.title || s.id), "sys");
+        });
+        if (!promptShown) {
+          newPrompt();
+          ime.focus();
+          promptShown = true;
+        }
+      })
+      .catch(function(){
+        clearTimeout(timeoutId);
+        writeLine("(Could not load story list.)", "err");
+        if (!promptShown) {
+          newPrompt();
+          ime.focus();
+          promptShown = true;
+        }
+      });
+  }
+
+  function handleMenu(line){
+    var choice = line.replace(/[^0-9]/g, "");
+    var idx = parseInt(choice, 10);
+    var list = state.storyOptions || [];
+    if (choice === "0" || idx === 0) {
+      state.mode = "integration_menu";
+      showIntegrationMenu();
+      return;
+    }
+    if (!idx || idx < 1 || idx > list.length) {
+      writeLine("Invalid choice. Type a valid number.", "sys");
+      newPrompt();
+      return;
+    }
+
+    state.story = list[idx-1].id;
+    var storyTitle = list[idx-1].title || list[idx-1].id;
+    state.mode = "name";
+
+    // Welcome → Instructions → Name prompt (map shown after all setup is done)
+    writeLine("Welcome to **" + storyTitle + "**", "sys");
+
+    fetchStoryMeta(state.story)
+      .then(function(meta){
+        state.storyMeta = meta;
+        renderInstructions(meta);
+      })
+      .catch(function(){
+        // Non-fatal: game still plays even if meta fails
+        writeLine("(Could not load instructions — continuing…)", "err");
+      })
+      .finally(function(){
+        writeLine("Enter your name:", "sys");
+        newPrompt();
+        ime.focus();
+      });
+  }
+
+  function integrationLLMLabel(scenario){
+    var steps = scenario.steps || [];
+    var anyLLM = steps.some(function(step){ return step.uses_llm; });
+    if (!anyLLM) return "no LLM";
+
+    var tags = scenario.tags || [];
+    var hasExtractor = tags.indexOf("extractor") >= 0;
+    var hasChat = tags.indexOf("chat") >= 0;
+
+    if (hasChat && hasExtractor) return "LLM chat and extractor";
+    if (hasExtractor) return "LLM extractor only";
+    if (hasChat) return "LLM chat only";
+    return "LLM";
+  }
+
+  function showIntegrationMenu(){
+    writeLine("Loading integration playbacks…", "sys");
+    fetch(PLAYBACK_LIST_ENDPOINT)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var list = (data && data.scenarios) ? data.scenarios : [];
+        state.integrationOptions = list;
+
+        if (!list.length){
+          writeLine("(No integration playbacks found.)", "err");
+          state.mode = "menu";
+          showMenu();
+          return;
+        }
+
+        writeLine("Choose an integration playback (type the number):", "sys");
+        list.forEach(function(s, i){
+          var llmLabel = integrationLLMLabel(s);
+          var tags = (s.tags && s.tags.length) ? " [" + s.tags.join(", ") + "]" : "";
+          writeLine((i+1) + ") " + (s.title || s.id) + tags + " [" + llmLabel + "]", "sys");
+        });
+        newPrompt();
+        ime.focus();
+      })
+      .catch(function(){
+        writeLine("(Failed to load integration list.)", "err");
+        state.mode = "menu";
+        showMenu();
+      });
+  }
+
+  function handleIntegrationMenu(line){
+    var choice = line.replace(/[^0-9]/g, "");
+    var idx = parseInt(choice, 10);
+    var list = state.integrationOptions || [];
+    if (!idx || idx < 1 || idx > list.length) {
+      writeLine("Invalid choice. Type a valid number.", "sys");
+      newPrompt();
+      return;
+    }
+
+    var scenario = list[idx - 1];
+    state.pendingIntegration = scenario;
+    state.mode = "integration_debug_prompt";
+    writeLine("Enable debug output for this playback? (y/n)", "sys");
+    newPrompt();
+  }
+
+  function handleIntegrationDebugPrompt(line){
+    var ans = (line || "").trim().toLowerCase();
+    if (ans === "y" || ans === "yes") {
+      state.integrationDebug = true;
+    } else if (ans === "n" || ans === "no") {
+      state.integrationDebug = false;
+    } else {
+      writeLine("Type y or n to choose debug mode.", "sys");
+      newPrompt();
+      return;
+    }
+
+    var scenario = state.pendingIntegration;
+    state.pendingIntegration = null;
+    state.mode = "integration_running";
+    runIntegrationPlayback(scenario);
+  }
+
+  async function renderIntegrationLog(log, debugMode){
+    if (!log || !log.length){
+      writeLine("(No steps returned from playback.)", "err");
+      return;
+    }
+
+    for (var i = 0; i < log.length; i++){
+      var step = log[i];
+      var status = (step.status || "").toUpperCase();
+      var llm = step.uses_llm ? " [LLM]" : " [no LLM]";
+      var header = llm + " " + status + " — " + (step.description || "");
+      if (step.error) header += " — " + step.error;
+      writeLine(header, step.status === "error" ? "err" : "sys");
+
+      if (step.output !== undefined) {
+        await renderStepOutput(step.output, debugMode);
+      }
+    }
+  }
+
+  function formatChatLine(output){
+    var role = output.role || "";
+    var label = role === "user" ? "[USER] " : role === "llm" ? "[LLM] " : "";
+    var body = normalizeNewlines(output.reply || "");
+    var prefix = "";
+
+    if (role === "llm" && output.user) {
+      prefix = output.user + ": ";
+    }
+    if (role === "user" && body.trim().indexOf(">") !== 0) {
+      prefix = "> ";
+    }
+
+    return {
+      text: label + prefix + body,
+      cls: role === "user" ? "user" : "bot",
+    };
+  }
+
+  function renderStepOutput(output, debugMode){
+    var debug = !!debugMode;
+
+    function renderItem(item){
+      if (item == null) return Promise.resolve();
+
+      if (Array.isArray(item)) {
+        return item.reduce(function(p, el){ return p.then(function(){ return renderItem(el); }); }, Promise.resolve());
+      }
+
+      if (typeof item === "object" && item.user !== undefined && item.reply !== undefined) {
+        var chat = formatChatLine(item);
+        return typewrite(chat.text, chat.cls).then(function(){
+          if (item.debug_box) {
+            return renderDebugBox(item.debug_box, debug);
+          }
+        });
+      }
+
+      if (typeof item === "object" && item.debug_box) {
+        return renderDebugBox(item.debug_box, debug);
+      }
+
+      if (typeof item === "object" && item.debug) {
+        if (!debug) return Promise.resolve();
+        var dbg = item.debug;
+        if (dbg.title) writeLine(dbg.title, "sys");
+        if (dbg.canonical_facts && Array.isArray(dbg.canonical_facts)) {
+          writeLine("Canonical facts:", "bot");
+          dbg.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+        }
+        if (dbg.observations && Array.isArray(dbg.observations)) {
+          writeLine("Observations:", "bot");
+          dbg.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
+        }
+        if (dbg.metrics) {
+          var m = dbg.metrics;
+          var line = [];
+          if (m.precision !== undefined) line.push("precision: " + m.precision);
+          if (m.recall !== undefined) line.push("recall: " + m.recall);
+          if (m.accuracy !== undefined) line.push("accuracy: " + m.accuracy);
+          if (line.length) writeLine(line.join(" | "), "bot");
+        }
+        if (dbg.intent) {
+          var intentLine = "Intent: " + dbg.intent;
+          if (dbg.destination_id) intentLine += " | destination: " + dbg.destination_id;
+          if (dbg.confidence !== undefined) intentLine += " | confidence: " + dbg.confidence;
+          writeLine(intentLine, "bot");
+        }
+        if (dbg.story) writeLine("Story: " + dbg.story, "sys");
+        if (dbg.state_note) writeLine(dbg.state_note, "sys");
+        if (dbg.chunks && Array.isArray(dbg.chunks)) {
+          writeLine("Sample chunks:", "bot");
+          dbg.chunks.forEach(function(c){
+            if (!c) return;
+            var txt = (c.text || c.content || "").slice(0, 200);
+            writeLine("- " + txt, "bot");
+          });
+        }
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && (item.steve_claim || item.bob_claim || item.steve_confession || item.bob_coverup || item.steve_contradiction || item.bob_contradiction)) {
+        if (item.steve_claim) writeLine("Steve: " + item.steve_claim, "bot");
+        if (item.bob_claim) writeLine("Bob: " + item.bob_claim, "bot");
+        if (item.steve_contradiction) writeLine("Steve: " + item.steve_contradiction, "bot");
+        if (item.bob_contradiction) writeLine("Bob: " + item.bob_contradiction, "bot");
+        if (item.steve_confession) writeLine("Steve: " + item.steve_confession, "bot");
+        if (item.bob_coverup) writeLine("Bob: " + item.bob_coverup, "bot");
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && item.message && item.intent) {
+        writeLine("> " + item.message, "user");
+        var summary = "Intent: " + item.intent;
+        if (item.destination_id) summary += " | destination: " + item.destination_id;
+        if (item.confidence !== undefined) summary += " | confidence: " + item.confidence;
+        writeLine(summary, "bot");
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && item.precision !== undefined && item.recall !== undefined) {
+        var metrics = [
+          "precision: " + item.precision,
+          "recall: " + item.recall,
+          "accuracy: " + item.accuracy
+        ].join(" | ");
+        writeLine(metrics, "bot");
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && Array.isArray(item.observations)) {
+        writeLine("Observations:", "bot");
+        item.observations.forEach(function(o){ if (o) writeLine("- " + o, "bot"); });
+        return Promise.resolve();
+      }
+      if (typeof item === "object" && item.contested !== undefined && item.resolved !== undefined) {
+        writeLine("Epistemic summary: contested " + item.contested + " | resolved " + item.resolved, "bot");
+      }
+      if (typeof item === "object" && Array.isArray(item.canonical_facts)) {
+        writeLine("Canonical facts:", "bot");
+        item.canonical_facts.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+        return Promise.resolve();
+      }
+      if (typeof item === "object" && Array.isArray(item.canonical)) {
+        writeLine("Canonical facts:", "bot");
+        item.canonical.forEach(function(c){ if (c) writeLine("- " + c, "bot"); });
+        return Promise.resolve();
+      }
+
+      if (typeof item === "object" && Array.isArray(item.chunks)) {
+        writeLine("Sample chunks:", "bot");
+        item.chunks.forEach(function(c){
+          if (!c) return;
+          var txt = (c.text || c.content || "").slice(0, 200);
+          writeLine("- " + txt, "bot");
+        });
+        return Promise.resolve();
+      }
+
+      if (typeof item === "string") {
+        writeLine(item, "bot");
+        return Promise.resolve();
+      }
+
+      if (debug) {
+        try {
+          writeLine(JSON.stringify(item, null, 2), "bot");
+        } catch(e) {
+          writeLine(String(item), "bot");
+        }
+      }
+      return Promise.resolve();
+    }
+
+    return renderItem(output);
+  }
+
+  function runIntegrationPlayback(scenario){
+    writeLine("Running playback: " + (scenario.title || scenario.id), "sys");
+    if (state.integrationDebug) {
+      writeLine("Debug mode: ON", "sys");
+    }
+    awaitingResponse = true;
+
+    fetch(PLAYBACK_RUN_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scenario_id: scenario.id,
+        debug: !!state.integrationDebug
+      })
+    })
+      .then(function(r){
+        return r.json().then(function(data){ return { ok: r.ok, data: data }; });
+      })
+      .then(async function(resp){
+        var data = resp.data || {};
+        await renderIntegrationLog(data.log || [], state.integrationDebug);
+
+        if (!resp.ok || data.status === "error"){
+          writeLine("Playback error: " + (data.error || "unknown"), "err");
+        } else {
+          writeLine("Playback complete.", "sys");
+        }
+      })
+      .catch(function(err){
+        writeLine("Playback failed: " + err, "err");
+      })
+      .finally(function(){
+        awaitingResponse = false;
+        state.mode = "menu";
+        showMenu();
+      });
+  }
+
+  function handleName(line){
+    // Check for commands first - process them and re-prompt for name
+    if (isCommand(line)){
+      awaitingResponse = true;
+      send(line, function(){
+        awaitingResponse = false;
+        writeLine("Enter your name:", "sys");
+        newPrompt();
+        ime.focus();
+      });
+      return;
+    }
+
+    var name = line.trim().replace(/[^A-Za-z\s\-']/g, "").slice(0, 40);
+    if (!name) {
+      writeLine("Please enter a valid name.", "sys");
+      newPrompt();
+      return;
+    }
+
+    state.playerName = name;
+    state.mode = "gender";
+    writeLine("Are you a girl (F) or boy (M)?", "sys");
+    newPrompt();
+  }
+
+  function handleGender(line){
+    // Check for commands first - process them and re-prompt for gender
+    if (isCommand(line)){
+      awaitingResponse = true;
+      send(line, function(){
+        awaitingResponse = false;
+        writeLine("Are you a girl (F) or boy (M)?", "sys");
+        newPrompt();
+        ime.focus();
+      });
+      return;
+    }
+
+    var g = line.trim().toUpperCase();
+    if (g !== "F" && g !== "M") {
+      writeLine("Type **F** or **M**.", "sys");
+      newPrompt();
+      return;
+    }
+
+    state.gender = g;
+
+    // Show world map BEFORE the opener dialogue
+    renderWorldMap(state.storyMeta);
+
+    var safeName = (state.playerName || "").replace(/\|/g, " ");
+    var init = "__cmd_newgame__:" + state.story + "|" + g + "|" + safeName;
+
+    awaitingResponse = true;
+
+    // Opener typewriters, then unlock chat
+    send(init, function(){
+      state.mode = "chat";
+      unlockInput();
+    }, TYPE_OPENER);
+  }
+
+  /* -------- EVENTS (keep iOS behavior) -------- */
+  ime.addEventListener("input", renderBuffer);
+  ime.addEventListener("keydown", renderBuffer); // keep caret responsive while holding arrows
+  ime.addEventListener("keyup", renderBuffer);
+  ime.addEventListener("click", renderBuffer);
+  ime.addEventListener("select", renderBuffer);
+
+  term.addEventListener("click", function(){ ime.focus(); });
+  term.addEventListener("touchstart", function(){ ime.focus(); }, { passive:true });
+  document.addEventListener("touchstart", function(){ ime.focus(); }, { passive:true });
+
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Enter" || e.keyCode === 13) {
+      e.preventDefault();
+      commitLine();
+    }
+  });
+
+  enterBtn.addEventListener("click", function(){ commitLine(); });
+  bkspBtn.addEventListener("click", function(){
+    ime.value = ime.value.slice(0, -1);
+    renderBuffer();
+  });
+
+  /* -------- START -------- */
+  loadVersion();
+  showMenu();
+  ime.focus();
+  window.__appBooted = true;
+
+})();
+</script>
+</body>
+</html>

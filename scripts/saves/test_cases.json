@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "test_cases": [
+    {
+      "name": "Confusing IU #1",
+      "messages": ["what happened to the previous tenant?"],
+      "strategy": ""
+    }
+  ]
+}

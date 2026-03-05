@@ -1,14 +1,20 @@
+.vscode/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
+.DS_Store/*
+backend/.DS_Store/*
+.DS_Store
+keys.txt
+
 
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -136,6 +142,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.test
 .envrc
 .venv
 env/
@@ -205,3 +212,5 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+nul
+scripts/saves/scores.csv

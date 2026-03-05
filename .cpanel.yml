@@ -1,0 +1,19 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/storvrfx/public_html
+    - export BETAPATH=/home/storvrfx/public_html/beta
+
+    # Clean old frontend (optional but recommended)
+    - /bin/rm -rf $DEPLOYPATH/*
+    - /bin/rm -rf $BETAPATH/*
+
+    # Copy frontend to PROD
+    - /bin/cp -R frontend/* $DEPLOYPATH/
+
+    # Copy frontend to BETA
+    - mkdir -p $BETAPATH
+    - /bin/cp -R frontend/* $BETAPATH/
+
+    # Log for debugging
+    - echo "Deployment completed at $(date)"

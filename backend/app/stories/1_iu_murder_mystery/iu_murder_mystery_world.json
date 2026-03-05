@@ -1,0 +1,110 @@
+{
+  "world_id": "iu_murder_mystery",
+  "version": 1,
+  "time": {
+    "start_minute": 0,
+    "minute_label": "minutes_since_start"
+  },
+  "defaults": {
+    "probabilities": {
+      "p_exit_A": 0.2,
+      "p_pass_C": 0.5,
+      "p_event_at_C": 0.25,
+      "p_enter_B": 0.2,
+      "p_describe_B": 0.6
+    }
+  },
+  "locations": {
+    "iu_apartment_room": {
+      "name": "IU’s Apartment",
+      "tags": ["private", "indoor", "home"],
+      "description": "A quiet, carefully kept apartment filled with muted light and personal belongings.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-iu_apartment_room"
+    },
+    "iu_apartment_lobby": {
+      "name": "Apartment Lobby",
+      "tags": ["indoor", "public", "residential"],
+      "description": "A small but polished lobby with security cameras and a front desk.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-iu_apartment_lobby"
+    },
+    "apartment_parking_garage": {
+      "name": "Apartment Parking Garage",
+      "tags": ["indoor", "parking", "transitional"],
+      "description": "Concrete floors, fluorescent lights, and rows of parked cars.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-apartment_parking_garage"
+    },
+    "my_car": {
+      "name": "My Car",
+      "tags": ["vehicle", "transit", "private"],
+      "description": "A quiet, enclosed space insulated from the outside world.",
+      "is_transit": true,
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-my_car"
+    },
+    "local_cafe": {
+      "name": "Neighborhood Café",
+      "tags": ["public", "indoor", "social"],
+      "description": "A cozy café with warm lighting, soft music, and regular customers.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-local_cafe"
+    },
+    "workplace_lobby": {
+      "name": "EDAM Entertainment Lobby",
+      "tags": ["public", "indoor", "corporate", "hub"],
+      "description": "A sleek lobby with polished floors, security gates, and framed artist photos.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-workplace_lobby"
+    },
+    "workplace_hallway": {
+      "name": "Office Hallway",
+      "tags": ["indoor", "corporate", "transitional"],
+      "description": "A quiet hallway lined with doors and muted footsteps.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-workplace_hallway"
+    },
+    "iu_office": {
+      "name": "IU’s Office",
+      "tags": ["private", "indoor", "corporate"],
+      "description": "A minimalist office with a desk, awards, and carefully organized files.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-iu_office"
+    },
+    "conference_room": {
+      "name": "Conference Room",
+      "tags": ["indoor", "corporate", "meeting"],
+      "description": "A long table surrounded by chairs and a large dark screen.",
+      "allows_phone": false,
+      "uuid": "default_user-iu_murder_mystery-1-conference_room"
+    },
+    "recording_studio": {
+      "name": "Recording Studio",
+      "tags": ["indoor", "corporate", "creative"],
+      "description": "Soundproof walls, microphones, and dimmed studio lights.",
+      "allows_phone": false,
+      "uuid": "default_user-iu_murder_mystery-1-recording_studio"
+    },
+    "rooftop": {
+      "name": "Rooftop",
+      "tags": ["outdoor", "private", "isolated"],
+      "description": "An open rooftop overlooking the city, exposed to wind and night air.",
+      "allows_phone": true,
+      "uuid": "default_user-iu_murder_mystery-1-rooftop"
+    }
+  },
+  "edges": [
+    {"from": "iu_apartment_room", "to": "iu_apartment_lobby", "minutes": 2},
+    {"from": "iu_apartment_lobby", "to": "apartment_parking_garage", "minutes": 3},
+    {"from": "apartment_parking_garage", "to": "my_car", "minutes": 1},
+    {"from": "my_car", "to": "local_cafe", "minutes": 10, "is_transit": true},
+    {"from": "my_car", "to": "workplace_lobby", "minutes": 15, "is_transit": true},
+    {"from": "local_cafe", "to": "workplace_lobby", "minutes": 8},
+    {"from": "workplace_lobby", "to": "workplace_hallway", "minutes": 2},
+    {"from": "workplace_hallway", "to": "iu_office", "minutes": 1},
+    {"from": "workplace_hallway", "to": "conference_room", "minutes": 1},
+    {"from": "workplace_hallway", "to": "recording_studio", "minutes": 1},
+    {"from": "workplace_hallway", "to": "rooftop", "minutes": 3}
+  ]
+}

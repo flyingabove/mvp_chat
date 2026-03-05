@@ -1,0 +1,52 @@
+AI learnings: running tests on this repo
+=======================================
+
+POLICY: NO TESTS MAY BE SKIPPED — EVER
+---------------------------------------
+All tests in `tests/` must run and pass in every environment (local, CI, Railway).
+pytest.skip(), @pytest.mark.skip, and @pytest.mark.skipif are BANNED.
+The conftest.py hook converts any skip attempt into a hard FAILURE.
+If a test needs an API key, the key MUST be available — never gate on it.
+
+XFAIL POLICY (STRICT ALLOWLIST)
+-------------------------------
+- `xfail` is permitted only for explicitly quarantined tests in the conftest allowlist.
+- Current allowed xfail is controlled only by `tests/conftest.py` allowlist.
+- Any additional `xfail` marker outside allowlist is treated as a policy violation at collection time.
+- If you add or modify any xfail quarantine, document the rationale in the PR and keep the allowlist in `tests/conftest.py` synchronized.
+
+Context
+- OS: Windows (PowerShell terminals). Environment: conda env at C:\Users\Christian\Miniconda3.
+- .env.test exists and is auto-loaded by tests/conftest.py; it provides OPENAI_API_KEY.
+- Integration playback scenarios are discovered through the integration playback loader and canonical test modules under `tests/backend/app/**`.
+- Railway must have OPENAI_API_KEY set as an environment variable.
+
+Commands that reliably work
+1) Full suite (default — run everything, always)
+   python -m pytest tests/ -v
+   Expected: full suite passes, 0 skipped.
+
+2) Quick run
+   python -m pytest tests/ -x -q
+   Expected: stops on first failure.
+
+3) Via conda/VSCode wrapper (if needed)
+   C:/Users/Christian/miniconda3/Scripts/conda.exe run -p C:\Users\Christian\Miniconda3 --no-capture-output python c:\Users\Christian\.vscode\extensions\ms-python.python-2026.0.0-win32-x64\python_files\get_output_via_markers.py -m pytest -v
+
+4) Integration tests only
+   python -m pytest tests/ -m integration -v
+
+Pitfalls observed
+- Plain `conda run ... pytest -m "not integration"` from PowerShell often failed due to quoting; the get_output_via_markers wrapper avoided this.
+- Background runs with redirection sometimes produced empty logs; prefer foreground with the commands above.
+- KeyboardInterrupts were seen when commands were re-invoked mid-run; wait for completion or rerun cleanly.
+- NEVER add pytest.skip() to any test — the conftest hook will convert it to a failure.
+
+Pre-flight checklist before running
+- Ensure .env.test exists with OPENAI_API_KEY (already present) or set env var directly.
+- If running on Railway/CI, ensure OPENAI_API_KEY is set as an environment variable.
+- If scenarios are missing, confirm integration playback loader paths and scenario registration imports are reachable from canonical test modules.
+
+Reminder
+- Read this note before running tests. If a command fails, re-use the exact working forms above.
+- NEVER skip tests. Fix the test or fix the environment.
