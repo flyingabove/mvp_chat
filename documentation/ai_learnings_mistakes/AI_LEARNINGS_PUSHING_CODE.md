@@ -87,12 +87,14 @@ Option C — Use the gh CLI for auth (cleanest long-term solution):
 
 ### Branch conventions in this repo
 
-  main  — production (auto-deploys to api.storieschat.ai)
-  beta  — staging   (auto-deploys to beta-api.storieschat.ai)
-  prod  — alias for production deploys
+  prod  — production (auto-deploys to api.storieschat.ai / mvpchat-prod on Railway)
+  beta  — staging   (auto-deploys to beta-api.storieschat.ai / mvpchat-beta on Railway)
+  main  — NOT the deploy branch. Do NOT push prod changes here.
 
-AI should NEVER force-push to main or prod. Always confirm with the user
-before pushing to main. Pushing to beta is generally safe for testing.
+⚠️  CRITICAL: "push to prod" means `git checkout prod`, NOT `git checkout main`.
+    Pushing to main does NOT deploy to production. Always use the `prod` branch.
+
+AI should NEVER force-push to prod or beta. Pushing to beta is generally safe for testing.
 
 
 PART 2 — "PUSH TO PROD" WORKFLOW
@@ -101,10 +103,10 @@ PART 2 — "PUSH TO PROD" WORKFLOW
 When the user says **"push to prod"**, execute these exact steps in order:
 
 ```bash
-# 1. Switch to main branch
-git checkout main
+# 1. Switch to prod branch (NOT main — prod is the Railway production branch)
+git checkout prod
 
-# 2. Squash-merge beta into main (theirs = beta wins on conflicts)
+# 2. Squash-merge beta into prod (theirs = beta wins on conflicts)
 git merge --squash beta -X theirs
 
 # 3. Commit with a descriptive message summarising what's in the merge
@@ -117,7 +119,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
 )"
 
-# 4. Push main to remote
+# 4. Push prod to remote
 git push
 
 # 5. Switch back to beta locally
@@ -125,10 +127,11 @@ git checkout beta
 ```
 
 **Rules:**
-- Always use `--squash` — keeps main history clean (one commit per promotion)
+- ALWAYS use `prod` branch — NEVER push to `main` thinking it deploys to production
+- Always use `--squash` — keeps prod history clean (one commit per promotion)
 - `-X theirs` — beta always wins on merge conflicts
 - Write a real commit message summarising the features/fixes being promoted
-- Always end by switching back to beta (never leave the user on main)
+- Always end by switching back to beta (never leave the user on prod or main)
 - Never skip the `git checkout beta` at the end
 
 ### If push fails
