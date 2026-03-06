@@ -94,6 +94,11 @@ Option C — Use the gh CLI for auth (cleanest long-term solution):
 ⚠️  CRITICAL: "push to prod" means `git checkout prod`, NOT `git checkout main`.
     Pushing to main does NOT deploy to production. Always use the `prod` branch.
 
+⚠️  CRITICAL: ALL code changes MUST be made on the `beta` branch first.
+    Flow is always: beta (make changes) → prod (squash-merge FROM beta) → push prod.
+    NEVER make changes directly on prod. NEVER merge prod into beta.
+    The merge direction is always: beta → prod, never prod → beta.
+
 AI should NEVER force-push to prod or beta. Pushing to beta is generally safe for testing.
 
 
