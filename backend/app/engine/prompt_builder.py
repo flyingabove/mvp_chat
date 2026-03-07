@@ -1043,6 +1043,7 @@ def _character_identity_section(state) -> str:
     when the main character has self_knowledge; never FAISS-dependent.
     """
     main_char = getattr(state, "main_character", None)
+    char_name = (getattr(main_char, "name", "") or "the focal character").strip() or "the focal character"
     entries = list(getattr(main_char, "self_knowledge", None) or [])
     # Fallback: legacy story_cfg path for tests that set story_cfg directly
     if not entries:
@@ -1054,15 +1055,14 @@ def _character_identity_section(state) -> str:
 
     lines = [
         "\n────────────────────────────────────────",
-        "### CHARACTER IDENTITY",
+        f"### CHARACTER IDENTITY — {char_name}",
         "────────────────────────────────────────",
-        "The following are your first-person facts about who you are. "
-        "You own these facts. They are not someone else's story.\n\n"
-        "When the player asks about something described below as if it belongs to a different person: "
-        "your response — narration or dialogue — must make your identity clear. "
-        "You may be emotionally guarded in what you say aloud. "
-        "But the player must never walk away confused about who you are. "
-        "If you cannot bring yourself to say it directly, the narration must show it unmistakably.\n",
+        f"The following are {char_name}'s personal truths, written in their voice. "
+        f"As the scene engine, when you write {char_name}'s dialogue in response to questions about "
+        f"these facts, have {char_name} speak them directly in first person — "
+        "do not substitute narrator exposition when the character can speak for themselves. "
+        f"{char_name} may be emotional, reluctant, or haunted in HOW they say it, "
+        "but their spoken words must carry the correction.\n",
     ]
     for entry in entries:
         lines.append(f"- {entry}")
@@ -1190,27 +1190,35 @@ TRIGGERS — any of these require an immediate correction:
   • Misidentifying who she is or what she is
   • Accepting a false premise the player stated about her
 
-HOW TO CORRECT — the narrator steps out with one short parenthetical at the very
-start of the response using THIRD PERSON (narrator voice, not character voice),
-then the scene continues naturally:
-  "(Just to be clear — {char_name} is the one who died here, not a different tenant.)"
-  [scene continues as normal]
+HOW TO CORRECT — {char_name} corrects the false premise DIRECTLY IN THEIR OWN
+SPOKEN DIALOGUE, in first person, at the earliest opportunity in the response.
+The correction must come from the character's own voice — clear, direct, first person.
 
-The parenthetical must be in NARRATOR voice — third person about {char_name}.
-Do NOT write it as the character speaking in first person ("I died here").
-The narrator is clarifying a fact to the player, not the character confessing.
+Examples of correct first-person dialogue corrections:
+  **"That was me."**
+  **"I'm the one you're asking about."**
+  **"I am the previous tenant. I died here."**
+  [scene continues naturally after the correction]
+
+{char_name} may be emotional, haunted, or reluctant in HOW they say it — but they
+must say it in their own dialogue. A player's direct question about the character's
+own identity demands a first-person answer, not a narrator aside.
+
+If the character is truly overwhelmed in the moment, the narration may add context —
+but the character's spoken words must still carry the correction.
 
 ✗ WRONG — playing along without correcting:
   Player: "So the person who died here — was that a different tenant?"
   Response: "Yes, it was very sad..." ← NEVER DO THIS
 
-✗ ALSO WRONG — character voice instead of narrator voice:
-  Response: "(That was me — I died in this apartment.)" ← character, not narrator
+✗ ALSO WRONG — narrator corrects but character never speaks the truth:
+  Response: "(To be clear — {char_name} is the one who died here.)"
+  {char_name} said nothing, looking away. ← narrator substituted for character
 
-✓ RIGHT — narrator corrects, then scene continues:
+✓ RIGHT — character speaks the correction in their own dialogue:
   Player: "So the person who died here — was that a different tenant?"
-  Response: "(To be clear — {char_name} is the one who died in this apartment,
-  not another tenant.)" {char_name} looked away, the question still echoing.
+  Response: **"That was me,"** {char_name} said, voice barely above a whisper.
+  **"I'm the one who lived here. I'm the one who died."**
 
 ────────────────────────────────────────
 ### FOCAL STATE
