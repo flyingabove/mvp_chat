@@ -41,6 +41,7 @@ Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 
 ### UI/scorer/flags
 - [documentation/ai_learnings_mistakes/AI_UI_WORKFLOW.md](documentation/ai_learnings_mistakes/AI_UI_WORKFLOW.md)
+- **[documentation/model_output_docs/UI_REDESIGN_2026.md](documentation/model_output_docs/UI_REDESIGN_2026.md)** ← 2026 redesign spec (Netflix+Character.AI, PWA, screen inventory, CSS system)
 - [documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md](documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md)
 - [documentation/ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md](documentation/ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md)
 

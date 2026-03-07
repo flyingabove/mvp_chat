@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 import os
 import threading
 from pathlib import Path
@@ -17,8 +17,10 @@ from backend.app.api.debug_engine import router as debug_router, ws_debug
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
 
-_DEBUG_HTML_PATH = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
-_INDEX_HTML_PATH = Path(__file__).parent.parent.parent / "frontend" / "index.html"
+_DEBUG_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
+_INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.html"
+_MANIFEST_PATH    = Path(__file__).parent.parent.parent / "frontend" / "manifest.json"
+_SW_PATH          = Path(__file__).parent.parent.parent / "frontend" / "sw.js"
 
 
 # --------------------------------------------------
@@ -140,6 +142,21 @@ async def game_ui_beta():
 @app.get("/beta/debug", response_class=HTMLResponse)
 async def debug_ui_page():
     return _DEBUG_HTML_PATH.read_text(encoding="utf-8")
+
+
+# --------------------------------------------------
+# PWA assets (manifest + service worker)
+# --------------------------------------------------
+@app.get("/manifest.json")
+@app.get("/beta/manifest.json")
+async def pwa_manifest():
+    return FileResponse(str(_MANIFEST_PATH), media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+@app.get("/beta/sw.js")
+async def service_worker():
+    return FileResponse(str(_SW_PATH), media_type="application/javascript")
 
 
 # --------------------------------------------------

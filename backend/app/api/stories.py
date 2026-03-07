@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from pathlib import Path
 import json
+import re
+import uuid
 
 router = APIRouter()
+
+
+class StoryDraftRequest(BaseModel):
+    title: str
+    genre: str
+    description: str
 
 
 def _stories_dir() -> Path:
@@ -47,7 +56,19 @@ async def list_stories():
         sid = str(cfg.get("id") or p.stem).strip()
         title = str(cfg.get("title") or sid).strip()
         theme = str(cfg.get("theme") or "").strip()
-        out.append({"id": sid, "title": title, "theme": theme})
+        genre = str(cfg.get("genre") or theme or "").strip()
+        description = str(cfg.get("description") or "").strip()
+        thumbnail_url = cfg.get("thumbnail_url") or None
+        featured = bool(cfg.get("featured", False))
+        out.append({
+            "id": sid,
+            "title": title,
+            "theme": theme,
+            "genre": genre,
+            "description": description,
+            "thumbnail_url": thumbnail_url,
+            "featured": featured,
+        })
 
     return {"stories": out}
 
@@ -133,3 +154,52 @@ async def story_context(story_id: str):
         },
         "rules": cfg.get("rules") or {},
     }
+
+
+@router.post("/stories/draft")
+async def create_story_draft(req: StoryDraftRequest):
+    """Create a minimal stub story JSON for a new draft game.
+
+    Saves a skeleton story JSON to backend/app/stories/ so it shows up in
+    the story list and can be further developed.
+    """
+    title = req.title.strip()
+    genre = req.genre.strip()
+    description = req.description.strip()
+
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    if len(title) > 100:
+        raise HTTPException(status_code=400, detail="title too long (max 100 chars)")
+    if len(description) > 500:
+        raise HTTPException(status_code=400, detail="description too long (max 500 chars)")
+
+    # Generate a URL-safe ID from the title
+    slug = re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")[:40]
+    short_id = uuid.uuid4().hex[:6]
+    story_id = f"draft_{slug}_{short_id}"
+
+    stub = {
+        "id": story_id,
+        "title": title,
+        "theme": genre.lower().replace(" ", "_"),
+        "genre": genre,
+        "description": description,
+        "thumbnail_url": None,
+        "featured": False,
+        "meta": {"draft": True},
+        "characters": [],
+        "protagonist": {"role": "Player", "profile": ""},
+        "rules": {},
+        "goal": {"win_text_rule": ""},
+        "opening": "",
+    }
+
+    stories_dir = _stories_dir()
+    out_path = stories_dir / f"{story_id}_story.json"
+    try:
+        out_path.write_text(json.dumps(stub, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save story: {e}")
+
+    return {"id": story_id, "title": title}
