@@ -718,7 +718,7 @@ def test_character_identity_section_injected_when_present():
     assert "### CHARACTER IDENTITY" in sysmsg
     assert "- You are a ghost." in sysmsg
     assert "- You died in this apartment." in sysmsg
-    assert "own them out loud" in sysmsg
+    assert "speak them directly in first person" in sysmsg
 
 
 def test_character_identity_section_absent_when_not_defined():

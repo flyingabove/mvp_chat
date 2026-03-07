@@ -1043,6 +1043,7 @@ def _character_identity_section(state) -> str:
     when the main character has self_knowledge; never FAISS-dependent.
     """
     main_char = getattr(state, "main_character", None)
+    char_name = (getattr(main_char, "name", "") or "the focal character").strip() or "the focal character"
     entries = list(getattr(main_char, "self_knowledge", None) or [])
     # Fallback: legacy story_cfg path for tests that set story_cfg directly
     if not entries:
@@ -1054,14 +1055,14 @@ def _character_identity_section(state) -> str:
 
     lines = [
         "\n────────────────────────────────────────",
-        "### CHARACTER IDENTITY",
+        f"### CHARACTER IDENTITY — {char_name}",
         "────────────────────────────────────────",
-        "The following are your first-person facts about who you are. "
-        "You own these facts. They are not someone else's story.\n\n"
-        "When the player asks about something described below as if it belongs to a different person: "
-        "speak the truth in your own first-person dialogue — do not defer to the narrator. "
-        "You may be emotional, reluctant, or haunted in HOW you say it, but your spoken words must make it clear. "
-        "The facts listed here are YOUR facts — own them out loud.\n",
+        f"The following are {char_name}'s personal truths, written in their voice. "
+        f"As the scene engine, when you write {char_name}'s dialogue in response to questions about "
+        f"these facts, have {char_name} speak them directly in first person — "
+        "do not substitute narrator exposition when the character can speak for themselves. "
+        f"{char_name} may be emotional, reluctant, or haunted in HOW they say it, "
+        "but their spoken words must carry the correction.\n",
     ]
     for entry in entries:
         lines.append(f"- {entry}")
