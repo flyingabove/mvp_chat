@@ -53,3 +53,81 @@ Pre-flight checklist
 - Confirm OPENAI_API_KEY available (.env.test loaded automatically).
 - Run from repo root with the commands above.
 - Expect role-tagged blocks and shared debug boxes; if format drifts, adjust IntegrationScenario/renderer, not ad-hoc in tests.
+
+---
+
+7) Multi-run scoring framework (non-deterministic LLM tests)
+------------------------------------------------------------
+LLM-backed integration tests are inherently non-deterministic. A single pass/fail verdict is unreliable.
+Use the multi-run framework to run N times, score each run, and assert that at least one run passed.
+
+### Global constants (backend/app/config/settings.py)
+```
+LOCAL_INTEG_RUN_COUNT: int = 5    # X — runs when no RAILWAY_* env vars are set (local dev)
+PROD_INTEG_RUN_COUNT: int = 5     # Y — runs when on Railway (RAILWAY_ENVIRONMENT or RAILWAY_PROJECT_ID set)
+```
+These are the ONLY source of truth for run counts. Never hardcode run counts in scenario files.
+
+### Opt-in: set multi_run = True on your scenario class
+```python
+class MyScenario(IntegrationScenario):
+    scenario_id = "my_scenario"
+    multi_run = True   # ← opt-in; default is False (single-run, original behavior)
+    ...
+```
+
+### Score tiers (convention)
+- **100** — Best outcome: criterion met explicitly (e.g. IU's own dialogue says she is the previous tenant)
+- **50**  — Partial: criterion met only indirectly/poetically (e.g. narration implies it, dialogue stays evasive)
+- **0**   — Failure: no criterion met at all, or actively wrong
+
+Call `self.record_score(score)` from your assert step BEFORE asserting, so the score is captured even on failure:
+```python
+@step(kind="assert", description="Assert verdict")
+def assert_verdict(self):
+    score = self.state.score       # set by evaluate_* step (100, 50, or 0)
+    self.record_score(score)       # ALWAYS call this first
+    assert score > 0, f"Score was {score}"
+```
+
+### Pass condition
+`assert any(s > 0 for s in cls._score_history)` — the scenario passes if AT LEAST ONE run scored > 0.
+If ALL N runs score 0 the test fails. This tolerates occasional failures in non-deterministic LLM tests.
+
+### Score report
+After every multi-run scenario completes, a formatted report is printed to stdout automatically:
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  INTEGRATION SCORE REPORT                                        ║
+║  Scenario: <title>                                               ║
+║  Runs: 5  (local)                                                ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Score Distribution:                                             ║
+║  100 (explicit identity    ):  ██████░░░░  3/5  (60.0%)          ║
+║   50 (poetic narration     ):  ██░░░░░░░░  1/5  (20.0%)          ║
+║    0 (no connection        ):  ██░░░░░░░░  1/5  (20.0%)          ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Individual Scores:  [100, 100, 50, 0, 100]                      ║
+║  Total Score:  350 / 500  (70.0%)                                ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+Railway captures stdout to deployment logs. pytest -s shows it locally.
+
+### AI reporting rule (IMPORTANT)
+**After running any multi-run integration test, read the full `╔══ INTEGRATION SCORE REPORT` block
+from stdout and report it verbatim to the user.** Include: individual scores, distribution per tier,
+and total score %. Do NOT just report pass/fail — give the full distribution.
+
+### Checklist: adding a new multi-run scenario
+1. Set `multi_run = True` on the scenario class
+2. Add an `evaluate_*` step that scores 100/50/0 and stores to `self.state.score`
+3. Add an `assert_verdict` step that calls `self.record_score(self.state.score)` THEN asserts
+4. Score tiers must match the 100/50/0 convention (no other values)
+5. Do NOT call `record_score()` more than once per run
+6. Run count is controlled globally via `LOCAL_INTEG_RUN_COUNT` / `PROD_INTEG_RUN_COUNT` — never hardcode
+
+### Implementation files
+- `backend/app/config/settings.py` — `LOCAL_INTEG_RUN_COUNT`, `PROD_INTEG_RUN_COUNT`
+- `backend/app/integration_playback/scenario.py` — `_integ_run_count()`, `_print_score_report()`, `record_score()`, `run_as_test()` multi-run path
+- `tests/backend/app/config/test_settings.py` — tests for constants
+- `tests/backend/app/integration_playback/test_multi_run.py` — unit tests for `_integ_run_count()` and `record_score()`

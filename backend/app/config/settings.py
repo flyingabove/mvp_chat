@@ -46,3 +46,9 @@ EMOTION_START: str = "neutral"
 # --- Deterministic IDs ---
 DEFAULT_USER_ID: str = "default_user"
 DEFAULT_INSTANCE: int = 1
+
+# --- Integration test run counts (used by multi-run scenarios via _integ_run_count()) ---
+# X: number of runs per multi-run scenario when running locally (no RAILWAY_* env vars)
+# Y: number of runs per multi-run scenario when running on Railway
+LOCAL_INTEG_RUN_COUNT: int = 5
+PROD_INTEG_RUN_COUNT: int = 5

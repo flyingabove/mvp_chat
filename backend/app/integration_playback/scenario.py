@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import os as _os
 from abc import ABC
 from dataclasses import dataclass, field
 from typing import Any, Callable, ClassVar, Dict, List, Optional, Type
@@ -96,6 +97,74 @@ class StepDescriptor:
 
 
 # ---------------------------------------------------------------------------
+# Multi-run scoring helpers
+# ---------------------------------------------------------------------------
+
+def _integ_run_count() -> int:
+    """Return run count for multi-run scenarios.
+
+    Returns PROD_INTEG_RUN_COUNT when running on Railway (detected by
+    RAILWAY_ENVIRONMENT or RAILWAY_PROJECT_ID env vars), else LOCAL_INTEG_RUN_COUNT.
+    Reads settings at call-time (not import) so monkeypatch works in tests.
+    """
+    from backend.app.config.settings import LOCAL_INTEG_RUN_COUNT, PROD_INTEG_RUN_COUNT
+    is_railway = bool(_os.getenv("RAILWAY_ENVIRONMENT") or _os.getenv("RAILWAY_PROJECT_ID"))
+    return PROD_INTEG_RUN_COUNT if is_railway else LOCAL_INTEG_RUN_COUNT
+
+
+def _print_score_report(title: str, scores: List[int], n: int, env_label: str) -> None:
+    """Print a bordered score-distribution report to stdout.
+
+    Railway captures stdout to deployment logs; pytest -s shows it locally.
+    Always called after every multi-run scenario completes.
+    """
+    import sys
+    WIDTH = 66
+    BAR_MAX = 10
+
+    def _bar(cnt: int) -> str:
+        filled = round(BAR_MAX * cnt / n) if n else 0
+        return "\u2588" * filled + "\u2591" * (BAR_MAX - filled)
+
+    def _pct(cnt: int) -> str:
+        return f"{100 * cnt / n:.1f}%" if n else "0.0%"
+
+    def _row(text: str) -> str:
+        return f"\u2551  {text:<{WIDTH - 2}}\u2551"
+
+    tiers = [(100, "explicit identity"), (50, "poetic narration"), (0, "no connection")]
+    lines = [
+        "\u2554" + "\u2550" * WIDTH + "\u2557",
+        _row("INTEGRATION SCORE REPORT"),
+        _row(f"Scenario: {title}"),
+        _row(f"Runs: {n}  ({env_label})"),
+        "\u2560" + "\u2550" * WIDTH + "\u2563",
+        _row("Score Distribution:"),
+    ]
+    for score_val, label in tiers:
+        cnt = scores.count(score_val)
+        lines.append(_row(f"{score_val:>3} ({label:<20}):  {_bar(cnt)}  {cnt}/{n}  ({_pct(cnt)})"))
+    total = sum(scores)
+    max_score = n * 100
+    pct_total = f"{100 * total / max_score:.1f}%" if max_score else "0.0%"
+    lines += [
+        "\u2560" + "\u2550" * WIDTH + "\u2563",
+        _row(f"Individual Scores:  {scores}"),
+        _row(f"Total Score:  {total} / {max_score}  ({pct_total})"),
+        "\u255a" + "\u2550" * WIDTH + "\u255d",
+    ]
+    out = "\n" + "\n".join(lines) + "\n"
+    try:
+        sys.stdout.write(out)
+    except UnicodeEncodeError:
+        sys.stdout.write(
+            out.encode(sys.stdout.encoding or "utf-8", errors="replace")
+               .decode(sys.stdout.encoding or "utf-8", errors="replace")
+        )
+    sys.stdout.flush()
+
+
+# ---------------------------------------------------------------------------
 # IntegrationScenario base class
 # ---------------------------------------------------------------------------
 
@@ -115,6 +184,9 @@ class IntegrationScenario(ABC):
     requires_api_key: ClassVar[bool] = False
     requires_cache: ClassVar[bool] = False
     player_role: ClassVar[str] = ""  # speaker name that represents the user/player (e.g. "Detective")
+    # -- Multi-run scoring (opt-in) --
+    multi_run: ClassVar[bool] = False
+    _score_history: ClassVar[List[int]] = []
 
     def __init__(self) -> None:
         self.state: Any = None
@@ -145,6 +217,14 @@ class IntegrationScenario(ABC):
         """Called after all steps (including on failure)."""
         return None
 
+    def record_score(self, score: int) -> None:
+        """Record a numeric score for this run (100, 50, or 0 by convention).
+
+        Called from assert_verdict steps in multi-run scenarios before asserting.
+        Appends to the class-level _score_history list.
+        """
+        self.__class__._score_history.append(score)
+
     # -- Step collection --
     @classmethod
     def get_steps(cls) -> List[StepDescriptor]:
@@ -169,21 +249,54 @@ class IntegrationScenario(ABC):
     # -- Pytest entry point --
     @classmethod
     def run_as_test(cls) -> None:
-        """Run this scenario through the playback runner and assert all steps pass."""
+        """Run this scenario and assert it passes.
+
+        Single-run mode (multi_run=False, the default):
+            Runs once, asserts all steps ok. Original behavior unchanged.
+
+        Multi-run mode (multi_run=True):
+            Runs _integ_run_count() times (X locally, Y on Railway), catches
+            all exceptions, accumulates scores via record_score(), prints a
+            score report, then asserts at least one run scored > 0.
+        """
         from backend.app.integration_playback.runner import run_scenario
         from backend.app.integration_playback.scenario_registry import list_scenarios, register_scenario
 
         if cls.scenario_id not in list_scenarios():
             register_scenario(_build_scenario_from_class(cls))
 
-        # Ensure API key presence (prefers env var, falls back to .env.test when available)
         cls._ensure_openai_api_key()
 
-        result = run_scenario(cls.scenario_id)
-        log = result["log"]
-        assert all(entry["status"] == "ok" for entry in log), (
-            "Scenario steps did not all succeed: "
-            + ", ".join(f"{e['description']}={e['status']}" for e in log if e["status"] != "ok")
+        if not cls.multi_run:
+            result = run_scenario(cls.scenario_id)
+            log = result["log"]
+            assert all(entry["status"] == "ok" for entry in log), (
+                "Scenario steps did not all succeed: "
+                + ", ".join(f"{e['description']}={e['status']}" for e in log if e["status"] != "ok")
+            )
+            return
+
+        # --- multi-run path ---
+        cls._score_history = []
+        n = _integ_run_count()
+        is_railway = bool(_os.getenv("RAILWAY_ENVIRONMENT") or _os.getenv("RAILWAY_PROJECT_ID"))
+        env_label = "prod (Railway)" if is_railway else "local"
+
+        for _ in range(n):
+            scores_before = len(cls._score_history)
+            try:
+                run_scenario(cls.scenario_id)
+            except Exception:
+                pass
+            # If the run ended without record_score() being called, count as 0
+            if len(cls._score_history) == scores_before:
+                cls._score_history.append(0)
+
+        _print_score_report(cls.title, cls._score_history, n, env_label)
+
+        assert any(s > 0 for s in cls._score_history), (
+            f"All {n} runs scored 0. Scenario: {cls.scenario_id}\n"
+            f"Scores: {cls._score_history}"
         )
 
     # -- Debug helper --
