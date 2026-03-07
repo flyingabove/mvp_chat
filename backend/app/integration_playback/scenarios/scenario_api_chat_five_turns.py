@@ -4,7 +4,6 @@ from typing import Any, List
 from unittest.mock import patch
 
 import httpx
-from fastapi.testclient import TestClient
 
 from backend.app.integration_playback.scenario import IntegrationScenario, step
 
@@ -36,9 +35,8 @@ class _FakeResponse:
 @dataclass
 class ChatFiveTurnContext:
     patchers: List[Any] = field(default_factory=list)
-    client: TestClient | None = None
-    last_response: Any = None
-    old_skip_env: str | None = None
+    client: Any = None
+    last_response: Any = None  # dict returned by _post_chat
 
 
 class ChatFiveTurnScenario(IntegrationScenario):
@@ -50,13 +48,9 @@ class ChatFiveTurnScenario(IntegrationScenario):
 
     def setup(self):
         from backend.app.api import prompt_engine as chat_module
-        from backend.app.main import app
 
         ctx = ChatFiveTurnContext()
         self.state = ctx
-
-        ctx.old_skip_env = os.environ.get("SKIP_KNOWLEDGE_INDEX_BUILD")
-        os.environ["SKIP_KNOWLEDGE_INDEX_BUILD"] = "1"
 
         p1 = patch.object(
             chat_module,
@@ -79,7 +73,7 @@ class ChatFiveTurnScenario(IntegrationScenario):
         p2.start()
         ctx.patchers.append(p2)
 
-        ctx.client = TestClient(app)
+        ctx.client = self._open_test_client()
 
         return {
             "reply": "*Booting deterministic chat harness for travel-flow validation.*",
@@ -89,18 +83,12 @@ class ChatFiveTurnScenario(IntegrationScenario):
     def cleanup(self):
         for patcher in reversed(self.state.patchers):
             patcher.stop()
-
-        if self.state.old_skip_env is None:
-            os.environ.pop("SKIP_KNOWLEDGE_INDEX_BUILD", None)
-        else:
-            os.environ["SKIP_KNOWLEDGE_INDEX_BUILD"] = self.state.old_skip_env
+        self._close_test_client()
 
     def _post(self, api_message: str, user_line: str = ""):
-        assert self.state.client is not None
-        resp = self.state.client.post("/api/chat", json={"session_id": "t1", "message": api_message})
-        self.state.last_response = resp
-        assert resp.status_code == 200
-        reply = resp.json().get("reply", "")
+        data = self._post_chat(self.state.client, "t1", api_message)
+        self.state.last_response = data
+        reply = data.get("reply", "")
         return [
             self.say_user(user_line or api_message),
             self.say_llm("IU", reply),
@@ -141,7 +129,7 @@ class ChatFiveTurnScenario(IntegrationScenario):
         assert st.location_id == "workplace_lobby"
         assert st.location == "EDAM Entertainment Lobby"
 
-        reply_text = self.state.last_response.json()["reply"]
+        reply_text = self.state.last_response["reply"]
         assert not reply_text.startswith("[")
         assert reply_text.lstrip().startswith("*")
 

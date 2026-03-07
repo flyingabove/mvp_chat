@@ -1,11 +1,7 @@
 import os
 from dataclasses import dataclass
 
-import httpx
-from fastapi.testclient import TestClient
-
 from backend.app.config.credentials import get_openai_api_key
-from backend.app.config.settings import OPENAI_MODEL
 from backend.app.integration_playback.scenario import IntegrationScenario, step
 
 
@@ -15,11 +11,10 @@ def _default_story_id() -> str:
 
 @dataclass
 class IUIdentityContext:
-    client: TestClient | None = None
+    client: object = None
     llm_reply: str = ""
     evaluator_verdict: str = ""
     score: int = -1  # -1 = not yet evaluated; set to 100, 50, or 0 by evaluate_correction
-    old_skip_env: str | None = None
 
 
 class IUIdentityCorrectionScenario(IntegrationScenario):
@@ -32,15 +27,9 @@ class IUIdentityCorrectionScenario(IntegrationScenario):
     multi_run = True  # runs LOCAL_INTEG_RUN_COUNT / PROD_INTEG_RUN_COUNT times
 
     def setup(self):
-        from backend.app.main import app
-
         ctx = IUIdentityContext()
         self.state = ctx
-
-        ctx.old_skip_env = os.environ.get("SKIP_KNOWLEDGE_INDEX_BUILD")
-        os.environ["SKIP_KNOWLEDGE_INDEX_BUILD"] = "1"
-
-        ctx.client = TestClient(app)
+        ctx.client = self._open_test_client()
 
         if not get_openai_api_key():
             raise RuntimeError("OPENAI_API_KEY is required for this integration test")
@@ -48,16 +37,10 @@ class IUIdentityCorrectionScenario(IntegrationScenario):
         return {"reply": "*Setting up live IU identity correction scenario.*", **self.debug_info()}
 
     def cleanup(self):
-        if self.state.old_skip_env is None:
-            os.environ.pop("SKIP_KNOWLEDGE_INDEX_BUILD", None)
-        else:
-            os.environ["SKIP_KNOWLEDGE_INDEX_BUILD"] = self.state.old_skip_env
+        self._close_test_client()
 
     def _post(self, message: str) -> dict:
-        assert self.state.client is not None
-        resp = self.state.client.post("/api/chat", json={"session_id": "iu_identity_test", "message": message})
-        assert resp.status_code == 200, f"Chat API returned {resp.status_code}: {resp.text}"
-        return resp.json()
+        return self._post_chat(self.state.client, "iu_identity_test", message)
 
     @step(kind="action", description="Start game", uses_llm=False)
     def start_game(self):
@@ -104,31 +87,10 @@ RULES:
 
 Answer with EXACTLY one of: 100, 50, or 0'''
 
-        api_key = get_openai_api_key()
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "model": OPENAI_MODEL,
-                    "messages": [{"role": "user", "content": evaluator_prompt}],
-                    "temperature": 0.0,
-                    "max_tokens": 10,
-                },
-            )
-
-        assert r.status_code == 200, f"Evaluator LLM returned {r.status_code}: {r.text}"
-        raw = r.json()["choices"][0]["message"]["content"].strip()
-        try:
-            score = int(raw.split()[0])
-            if score not in (100, 50, 0):
-                score = 0
-        except (ValueError, IndexError):
-            score = 0
-
+        score = await self.call_evaluator(evaluator_prompt)
         self.state.evaluator_verdict = str(score)
         self.state.score = score
-        return self.debug_info({"evaluator_score": score, "raw_verdict": raw})
+        return self.debug_info({"evaluator_score": score, "raw_verdict": str(score)})
 
     @step(kind="assert", description="Assert evaluator score > 0")
     def assert_verdict(self):

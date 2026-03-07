@@ -191,6 +191,7 @@ class IntegrationScenario(ABC):
     def __init__(self) -> None:
         self.state: Any = None
         self._step_index: int = 0
+        self._skip_kb_old: Optional[str] = None  # saved by _open_test_client
 
     # -- Env helpers --
     @staticmethod
@@ -198,6 +199,94 @@ class IntegrationScenario(ABC):
         """Return OPENAI_API_KEY using centralized credential loading."""
         from backend.app.config.credentials import get_openai_api_key
         return get_openai_api_key() or None
+
+    # -- Test client helpers --
+
+    def _open_test_client(self) -> Any:
+        """Create a FastAPI TestClient for the main app.
+
+        Sets SKIP_KNOWLEDGE_INDEX_BUILD=1 to skip expensive index builds.
+        Saves the previous value so _close_test_client() can restore it.
+
+        Usage::
+            def setup(self):
+                ctx.client = self._open_test_client()
+
+            def cleanup(self):
+                self._close_test_client()
+        """
+        import os
+        from fastapi.testclient import TestClient
+        from backend.app.main import app
+
+        self._skip_kb_old = os.environ.get("SKIP_KNOWLEDGE_INDEX_BUILD")
+        os.environ["SKIP_KNOWLEDGE_INDEX_BUILD"] = "1"
+        return TestClient(app)
+
+    def _close_test_client(self) -> None:
+        """Restore SKIP_KNOWLEDGE_INDEX_BUILD to its pre-test value.
+
+        Always call this in cleanup() when _open_test_client() was used in setup().
+        """
+        if self._skip_kb_old is None:
+            _os.environ.pop("SKIP_KNOWLEDGE_INDEX_BUILD", None)
+        else:
+            _os.environ["SKIP_KNOWLEDGE_INDEX_BUILD"] = self._skip_kb_old
+        self._skip_kb_old = None
+
+    def _post_chat(self, client: Any, session_id: str, message: str) -> dict:
+        """POST to /api/chat and assert HTTP 200. Returns the JSON response dict."""
+        resp = client.post("/api/chat", json={"session_id": session_id, "message": message})
+        assert resp.status_code == 200, f"Chat API returned {resp.status_code}: {resp.text}"
+        return resp.json()
+
+    async def call_evaluator(
+        self, prompt: str, valid_scores: tuple = (100, 50, 0)
+    ) -> int:
+        """Call OpenAI with a scoring prompt and return a numeric score.
+
+        Suitable for assert steps in multi-run scenarios. Parses the first
+        token of the LLM response as an integer; falls back to min(valid_scores)
+        on parse error or out-of-range value.
+
+        Args:
+            prompt: Full evaluator prompt. Should instruct the model to respond
+                    with EXACTLY one of the valid_scores values.
+            valid_scores: Acceptable score values (default 100/50/0 tier convention).
+
+        Returns:
+            An integer that is a member of valid_scores.
+
+        Example::
+            score = await self.call_evaluator(
+                f"Rate the response 100, 50, or 0:\\n\\n{reply}",
+            )
+        """
+        import httpx
+        from backend.app.config.credentials import get_openai_api_key
+        from backend.app.config.settings import OPENAI_MODEL
+
+        api_key = get_openai_api_key()
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            r = await http_client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": OPENAI_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.0,
+                    "max_tokens": 10,
+                },
+            )
+        assert r.status_code == 200, f"Evaluator LLM returned {r.status_code}: {r.text}"
+        raw = r.json()["choices"][0]["message"]["content"].strip()
+        try:
+            score = int(raw.split()[0])
+            if score not in valid_scores:
+                score = min(valid_scores)
+        except (ValueError, IndexError):
+            score = min(valid_scores)
+        return score
 
     # -- Auto-registration on subclass creation --
     def __init_subclass__(cls, **kwargs: Any) -> None:

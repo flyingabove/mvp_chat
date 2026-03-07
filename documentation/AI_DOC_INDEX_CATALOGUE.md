@@ -26,6 +26,7 @@ Use this file as the only doc index: `documentation/AI_DOC_INDEX.md`.
 ### Tests and integration playback
 - [documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md](documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md)
 - [documentation/ai_learnings_mistakes/AI_LEARNINGS_INTEGRATION_REQUIREMENTS.md](documentation/ai_learnings_mistakes/AI_LEARNINGS_INTEGRATION_REQUIREMENTS.md)
+- **[documentation/ai_learnings_mistakes/AI_LEARNINGS_WRITING_INTEG_TESTS.md](documentation/ai_learnings_mistakes/AI_LEARNINGS_WRITING_INTEG_TESTS.md)** ← HOW TO WRITE A NEW INTEG TEST (start here)
 - [documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md](documentation/model_output_docs/INTEGRATION_TEST_PLAYBACK_DESIGN.md)
 
 ### Story and content authoring
