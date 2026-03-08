@@ -1,51 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#700030"/>
-      <stop offset="100%" style="stop-color:#4a0020"/>
+      <stop offset="0%" stop-color="#9d174d"/>
+      <stop offset="100%" stop-color="#be185d"/>
     </linearGradient>
-    <radialGradient id="centerspot" cx="50%" cy="55%" r="35%">
-      <stop offset="0%" style="stop-color:#ff6090;stop-opacity:0.45"/>
-      <stop offset="100%" style="stop-color:#700030;stop-opacity:0"/>
+    <radialGradient id="spot" cx="50%" cy="60%" r="38%">
+      <stop offset="0%" stop-color="#f9a8d4" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#9d174d" stop-opacity="0"/>
     </radialGradient>
     <filter id="gf"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>
   <rect width="800" height="450" fill="url(#bg)"/>
-  <rect width="800" height="450" fill="url(#centerspot)"/>
-  <!-- Stage floor -->
-  <rect x="0" y="310" width="800" height="140" fill="#380018" opacity="0.8"/>
-  <!-- Spotlight cones from top (centered) -->
-  <polygon points="340,0 310,0 360,310 390,310" fill="#ff88aa" opacity="0.09"/>
-  <polygon points="440,0 460,0 420,310 400,310" fill="#ff88aa" opacity="0.09"/>
-  <polygon points="400,0 380,0 390,310 410,310" fill="#ffffff" opacity="0.07"/>
-  <!-- Stage spotlight pools on floor -->
-  <ellipse cx="370" cy="330" rx="70" ry="20" fill="#ff6699" opacity="0.25" filter="url(#gf)"/>
-  <ellipse cx="430" cy="328" rx="65" ry="18" fill="#ff6699" opacity="0.2" filter="url(#gf)"/>
-  <!-- Microphone stand (center) -->
-  <rect x="396" y="175" width="8" height="135" fill="#994466" opacity="0.8"/>
-  <ellipse cx="400" cy="172" rx="20" ry="11" fill="#cc6688" opacity="0.85"/>
-  <!-- Person silhouette at mic -->
-  <ellipse cx="400" cy="218" rx="22" ry="26" fill="#2a0015"/>
-  <rect x="378" y="244" width="44" height="70" fill="#2a0015" rx="6"/>
-  <!-- Curtains on sides -->
-  <rect x="0" y="0" width="130" height="450" fill="#3a0018" opacity="0.7"/>
-  <rect x="670" y="0" width="130" height="450" fill="#3a0018" opacity="0.7"/>
-  <line x1="25" y1="0" x2="25" y2="450" stroke="#500025" stroke-width="16" opacity="0.5"/>
-  <line x1="60" y1="0" x2="60" y2="450" stroke="#500025" stroke-width="10" opacity="0.4"/>
-  <line x1="100" y1="0" x2="100" y2="450" stroke="#500025" stroke-width="12" opacity="0.4"/>
-  <line x1="775" y1="0" x2="775" y2="450" stroke="#500025" stroke-width="16" opacity="0.5"/>
-  <line x1="740" y1="0" x2="740" y2="450" stroke="#500025" stroke-width="10" opacity="0.4"/>
-  <!-- Lights bar at top -->
-  <rect x="0" y="15" width="800" height="10" fill="#553344" opacity="0.7"/>
-  <ellipse cx="250" cy="15" rx="9" ry="11" fill="#ffcc00" opacity="0.7"/>
-  <ellipse cx="360" cy="15" rx="9" ry="11" fill="#ff4488" opacity="0.8"/>
-  <ellipse cx="440" cy="15" rx="9" ry="11" fill="#ff4488" opacity="0.8"/>
-  <ellipse cx="550" cy="15" rx="9" ry="11" fill="#ffcc00" opacity="0.7"/>
-  <!-- Pink accent borders -->
-  <rect x="0" y="0" width="6" height="450" fill="#ff4488" opacity="0.55"/>
-  <rect x="794" y="0" width="6" height="450" fill="#ff4488" opacity="0.45"/>
-  <!-- Title -->
-  <rect x="0" y="365" width="800" height="85" fill="#38001a" opacity="0.75"/>
-  <text x="400" y="402" font-family="Georgia,serif" font-size="28" fill="#ffd0e0" text-anchor="middle" font-weight="bold">Jennie: Blackout</text>
-  <text x="400" y="426" font-family="Arial,sans-serif" font-size="13" fill="#ff88aa" text-anchor="middle" letter-spacing="3">K-DRAMA THRILLER</text>
+  <rect width="800" height="450" fill="url(#spot)"/>
+  <rect x="0" y="315" width="800" height="135" fill="#500724" opacity="0.8"/>
+  <polygon points="350,0 320,0 370,315 400,315" fill="#fda4af" opacity="0.10"/>
+  <polygon points="450,0 480,0 430,315 400,315" fill="#fda4af" opacity="0.10"/>
+  <polygon points="400,0 382,0 392,315 408,315" fill="#ffffff" opacity="0.08"/>
+  <ellipse cx="380" cy="335" rx="75" ry="22" fill="#f472b6" opacity="0.28" filter="url(#gf)"/>
+  <ellipse cx="430" cy="332" rx="70" ry="20" fill="#f472b6" opacity="0.22" filter="url(#gf)"/>
+  <rect x="396" y="172" width="8" height="143" fill="#c77daa" opacity="0.8"/>
+  <ellipse cx="400" cy="170" rx="22" ry="12" fill="#e879a0" opacity="0.9"/>
+  <ellipse cx="400" cy="215" rx="24" ry="28" fill="#4a0520"/>
+  <rect x="376" y="243" width="48" height="74" fill="#4a0520" rx="7"/>
+  <rect x="0" y="0" width="125" height="450" fill="#6b0033" opacity="0.6"/>
+  <rect x="675" y="0" width="125" height="450" fill="#6b0033" opacity="0.6"/>
+  <rect x="0" y="15" width="800" height="10" fill="#7f1d3f" opacity="0.7"/>
+  <ellipse cx="270" cy="15" rx="9" ry="11" fill="#fbbf24" opacity="0.8"/>
+  <ellipse cx="370" cy="15" rx="9" ry="11" fill="#f472b6" opacity="0.9"/>
+  <ellipse cx="430" cy="15" rx="9" ry="11" fill="#f472b6" opacity="0.9"/>
+  <ellipse cx="530" cy="15" rx="9" ry="11" fill="#fbbf24" opacity="0.8"/>
+  <rect x="0" y="0" width="6" height="450" fill="#f472b6" opacity="0.65"/>
+  <rect x="794" y="0" width="6" height="450" fill="#f472b6" opacity="0.5"/>
+  <rect x="0" y="368" width="800" height="82" fill="#500724" opacity="0.8"/>
+  <text x="400" y="408" font-family="Georgia,serif" font-size="30" fill="#fce7f3" text-anchor="middle" font-weight="bold">Jennie: Blackout</text>
+  <text x="400" y="433" font-family="Arial,sans-serif" font-size="13" fill="#f9a8d4" text-anchor="middle" letter-spacing="4">K-DRAMA THRILLER</text>
 </svg>
