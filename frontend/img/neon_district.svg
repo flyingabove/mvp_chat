@@ -1,43 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#0e1248"/>
-      <stop offset="100%" style="stop-color:#180a44"/>
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#312e81"/>
     </linearGradient>
-    <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>
   <rect width="800" height="450" fill="url(#bg)"/>
-  <rect x="0" y="105" width="95" height="345" fill="#181030"/>
-  <rect x="105" y="145" width="75" height="305" fill="#140c28"/>
-  <rect x="190" y="85" width="105" height="365" fill="#181030"/>
-  <rect x="305" y="125" width="85" height="325" fill="#140c28"/>
-  <rect x="400" y="95" width="95" height="355" fill="#181030"/>
-  <rect x="505" y="65" width="115" height="385" fill="#140c28"/>
-  <rect x="630" y="115" width="95" height="335" fill="#181030"/>
-  <rect x="735" y="85" width="65" height="365" fill="#140c28"/>
-  <rect x="15" y="125" width="22" height="16" fill="#4488ff" opacity="0.65"/>
-  <rect x="48" y="125" width="22" height="16" fill="#4488ff" opacity="0.45"/>
-  <rect x="205" y="105" width="24" height="18" fill="#5599ff" opacity="0.6"/>
-  <rect x="410" y="115" width="26" height="18" fill="#6688ff" opacity="0.55"/>
-  <rect x="515" y="85" width="28" height="20" fill="#4477ff" opacity="0.6"/>
-  <rect x="555" y="85" width="28" height="20" fill="#4477ff" opacity="0.45"/>
-  <rect x="310" y="148" width="80" height="14" fill="#ff00dd" opacity="0.98" filter="url(#glow)"/>
-  <rect x="405" y="118" width="80" height="13" fill="#00ffee" opacity="0.95" filter="url(#glow)"/>
-  <rect x="205" y="125" width="65" height="11" fill="#ff4400" opacity="0.92" filter="url(#glow)"/>
-  <rect x="15" y="175" width="68" height="12" fill="#ff00cc" opacity="0.95" filter="url(#glow)"/>
-  <rect x="105" y="200" width="55" height="10" fill="#00ffcc" opacity="0.9" filter="url(#glow)"/>
-  <rect x="515" y="108" width="88" height="13" fill="#ff00cc" opacity="0.95" filter="url(#glow)"/>
-  <rect x="635" y="148" width="68" height="12" fill="#00ccff" opacity="0.9" filter="url(#glow)"/>
-  <rect x="738" y="118" width="55" height="11" fill="#ffcc00" opacity="0.88" filter="url(#glow)"/>
-  <rect x="0" y="358" width="800" height="92" fill="#080614"/>
-  <rect x="310" y="365" width="80" height="6" fill="#ff00dd" opacity="0.38"/>
-  <rect x="405" y="370" width="80" height="5" fill="#00ffee" opacity="0.3"/>
-  <rect x="515" y="366" width="88" height="6" fill="#ff00cc" opacity="0.35"/>
-  <ellipse cx="400" cy="325" rx="24" ry="38" fill="#05030e" opacity="0.98"/>
-  <ellipse cx="400" cy="278" rx="16" ry="19" fill="#05030e" opacity="0.98"/>
-  <rect x="0" y="0" width="5" height="450" fill="#00ccff" opacity="0.55"/>
-  <rect x="795" y="0" width="5" height="450" fill="#ff00cc" opacity="0.45"/>
-  <rect x="0" y="368" width="800" height="82" fill="#080614" opacity="0.85"/>
-  <text x="400" y="405" font-family="Arial,sans-serif" font-size="28" fill="#ff44ee" text-anchor="middle" font-weight="bold" filter="url(#glow)">Neon District</text>
-  <text x="400" y="428" font-family="Arial,sans-serif" font-size="13" fill="#cc00bb" text-anchor="middle" letter-spacing="3">CYBERPUNK NOIR</text>
+  <rect x="0" y="102" width="92" height="348" fill="#16133a"/>
+  <rect x="102" y="140" width="72" height="310" fill="#120f30"/>
+  <rect x="184" y="82" width="102" height="368" fill="#16133a"/>
+  <rect x="296" y="120" width="82" height="330" fill="#120f30"/>
+  <rect x="388" y="90" width="92" height="360" fill="#16133a"/>
+  <rect x="490" y="60" width="112" height="390" fill="#120f30"/>
+  <rect x="612" y="108" width="92" height="342" fill="#16133a"/>
+  <rect x="714" y="82" width="86" height="368" fill="#120f30"/>
+  <rect x="12" y="122" width="24" height="16" fill="#60a5fa" opacity="0.7"/>
+  <rect x="46" y="122" width="24" height="16" fill="#60a5fa" opacity="0.5"/>
+  <rect x="196" y="102" width="26" height="18" fill="#818cf8" opacity="0.65"/>
+  <rect x="398" y="112" width="28" height="18" fill="#a78bfa" opacity="0.6"/>
+  <rect x="500" y="80" width="30" height="20" fill="#60a5fa" opacity="0.65"/>
+  <rect x="540" y="80" width="30" height="20" fill="#60a5fa" opacity="0.5"/>
+  <rect x="298" y="144" width="84" height="16" fill="#f0abfc" opacity="0.98" filter="url(#glow)"/>
+  <rect x="392" y="114" width="86" height="14" fill="#67e8f9" opacity="0.96" filter="url(#glow)"/>
+  <rect x="196" y="122" width="70" height="12" fill="#fb923c" opacity="0.94" filter="url(#glow)"/>
+  <rect x="12" y="172" width="74" height="13" fill="#f0abfc" opacity="0.96" filter="url(#glow)"/>
+  <rect x="102" y="196" width="60" height="11" fill="#34d399" opacity="0.92" filter="url(#glow)"/>
+  <rect x="500" y="104" width="92" height="14" fill="#f472b6" opacity="0.97" filter="url(#glow)"/>
+  <rect x="620" y="144" width="72" height="13" fill="#38bdf8" opacity="0.93" filter="url(#glow)"/>
+  <rect x="722" y="114" width="60" height="12" fill="#fbbf24" opacity="0.9" filter="url(#glow)"/>
+  <rect x="0" y="355" width="800" height="95" fill="#06050f"/>
+  <rect x="298" y="362" width="84" height="7" fill="#f0abfc" opacity="0.42"/>
+  <rect x="392" y="367" width="86" height="6" fill="#67e8f9" opacity="0.35"/>
+  <rect x="500" y="363" width="92" height="7" fill="#f472b6" opacity="0.38"/>
+  <ellipse cx="400" cy="322" rx="26" ry="40" fill="#030214" opacity="0.98"/>
+  <ellipse cx="400" cy="274" rx="17" ry="20" fill="#030214" opacity="0.98"/>
+  <rect x="0" y="0" width="5" height="450" fill="#38bdf8" opacity="0.6"/>
+  <rect x="795" y="0" width="5" height="450" fill="#f0abfc" opacity="0.5"/>
+  <rect x="0" y="368" width="800" height="82" fill="#06050f" opacity="0.9"/>
+  <text x="400" y="408" font-family="Arial,sans-serif" font-size="30" fill="#f0abfc" text-anchor="middle" font-weight="bold" filter="url(#glow)">Neon District</text>
+  <text x="400" y="433" font-family="Arial,sans-serif" font-size="13" fill="#c084fc" text-anchor="middle" letter-spacing="4">CYBERPUNK NOIR</text>
 </svg>
