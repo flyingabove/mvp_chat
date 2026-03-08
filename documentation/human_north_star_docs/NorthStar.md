@@ -19,10 +19,22 @@ It is a **story engine** capable of running many different games, genres, and to
 
 - **PWA first:** ship the new interface as a web app first for speed and iteration.
 - **Web-in-app later:** publish mobile using a lightweight WebView wrapper that reuses the exact same web UI.
-- **Discovery should feel like Netflix:** game selection is row-based, visual, recommendation-driven, and easy to browse.
-- **Chat should feel like Character.AI:** clean message flow, strong character identity, and minimal friction to keep playing.
+- **Discovery should feel like Netflix:** game selection is row-based, visual, recommendation-driven, and easy to browse. Dark background (#141414), horizontal scroll card rows, hero banner for the featured game, genre-based grouping.
+- **Chat should feel like Character.AI:** rounded chat bubbles (red for player, dark grey for NPC), character avatar and name at the top, 3-dot menu for game settings, smooth typing indicator, no terminal aesthetic.
 - **Curated over chaotic:** show fewer, higher-quality game options and recommendations rather than exposing everything.
-- **MVP interaction loop:** pick a recommended game, enter chat quickly, stay immersed.
+- **MVP interaction loop:** pick a recommended game, tap Play, enter name + gender in a modal, enter chat immediately — zero friction.
+- **Bottom tab bar navigation (mobile-first):** Home (discover) | My Games (active sessions) | Create (+) | Profile — exactly like Character.AI's mobile nav.
+- **My Games screen:** shows recently played sessions in Character.AI Chats style — game thumbnail, title, last message snippet, time ago.
+- **Create Game:** a simple form (title, genre, description) lets players draft new games without any code. Drafts appear in the game discovery row.
+- **Profile screen:** Character.AI-style profile with game stats (games played, wins, turns), settings, and app version.
+- **No terminal, no monospace, no green text:** the new UI uses system sans-serif fonts, white text on dark backgrounds, and visual hierarchy via card design.
+
+### Visual Design Reference (2026 Implementation)
+The 2026 redesign was driven by these direct inspirations:
+- Netflix: hero banner with Play + More Info buttons, horizontal scroll rows, genre grouping, card thumbnails with badge overlays
+- Character.AI: chat bubbles (iMessage-style), character identity header at chat start, bottom sheet modals, create flow, chats list with time stamps, profile page with stats
+
+Technical spec: `documentation/model_output_docs/UI_REDESIGN_2026.md`
 
 ---
 

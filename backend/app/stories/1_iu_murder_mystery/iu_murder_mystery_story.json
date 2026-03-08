@@ -2,6 +2,10 @@
   "id": "iu_murder_mystery",
   "title": "Echoes of Cheongdam: IU Murder Mystery",
   "theme": "murder",
+  "description": "A beloved singer is dead in Gangnam's most exclusive neighborhood. The suspects are hiding something. Can you expose the truth before it's buried forever?",
+  "genre": "Murder Mystery",
+  "thumbnail_url": "/img/iu_murder_mystery.svg",
+  "featured": true,
   "instance": 1,
   "meta": {
     "disclaimer": "This is a work of fiction. Names of companies, executives, and events are invented for storytelling; do not interpret any content as allegations about real persons or entities."

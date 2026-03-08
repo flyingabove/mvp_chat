@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import os
 import threading
 from pathlib import Path
@@ -13,12 +14,18 @@ from backend.app.api.story import router as story_router
 from backend.app.api.stories import router as stories_router
 from backend.app.api.integration_playback import router as integration_playback_router
 from backend.app.api.debug_engine import router as debug_router, ws_debug
+from backend.app.api.auth import router as auth_router
+from backend.app.api.user_sessions import router as user_sessions_router
+from backend.app.db.database import init_db
 
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
 
-_DEBUG_HTML_PATH = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
-_INDEX_HTML_PATH = Path(__file__).parent.parent.parent / "frontend" / "index.html"
+_DEBUG_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
+_INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.html"
+_MANIFEST_PATH    = Path(__file__).parent.parent.parent / "frontend" / "manifest.json"
+_SW_PATH          = Path(__file__).parent.parent.parent / "frontend" / "sw.js"
+_IMG_DIR          = Path(__file__).parent.parent.parent / "frontend" / "img"
 
 
 # --------------------------------------------------
@@ -67,6 +74,7 @@ def _startup_checks():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     _startup_checks()
     yield
 
@@ -96,6 +104,8 @@ origins = [
     "https://storieschat.ai/beta",
     "https://beta.storieschat.ai",
     "https://beta-api.storieschat.ai",
+    "http://localhost:8899",
+    "http://127.0.0.1:8899",
 ]
 
 app.add_middleware(
@@ -117,9 +127,17 @@ app.include_router(story_router, prefix="/api")
 app.include_router(stories_router, prefix="/api")
 app.include_router(integration_playback_router, prefix="/api")
 app.include_router(debug_router, prefix="/beta/debug")
+app.include_router(auth_router)
+app.include_router(user_sessions_router)
 
 # WebSocket for debug UI
 app.add_websocket_route("/beta/debug/ws", ws_debug)
+
+# --------------------------------------------------
+# Static assets (game thumbnails etc.)
+# --------------------------------------------------
+_IMG_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/img", StaticFiles(directory=str(_IMG_DIR)), name="img")
 
 
 # --------------------------------------------------
@@ -143,6 +161,21 @@ async def debug_ui_page():
 
 
 # --------------------------------------------------
+# PWA assets (manifest + service worker)
+# --------------------------------------------------
+@app.get("/manifest.json")
+@app.get("/beta/manifest.json")
+async def pwa_manifest():
+    return FileResponse(str(_MANIFEST_PATH), media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+@app.get("/beta/sw.js")
+async def service_worker():
+    return FileResponse(str(_SW_PATH), media_type="application/javascript")
+
+
+# --------------------------------------------------
 # Version endpoint
 # --------------------------------------------------
 @app.get("/api/version")
@@ -152,3 +185,10 @@ async def version():
         "backend": "python",
         "message": "StoriesChat FastAPI backend running"
     }
+
+
+# version.json — served as a relative asset from both / and /beta/
+@app.get("/version.json")
+@app.get("/beta/version.json")
+async def version_json():
+    return {"version": "1.0.0"}

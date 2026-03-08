@@ -26,6 +26,9 @@ rank-bm25==0.2.2
 tqdm==4.66.2
 regex==2023.12.25
 
+# --- Auth ---
+PyJWT>=2.8.0
+
 # --- Testing ---
 pytest>=7.0
 pytest-asyncio

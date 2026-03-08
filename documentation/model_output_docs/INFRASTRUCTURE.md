@@ -68,6 +68,9 @@ python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-coll
 | `FORCE_REBUILD_INDEX` | Wipe /data and rebuild indexes | `0` (default) |
 | `RUN_TESTS` | Skip build-time tests | `1` (default, set `0` to skip) |
 | `DEBUG_MODE` | Enable verbose build/startup logs | `FALSE` (default) |
+| `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID | `123...apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret | `GOCSPX-...` |
+| `JWT_SECRET` | HS256 signing key for JWTs | 32+ char random hex |
 
 ### Storage path detection (in code)
 ```python

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a14"/>
+      <stop offset="50%" style="stop-color:#12001a"/>
+      <stop offset="100%" style="stop-color:#050510"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="60%" cy="35%" r="45%">
+      <stop offset="0%" style="stop-color:#ff0055;stop-opacity:0.3"/>
+      <stop offset="100%" style="stop-color:#0a0a14;stop-opacity:0"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="2"/></filter>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg)"/>
+  <rect width="800" height="450" fill="url(#glow)"/>
+  <!-- City skyline silhouette -->
+  <rect x="0" y="280" width="800" height="170" fill="#08080f"/>
+  <rect x="60" y="220" width="40" height="230" fill="#0d0d1a"/>
+  <rect x="120" y="200" width="30" height="250" fill="#0d0d1a"/>
+  <rect x="170" y="240" width="50" height="210" fill="#0d0d1a"/>
+  <rect x="240" y="170" width="60" height="280" fill="#0d0d1a"/>
+  <rect x="320" y="210" width="35" height="240" fill="#0d0d1a"/>
+  <rect x="500" y="190" width="55" height="260" fill="#0d0d1a"/>
+  <rect x="580" y="220" width="45" height="230" fill="#0d0d1a"/>
+  <rect x="650" y="180" width="70" height="270" fill="#0d0d1a"/>
+  <rect x="740" y="240" width="60" height="210" fill="#0d0d1a"/>
+  <!-- Windows in buildings -->
+  <rect x="250" y="180" width="10" height="8" fill="#ff4499" opacity="0.6"/>
+  <rect x="268" y="195" width="10" height="8" fill="#ffaa00" opacity="0.4"/>
+  <rect x="508" y="200" width="10" height="8" fill="#ff4499" opacity="0.5"/>
+  <rect x="525" y="215" width="10" height="8" fill="#4488ff" opacity="0.4"/>
+  <rect x="660" y="192" width="10" height="8" fill="#ff4499" opacity="0.6"/>
+  <!-- Crime scene tape effect -->
+  <line x1="0" y1="340" x2="800" y2="340" stroke="#ffcc00" stroke-width="3" opacity="0.25" stroke-dasharray="30,20"/>
+  <!-- Text -->
+  <text x="400" y="390" font-family="Georgia,serif" font-size="22" fill="#ff4499" text-anchor="middle" opacity="0.9">The Quiet Agreement</text>
+  <text x="400" y="415" font-family="Arial,sans-serif" font-size="13" fill="#cc3377" text-anchor="middle" opacity="0.7">MURDER MYSTERY · ONE NIGHT</text>
+</svg>

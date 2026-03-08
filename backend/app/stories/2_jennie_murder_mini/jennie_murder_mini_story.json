@@ -2,6 +2,10 @@
   "id": "jennie_murder_mini",
   "title": "The Quiet Agreement — Jennie Mini-Case",
   "theme": "epistemic_murder_demo",
+  "description": "A pop star is found dead in a suspect's apartment. You have one night to crack contradictions and force a confession before evidence vanishes.",
+  "genre": "Murder Mystery",
+  "thumbnail_url": "/img/jennie_mini.svg",
+  "featured": true,
   "instance": 1,
   "meta": {
     "disclaimer": "Fictional mini-case for epistemic-state testing. No real-world allegations are intended."

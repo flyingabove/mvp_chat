@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0014"/>
+      <stop offset="50%" style="stop-color:#1a0030"/>
+      <stop offset="100%" style="stop-color:#0d0020"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" style="stop-color:#6600cc;stop-opacity:0.4"/>
+      <stop offset="100%" style="stop-color:#0a0014;stop-opacity:0"/>
+    </radialGradient>
+    <filter id="blur">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg)"/>
+  <rect width="800" height="450" fill="url(#glow)"/>
+  <!-- Apartment window silhouette -->
+  <rect x="300" y="80" width="200" height="260" fill="#0d0020" opacity="0.8"/>
+  <rect x="310" y="90" width="85" height="120" fill="#1a004a" opacity="0.6"/>
+  <rect x="405" y="90" width="85" height="120" fill="#220060" opacity="0.7"/>
+  <rect x="310" y="220" width="85" height="110" fill="#110033" opacity="0.5"/>
+  <rect x="405" y="220" width="85" height="110" fill="#1a004a" opacity="0.6"/>
+  <!-- Candles / light spots -->
+  <circle cx="353" cy="350" r="8" fill="#cc88ff" opacity="0.5" filter="url(#blur)"/>
+  <circle cx="447" cy="350" r="8" fill="#cc88ff" opacity="0.5" filter="url(#blur)"/>
+  <!-- Ghost shimmer -->
+  <ellipse cx="400" cy="200" rx="60" ry="80" fill="#aa44ff" opacity="0.08" filter="url(#blur)"/>
+  <!-- Text -->
+  <text x="400" y="390" font-family="Georgia,serif" font-size="22" fill="#cc88ff" text-anchor="middle" opacity="0.9">Echoes of Cheongdam</text>
+  <text x="400" y="415" font-family="Arial,sans-serif" font-size="13" fill="#aa66cc" text-anchor="middle" opacity="0.7">MURDER MYSTERY</text>
+</svg>

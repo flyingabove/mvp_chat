@@ -1,6 +1,83 @@
 UI WORKFLOW & FRONTEND ARCHITECTURE
 ====================================
 
+⚠️ UPDATED 2026-03-07: The frontend was FULLY REDESIGNED.
+See `documentation/model_output_docs/UI_REDESIGN_2026.md` for the complete
+new design spec (screens, CSS system, localStorage schema, PWA setup).
+
+The new frontend is STILL a single file (frontend/index.html) — IIFE, no build step.
+The terminal/text UI described below is the LEGACY architecture — preserved here
+only as historical reference and for understanding the original API contracts.
+
+════════════════════════════════════════════════════════════════
+NEW UI ARCHITECTURE (2026 — Current)
+════════════════════════════════════════════════════════════════
+
+SCREENS (SPA routing via showScreen(name)):
+  home    → Netflix-style game discovery with hero banner + card rows
+  games   → My Games list (Character.AI Chats style, from localStorage)
+  chat    → In-game chat (Character.AI exact clone — no tab bar)
+  create  → Create Game form (POST /api/stories/draft)
+  profile → Stats + settings (localStorage data)
+
+GAME STARTUP FLOW (new):
+  1. Boot: showScreen("home") → loadStories() → GET /api/stories
+  2. User clicks game card → showGameDetail(story) → modal opens
+  3. User clicks Play → startGame(story) → modal-onboard opens
+  4. User enters name (step 1) → gender (step 2) → launchChat()
+  5. launchChat() → showScreen("chat") → sendMessage("__cmd_newgame__:...")
+  6. Chat screen stays until back button or Exit Game menu item
+
+STATE MACHINE (new):
+  "home"  ─(card click)──→ game_detail_modal
+  game_detail_modal ─(Play)──→ modal-onboard (name)
+  modal-onboard(name) ─(Continue)──→ modal-onboard (gender)
+  modal-onboard(gender) ─(Start Game)──→ "chat"
+  "chat" ─(back/Exit)──→ "home"
+
+KEY FUNCTIONS (new):
+  showScreen(name)         — SPA router, manages tab bar visibility
+  showGameDetail(story)    — Opens detail modal sheet
+  startGame(story)         — Opens onboarding modal
+  launchChat(story,n,g)    — Initializes chat screen, sends __cmd_newgame__
+  sendMessage(text,isInit) — POSTs to /api/chat, renders bubble, updates session
+  addMessage(role,text)    — Appends chat bubble (role: "user"|"npc"|"system")
+  showMapModal()           — Opens world map modal using appState.currentMeta
+  renderGamesList()        — Reads localStorage sessions, renders My Games
+  refreshProfileScreen()   — Reads localStorage stats
+
+STORAGE (localStorage):
+  storieschat_sessions  — Array of { story_id, session_id, last_played, ... }
+  storieschat_profile   — { name, handle }
+  storieschat_stats     — { games, wins, turns }
+
+API CALLS (new UI):
+  GET  /api/stories            — Home screen story rows
+  GET  /api/story/{id}         — Story metadata (map, locations) — after game start
+  POST /api/chat               — Chat messages (same as before)
+  POST /api/stories/draft      — Create game draft
+  GET  version.json            — App version (profile screen)
+  GET  /manifest.json          — PWA manifest
+  GET  /sw.js                  — Service worker
+
+NEW STORY JSON FIELDS (required for UI):
+  description    — Short game teaser shown on cards and modal
+  genre          — Category tag (e.g., "Murder Mystery") used for row grouping
+  thumbnail_url  — Optional image path; null = emoji fallback
+  featured       — Boolean; featured games go in "Featured" row and hero banner
+
+PWA:
+  frontend/manifest.json   — App manifest (dark theme, standalone display)
+  frontend/sw.js           — Cache-first shell, network-first /api/*
+  main.py routes:          GET /manifest.json, /beta/manifest.json, /sw.js, /beta/sw.js
+
+────────────────────────────────────────────────────────────────
+LEGACY TERMINAL ARCHITECTURE (Historical Reference Only)
+────────────────────────────────────────────────────────────────
+
+This section describes the original terminal UI that was replaced.
+The API contracts (/api/chat, __cmd_newgame__, bracket commands) are unchanged.
+
 This document describes the complete frontend UI workflow, state machine,
 rendering pipeline, and conventions. The frontend is a SINGLE FILE
 (frontend/index.html) — an IIFE with no build step.
