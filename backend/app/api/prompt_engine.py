@@ -8,7 +8,9 @@ from backend.app.engine.extractors.turn_extractor import (
     TurnKnowledgeResolution,
 )
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from backend.app.auth.dependencies import get_optional_user
+from backend.app.db.repos import SessionRepo, ConversationRepo
 
 import httpx
 import json
@@ -891,18 +893,122 @@ async def _translate_to_chinese(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# STATE SERIALIZATION / RESTORATION  (only safe primitive fields)
+# ---------------------------------------------------------------------------
+def _serialize_state(state: GameState, log: list) -> str:
+    """Serialize only the fields needed to resume a session after a restart."""
+    return json.dumps({
+        "story": state.story,
+        "gender": state.gender,
+        "player_name": state.player_name,
+        "minute": state.minute,
+        "location": state.location,
+        "location_id": getattr(state, "location_id", ""),
+        "emotion": state.emotion,
+        "relationship": state.relationship,
+        "turns": state.turns,
+        "over": state.over,
+        "instance": state.instance,
+        "user_formal_name": getattr(state.user, "formal_name", "") if state.user else "",
+        "user_display_name": getattr(state.user, "display_name", "") if state.user else "",
+        "log": log,
+    })
+
+
+def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
+    """
+    Try to restore a session from SQLite. Returns a SESSIONS-shaped dict or None.
+    This is called synchronously (in a non-async context from get_session).
+    We use asyncio.get_event_loop().run_until_complete() only if no loop is running;
+    otherwise we fall back to the blocking sync call.
+    """
+    import asyncio
+    try:
+        # Attempt the sync path directly (avoids event loop complexity)
+        from backend.app.db.repos import SessionRepo as _SR
+        import asyncio as _asyncio
+        loop = _asyncio.get_event_loop()
+        if loop.is_running():
+            # We're inside an async context — cannot block. Return None and let
+            # the async chat_handler populate from DB after this call.
+            return None
+        row = loop.run_until_complete(_SR.get_session(session_id=session_id, user_id=user_id))
+    except Exception:
+        return None
+
+    if not row:
+        return None
+
+    try:
+        saved = json.loads(row.get("state_json") or "{}")
+        flags = json.loads(row.get("flags_json") or "{}")
+    except Exception:
+        return None
+
+    if not saved.get("story"):
+        return None
+
+    # Rebuild a minimal GameState from saved primitives
+    try:
+        story_def = load_story(saved["story"])
+        if not story_def:
+            return None
+        restored = init_state()
+        restored.story = saved["story"]
+        restored.gender = saved.get("gender", "M")
+        restored.player_name = saved.get("player_name", "Player")
+        restored.minute = saved.get("minute", 0)
+        restored.location = saved.get("location", "")
+        restored.location_id = saved.get("location_id", "")
+        restored.emotion = saved.get("emotion", "neutral")
+        restored.relationship = saved.get("relationship", 0)
+        restored.turns = saved.get("turns", 0)
+        restored.over = saved.get("over", False)
+        restored.instance = saved.get("instance", 1)
+        restored.story_cfg = _canonicalize_story_cfg(story_def)
+        restored.user_id = user_id
+        if restored.user:
+            restored.user.formal_name = saved.get("user_formal_name", restored.player_name)
+            restored.user.display_name = saved.get("user_display_name", restored.player_name)
+            restored.user.gender = restored.gender
+
+        # Re-seed epistemic and transient knowledge (same as newgame)
+        _seed_epistemic_from_story(restored.story_cfg, restored)
+        restored.clear_all_transient_entries()
+        _seed_noncanonical_story_details_to_transient(story_def, restored)
+
+        return {
+            "state": restored,
+            "log": saved.get("log", []),
+            "debug_mode": flags.get("debug_mode", False),
+            "chinese_mode": flags.get("chinese_mode", False),
+            "epistemic_state": flags.get("epistemic_state", True),
+            "truth_mode": flags.get("truth_mode", False),
+            "user_id": user_id,
+        }
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # SESSION RETRIEVAL
 # ---------------------------------------------------------------------------
-def get_session(session_id: str):
+def get_session(session_id: str, user_id: str = "anon"):
     if session_id not in SESSIONS:
-        SESSIONS[session_id] = {
-            "state": init_state(),
-            "log": [],
-            "debug_mode": False,
-            "chinese_mode": False,
-            "epistemic_state": True,
-            "truth_mode": False,
-        }
+        # Try to restore from DB on cache miss (handles server restarts)
+        restored = _try_load_session_from_db(session_id, user_id)
+        if restored:
+            SESSIONS[session_id] = restored
+        else:
+            SESSIONS[session_id] = {
+                "state": init_state(),
+                "log": [],
+                "debug_mode": False,
+                "chinese_mode": False,
+                "epistemic_state": True,
+                "truth_mode": False,
+                "user_id": user_id,
+            }
     return SESSIONS[session_id]
 
 
@@ -1007,9 +1113,10 @@ def handle_name_confirmation(user_msg: str, state: GameState):
 # MAIN CHAT ENDPOINT
 # ---------------------------------------------------------------------------
 @router.post("/chat")
-async def chat_handler(data: dict):
+async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optional_user)):
     req_id = str(uuid.uuid4())[:8]
     session_id = data.get("session_id") or "default"
+    user_id = _auth_user["sub"] if _auth_user else "anon"
 
     # Scrub a leading '>' used by the terminal UI for quoting.
     raw_msg = str(data.get("message", "") or "")
@@ -1018,7 +1125,7 @@ async def chat_handler(data: dict):
         raw_msg = stripped[1:].lstrip()
     msg = str(raw_msg).strip()
 
-    sess = get_session(session_id)
+    sess = get_session(session_id, user_id)
     state: GameState = sess["state"]
     log = sess["log"]
 
@@ -1168,6 +1275,7 @@ async def chat_handler(data: dict):
             "chinese_mode": False,
             "epistemic_state": True,
             "truth_mode": False,
+            "user_id": user_id,
         }
         try:
             SESSIONS[session_id]["state"].clear_all_transient_entries()
@@ -1195,7 +1303,7 @@ async def chat_handler(data: dict):
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
         new_state.story_cfg = _canonicalize_story_cfg(story_def)
-        new_state.user_id = DEFAULT_USER_ID
+        new_state.user_id = user_id if user_id != "anon" else DEFAULT_USER_ID
         try:
             new_state.instance = int(getattr(story_def, "instance", DEFAULT_INSTANCE))
         except Exception:
@@ -1349,6 +1457,30 @@ async def chat_handler(data: dict):
             {"role": "system", "content": build_messages(new_state, [], "", [])[0]["content"]},
             {"role": "assistant", "content": opening}
         ]
+
+        # Persist new session to DB (authenticated users only)
+        if user_id != "anon":
+            try:
+                story_title = story_def.get("title", story_id) if hasattr(story_def, "get") else story_id
+                await SessionRepo.create_or_update_session(
+                    session_id=session_id,
+                    user_id=user_id,
+                    story_id=story_id,
+                    story_title=story_title,
+                    player_name=player_name,
+                    gender=new_state.gender,
+                    state_json=_serialize_state(new_state, []),
+                    flags_json=json.dumps({
+                        "debug_mode": False,
+                        "chinese_mode": False,
+                        "epistemic_state": True,
+                        "truth_mode": False,
+                    }),
+                    last_message=opening[:120],
+                    turns=0,
+                )
+            except Exception:
+                pass  # persistence failure must not break gameplay
 
         # Apply Chinese translation if chinese_mode is enabled
         reply = opening
@@ -1664,6 +1796,40 @@ async def chat_handler(data: dict):
     log.append({"role": "user", "content": msg})
     log.append({"role": "assistant", "content": clean})
     sess["log"] = log[-MEMORY_TURNS:]
+
+    # Persist state + raw log after every turn (authenticated users only)
+    if user_id != "anon":
+        try:
+            story_title = ""
+            if hasattr(state, "story_cfg") and state.story_cfg:
+                cfg = state.story_cfg
+                story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
+            await SessionRepo.create_or_update_session(
+                session_id=session_id,
+                user_id=user_id,
+                story_id=state.story or "",
+                story_title=story_title,
+                player_name=state.player_name or "",
+                gender=state.gender or "M",
+                state_json=_serialize_state(state, sess["log"]),
+                flags_json=json.dumps({
+                    "debug_mode": bool(sess.get("debug_mode", False)),
+                    "chinese_mode": bool(sess.get("chinese_mode", False)),
+                    "epistemic_state": bool(sess.get("epistemic_state", True)),
+                    "truth_mode": bool(sess.get("truth_mode", False)),
+                }),
+                last_message=clean[:120],
+                turns=state.turns,
+            )
+            await ConversationRepo.append_turns(
+                user_id=user_id,
+                session_id=session_id,
+                user_msg=msg,
+                assistant_reply=clean,
+                turn=state.turns,
+            )
+        except Exception:
+            pass  # persistence failure must not break gameplay
 
     try:
         state.add_transient_entry(

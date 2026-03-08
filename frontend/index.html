@@ -368,6 +368,38 @@
     .btn-continue:disabled { opacity: 0.4; cursor: default; }
     .btn-continue:not(:disabled):active { background: var(--red-dark); }
 
+    /* ── Login modal ── */
+    #modal-login {
+      position: fixed; inset: 0; z-index: 310;
+      background: rgba(0,0,0,0.92);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #modal-login.open { display: flex; }
+    .login-card {
+      background: var(--surface); border-radius: 20px;
+      padding: 36px 28px; width: 100%; max-width: 360px;
+      text-align: center;
+    }
+    .login-logo { font-size: 40px; margin-bottom: 12px; }
+    .login-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+    .login-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 28px; }
+    .login-google-btn {
+      width: 100%; height: 52px; border-radius: 12px;
+      background: #fff; color: #333;
+      border: none; cursor: pointer;
+      font-size: 15px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+    }
+    .login-google-btn:active { background: #e8e8e8; }
+    .login-google-btn svg { flex-shrink: 0; }
+    .login-dismiss {
+      margin-top: 18px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; text-decoration: underline;
+    }
+
     /* ══════════════════════════════════════════════
        MY GAMES SCREEN
     ══════════════════════════════════════════════ */
@@ -985,6 +1017,20 @@
   </div>
 </div>
 
+<!-- Login modal -->
+<div id="modal-login">
+  <div class="login-card">
+    <div class="login-logo">✦</div>
+    <div class="login-title">Sign in to play</div>
+    <div class="login-sub">Create a free account to save your games and pick up where you left off.</div>
+    <button class="login-google-btn" id="google-signin-btn">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+    <div class="login-dismiss" id="login-dismiss-btn">Maybe later</div>
+  </div>
+</div>
+
 <!-- World map modal -->
 <div id="map-modal">
   <button id="map-modal-close">✕</button>
@@ -1008,15 +1054,38 @@ var path = window.location.pathname.toLowerCase();
 var IS_BETA = host.startsWith("beta.") || path.includes("/beta/") || path.endsWith("/beta");
 
 var API_BASE    = IS_BETA ? "https://beta-api.storieschat.ai/api" : "https://api.storieschat.ai/api";
+var AUTH_BASE   = API_BASE.replace("/api", "");  // e.g. https://beta-api.storieschat.ai
 var STORIES_URL = API_BASE + "/stories";
 var STORY_URL   = API_BASE + "/story";
 var CHAT_URL    = API_BASE + "/chat";
 var DRAFT_URL   = API_BASE + "/stories/draft";
+var USER_SESSIONS_URL = API_BASE + "/user/sessions";
+var AUTH_ME_URL = API_BASE + "/auth/me";
+var GOOGLE_LOGIN_URL = AUTH_BASE + "/auth/google/login";
 
 /* ─── STORAGE KEYS ──────────────────────────────── */
 var SESSIONS_KEY = "storieschat_sessions";
 var PROFILE_KEY  = "storieschat_profile";
 var STATS_KEY    = "storieschat_stats";
+var JWT_KEY      = "storieschat_jwt";
+
+/* ─── JWT HELPERS ───────────────────────────────── */
+function getToken(){ return localStorage.getItem(JWT_KEY); }
+function setToken(t){ localStorage.setItem(JWT_KEY, t); }
+function clearToken(){ localStorage.removeItem(JWT_KEY); }
+
+function apiHeaders(){
+  var h = { "Content-Type": "application/json" };
+  var t = getToken();
+  if (t) h["Authorization"] = "Bearer " + t;
+  return h;
+}
+
+function handleUnauthorized(){
+  clearToken();
+  showToast("Session expired — please sign in again.");
+  refreshProfileScreen();
+}
 
 /* ─── APP STATE ─────────────────────────────────── */
 var appState = {
@@ -1289,8 +1358,27 @@ function showGameDetail(story){
   openModal("modal-game-detail");
 }
 
+/* ─── LOGIN MODAL ───────────────────────────────── */
+function showLoginModal(story){
+  appState.pendingStory = story || appState.pendingStory;
+  openModal("modal-login");
+}
+
+$("google-signin-btn").addEventListener("click", function(){
+  window.location.href = GOOGLE_LOGIN_URL;
+});
+
+$("login-dismiss-btn").addEventListener("click", function(){
+  closeModal("modal-login");
+});
+
 /* ─── ONBOARDING FLOW ───────────────────────────── */
 function startGame(story){
+  // Auth gate: must be logged in to play
+  if (!getToken()) {
+    showLoginModal(story);
+    return;
+  }
   appState.pendingStory = story;
   appState.onboardStep = "name";
   appState.onboardName = "";
@@ -1416,6 +1504,51 @@ function launchChat(story, playerName, gender){
   saveStats(stats);
 }
 
+function _renderLoadEarlierBtn(sessionId, oldestTurn){
+  var msgs = $("chat-messages");
+  var existing = msgs.querySelector(".load-earlier-btn");
+  if (existing) existing.remove();
+
+  if (oldestTurn <= 1) return;
+
+  var btn = document.createElement("button");
+  btn.className = "load-earlier-btn";
+  btn.style.cssText = "display:block;margin:8px auto;padding:8px 20px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--text-sub);font-size:13px;cursor:pointer;";
+  btn.textContent = "Load earlier messages";
+  btn.onclick = function(){
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/history?before_turn=" + oldestTurn + "&limit=20", { headers: apiHeaders() })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        btn.remove();
+        var entries = data.entries || [];
+        // Render oldest-first above existing messages
+        var firstMsg = msgs.querySelector(".msg-row");
+        entries.forEach(function(e){
+          var row = document.createElement("div");
+          row.className = "msg-row " + (e.role === "user" ? "user" : "npc");
+          var bubble = document.createElement("div");
+          bubble.className = "msg-bubble " + (e.role === "user" ? "user" : "npc");
+          bubble.innerHTML = formatMsgText(e.content);
+          if (e.role !== "user"){
+            var av = document.createElement("div");
+            av.className = "msg-avatar";
+            av.textContent = appState.currentStory ? genreEmoji(appState.currentStory.genre || "") : "🎭";
+            row.appendChild(av);
+          }
+          row.appendChild(bubble);
+          if (firstMsg) msgs.insertBefore(row, firstMsg);
+          else msgs.appendChild(row);
+        });
+        if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
+      })
+      .catch(function(){ btn.remove(); });
+  };
+  if (msgs.firstChild) msgs.insertBefore(btn, msgs.firstChild);
+  else msgs.appendChild(btn);
+}
+
 function resumeGameFromSession(sess){
   // Find story
   var story = appState.stories.find(function(s){ return s.id === sess.story_id; })
@@ -1432,9 +1565,32 @@ function resumeGameFromSession(sess){
   var msgs = $("chat-messages");
   msgs.innerHTML = "";
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
-  addSystemMessage("(History not shown — continue where you left off)");
 
   showScreen("chat");
+
+  // Load recent history from backend if logged in
+  var sessionId = sess.session_id;
+  if (getToken() && sessionId) {
+    fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/history?limit=20", { headers: apiHeaders() })
+      .then(function(r){
+        if (r.status === 401){ handleUnauthorized(); return null; }
+        return r.json();
+      })
+      .then(function(data){
+        if (!data) return;
+        var entries = data.entries || [];
+        entries.forEach(function(e){
+          addMessage(e.role === "user" ? "user" : "npc", e.content);
+        });
+        if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
+        if (!entries.length) addSystemMessage("(Continue where you left off)");
+      })
+      .catch(function(){
+        addSystemMessage("(History unavailable — continue where you left off)");
+      });
+  } else {
+    addSystemMessage("(History not shown — continue where you left off)");
+  }
 
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
@@ -1532,10 +1688,13 @@ function sendMessage(text, isInit){
 
   fetch(CHAT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(),
     body: JSON.stringify({ message: text, session_id: session ? session.session_id : genUUID() })
   })
-  .then(function(r){ return r.json(); })
+  .then(function(r){
+    if (r.status === 401){ handleUnauthorized(); throw new Error("auth"); }
+    return r.json();
+  })
   .then(function(data){
     hideTypingIndicator();
     if (data && data.error){
@@ -1695,28 +1854,32 @@ $("map-modal-close").addEventListener("click", function(){ closeModal("map-modal
 $("map-modal").addEventListener("click", function(e){ if(e.target === this) closeModal("map-modal"); });
 
 /* ─── MY GAMES SCREEN ───────────────────────────── */
-function renderGamesList(){
-  var sessions = loadSessions();
+function renderGamesListEmpty(){
+  var list = $("games-list");
+  list.innerHTML = [
+    '<div class="empty-state">',
+    '<div class="empty-icon">💬</div>',
+    '<div class="empty-title">No games yet</div>',
+    '<div class="empty-sub">Explore the home page and start your first narrative adventure.</div>',
+    '<button class="btn-empty-action" id="empty-explore-btn">Explore Games</button>',
+    '</div>'
+  ].join("");
+  var exploreBtn = $("empty-explore-btn");
+  if (exploreBtn) exploreBtn.onclick = function(){ showScreen("home"); };
+}
+
+function renderSessionsRows(sessions){
   var list = $("games-list");
   list.innerHTML = "";
 
-  if (!sessions.length){
-    list.innerHTML = [
-      '<div class="empty-state">',
-      '<div class="empty-icon">💬</div>',
-      '<div class="empty-title">No games yet</div>',
-      '<div class="empty-sub">Explore the home page and start your first narrative adventure.</div>',
-      '<button class="btn-empty-action" id="empty-explore-btn">Explore Games</button>',
-      '</div>'
-    ].join("");
-    var exploreBtn = $("empty-explore-btn");
-    if (exploreBtn) exploreBtn.onclick = function(){ showScreen("home"); };
+  if (!sessions || !sessions.length){
+    renderGamesListEmpty();
     return;
   }
 
   sessions.forEach(function(sess){
     var story = appState.stories.find(function(s){ return s.id === sess.story_id; })
-      || { id: sess.story_id, title: sess.story_title, genre: "" };
+      || { id: sess.story_id || sess.id, title: sess.story_title, genre: "" };
 
     var item = document.createElement("div");
     item.className = "game-list-item";
@@ -1728,27 +1891,77 @@ function renderGamesList(){
     var body = document.createElement("div");
     body.className = "game-list-body";
     body.innerHTML = [
-      '<div class="game-list-title">' + escapeHTML(sess.story_title || story.title) + '</div>',
+      '<div class="game-list-title">' + escapeHTML(sess.story_title || story.title || "Game") + '</div>',
       '<div class="game-list-sub">' + escapeHTML(sess.last_message || "Tap to continue") + '</div>'
     ].join("");
 
     var time = document.createElement("div");
     time.className = "game-list-time";
-    time.textContent = timeAgo(sess.last_played);
+    // Backend returns last_played as Unix seconds; localStorage uses ms
+    var ts = sess.last_played ? (sess.last_played > 1e12 ? sess.last_played : sess.last_played * 1000) : 0;
+    time.textContent = timeAgo(ts);
 
     item.appendChild(thumb);
     item.appendChild(body);
     item.appendChild(time);
 
     item.onclick = function(){
-      if (appState.stories.length === 0) {
-        loadStories();
-      }
-      resumeGameFromSession(sess);
+      if (appState.stories.length === 0) loadStories();
+      // Normalize session shape for resumeGameFromSession
+      var normalized = {
+        story_id: sess.story_id || sess.id || "",
+        story_title: sess.story_title || story.title || "",
+        session_id: sess.session_id || sess.id || genUUID(),
+        player_name: sess.player_name || "Player",
+        gender: sess.gender || "M",
+        last_played: ts,
+        last_message: sess.last_message || "",
+        turns: sess.turns || 0,
+      };
+      resumeGameFromSession(normalized);
     };
 
     list.appendChild(item);
   });
+}
+
+function renderGamesList(){
+  var list = $("games-list");
+
+  if (!getToken()){
+    // Not logged in — show localStorage sessions or empty + login prompt
+    var localSessions = loadSessions();
+    if (!localSessions.length){
+      list.innerHTML = [
+        '<div class="empty-state">',
+        '<div class="empty-icon">🔐</div>',
+        '<div class="empty-title">Sign in to save games</div>',
+        '<div class="empty-sub">Your progress is saved when you\'re logged in. Browse freely — login when you play.</div>',
+        '<button class="btn-empty-action" id="empty-login-btn">Sign in with Google</button>',
+        '</div>'
+      ].join("");
+      var loginBtn = $("empty-login-btn");
+      if (loginBtn) loginBtn.onclick = function(){ showLoginModal(); };
+    } else {
+      renderSessionsRows(localSessions);
+    }
+    return;
+  }
+
+  // Logged in — load from backend
+  list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>';
+  fetch(USER_SESSIONS_URL, { headers: apiHeaders() })
+    .then(function(r){
+      if (r.status === 401){ handleUnauthorized(); return null; }
+      return r.json();
+    })
+    .then(function(data){
+      if (!data) return;
+      renderSessionsRows(data.sessions || []);
+    })
+    .catch(function(){
+      renderGamesListEmpty();
+    });
 }
 
 /* ─── CREATE SCREEN ─────────────────────────────── */
@@ -1802,6 +2015,24 @@ function refreshProfileScreen(){
   $("stat-games").textContent = stats.games || 0;
   $("stat-wins").textContent = stats.wins || 0;
   $("stat-turns").textContent = stats.turns || 0;
+
+  var token = getToken();
+  if (token) {
+    fetch(AUTH_ME_URL, { headers: apiHeaders() })
+      .then(function(r){
+        if (r.status === 401){ handleUnauthorized(); return null; }
+        return r.json();
+      })
+      .then(function(user){
+        if (!user) return;
+        if ($("profile-name")) $("profile-name").textContent = user.name || "Player";
+        if ($("profile-handle")) $("profile-handle").textContent = user.email || "@storieschat";
+      })
+      .catch(function(){});
+  } else {
+    if ($("profile-name")) $("profile-name").textContent = "Guest";
+    if ($("profile-handle")) $("profile-handle").textContent = "Sign in to save progress";
+  }
 }
 
 /* ─── TAB BAR ───────────────────────────────────── */
@@ -1838,6 +2069,18 @@ if ("serviceWorker" in navigator) {
 }
 
 /* ─── BOOT ──────────────────────────────────────── */
+// Extract JWT from callback redirect (?token=...)
+(function(){
+  var urlParams = new URLSearchParams(window.location.search);
+  var tokenParam = urlParams.get("token");
+  if (tokenParam) {
+    setToken(tokenParam);
+    // Remove token from URL without reloading
+    history.replaceState({}, "", window.location.pathname);
+    showToast("Welcome back!");
+  }
+})();
+
 showScreen("home");
 
 })();

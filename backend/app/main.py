@@ -13,6 +13,9 @@ from backend.app.api.story import router as story_router
 from backend.app.api.stories import router as stories_router
 from backend.app.api.integration_playback import router as integration_playback_router
 from backend.app.api.debug_engine import router as debug_router, ws_debug
+from backend.app.api.auth import router as auth_router
+from backend.app.api.user_sessions import router as user_sessions_router
+from backend.app.db.database import init_db
 
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
@@ -69,6 +72,7 @@ def _startup_checks():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     _startup_checks()
     yield
 
@@ -98,6 +102,8 @@ origins = [
     "https://storieschat.ai/beta",
     "https://beta.storieschat.ai",
     "https://beta-api.storieschat.ai",
+    "http://localhost:8899",
+    "http://127.0.0.1:8899",
 ]
 
 app.add_middleware(
@@ -119,6 +125,8 @@ app.include_router(story_router, prefix="/api")
 app.include_router(stories_router, prefix="/api")
 app.include_router(integration_playback_router, prefix="/api")
 app.include_router(debug_router, prefix="/beta/debug")
+app.include_router(auth_router)
+app.include_router(user_sessions_router)
 
 # WebSocket for debug UI
 app.add_websocket_route("/beta/debug/ws", ws_debug)
