@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import os
 import threading
 from pathlib import Path
@@ -24,6 +25,7 @@ _DEBUG_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "debug.ht
 _INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.html"
 _MANIFEST_PATH    = Path(__file__).parent.parent.parent / "frontend" / "manifest.json"
 _SW_PATH          = Path(__file__).parent.parent.parent / "frontend" / "sw.js"
+_IMG_DIR          = Path(__file__).parent.parent.parent / "frontend" / "img"
 
 
 # --------------------------------------------------
@@ -131,6 +133,12 @@ app.include_router(user_sessions_router)
 # WebSocket for debug UI
 app.add_websocket_route("/beta/debug/ws", ws_debug)
 
+# --------------------------------------------------
+# Static assets (game thumbnails etc.)
+# --------------------------------------------------
+_IMG_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/img", StaticFiles(directory=str(_IMG_DIR)), name="img")
+
 
 # --------------------------------------------------
 # Frontend pages (served by Railway; keeps Namecheap out of the loop)
@@ -177,3 +185,10 @@ async def version():
         "backend": "python",
         "message": "StoriesChat FastAPI backend running"
     }
+
+
+# version.json — served as a relative asset from both / and /beta/
+@app.get("/version.json")
+@app.get("/beta/version.json")
+async def version_json():
+    return {"version": "1.0.0"}

@@ -1053,8 +1053,10 @@ var host = window.location.hostname.toLowerCase();
 var path = window.location.pathname.toLowerCase();
 var IS_BETA = host.startsWith("beta.") || path.includes("/beta/") || path.endsWith("/beta");
 
-var API_BASE    = IS_BETA ? "https://beta-api.storieschat.ai/api" : "https://api.storieschat.ai/api";
-var AUTH_BASE   = API_BASE.replace("/api", "");  // e.g. https://beta-api.storieschat.ai
+// API is served from the same origin as the frontend (single Docker container).
+// Using same-origin avoids any subdomain DNS/CORS issues.
+var API_BASE    = window.location.origin + "/api";
+var AUTH_BASE   = window.location.origin;
 var STORIES_URL = API_BASE + "/stories";
 var STORY_URL   = API_BASE + "/story";
 var CHAT_URL    = API_BASE + "/chat";

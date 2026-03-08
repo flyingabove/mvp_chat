@@ -1,0 +1,55 @@
+{
+  "id": "blackout_manor",
+  "title": "Blackout Manor",
+  "theme": "murder",
+  "description": "A stormy night. A locked estate. Eight guests and a dead host. The power is out, the killer is still in the house — and everyone has something to hide.",
+  "genre": "Murder Mystery",
+  "thumbnail_url": "/img/blackout_manor.svg",
+  "featured": true,
+  "instance": 1,
+  "meta": {
+    "disclaimer": "This is a work of fiction. All characters and events are invented for storytelling purposes."
+  },
+  "setting": {
+    "location": "Hargreave Estate, rural England",
+    "time": "A stormy Friday night in autumn",
+    "atmosphere": "Isolated Victorian manor with no power, flickering candles, and locked doors"
+  },
+  "player_role": "Detective",
+  "win_text_rule": "Name the killer, weapon, and room — and prove it with evidence from the conversation.",
+  "characters": [
+    {
+      "key": "eleanor",
+      "name": "Eleanor Voss",
+      "role": "butler",
+      "is_main": true,
+      "motive": "Protecting a dark family secret about the estate's inheritance",
+      "tells": "Pauses before answering questions about the east wing"
+    }
+  ],
+  "character_self_knowledge": [
+    "You have served Hargreave Manor for thirty years.",
+    "You were the last person to see Lord Hargreave alive — in the east wing study.",
+    "You know the secret passage behind the fireplace in the library."
+  ],
+  "epistemic_seed": {
+    "canonical_facts": [
+      {
+        "id": "cf_lord_dead",
+        "statement": "Lord Hargreave was found dead in the east wing study at 9:15 PM.",
+        "confidence": 1.0,
+        "known_by": ["eleanor"]
+      },
+      {
+        "id": "cf_candlestick",
+        "statement": "A heavy silver candlestick is missing from the mantelpiece in the east wing study.",
+        "confidence": 1.0,
+        "known_by": ["eleanor"]
+      }
+    ],
+    "belief_seeds": []
+  },
+  "relationships": {
+    "edges": []
+  }
+}

@@ -4,7 +4,7 @@
   "theme": "epistemic_murder_demo",
   "description": "A pop star is found dead in a suspect's apartment. You have one night to crack contradictions and force a confession before evidence vanishes.",
   "genre": "Murder Mystery",
-  "thumbnail_url": null,
+  "thumbnail_url": "/img/jennie_mini.svg",
   "featured": true,
   "instance": 1,
   "meta": {
