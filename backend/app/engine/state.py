@@ -283,12 +283,19 @@ class GameState:
     # ==============================================================
     last_assistant_guess_name: str = ""
 
-    # ============================================================== 
+    # ==============================================================
     # Single-call turn extractor carryover context
-    # ============================================================== 
+    # ==============================================================
     last_turn_user_msg: str = ""
     last_turn_assistant_reply: str = ""
     last_turn_retrieved_chunks: List[Dict[str, Any]] = field(default_factory=list)
+
+    # ==============================================================
+    # Session-level dialogue fact store (not serialized to state_json)
+    # Holds facts extracted from user/AI messages via dialogue_extractor.
+    # chunk IDs: usr-{msg_id}-{n} / ai-{msg_id}-{n}
+    # ==============================================================
+    session_chunk_store: Any = field(default=None)
 
     # ==============================================================
     # BACKWARD COMPAT (deprecated - use direct attribute access instead)

@@ -77,6 +77,11 @@ def client(monkeypatch):
 
     monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _FakeAsyncClient)
 
+    # Suppress background dialogue extraction so it doesn't fire extra LLM calls.
+    async def _noop_extract(*args, **kwargs):
+        return []
+    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _noop_extract, raising=False)
+
     from backend.app import main
     return TestClient(main.app)
 
