@@ -167,13 +167,22 @@ def _jsonl_path(user_id: str, session_id: str) -> Path:
 
 class ConversationRepo:
     @staticmethod
-    def _append(user_id: str, session_id: str, user_msg: str, assistant_reply: str, turn: int) -> None:
+    def _append(
+        user_id: str, session_id: str, user_msg: str, assistant_reply: str, turn: int,
+        user_msg_id: str = "", ai_msg_id: str = "",
+    ) -> None:
         path = _jsonl_path(user_id, session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         ts = int(time.time())
         with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"turn": turn, "role": "user", "content": user_msg, "ts": ts}) + "\n")
-            f.write(json.dumps({"turn": turn, "role": "assistant", "content": assistant_reply, "ts": ts}) + "\n")
+            user_entry: dict = {"turn": turn, "role": "user", "content": user_msg, "ts": ts}
+            if user_msg_id:
+                user_entry["msg_id"] = user_msg_id
+            f.write(json.dumps(user_entry) + "\n")
+            ai_entry: dict = {"turn": turn, "role": "assistant", "content": assistant_reply, "ts": ts}
+            if ai_msg_id:
+                ai_entry["msg_id"] = ai_msg_id
+            f.write(json.dumps(ai_entry) + "\n")
 
     @staticmethod
     def _load_recent(user_id: str, session_id: str, limit: int = 20) -> list[dict]:
@@ -210,9 +219,13 @@ class ConversationRepo:
 
     @classmethod
     async def append_turns(
-        cls, user_id: str, session_id: str, user_msg: str, assistant_reply: str, turn: int
+        cls, user_id: str, session_id: str, user_msg: str, assistant_reply: str, turn: int,
+        user_msg_id: str = "", ai_msg_id: str = "",
     ) -> None:
-        await asyncio.to_thread(cls._append, user_id, session_id, user_msg, assistant_reply, turn)
+        await asyncio.to_thread(
+            cls._append, user_id, session_id, user_msg, assistant_reply, turn,
+            user_msg_id, ai_msg_id,
+        )
 
     @classmethod
     async def load_recent(cls, user_id: str, session_id: str, limit: int = 20) -> list[dict]:

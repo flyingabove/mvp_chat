@@ -23,6 +23,8 @@ import uuid
 
 
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
+from backend.app.knowledge.runtime.session_chunk_store import SessionChunkStore
+from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_from_message
 
 from backend.app.knowledge.runtime.index_service import IndexService
 
@@ -1125,8 +1127,17 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
         raw_msg = stripped[1:].lstrip()
     msg = str(raw_msg).strip()
 
+    # Assign a stable UUID hex to this user message (12 chars, e.g. "a8f3c2d1b9e4").
+    # Stored in JSONL with the turn; used as chunk ID prefix for extracted facts.
+    user_msg_id: str = uuid.uuid4().hex[:12]
+
     sess = get_session(session_id, user_id)
     state: GameState = sess["state"]
+
+    # Initialise the per-session dialogue fact store on first turn (state may be
+    # None for brand-new sessions before newgame initialises it).
+    if state is not None and state.session_chunk_store is None:
+        state.session_chunk_store = SessionChunkStore()
     log = sess["log"]
 
     # Sync epistemic master flag to this session's toggle.
@@ -1453,6 +1464,7 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
         opening = apply_placeholders(opening, new_state)
 
         sess["state"] = new_state
+        new_state.session_chunk_store = SessionChunkStore()
         sess["log"] = [
             {"role": "system", "content": build_messages(new_state, [], "", [])[0]["content"]},
             {"role": "assistant", "content": opening}
@@ -1559,7 +1571,10 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
         if getattr(state, "knowledge_character_id", ""):
             IndexService.set_active_character(state.knowledge_character_id)
         namespace = build_namespace_key(user_id=getattr(state, "user_id", ""), story_id=getattr(state, "story", ""), instance=getattr(state, "instance", 1))
-        retrieved, debug = retrieve_knowledge(msg, namespace=namespace)
+        retrieved, debug = retrieve_knowledge(
+            msg, namespace=namespace,
+            session_store=state.session_chunk_store,
+        )
     except Exception as e:
         _log({"kind": "retrieval_error", "error": str(e)})
         return {"error": "knowledge retrieval failed", "character": "default"}
@@ -1788,6 +1803,9 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
 
+    # UUID for the AI message — generated here so it's available for JSONL persistence below.
+    ai_msg_id: str = uuid.uuid4().hex[:12]
+
     if not isinstance(tag, dict):
         tag = {"emotion": state.emotion, "rel_delta": 0}
 
@@ -1827,6 +1845,8 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
                 user_msg=msg,
                 assistant_reply=clean,
                 turn=state.turns,
+                user_msg_id=user_msg_id,
+                ai_msg_id=ai_msg_id,
             )
         except Exception:
             pass  # persistence failure must not break gameplay
@@ -1883,6 +1903,33 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
     state.last_turn_user_msg = msg
     state.last_turn_assistant_reply = clean
     state.last_turn_retrieved_chunks = [dict(c) for c in (retrieved or [])]
+
+    # Fire background fact extraction (non-blocking).
+    # Extracted facts are stored in state.session_chunk_store with IDs:
+    #   usr-{user_msg_id}-{n}  (from user message)
+    #   ai-{ai_msg_id}-{n}     (from AI reply)
+    character_id = str(getattr(state, "knowledge_character_id", "") or state.story or "unknown")
+    if state.session_chunk_store is not None:
+        import asyncio as _asyncio
+
+        async def _extract_and_store(
+            _user_msg: str, _user_id: str, _ai_reply: str, _ai_id: str,
+            _char_id: str, _store: "SessionChunkStore",
+        ) -> None:
+            try:
+                usr_chunks = await extract_facts_from_message(_user_msg, "user", _user_id, _char_id)
+                ai_chunks = await extract_facts_from_message(_ai_reply, "assistant", _ai_id, _char_id)
+                _store.add_chunks(usr_chunks + ai_chunks)
+            except Exception:
+                pass
+
+        try:
+            _asyncio.ensure_future(_extract_and_store(
+                msg, user_msg_id, clean, ai_msg_id,
+                character_id, state.session_chunk_store,
+            ))
+        except Exception:
+            pass
 
     _log({
         "kind": "chat_response",

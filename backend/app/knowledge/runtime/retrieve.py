@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Tuple, List, Dict, Any, Optional
+from typing import TYPE_CHECKING, Tuple, List, Dict, Any, Optional
 
 from backend.app.knowledge.runtime.index_service import IndexService
+
+if TYPE_CHECKING:
+    from backend.app.knowledge.runtime.session_chunk_store import SessionChunkStore
 
 
 def retrieve_knowledge(
@@ -11,9 +14,14 @@ def retrieve_knowledge(
     k_faiss: int = 8,
     k_final: int = 8,
     namespace: Optional[str] = None,
+    session_store: Optional["SessionChunkStore"] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    Hybrid BM25 + FAISS retrieval.
+    Hybrid BM25 + FAISS retrieval, optionally supplemented by session-level chunks.
+
+    session_store: an optional SessionChunkStore holding facts extracted from
+      prior dialogue turns. Its results are merged with the main retrieval
+      results, deduplicated by chunk_id, up to k_final total chunks.
 
     Returns:
       retrieved_chunks: List[chunk dict]
@@ -69,7 +77,11 @@ def retrieve_knowledge(
         fused_idxs = hybrid_retrieve(bm25_idxs, faiss_filtered, top_k=k_final)
         retrieved_chunks = [chunks[i] for i in fused_idxs if 0 <= i < len(chunks)]
 
-        return retrieved_chunks, {
+        session_hits, session_count = _merge_session_chunks(
+            retrieved_chunks, session_store, query, k_final
+        )
+
+        return session_hits, {
             "bm25_idxs": bm25_idxs,
             "bm25_scores": bm25_scores,
             "faiss_idxs": faiss_filtered,
@@ -77,6 +89,7 @@ def retrieve_knowledge(
             "fused_idxs": fused_idxs,
             "mode": "hybrid",
             "namespace": namespace,
+            "session_chunks_added": session_count,
         }
 
     # Fallback: simple keyword scoring over chunk text.
@@ -113,8 +126,37 @@ def retrieve_knowledge(
         top = [i for i in fallback_idxs if not namespace or (chunks[i].get("namespace") or chunks[i].get("ns")) == namespace]
     retrieved_chunks = [chunks[i] for i in top]
 
-    return retrieved_chunks, {
+    session_hits, session_count = _merge_session_chunks(
+        retrieved_chunks, session_store, query, k_final
+    )
+
+    return session_hits, {
         "mode": "fallback",
         "top_idxs": top,
         "namespace": namespace,
+        "session_chunks_added": session_count,
     }
+
+
+def _merge_session_chunks(
+    main_results: List[Dict[str, Any]],
+    session_store: Optional["SessionChunkStore"],
+    query: str,
+    k_final: int,
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Merge session-level chunks into main retrieval results.
+
+    Session chunks fill remaining slots up to k_final, deduplicated by chunk_id.
+    Returns (merged_list, number_of_session_chunks_added).
+    """
+    if not session_store:
+        return main_results, 0
+
+    seen_ids = {c.get("chunk_id") for c in main_results}
+    remaining = max(0, k_final - len(main_results))
+    if remaining == 0:
+        return main_results, 0
+
+    session_hits = session_store.query(query, top_k=remaining + 4)
+    added = [c for c in session_hits if c.get("chunk_id") not in seen_ids][:remaining]
+    return main_results + added, len(added)
