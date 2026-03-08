@@ -1,5 +1,7 @@
 # Integration Test Playback Design (UI + Harness)
 
+> **What this doc is for:** Design of the integration test playback harness (UI + automated runner). Edit this doc when the playback system architecture or UI changes.
+
 ## Purpose
 Define a reusable structure for integration scenarios that can run in pytest and playback UI flows.
 

@@ -1,4 +1,7 @@
 Documentation/code reconciliation log
+
+> **What this doc is for:** Log of documentation/code mismatches and open uncertainties. Edit this doc when a doc/code discrepancy is found or resolved.
+
 Date: 2026-02-23
 
 ---

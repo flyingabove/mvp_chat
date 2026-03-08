@@ -1,6 +1,8 @@
 Infrastructure Reference
 ========================
 
+> **What this doc is for:** Infrastructure reference (Railway, Docker, env vars, domains, local dev). Edit this doc when deployment, hosting, environment variables, or infrastructure changes.
+
 ## Deployment Stack
 
 | Layer | Provider | Notes |

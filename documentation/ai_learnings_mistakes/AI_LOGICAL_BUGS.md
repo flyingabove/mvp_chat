@@ -1,5 +1,8 @@
 Logical Bug Audit — Backend Codebase
 ======================================
+
+> **What this doc is for:** Catalog of logic bugs found during audits, with root causes and fixes. Edit this doc when a new logic bug is discovered and resolved.
+
 Performed February 2026. Full read of all Python files under:
   backend/app/api/, backend/app/engine/, backend/app/config/,
   backend/app/knowledge/, scripts/scorer/story_agent_ui.py

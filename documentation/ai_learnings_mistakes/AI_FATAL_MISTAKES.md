@@ -1,5 +1,8 @@
 AI Fatal Mistakes — Record of Production Incidents
 ====================================================
+
+> **What this doc is for:** Record of production-breaking mistakes and how to avoid them. Edit this doc when a new production incident occurs that should be prevented in the future.
+
 A running list of serious mistakes that caused production breakage.
 Each entry documents what happened, why, what fixed it, and what
 mitigations were added so it never happens again.

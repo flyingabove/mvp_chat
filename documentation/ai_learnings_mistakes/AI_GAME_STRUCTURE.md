@@ -1,6 +1,8 @@
 Game Structure (Data Model)
 ====================================
 
+> **What this doc is for:** How story/game data files are structured (JSON schema, directories). Edit this doc when the story data model changes or a new file type is added.
+
 ## Core Design Philosophy: Discovery Over Introduction
 
 **Characters must be discovered through gameplay, never pre-announced.**

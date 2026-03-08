@@ -1,5 +1,7 @@
 # Auth + Per-User Persistence Design
 
+> **What this doc is for:** Design of authentication (Google OAuth) and per-user data persistence. Edit this doc when auth flow, session storage, or user data persistence changes.
+
 ## Overview
 
 StoriesChat uses Google OAuth 2.0 for authentication and Railway's `/data` persistent volume for

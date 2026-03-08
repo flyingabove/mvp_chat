@@ -1,5 +1,7 @@
 # Message → Prompt Flow Trace (Current Code Path)
 
+> **What this doc is for:** Step-by-step trace of how a user message becomes an LLM prompt. Edit this doc when the prompt assembly pipeline changes.
+
 ## Purpose
 Provide a deterministic, code-aligned trace from incoming user message to outgoing renderer prompt.
 

@@ -1,5 +1,7 @@
 # Single-Call Turn Extractor Design (Canonical)
 
+> **What this doc is for:** Design of the state-extraction LLM call (Call 1 of the two-call turn). Edit this doc when the extractor schema, prompt, or validation logic changes.
+
 ## Purpose
 Lock extractor architecture to one LLM extractor call per regular turn.
 

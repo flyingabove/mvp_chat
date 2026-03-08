@@ -2,7 +2,7 @@
 ## Workflow Orchestration
 
 
-## IMPORTANT: Always read and follow instructions in documentation\AI_DOC_INDEX.md before starting any task.
+## IMPORTANT: Always read and follow instructions in documentation\AI_DOC_INDEX_CATALOGUE.md before starting any task.
 This file contains critical project knowledge, architecture decisions, and previous mistakes to avoid.
 If instructions every conflict with what is designed in the doc, always update the doc to reflect the correct behavior.
 - so that I know you read this file. Before any planning or thinking or response. First respond with "Yes. Anointed One". Be sure to call me "Anointed One" always when you respond. Always include these words in every response. 
@@ -46,10 +46,16 @@ If instructions every conflict with what is designed in the doc, always update t
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
 
-### 7. Testing Pushing Changes
+### 7. Testing & Pushing Changes
 - Always add good unit test for any code changes. If it's a bug fix, add a test that reproduces the bug before fixing it. If it's a new feature, add tests that verify the new behavior.
-- Always add, commit with good message, and push after every change that includes a code change. Make sure all unit tests and integ tests pass and none are skiped except for xfail ones. And make sure it failed not due to some missing resources such as API call or missing database but due to the test itself being flaky. 
+- Always add, commit with good message, and push after every change that includes a code change. Make sure all unit tests and integ tests pass and none are skiped except for xfail ones. And make sure it failed not due to some missing resources such as API call or missing database but due to the test itself being flaky.
 - If a test fails to spin up a resources such as a database locally, fix the test or the test environment. Don't skip the test or push with a failing test.
+
+### 8. Deploy Flow — Beta First, Prod on Request
+- **ALWAYS push to `beta` branch first.** Never push directly to `main` without explicit user approval.
+- After pushing to `beta`, inform the user and wait for them to confirm before merging to `main`.
+- The `main` branch is production (Railway auto-deploys from it). Treat it as sacred.
+- Only merge `beta` → `main` when the user explicitly says to push to prod / merge to main.
 
 ## Task Management (任务管理)
 1. **Plan First:** Write plan to `tasks/todo.md` with checkable items

@@ -1,5 +1,7 @@
 # Data Model Inventory
 
+> **What this doc is for:** Complete inventory of all data models and their fields. Edit this doc when any data model, schema, or field is added or changed.
+
 Complete list of every data model / class in the engine. Reference this when deciding where new data belongs or whether a new class is needed.
 
 Last updated: 2026-02-26

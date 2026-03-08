@@ -1,6 +1,8 @@
 AI learnings: pushing code & adding command flags
 ==================================================
 
+> **What this doc is for:** Rules for pushing code (commit conventions, CI checks, deploy flow). Edit this doc when push/deploy workflow rules change.
+
 
 PART 1 — HOW AI PUSHES CODE (GIT PERMISSIONS)
 ----------------------------------------------

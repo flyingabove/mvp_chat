@@ -1,6 +1,8 @@
 AI learnings: integration test requirements
 ==========================================
 
+> **What this doc is for:** Requirements and constraints for integration tests (what they must test, what mocks are allowed). Edit this doc when integration test policies or mock boundaries change.
+
 Context
 - OS: Windows (PowerShell terminals). Python via conda env at C:\Users\Christian\Miniconda3.
 - .env.test is auto-loaded by tests/conftest.py; must contain OPENAI_API_KEY for integration tests that touch LLM/extractor flows.

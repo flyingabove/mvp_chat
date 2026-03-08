@@ -1,5 +1,7 @@
 # Storyteller Prompt Redesign (Plain-English, Scene-Based)
 
+> **What this doc is for:** Design of the narrative LLM prompt (Call 2 of the two-call turn). Edit this doc when the storyteller system prompt structure or injection order changes.
+
 ## Implementation status (2026-02-13)
 
 - Phase A is implemented in `backend/app/engine/prompt_builder.py`:

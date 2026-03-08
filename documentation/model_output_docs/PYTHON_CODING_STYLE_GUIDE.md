@@ -1,5 +1,7 @@
 # Python Coding Style Guide
 
+> **What this doc is for:** Python coding standards for this project. Edit this doc when coding conventions or style rules change.
+
 ## Purpose
 This document defines coding style rules for Python changes in this repository so AI agents and humans produce consistent code.
 

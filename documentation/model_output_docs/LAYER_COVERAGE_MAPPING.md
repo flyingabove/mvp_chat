@@ -1,5 +1,7 @@
 # Layer Coverage Mapping (IU Scenario)
 
+> **What this doc is for:** Maps which prompt layers are tested by which tests. Edit this doc when new prompt layers are added or test coverage changes.
+
 ## Purpose
 Map IU scenario segments to epistemic layers and identify which tests verify each layer.
 

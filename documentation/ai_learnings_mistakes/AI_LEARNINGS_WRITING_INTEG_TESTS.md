@@ -1,6 +1,8 @@
 How to write a new integration test
 ====================================
 
+> **What this doc is for:** Step-by-step guide for writing new integration tests. Edit this doc when the integration test framework, patterns, or requirements change.
+
 This document is the authoritative guide for writing and running integration tests
 in this project. Read this before creating any new integration test scenario.
 

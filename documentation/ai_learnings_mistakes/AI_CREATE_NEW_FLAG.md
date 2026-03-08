@@ -1,6 +1,8 @@
 PART 2 — HOW TO ADD NEW COMMAND FLAGS / MODES
 ----------------------------------------------
 
+> **What this doc is for:** How to add new command flags/modes to the chat system. Edit this doc when adding a new bracket command or game mode flag.
+
 Commands like [D], [M], [C] are "bracket commands" — shortcuts the player
 types that toggle modes or trigger actions without calling the LLM.
 
