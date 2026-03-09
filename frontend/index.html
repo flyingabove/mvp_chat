@@ -1066,6 +1066,54 @@ var USER_SESSIONS_URL = API_BASE + "/user/sessions";
 var AUTH_ME_URL = API_BASE + "/auth/me";
 var GOOGLE_LOGIN_URL = AUTH_BASE + "/auth/google/login";
 
+function getStoriesEndpointCandidates(){
+  var endpoints = [STORIES_URL];
+  var origin = window.location.origin.replace(/\/$/, "");
+  var canonical = "https://storieschat.ai/api/stories";
+
+  if (origin.indexOf("www.") !== -1) {
+    endpoints.push(origin.replace("://www.", "://") + "/api/stories");
+  }
+  endpoints.push(canonical);
+
+  var seen = Object.create(null);
+  return endpoints.filter(function(url){
+    if (!url || seen[url]) return false;
+    seen[url] = true;
+    return true;
+  });
+}
+
+function normalizeStoriesPayload(data){
+  var raw = [];
+  if (Array.isArray(data)) {
+    raw = data;
+  } else if (data && Array.isArray(data.stories)) {
+    raw = data.stories;
+  } else if (data && Array.isArray(data.items)) {
+    raw = data.items;
+  }
+
+  return raw.map(function(item, idx){
+    var story = (item && typeof item === "object") ? item : { title: String(item || "Story") };
+    var id = String(story.id || story.story_id || story.slug || ("story_" + idx)).trim();
+    var title = String(story.title || story.name || id || ("Story " + (idx + 1))).trim();
+    var genre = String(story.genre || story.theme || "Story").trim();
+    var theme = String(story.theme || genre).trim();
+    var description = String(story.description || story.summary || "").trim();
+
+    return {
+      id: id,
+      title: title,
+      genre: genre,
+      theme: theme,
+      description: description,
+      thumbnail_url: story.thumbnail_url || story.thumbnail || null,
+      featured: Boolean(story.featured),
+    };
+  }).filter(function(story){ return !!story.id; });
+}
+
 /* ─── STORAGE KEYS ──────────────────────────────── */
 var SESSIONS_KEY = "storieschat_sessions";
 var PROFILE_KEY  = "storieschat_profile";
@@ -1207,17 +1255,40 @@ function refreshHomeScreen(){
 }
 
 function loadStories(){
-  fetch(STORIES_URL)
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      var list = (data && data.stories) ? data.stories : [];
-      appState.stories = list;
-      renderHomeContent(list);
-    })
-    .catch(function(){
+  var endpoints = getStoriesEndpointCandidates();
+  var ix = 0;
+
+  function tryNext(lastErr){
+    if (ix >= endpoints.length) {
+      console.error("Stories load failed", lastErr || "unknown");
+      appState.stories = [];
+      renderHomeContent([]);
       $("hero-title").textContent = "Could not load games";
-      $("hero-desc").textContent = "Check your connection and refresh.";
-    });
+      $("hero-desc").textContent = "We could not reach the game catalog. Please refresh in a few seconds.";
+      return;
+    }
+
+    var endpoint = endpoints[ix++];
+    fetch(endpoint, { cache: "no-store" })
+      .then(function(r){
+        if (!r.ok) throw new Error("HTTP " + r.status + " from " + endpoint);
+        return r.json();
+      })
+      .then(function(data){
+        var list = normalizeStoriesPayload(data);
+        if (!list.length && ix < endpoints.length) {
+          throw new Error("Empty story list from " + endpoint);
+        }
+        appState.stories = list;
+        renderHomeContent(list);
+      })
+      .catch(function(err){
+        console.warn("Stories fetch failed", endpoint, err);
+        tryNext(err);
+      });
+  }
+
+  tryNext();
 }
 
 function getCardImageHTML(story, className){
@@ -2068,7 +2139,18 @@ fetch("version.json", { cache: "no-store" })
 
 /* ─── PWA SERVICE WORKER ────────────────────────── */
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js").catch(function(){});
+  navigator.serviceWorker.register("sw.js")
+    .then(function(reg){
+      reg.update();
+      if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    })
+    .catch(function(){});
+
+  navigator.serviceWorker.addEventListener("controllerchange", function(){
+    if (window.__swRefreshed) return;
+    window.__swRefreshed = true;
+    window.location.reload();
+  });
 }
 
 /* ─── BOOT ──────────────────────────────────────── */
