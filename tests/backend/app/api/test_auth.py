@@ -56,11 +56,11 @@ def test_logout_returns_ok(client):
 
 
 # ---------------------------------------------------------------------------
-# /auth/google/login redirect
+# /api/auth/google/login redirect
 # ---------------------------------------------------------------------------
 
 def test_google_login_redirects_to_google(client):
-    resp = client.get("/auth/google/login", follow_redirects=False)
+    resp = client.get("/api/auth/google/login", follow_redirects=False)
     assert resp.status_code in (302, 307)
     location = resp.headers.get("location", "")
     assert "accounts.google.com" in location or location == ""  # empty if GOOGLE_CLIENT_ID not set

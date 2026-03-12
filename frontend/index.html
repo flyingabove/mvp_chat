@@ -405,10 +405,10 @@
        iOS INSTALL PROMPT
     ══════════════════════════════════════════════ */
     #ios-install-prompt {
-      position: fixed; inset: 0; z-index: 320;
+      position: fixed; inset: 0; z-index: 300;
       background: rgba(0,0,0,0.85);
-      display: none; align-items: flex-end; justify-content: center;
-      padding: 0 16px 24px;
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
     }
     #ios-install-prompt.open { display: flex; }
     .ios-install-card {
@@ -1157,7 +1157,7 @@ var CHAT_URL    = API_BASE + "/chat";
 var DRAFT_URL   = API_BASE + "/stories/draft";
 var USER_SESSIONS_URL = API_BASE + "/user/sessions";
 var AUTH_ME_URL = API_BASE + "/auth/me";
-var GOOGLE_LOGIN_URL = AUTH_BASE + "/auth/google/login";
+var GOOGLE_LOGIN_URL = API_BASE + "/auth/google/login";
 
 function getStoriesEndpointCandidates(){
   var endpoints = [STORIES_URL];

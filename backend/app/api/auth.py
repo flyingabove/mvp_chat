@@ -12,10 +12,14 @@ router = APIRouter()
 
 
 def _build_redirect_uri(request: Request) -> str:
-    """Build the callback URL based on the incoming host (handles beta vs prod)."""
+    """Build the callback URL based on the incoming host (handles beta vs prod).
+
+    Uses /api/auth/ prefix so the callback works through Cloudflare/Namecheap
+    proxies that only forward /api/* paths to Railway.
+    """
     host = request.headers.get("host", "")
     scheme = "https" if not host.startswith("localhost") else "http"
-    return f"{scheme}://{host}/auth/google/callback"
+    return f"{scheme}://{host}/api/auth/google/callback"
 
 
 def _build_frontend_base(request: Request) -> str:
@@ -27,7 +31,7 @@ def _build_frontend_base(request: Request) -> str:
     return "/"
 
 
-@router.get("/auth/google/login")
+@router.get("/api/auth/google/login")
 async def google_login(request: Request):
     """Redirect browser to Google OAuth consent screen."""
     state = secrets.token_urlsafe(16)
@@ -36,7 +40,7 @@ async def google_login(request: Request):
     return RedirectResponse(url=url)
 
 
-@router.get("/auth/google/callback")
+@router.get("/api/auth/google/callback")
 async def google_callback(code: str, state: str, request: Request):
     """
     Handle Google OAuth callback:
