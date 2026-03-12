@@ -143,6 +143,10 @@ Local mode vs online mode is detected automatically from the WebSocket host head
 - `localhost` / `127.0.0.1` → local mode → Ollama for player + grader
 - any other hostname → online mode → cloud API for player + grader
 
+Localhost policy:
+- Localhost is for debug tooling only (primarily `/beta/debug`).
+- The player-facing app login flow is domain-hosted and should not depend on localhost OAuth callbacks.
+
 ---
 
 ## Known Issues / Lessons

@@ -8,6 +8,9 @@ StoriesChat uses Google OAuth 2.0 for authentication and Railway's `/data` persi
 per-user game state storage. The architecture supports **browse freely, login to play**: the home
 screen and game catalog are public; clicking "Play" triggers the login flow.
 
+Localhost is **debugger-only** in this project. App login and OAuth callbacks are expected on hosted
+domains (prod/beta), not localhost.
+
 ---
 
 ## Architecture
@@ -192,7 +195,7 @@ Each line is a single JSON object:
 6. Authorized redirect URIs — add ALL:
    - `https://storieschat.ai/auth/google/callback`
    - `https://beta-api.storieschat.ai/auth/google/callback`
-   - `http://localhost:8899/auth/google/callback`
+  - Do not add localhost app callback URIs for normal operation.
 7. Copy **Client ID** and **Client Secret**
 8. In Railway dashboard for **both prod and beta** services, add env vars:
    ```
@@ -201,6 +204,12 @@ Each line is a single JSON object:
    JWT_SECRET=<run: python -c "import secrets; print(secrets.token_hex(32))">
    ```
 9. Optionally: **APIs & Services → OAuth consent screen** → set app name "StoriesChat"
+
+### Localhost policy (important)
+
+- `localhost:8899` is for the debug/scorer developer UI (`/beta/debug`) only.
+- The player-facing app and Google sign-in should run on hosted domains.
+- If a localhost OAuth callback is temporarily added for isolated troubleshooting, treat it as temporary and remove it afterward.
 
 ---
 

@@ -12,14 +12,15 @@ router = APIRouter()
 
 
 def _build_redirect_uri(request: Request) -> str:
-    """Build the callback URL based on the incoming host (handles beta vs prod).
+    """Build the OAuth callback URL based on the incoming host.
 
-    Uses /api/auth/ prefix so the callback works through Cloudflare/Namecheap
-    proxies that only forward /api/* paths to Railway.
+    Canonical callback path is /auth/google/callback to match Google Console
+    redirect URI registration. /api/auth/google/callback remains available as a
+    compatibility alias route.
     """
     host = request.headers.get("host", "")
     scheme = "https" if not host.startswith("localhost") else "http"
-    return f"{scheme}://{host}/api/auth/google/callback"
+    return f"{scheme}://{host}/auth/google/callback"
 
 
 def _build_frontend_base(request: Request) -> str:

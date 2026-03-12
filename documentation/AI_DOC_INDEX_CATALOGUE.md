@@ -81,7 +81,7 @@
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [INFRASTRUCTURE.md](model_output_docs/INFRASTRUCTURE.md) | ...deployment, hosting, environment variables, or infrastructure changes. |
-| [AUTH_AND_PERSISTENCE_DESIGN.md](model_output_docs/AUTH_AND_PERSISTENCE_DESIGN.md) | ...auth flow, session storage, or user data persistence changes. |
+| [AUTH_AND_PERSISTENCE_DESIGN.md](model_output_docs/AUTH_AND_PERSISTENCE_DESIGN.md) | ...auth flow, session storage, OAuth redirect URI policy, or localhost-vs-hosted login boundaries change. |
 
 ## Coding Standards
 
