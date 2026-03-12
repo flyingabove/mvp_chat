@@ -32,6 +32,7 @@ def _build_frontend_base(request: Request) -> str:
 
 
 @router.get("/api/auth/google/login")
+@router.get("/auth/google/login")
 async def google_login(request: Request):
     """Redirect browser to Google OAuth consent screen."""
     state = secrets.token_urlsafe(16)
@@ -41,6 +42,7 @@ async def google_login(request: Request):
 
 
 @router.get("/api/auth/google/callback")
+@router.get("/auth/google/callback")
 async def google_callback(code: str, state: str, request: Request):
     """
     Handle Google OAuth callback:
@@ -69,6 +71,7 @@ async def google_callback(code: str, state: str, request: Request):
 
 
 @router.get("/api/auth/me")
+@router.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     """Return the current authenticated user's info."""
     return {
@@ -79,6 +82,7 @@ async def me(user: dict = Depends(get_current_user)):
 
 
 @router.post("/api/auth/logout")
+@router.post("/auth/logout")
 async def logout():
     """Stateless logout — client clears the JWT from localStorage."""
     return {"ok": True}
