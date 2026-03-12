@@ -402,6 +402,73 @@
     }
 
     /* ══════════════════════════════════════════════
+       iOS INSTALL PROMPT
+    ══════════════════════════════════════════════ */
+    #ios-install-prompt {
+      position: fixed; inset: 0; z-index: 320;
+      background: rgba(0,0,0,0.85);
+      display: none; align-items: flex-end; justify-content: center;
+      padding: 0 16px 24px;
+    }
+    #ios-install-prompt.open { display: flex; }
+    .ios-install-card {
+      background: var(--surface); border-radius: 20px;
+      padding: 28px 24px 22px; width: 100%; max-width: 400px;
+      text-align: center; position: relative;
+    }
+    .ios-install-close {
+      position: absolute; top: 12px; right: 14px;
+      background: none; border: none; color: var(--text-muted);
+      font-size: 22px; cursor: pointer; padding: 4px 8px;
+      line-height: 1;
+    }
+    .ios-install-icon { font-size: 48px; margin-bottom: 12px; }
+    .ios-install-title {
+      font-size: 20px; font-weight: 800; margin-bottom: 6px;
+      color: var(--text);
+    }
+    .ios-install-sub {
+      font-size: 14px; color: var(--text-sub); margin-bottom: 22px;
+      line-height: 1.5;
+    }
+    .ios-install-steps {
+      text-align: left; padding: 0; margin: 0 0 18px;
+      list-style: none;
+    }
+    .ios-install-steps li {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 14px; color: var(--text); line-height: 1.5;
+    }
+    .ios-install-steps li:last-child { border-bottom: none; }
+    .ios-step-num {
+      flex-shrink: 0; width: 28px; height: 28px;
+      border-radius: 50%; background: var(--red);
+      color: #fff; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ios-step-text { flex: 1; }
+    .ios-step-text .ios-icon {
+      display: inline-block; vertical-align: middle;
+      background: #007AFF; color: #fff;
+      border-radius: 6px; padding: 2px 6px;
+      font-size: 16px; line-height: 1; margin: 0 3px;
+    }
+    .ios-install-arrow {
+      font-size: 28px; color: var(--text-muted);
+      margin-top: 4px; animation: ios-bounce 1.5s ease-in-out infinite;
+    }
+    @keyframes ios-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(6px); }
+    }
+    .ios-install-dismiss {
+      font-size: 13px; color: var(--text-muted);
+      cursor: pointer; text-decoration: underline;
+    }
+
+    /* ══════════════════════════════════════════════
        MY GAMES SCREEN
     ══════════════════════════════════════════════ */
     #screen-games { background: var(--bg); }
@@ -1029,6 +1096,32 @@
       Continue with Google
     </button>
     <div class="login-dismiss" id="login-dismiss-btn">Maybe later</div>
+  </div>
+</div>
+
+<!-- iOS install prompt -->
+<div id="ios-install-prompt">
+  <div class="ios-install-card">
+    <button class="ios-install-close" id="ios-install-close">&times;</button>
+    <div class="ios-install-icon">&#127918;</div>
+    <div class="ios-install-title">Install StoriesChat</div>
+    <div class="ios-install-sub">Add this app to your home screen for the best experience — full screen, faster loads, and offline access.</div>
+    <ol class="ios-install-steps">
+      <li>
+        <span class="ios-step-num">1</span>
+        <span class="ios-step-text">Tap the <span class="ios-icon">&#x2191;</span> <strong>Share</strong> button in Safari's toolbar</span>
+      </li>
+      <li>
+        <span class="ios-step-num">2</span>
+        <span class="ios-step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></span>
+      </li>
+      <li>
+        <span class="ios-step-num">3</span>
+        <span class="ios-step-text">Tap <strong>"Add"</strong> in the top right — done!</span>
+      </li>
+    </ol>
+    <div class="ios-install-arrow">&#x2193;</div>
+    <div class="ios-install-dismiss" id="ios-install-dismiss">Don't show again</div>
   </div>
 </div>
 
@@ -2152,6 +2245,29 @@ if ("serviceWorker" in navigator) {
     window.location.reload();
   });
 }
+
+/* ─── iOS INSTALL PROMPT ────────────────────────── */
+(function(){
+  // Detect iOS Safari (not already installed as PWA)
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  var isStandalone = window.navigator.standalone === true;
+  var dismissed = localStorage.getItem("storieschat_ios_install_dismissed");
+
+  if (isIOS && !isStandalone && !dismissed) {
+    // Show after a short delay so the page loads first
+    setTimeout(function(){
+      openModal("ios-install-prompt");
+    }, 1500);
+  }
+
+  $("ios-install-close").addEventListener("click", function(){
+    closeModal("ios-install-prompt");
+  });
+  $("ios-install-dismiss").addEventListener("click", function(){
+    localStorage.setItem("storieschat_ios_install_dismissed", "1");
+    closeModal("ios-install-prompt");
+  });
+})();
 
 /* ─── BOOT ──────────────────────────────────────── */
 // Extract JWT from callback redirect (?token=...)
