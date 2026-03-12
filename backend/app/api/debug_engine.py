@@ -28,6 +28,7 @@ from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
+from backend.app.db.database import DATA_DIR
 from backend.app.engine.story_loader import load_story
 from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
@@ -47,9 +48,8 @@ _ONLINE_API_BASE = os.getenv("STORY_MASTER_BASE_URL", "https://api.openai.com/v1
 _ONLINE_API_KEY = os.getenv("STORY_MASTER_API_KEY", OPENAI_API_KEY)
 
 # ---------------------------------------------------------------------------
-# Storage (Railway /data volume online, ./data locally)
+# Storage (DATA_DIR imported from database.py — single source of truth)
 # ---------------------------------------------------------------------------
-DATA_DIR = Path("/data") if Path("/data").exists() else Path("./data")
 DEBUG_RUNS_DIR = DATA_DIR / "debug_runs"
 SCORES_CSV = DATA_DIR / "debug_scores.csv"
 TEST_CASES_FILE = DATA_DIR / "test_cases.json"

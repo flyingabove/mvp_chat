@@ -2,14 +2,11 @@ import os
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from backend.app.engine.story_loader import load_story, find_story_dir
+from backend.app.engine.story_loader import load_story, find_story_dir, STORIES_DIR
 from backend.app.engine.world.world_loader import WorldLoader
 from backend.app.config.settings import DEFAULT_USER_ID, DEFAULT_INSTANCE
 
 router = APIRouter()
-
-# Absolute path to stories directory (used by image endpoint)
-_STORIES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stories")
 
 
 def _sanitize_path(rel_path: str) -> str | None:
@@ -28,7 +25,7 @@ def _discover_map_image(story_id: str, story_world_cfg: dict | None = None) -> s
     world_cfg = story_world_cfg or {}
     explicit = _sanitize_path(str(world_cfg.get("world_map_image", "")).strip())
     if explicit:
-        candidate = os.path.join(_STORIES_DIR, explicit)
+        candidate = os.path.join(STORIES_DIR, explicit)
         if os.path.isfile(candidate):
             return explicit
 
@@ -36,13 +33,13 @@ def _discover_map_image(story_id: str, story_world_cfg: dict | None = None) -> s
     subdir = find_story_dir(story_id)
     if not subdir:
         return None
-    candidate = os.path.join(_STORIES_DIR, subdir, f"{subdir}.png")
+    candidate = os.path.join(STORIES_DIR, subdir, f"{subdir}.png")
     if os.path.isfile(candidate):
         return f"{subdir}/{subdir}.png"
 
     # Third: common alternates tied to story_id naming
     for alt in (f"{story_id}.png", f"{story_id}_wm.png"):
-        candidate = os.path.join(_STORIES_DIR, subdir, alt)
+        candidate = os.path.join(STORIES_DIR, subdir, alt)
         if os.path.isfile(candidate):
             return f"{subdir}/{alt}"
     return None
@@ -59,7 +56,7 @@ def get_story_image(path: str):
     if ".." in safe or safe.startswith(os.sep):
         raise HTTPException(status_code=400, detail="Invalid path")
 
-    full = os.path.join(_STORIES_DIR, safe)
+    full = os.path.join(STORIES_DIR, safe)
     if not os.path.isfile(full):
         raise HTTPException(status_code=404, detail="Image not found")
 
@@ -147,7 +144,7 @@ def get_story_meta(story_id: str):
         result["world_map_image"] = world_map_image
         try:
             from PIL import Image
-            with Image.open(os.path.join(_STORIES_DIR, world_map_image)) as im:
+            with Image.open(os.path.join(STORIES_DIR, world_map_image)) as im:
                 result["world_map_image_size"] = {"w": im.width, "h": im.height}
         except Exception:
             pass

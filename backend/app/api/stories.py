@@ -7,6 +7,8 @@ import json
 import re
 import uuid
 
+from backend.app.engine.story_loader import STORIES_DIR
+
 router = APIRouter()
 
 
@@ -14,11 +16,6 @@ class StoryDraftRequest(BaseModel):
     title: str
     genre: str
     description: str
-
-
-def _stories_dir() -> Path:
-    # Backend ships stories in backend/app/stories
-    return Path(__file__).resolve().parents[1] / "stories"
 
 
 @router.get("/stories")
@@ -29,7 +26,7 @@ async def list_stories():
     game modes / characters can be added by dropping in a new story JSON.
     Stories can be in backend/app/stories/ directly or in subdirectories.
     """
-    stories_path = _stories_dir()
+    stories_path = Path(STORIES_DIR)
     out = []
     if not stories_path.exists():
         return {"stories": out}
@@ -75,7 +72,7 @@ async def list_stories():
 
 def _find_story_file(story_id: str) -> Path | None:
     """Locate the story JSON file for a given story_id."""
-    stories_path = _stories_dir()
+    stories_path = Path(STORIES_DIR)
     if not stories_path.exists():
         return None
 
@@ -195,7 +192,7 @@ async def create_story_draft(req: StoryDraftRequest):
         "opening": "",
     }
 
-    stories_dir = _stories_dir()
+    stories_dir = Path(STORIES_DIR)
     out_path = stories_dir / f"{story_id}_story.json"
     try:
         out_path.write_text(json.dumps(stub, indent=2, ensure_ascii=False), encoding="utf-8")

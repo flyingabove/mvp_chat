@@ -12,6 +12,9 @@ from backend.app.utils.logging_utils import jlog
 # Backward-compat alias — external code that imports StoryCharacter still works.
 StoryCharacter = Character
 
+# Canonical stories directory — single source of truth for all modules.
+STORIES_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stories")
+
 
 @dataclass
 class StoryDefinition:
@@ -141,19 +144,16 @@ def find_story_dir(story_id: str) -> str | None:
     Return the subdirectory name that contains
     the story JSON for story_id, or None if it lives at root / not found.
     """
-    base = os.path.dirname(os.path.dirname(__file__))  # app/
-    stories_dir = os.path.join(base, "stories")
-
     # Direct path (root level)
     for fname in _story_json_candidates(story_id):
-        if os.path.isfile(os.path.join(stories_dir, fname)):
+        if os.path.isfile(os.path.join(STORIES_DIR, fname)):
             return None
 
     try:
-        for d in os.listdir(stories_dir):
-            if os.path.isdir(os.path.join(stories_dir, d)) and not d.startswith("__"):
+        for d in os.listdir(STORIES_DIR):
+            if os.path.isdir(os.path.join(STORIES_DIR, d)) and not d.startswith("__"):
                 for fname in _story_json_candidates(story_id):
-                    if os.path.isfile(os.path.join(stories_dir, d, fname)):
+                    if os.path.isfile(os.path.join(STORIES_DIR, d, fname)):
                         return d
     except Exception:
         pass
@@ -167,30 +167,27 @@ def load_story(story_id: str) -> Optional[StoryDefinition]:
 
     Returns a StoryDefinition or None if not found/failed to parse.
     """
-    base = os.path.dirname(os.path.dirname(__file__))  # app/
-    stories_dir = os.path.join(base, "stories")
-
     story_path = None
 
     # Try root level first
     for fname in _story_json_candidates(story_id):
-        candidate = os.path.join(stories_dir, fname)
+        candidate = os.path.join(STORIES_DIR, fname)
         if os.path.isfile(candidate):
             story_path = candidate
             break
 
     jlog({"kind": "story_load_attempt", "story_id": story_id,
-          "path": story_path or os.path.join(stories_dir, f"{story_id}.json"),
+          "path": story_path or os.path.join(STORIES_DIR, f"{story_id}.json"),
           "exists": story_path is not None})
 
     # If not found at root, try subdirectories
     if not story_path:
         try:
-            subdirs = [d for d in os.listdir(stories_dir)
-                      if os.path.isdir(os.path.join(stories_dir, d)) and not d.startswith("__")]
+            subdirs = [d for d in os.listdir(STORIES_DIR)
+                      if os.path.isdir(os.path.join(STORIES_DIR, d)) and not d.startswith("__")]
             for subdir in subdirs:
                 for fname in _story_json_candidates(story_id):
-                    alt_path = os.path.join(stories_dir, subdir, fname)
+                    alt_path = os.path.join(STORIES_DIR, subdir, fname)
                     if os.path.isfile(alt_path):
                         story_path = alt_path
                         jlog({"kind": "story_found_in_subdir", "story_id": story_id, "subdir": subdir})

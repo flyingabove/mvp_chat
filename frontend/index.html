@@ -1303,10 +1303,6 @@ function saveSession(sess){
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
 }
 
-function loadProfile(){
-  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}"); } catch(e){ return {}; }
-}
-
 function loadStats(){
   try { return JSON.parse(localStorage.getItem(STATS_KEY) || '{"games":0,"wins":0,"turns":0}'); } catch(e){ return {games:0,wins:0,turns:0}; }
 }
@@ -1451,7 +1447,7 @@ function renderHero(story){
     bg.style.background = "linear-gradient(135deg, #1a0515 0%, #0d0d2e 50%, #0a1a10 100%)";
   }
 
-  $("hero-play-btn").onclick = function(){ showGameDetail(story); startGame(story); };
+  $("hero-play-btn").onclick = function(){ startGame(story); };
   $("hero-info-btn").onclick = function(){ showGameDetail(story); };
 }
 

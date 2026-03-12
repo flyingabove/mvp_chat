@@ -147,12 +147,9 @@ def advance_time(state, player_text: str):
                     # Fall through to legacy location update behavior below
                     pass
 
-        # If a world graph is active but we can't resolve the destination,
-        # do NOT change location from arbitrary free-text.
-        if runtime is not None:
-            pass
-        else:
-            # Fallback: legacy free-text location
+        # Only allow free-text location updates when no world graph exists.
+        # If a world graph is active, location must be resolved via travel above.
+        if runtime is None:
             setattr(state, "location", place)
             delta += travel
             try:
