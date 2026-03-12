@@ -1158,7 +1158,12 @@ var CHAT_URL    = API_BASE + "/chat";
 var DRAFT_URL   = API_BASE + "/stories/draft";
 var USER_SESSIONS_URL = API_BASE + "/user/sessions";
 var AUTH_ME_URL = API_BASE + "/auth/me";
-var GOOGLE_LOGIN_URL = API_BASE + "/auth/google/login";
+var LOGIN_AUTH_BASE = AUTH_BASE;
+if (IS_BETA && (host === "storieschat.ai" || host === "www.storieschat.ai")) {
+  // storieschat.ai beta currently lacks auth routes; initiate OAuth on beta-api.
+  LOGIN_AUTH_BASE = "https://beta-api.storieschat.ai";
+}
+var GOOGLE_LOGIN_URL = LOGIN_AUTH_BASE + "/api/auth/google/login";
 
 function getStoriesEndpointCandidates(){
   var endpoints = [STORIES_URL];
@@ -2271,6 +2276,14 @@ if ("serviceWorker" in navigator) {
 (function(){
   var urlParams = new URLSearchParams(window.location.search);
   var tokenParam = urlParams.get("token");
+
+  // If OAuth callback lands on beta-api, bounce token back to storieschat beta.
+  if (tokenParam && host === "beta-api.storieschat.ai") {
+    var targetBase = "https://storieschat.ai" + (IS_BETA ? "/beta/" : "/");
+    window.location.replace(targetBase + "?token=" + encodeURIComponent(tokenParam));
+    return;
+  }
+
   if (tokenParam) {
     setToken(tokenParam);
     // Remove token from URL without reloading
