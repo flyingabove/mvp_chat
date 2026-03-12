@@ -1,5 +1,6 @@
 """Integration tests for auth API endpoints."""
 import pytest
+import urllib.parse
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
@@ -63,7 +64,12 @@ def test_google_login_redirects_to_google(client):
     resp = client.get("/api/auth/google/login", follow_redirects=False)
     assert resp.status_code in (302, 307)
     location = resp.headers.get("location", "")
-    assert "accounts.google.com" in location or location == ""  # empty if GOOGLE_CLIENT_ID not set
+    assert "accounts.google.com" in location
+
+    parsed = urllib.parse.urlparse(location)
+    query = urllib.parse.parse_qs(parsed.query)
+    client_ids = query.get("client_id", [])
+    assert client_ids and client_ids[0].strip()
 
 
 # ---------------------------------------------------------------------------
