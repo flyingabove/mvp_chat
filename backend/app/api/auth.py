@@ -125,15 +125,22 @@ async def logout():
 @router.get("/api/auth/debug-config")
 async def debug_config(request: Request):
     """Diagnostic: show resolved OAuth config (no secrets)."""
+    import os
     from backend.app.auth.google_oauth import _resolved_google_client_id, _resolved_google_client_secret
     client_id = _resolved_google_client_id()
     client_secret = _resolved_google_client_secret()
+    # Also read live from env to distinguish import-time vs runtime
+    live_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
     redirect_uri = _build_redirect_uri(request)
+    google_env_keys = [k for k in os.environ if "GOOGLE" in k.upper()]
     return {
         "client_id_set": bool(client_id),
         "client_id_prefix": client_id[:20] + "..." if client_id else "(empty)",
         "client_secret_set": bool(client_secret),
         "client_secret_length": len(client_secret) if client_secret else 0,
+        "live_env_secret_set": bool(live_secret.strip()),
+        "live_env_secret_length": len(live_secret.strip()),
+        "google_env_keys": google_env_keys,
         "redirect_uri": redirect_uri,
         "host_header": request.headers.get("host", "(missing)"),
     }
