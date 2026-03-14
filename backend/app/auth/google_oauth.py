@@ -8,19 +8,14 @@ GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 SCOPES = "openid email profile"
 
-# Public OAuth client ID is not a secret. Hardcoded fallback so beta login
-# does not break if the env var is temporarily missing.
-DEFAULT_PUBLIC_GOOGLE_CLIENT_ID = "580998794588-otq7o0btdle48qoch385a019rjt5pce8.apps.googleusercontent.com"
-
 
 def _resolved_google_client_id() -> str:
-    """Return GOOGLE_CLIENT_ID from settings, falling back to hardcoded default."""
-    value = (GOOGLE_CLIENT_ID or "").strip()
-    return value if value else DEFAULT_PUBLIC_GOOGLE_CLIENT_ID
+    """Return GOOGLE_CLIENT_ID from settings. Must be set via env var."""
+    return (GOOGLE_CLIENT_ID or "").strip()
 
 
 def _resolved_google_client_secret() -> str:
-    """Return GOOGLE_CLIENT_SECRET from settings (no fallback — must be set)."""
+    """Return GOOGLE_CLIENT_SECRET from settings. Must be set via env var."""
     return (GOOGLE_CLIENT_SECRET or "").strip()
 
 
