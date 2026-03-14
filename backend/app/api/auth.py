@@ -2,7 +2,7 @@
 import logging
 import secrets
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 
 log = logging.getLogger(__name__)
 
@@ -58,16 +58,45 @@ async def google_callback(code: str, state: str, request: Request):
     - redirect to frontend with ?token=<jwt>
     """
     redirect_uri = _build_redirect_uri(request)
-    token_data = await exchange_code(code=code, redirect_uri=redirect_uri)
+    try:
+        token_data = await exchange_code(code=code, redirect_uri=redirect_uri)
+    except Exception as exc:
+        log.error("OAuth token exchange failed: %s", exc)
+        return JSONResponse(
+            status_code=502,
+            content={"error": "token_exchange_failed", "detail": str(exc)},
+        )
+
     access_token = token_data.get("access_token", "")
-    user_info = await get_userinfo(access_token)
+    if not access_token:
+        log.error("OAuth token response missing access_token: %s", token_data)
+        return JSONResponse(
+            status_code=502,
+            content={"error": "no_access_token", "detail": "Google did not return an access token"},
+        )
+
+    try:
+        user_info = await get_userinfo(access_token)
+    except Exception as exc:
+        log.error("OAuth userinfo fetch failed: %s", exc)
+        return JSONResponse(
+            status_code=502,
+            content={"error": "userinfo_failed", "detail": str(exc)},
+        )
 
     user_id = user_info.get("id") or user_info.get("sub", "")
     email = user_info.get("email", "")
     name = user_info.get("name", "")
     avatar_url = user_info.get("picture")
 
-    await UserRepo.upsert_user(user_id=user_id, email=email, name=name, avatar_url=avatar_url)
+    try:
+        await UserRepo.upsert_user(user_id=user_id, email=email, name=name, avatar_url=avatar_url)
+    except Exception as exc:
+        log.error("OAuth user upsert failed: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content={"error": "db_upsert_failed", "detail": str(exc)},
+        )
 
     jwt_token = create_token(user_id=user_id, email=email, name=name)
 
@@ -96,12 +125,15 @@ async def logout():
 @router.get("/api/auth/debug-config")
 async def debug_config(request: Request):
     """Diagnostic: show resolved OAuth config (no secrets)."""
-    from backend.app.auth.google_oauth import _resolved_google_client_id
+    from backend.app.auth.google_oauth import _resolved_google_client_id, _resolved_google_client_secret
     client_id = _resolved_google_client_id()
+    client_secret = _resolved_google_client_secret()
     redirect_uri = _build_redirect_uri(request)
     return {
         "client_id_set": bool(client_id),
         "client_id_prefix": client_id[:20] + "..." if client_id else "(empty)",
+        "client_secret_set": bool(client_secret),
+        "client_secret_length": len(client_secret) if client_secret else 0,
         "redirect_uri": redirect_uri,
         "host_header": request.headers.get("host", "(missing)"),
     }
