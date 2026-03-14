@@ -1,7 +1,10 @@
 """Google OAuth 2.0 login flow + JWT auth endpoints."""
+import logging
 import secrets
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import RedirectResponse
+
+log = logging.getLogger(__name__)
 
 from backend.app.auth.google_oauth import build_auth_url, exchange_code, get_userinfo
 from backend.app.auth.jwt_utils import create_token
@@ -39,6 +42,7 @@ async def google_login(request: Request):
     state = secrets.token_urlsafe(16)
     redirect_uri = _build_redirect_uri(request)
     url = build_auth_url(redirect_uri=redirect_uri, state=state)
+    log.info("OAuth redirect_uri=%s  auth_url=%s", redirect_uri, url[:200])
     return RedirectResponse(url=url)
 
 
@@ -87,3 +91,17 @@ async def me(user: dict = Depends(get_current_user)):
 async def logout():
     """Stateless logout — client clears the JWT from localStorage."""
     return {"ok": True}
+
+
+@router.get("/api/auth/debug-config")
+async def debug_config(request: Request):
+    """Diagnostic: show resolved OAuth config (no secrets)."""
+    from backend.app.auth.google_oauth import _resolved_google_client_id
+    client_id = _resolved_google_client_id()
+    redirect_uri = _build_redirect_uri(request)
+    return {
+        "client_id_set": bool(client_id),
+        "client_id_prefix": client_id[:20] + "..." if client_id else "(empty)",
+        "redirect_uri": redirect_uri,
+        "host_header": request.headers.get("host", "(missing)"),
+    }
