@@ -1,4 +1,5 @@
 """Google OAuth 2.0 helpers (manual httpx, no authlib)."""
+import os
 import urllib.parse
 import httpx
 from backend.app.config.settings import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
@@ -9,14 +10,32 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 SCOPES = "openid email profile"
 
 
+def _resolved_env_var(name: str) -> str:
+    """Resolve an env var by exact key first, then normalized key fallback.
+
+    Railway/host dashboards can occasionally end up with non-canonical key casing.
+    This resolver keeps lookup strict-by-default but tolerates case-only mismatches.
+    """
+    direct = os.getenv(name, "")
+    if direct.strip():
+        return direct.strip()
+
+    target = name.strip().upper()
+    for key, value in os.environ.items():
+        if key.strip().upper() == target and (value or "").strip():
+            return value.strip()
+
+    return ""
+
+
 def _resolved_google_client_id() -> str:
     """Return GOOGLE_CLIENT_ID from settings. Must be set via env var."""
-    return (GOOGLE_CLIENT_ID or "").strip()
+    return _resolved_env_var("GOOGLE_CLIENT_ID") or (GOOGLE_CLIENT_ID or "").strip()
 
 
 def _resolved_google_client_secret() -> str:
     """Return GOOGLE_CLIENT_SECRET from settings. Must be set via env var."""
-    return (GOOGLE_CLIENT_SECRET or "").strip()
+    return _resolved_env_var("GOOGLE_CLIENT_SECRET") or (GOOGLE_CLIENT_SECRET or "").strip()
 
 
 def build_auth_url(redirect_uri: str, state: str) -> str:

@@ -133,6 +133,10 @@ async def debug_config(request: Request):
     live_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
     redirect_uri = _build_redirect_uri(request)
     google_env_keys = [k for k in os.environ if "GOOGLE" in k.upper()]
+    normalized_secret_key_matches = [
+        k for k in os.environ if k.strip().upper() == "GOOGLE_CLIENT_SECRET"
+    ]
+    railway_env_keys = sorted(k for k in os.environ if k.startswith("RAILWAY_"))
     return {
         "client_id_set": bool(client_id),
         "client_id_prefix": client_id[:20] + "..." if client_id else "(empty)",
@@ -141,6 +145,9 @@ async def debug_config(request: Request):
         "live_env_secret_set": bool(live_secret.strip()),
         "live_env_secret_length": len(live_secret.strip()),
         "google_env_keys": google_env_keys,
+        "normalized_secret_key_matches": normalized_secret_key_matches,
+        "railway_env_key_count": len(railway_env_keys),
+        "railway_env_keys_sample": railway_env_keys[:10],
         "redirect_uri": redirect_uri,
         "host_header": request.headers.get("host", "(missing)"),
     }
