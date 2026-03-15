@@ -91,3 +91,28 @@ def test_chat_with_valid_token_accepted(client, valid_token):
         headers={"Authorization": f"Bearer {valid_token}"},
     )
     assert resp.status_code == 200
+
+
+def test_debug_config_reports_runtime_metadata(client, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid-abc")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret-xyz")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "beta")
+    monkeypatch.setenv("RAILWAY_ENVIRONMENT_ID", "env-123")
+    monkeypatch.setenv("RAILWAY_DEPLOYMENT_ID", "dep-123")
+    monkeypatch.setenv("RAILWAY_GIT_BRANCH", "beta")
+    monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "abc123")
+
+    resp = client.get("/api/auth/debug-config", headers={"host": "beta-api.storieschat.ai"})
+    assert resp.status_code == 200
+
+    data = resp.json()
+    assert data["client_id_set"] is True
+    assert data["client_secret_set"] is True
+    assert data["live_env_secret_set"] is True
+    assert "GOOGLE_CLIENT_SECRET" in data["google_env_keys"]
+    assert "GOOGLE_CLIENT_SECRET" in data["normalized_secret_key_matches"]
+    assert data["railway_environment_name"] == "beta"
+    assert data["railway_environment_id"] == "env-123"
+    assert data["railway_deployment_id"] == "dep-123"
+    assert data["railway_git_branch"] == "beta"
+    assert data["railway_git_commit_sha"] == "abc123"

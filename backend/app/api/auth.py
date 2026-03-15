@@ -148,6 +148,11 @@ async def debug_config(request: Request):
         "normalized_secret_key_matches": normalized_secret_key_matches,
         "railway_env_key_count": len(railway_env_keys),
         "railway_env_keys_sample": railway_env_keys[:10],
+        "railway_environment_name": os.getenv("RAILWAY_ENVIRONMENT_NAME", ""),
+        "railway_environment_id": os.getenv("RAILWAY_ENVIRONMENT_ID", ""),
+        "railway_deployment_id": os.getenv("RAILWAY_DEPLOYMENT_ID", ""),
+        "railway_git_branch": os.getenv("RAILWAY_GIT_BRANCH", ""),
+        "railway_git_commit_sha": os.getenv("RAILWAY_GIT_COMMIT_SHA", ""),
         "redirect_uri": redirect_uri,
         "host_header": request.headers.get("host", "(missing)"),
     }
