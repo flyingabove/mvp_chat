@@ -1370,8 +1370,9 @@ function escapeHTML(s){
 }
 
 function formatMsgText(text){
-  // Bold, italic, convert newlines to <br>
+  // Normalize literal \n sequences, bold, italic, convert newlines to <br>
   return String(text||"")
+    .replace(/\\n/g,"\n")
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
     .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
     .replace(/(^|[^*])\*(.+?)\*(?!\*)/g, function(_,p,i){ return p+"<em>"+i+"</em>"; })
@@ -1765,10 +1766,13 @@ function launchChat(story, playerName, gender, guestMode){
 
   showScreen("chat");
 
-  // Load story meta in background for map
+  // Load story meta and show world map inline at game start
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
-    .then(function(meta){ appState.currentMeta = meta; })
+    .then(function(meta){
+      appState.currentMeta = meta;
+      renderInlineWorldMap(meta);
+    })
     .catch(function(){});
 
   // Send new game init command
@@ -1934,6 +1938,48 @@ function addMessage(role, text){
 }
 
 function addSystemMessage(text){ addMessage("system", text); }
+
+function renderInlineWorldMap(meta){
+  if (!meta) return;
+  var msgs = $("chat-messages");
+
+  // World map image
+  if (meta.world_map_image){
+    var imgRow = document.createElement("div");
+    imgRow.className = "msg-row system";
+    imgRow.style.cssText = "justify-content:center;";
+    var imgWrap = document.createElement("div");
+    imgWrap.style.cssText = "max-width:100%;border-radius:12px;overflow:hidden;margin:4px 0;";
+    var img = document.createElement("img");
+    img.src = API_BASE + "/story-image/" + meta.world_map_image;
+    img.alt = "World Map";
+    img.style.cssText = "width:100%;display:block;border-radius:12px;";
+    imgWrap.appendChild(img);
+    imgRow.appendChild(imgWrap);
+    msgs.appendChild(imgRow);
+  }
+
+  // Location list
+  var locs = meta.known_locations || [];
+  if (locs.length){
+    var locRow = document.createElement("div");
+    locRow.className = "msg-row system";
+    var locBubble = document.createElement("div");
+    locBubble.className = "msg-bubble system-msg";
+    locBubble.style.cssText = "text-align:left;font-size:13px;";
+    var html = "<strong>World Map</strong><br><br>";
+    locs.forEach(function(loc){
+      var name = escapeHTML(loc.name || loc.id);
+      var desc = loc.description ? " — " + escapeHTML(loc.description) : "";
+      html += "<em>" + name + "</em>" + desc + "<br>";
+    });
+    locBubble.innerHTML = html;
+    locRow.appendChild(locBubble);
+    msgs.appendChild(locRow);
+  }
+
+  scrollChatToBottom();
+}
 
 function addDebugBox(debugBox){
   if (!debugBox || !appState.debugMode) return;
