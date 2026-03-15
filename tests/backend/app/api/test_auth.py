@@ -60,7 +60,8 @@ def test_logout_returns_ok(client):
 # /api/auth/google/login redirect
 # ---------------------------------------------------------------------------
 
-def test_google_login_redirects_to_google(client):
+def test_google_login_redirects_to_google(client, monkeypatch):
+    monkeypatch.setattr("backend.app.auth.google_oauth.GOOGLE_CLIENT_ID", "test-client-id")
     resp = client.get("/api/auth/google/login", follow_redirects=False)
     assert resp.status_code in (302, 307)
     location = resp.headers.get("location", "")
