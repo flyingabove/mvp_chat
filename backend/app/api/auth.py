@@ -133,10 +133,28 @@ async def debug_config(request: Request):
     live_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
     redirect_uri = _build_redirect_uri(request)
     google_env_keys = [k for k in os.environ if "GOOGLE" in k.upper()]
+    app_env_keys_of_interest = [
+        "DEBUG_MODE",
+        "RUN_TESTS",
+        "JWT_SECRET",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "OPENAI_API_KEY",
+    ]
+    app_env_presence = {
+        key: {
+            "set": bool((os.getenv(key, "") or "").strip()),
+            "length": len((os.getenv(key, "") or "").strip()),
+        }
+        for key in app_env_keys_of_interest
+    }
     normalized_secret_key_matches = [
         k for k in os.environ if k.strip().upper() == "GOOGLE_CLIENT_SECRET"
     ]
     railway_env_keys = sorted(k for k in os.environ if k.startswith("RAILWAY_"))
+    non_railway_env_keys_sample = sorted(
+        k for k in os.environ if not k.startswith("RAILWAY_")
+    )[:25]
     return {
         "client_id_set": bool(client_id),
         "client_id_prefix": client_id[:20] + "..." if client_id else "(empty)",
@@ -145,9 +163,11 @@ async def debug_config(request: Request):
         "live_env_secret_set": bool(live_secret.strip()),
         "live_env_secret_length": len(live_secret.strip()),
         "google_env_keys": google_env_keys,
+        "app_env_presence": app_env_presence,
         "normalized_secret_key_matches": normalized_secret_key_matches,
         "railway_env_key_count": len(railway_env_keys),
         "railway_env_keys_sample": railway_env_keys[:10],
+        "non_railway_env_keys_sample": non_railway_env_keys_sample,
         "railway_environment_name": os.getenv("RAILWAY_ENVIRONMENT_NAME", ""),
         "railway_environment_id": os.getenv("RAILWAY_ENVIRONMENT_ID", ""),
         "railway_deployment_id": os.getenv("RAILWAY_DEPLOYMENT_ID", ""),

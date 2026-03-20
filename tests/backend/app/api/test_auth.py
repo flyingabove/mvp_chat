@@ -94,6 +94,9 @@ def test_chat_with_valid_token_accepted(client, valid_token):
 
 
 def test_debug_config_reports_runtime_metadata(client, monkeypatch):
+    monkeypatch.setenv("DEBUG_MODE", "TRUE")
+    monkeypatch.setenv("RUN_TESTS", "1")
+    monkeypatch.setenv("JWT_SECRET", "jwt-secret-value")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid-abc")
     monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret-xyz")
     monkeypatch.setenv("RAILWAY_ENVIRONMENT_NAME", "beta")
@@ -111,6 +114,11 @@ def test_debug_config_reports_runtime_metadata(client, monkeypatch):
     assert data["live_env_secret_set"] is True
     assert "GOOGLE_CLIENT_SECRET" in data["google_env_keys"]
     assert "GOOGLE_CLIENT_SECRET" in data["normalized_secret_key_matches"]
+    assert data["app_env_presence"]["DEBUG_MODE"]["set"] is True
+    assert data["app_env_presence"]["RUN_TESTS"]["set"] is True
+    assert data["app_env_presence"]["JWT_SECRET"]["set"] is True
+    assert data["app_env_presence"]["GOOGLE_CLIENT_SECRET"]["set"] is True
+    assert "DEBUG_MODE" in data["non_railway_env_keys_sample"]
     assert data["railway_environment_name"] == "beta"
     assert data["railway_environment_id"] == "env-123"
     assert data["railway_deployment_id"] == "dep-123"
