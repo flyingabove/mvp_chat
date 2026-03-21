@@ -149,7 +149,7 @@ async def debug_config(request: Request):
         for key in app_env_keys_of_interest
     }
     normalized_secret_key_matches = [
-        k for k in os.environ if k.strip().upper() == "GOOGLE_CLIENT_SECRET"
+        k for k in os.environ if k.upper() == "GOOGLE_CLIENT_SECRET"
     ]
     railway_env_keys = sorted(k for k in os.environ if k.startswith("RAILWAY_"))
     non_railway_env_keys_sample = sorted(

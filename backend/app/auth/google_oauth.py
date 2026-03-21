@@ -13,16 +13,15 @@ SCOPES = "openid email profile"
 def _resolved_env_var(name: str) -> str:
     """Resolve an env var by exact key first, then normalized key fallback.
 
-    Railway/host dashboards can occasionally end up with non-canonical key casing.
-    This resolver keeps lookup strict-by-default but tolerates case-only mismatches.
+    Tolerates case-only key mismatches, but never accepts whitespace-padded keys.
     """
     direct = os.getenv(name, "")
     if direct.strip():
         return direct.strip()
 
-    target = name.strip().upper()
+    target = name.upper()
     for key, value in os.environ.items():
-        if key.strip().upper() == target and (value or "").strip():
+        if key.upper() == target and (value or "").strip():
             return value.strip()
 
     return ""
