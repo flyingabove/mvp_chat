@@ -1366,6 +1366,144 @@ def test_seed_epistemic_claim_visibility_metadata_is_preserved():
     assert iu_claims[0].maybe_known_by == ["park_so_jin"]
 
 
+# ---------------------------------------------------------------------------
+# Session persistence & privacy tests (bugs 1, 2, 4)
+# ---------------------------------------------------------------------------
+
+import json as _json
+import logging
+
+
+def test_try_load_session_from_db_sync_path(monkeypatch):
+    """Bug 1: _try_load_session_from_db must work even when called from within a
+    running event loop (the normal FastAPI path).  The old implementation used
+    asyncio.get_event_loop().run_until_complete() which fails inside async code."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    fake_row = {
+        "state_json": _json.dumps({
+            "story": STORY_ID, "gender": "M", "player_name": "TestPlayer", "turns": 3,
+        }),
+        "flags_json": _json.dumps({
+            "debug_mode": False, "chinese_mode": False,
+            "epistemic_state": True, "truth_mode": False,
+        }),
+    }
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(lambda session_id, user_id: fake_row),
+    )
+
+    result = pe_mod._try_load_session_from_db("sess_test1", "user1")
+    assert result is not None
+    assert result["state"].story == STORY_ID
+    assert result["state"].turns == 3
+    assert result["user_id"] == "user1"
+
+
+def test_try_load_session_from_db_works_inside_running_loop(monkeypatch):
+    """Bug 1 continued: prove the fix works when an asyncio event loop IS running."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    fake_row = {
+        "state_json": _json.dumps({
+            "story": STORY_ID, "gender": "F", "player_name": "Alice",
+        }),
+        "flags_json": "{}",
+    }
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(lambda session_id, user_id: fake_row),
+    )
+
+    async def _inner():
+        return pe_mod._try_load_session_from_db("sess_async", "user2")
+
+    result = asyncio.run(_inner())
+    assert result is not None
+    assert result["state"].player_name == "Alice"
+
+
+def test_try_load_session_from_db_returns_none_when_not_found(monkeypatch):
+    """If the session doesn't exist in DB, return None (no crash)."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(lambda session_id, user_id: None),
+    )
+
+    result = pe_mod._try_load_session_from_db("nonexistent", "user1")
+    assert result is None
+
+
+def test_get_session_rejects_cross_user_cache_hit():
+    """Bug 2: If session X is cached for user A, user B must not get user A's data."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    test_session_id = "_test_cross_user_sess"
+    try:
+        # Pre-populate cache with user A's session
+        pe_mod.SESSIONS[test_session_id] = {
+            "state": pe_mod.init_state(),
+            "log": [{"role": "assistant", "content": "secret_data"}],
+            "debug_mode": False,
+            "chinese_mode": False,
+            "epistemic_state": True,
+            "truth_mode": False,
+            "user_id": "userA",
+        }
+
+        # User B requests the same session_id
+        sess = pe_mod.get_session(test_session_id, "userB")
+        assert sess["user_id"] == "userB"
+        assert sess["log"] == []  # fresh, not userA's data
+    finally:
+        pe_mod.SESSIONS.pop(test_session_id, None)
+
+
+def test_get_session_allows_same_user_cache_hit():
+    """Same user should get their own cached session back."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    test_session_id = "_test_same_user_sess"
+    try:
+        pe_mod.SESSIONS[test_session_id] = {
+            "state": pe_mod.init_state(),
+            "log": [{"role": "assistant", "content": "my_data"}],
+            "debug_mode": False,
+            "chinese_mode": False,
+            "epistemic_state": True,
+            "truth_mode": False,
+            "user_id": "userA",
+        }
+
+        sess = pe_mod.get_session(test_session_id, "userA")
+        assert sess["user_id"] == "userA"
+        assert sess["log"] == [{"role": "assistant", "content": "my_data"}]
+    finally:
+        pe_mod.SESSIONS.pop(test_session_id, None)
+
+
+def test_try_load_session_logs_on_db_failure(monkeypatch, caplog):
+    """Bug 4: DB failures should be logged, not silently swallowed."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    def _explode(session_id, user_id):
+        raise RuntimeError("DB connection failed")
+
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(_explode),
+    )
+
+    with caplog.at_level(logging.ERROR, logger="backend.app.api.prompt_engine"):
+        result = pe_mod._try_load_session_from_db("sess_bad", "user1")
+
+    assert result is None
+    assert "Failed to load session" in caplog.text
+
+
 from backend.app.integration_playback.scenarios.scenario_api_chat_five_turns import ChatFiveTurnScenario
 from backend.app.integration_playback.scenarios.scenario_iu_identity_correction import IUIdentityCorrectionScenario
 

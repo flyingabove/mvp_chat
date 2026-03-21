@@ -11,6 +11,10 @@ async def list_sessions(user: dict = Depends(get_current_user)):
     """List all game sessions for the authenticated user (newest first)."""
     user_id = user["sub"]
     sessions = await SessionRepo.list_user_sessions(user_id=user_id, limit=50)
+    # Expose session_id alongside id for frontend consistency
+    for s in sessions:
+        if "id" in s and "session_id" not in s:
+            s["session_id"] = s["id"]
     return {"sessions": sessions}
 
 

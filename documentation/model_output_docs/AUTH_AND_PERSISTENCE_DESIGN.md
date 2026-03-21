@@ -145,6 +145,8 @@ Each line is a single JSON object:
 - `epistemic_state` entries — re-seeded by `_seed_epistemic_from_story()`
 - `transient_entries` — re-seeded by `_seed_noncanonical_story_details_to_transient()`
 
+**Session restore** (`_try_load_session_from_db`): Uses `SessionRepo._get()` (synchronous) to load from SQLite on in-memory cache miss. Safe to call from async handlers — SQLite indexed lookups are sub-millisecond. Failures are logged via `logger.exception()`, never silently swallowed.
+
 ---
 
 ## API Endpoints
@@ -169,10 +171,11 @@ Each line is a single JSON object:
 ## Security Guarantees
 
 1. **No data bleed**: Every DB query uses `WHERE user_id = ?` with JWT's `sub` claim
-2. **Session ownership**: `get_session()` returns `None` if `user_id` doesn't match
-3. **JSONL isolation**: Path uses `user_id` from JWT, never from request body
-4. **Anonymous fallback**: `user_id = "anon"` → in-memory only, no DB writes
-5. **JWT signed**: HS256, `JWT_SECRET` from Railway env var, 30-day expiry
+2. **Session ownership (DB)**: `SessionRepo._get()` returns `None` if `user_id` doesn't match
+3. **Session ownership (cache)**: `get_session()` verifies `user_id` on in-memory cache hits — on mismatch, creates a fresh session (defense-in-depth, prevents cross-user data leaks even if session UUIDs collide)
+4. **JSONL isolation**: Path uses `user_id` from JWT, never from request body
+5. **Anonymous fallback**: `user_id = "anon"` → in-memory only, no DB writes
+6. **JWT signed**: HS256, `JWT_SECRET` from Railway env var, 30-day expiry
 
 ---
 

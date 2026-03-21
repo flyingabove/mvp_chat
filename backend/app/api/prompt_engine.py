@@ -14,12 +14,15 @@ from backend.app.db.repos import SessionRepo, ConversationRepo
 
 import httpx
 import json
+import logging
 
 import re
 
 import time
 
 import uuid
+
+logger = logging.getLogger(__name__)
 
 
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
@@ -920,22 +923,13 @@ def _serialize_state(state: GameState, log: list) -> str:
 def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
     """
     Try to restore a session from SQLite. Returns a SESSIONS-shaped dict or None.
-    This is called synchronously (in a non-async context from get_session).
-    We use asyncio.get_event_loop().run_until_complete() only if no loop is running;
-    otherwise we fall back to the blocking sync call.
+    Uses the synchronous SessionRepo._get() directly — safe because SQLite indexed
+    lookups are sub-millisecond and this avoids async event-loop complications.
     """
-    import asyncio
     try:
-        # Attempt the sync path directly (avoids event loop complexity)
-        from backend.app.db.repos import SessionRepo as _SR
-        import asyncio as _asyncio
-        loop = _asyncio.get_event_loop()
-        if loop.is_running():
-            # We're inside an async context — cannot block. Return None and let
-            # the async chat_handler populate from DB after this call.
-            return None
-        row = loop.run_until_complete(_SR.get_session(session_id=session_id, user_id=user_id))
+        row = SessionRepo._get(session_id=session_id, user_id=user_id)
     except Exception:
+        logger.exception("Failed to load session %s from DB", session_id)
         return None
 
     if not row:
@@ -945,6 +939,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         saved = json.loads(row.get("state_json") or "{}")
         flags = json.loads(row.get("flags_json") or "{}")
     except Exception:
+        logger.exception("Failed to parse state/flags JSON for session %s", session_id)
         return None
 
     if not saved.get("story"):
@@ -989,6 +984,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             "user_id": user_id,
         }
     except Exception:
+        logger.exception("Failed to rebuild GameState for session %s", session_id)
         return None
 
 
@@ -1011,6 +1007,25 @@ def get_session(session_id: str, user_id: str = "anon"):
                 "truth_mode": False,
                 "user_id": user_id,
             }
+
+    # Defense-in-depth: verify ownership on cache hit to prevent cross-user leaks
+    cached = SESSIONS[session_id]
+    cached_owner = cached.get("user_id", "anon")
+    if cached_owner != "anon" and user_id != "anon" and cached_owner != user_id:
+        logger.warning(
+            "Session %s owned by %s but requested by %s — creating fresh",
+            session_id, cached_owner, user_id,
+        )
+        SESSIONS[session_id] = {
+            "state": init_state(),
+            "log": [],
+            "debug_mode": False,
+            "chinese_mode": False,
+            "epistemic_state": True,
+            "truth_mode": False,
+            "user_id": user_id,
+        }
+
     return SESSIONS[session_id]
 
 
@@ -1492,7 +1507,7 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
                     turns=0,
                 )
             except Exception:
-                pass  # persistence failure must not break gameplay
+                logger.exception("Failed to persist new session %s for user %s", session_id, user_id)
 
         # Apply Chinese translation if chinese_mode is enabled
         reply = opening
@@ -1849,7 +1864,7 @@ async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optiona
                 ai_msg_id=ai_msg_id,
             )
         except Exception:
-            pass  # persistence failure must not break gameplay
+            logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
 
     try:
         state.add_transient_entry(

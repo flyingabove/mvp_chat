@@ -44,6 +44,19 @@ def test_list_sessions_authenticated(client, user1_token):
     assert data["sessions"][0]["story_title"] == "Mystery"
 
 
+def test_list_sessions_includes_session_id_field(client, user1_token):
+    """Bug 3: API response must include session_id alongside id for frontend compat."""
+    with patch("backend.app.api.user_sessions.SessionRepo.list_user_sessions", new_callable=AsyncMock) as mock:
+        mock.return_value = [
+            {"id": "sess1", "story_id": "s1", "story_title": "Title", "turns": 1}
+        ]
+        resp = client.get("/api/user/sessions", headers={"Authorization": f"Bearer {user1_token}"})
+    data = resp.json()
+    sess = data["sessions"][0]
+    assert sess["session_id"] == "sess1"  # new field
+    assert sess["id"] == "sess1"          # backward compat
+
+
 def test_list_sessions_returns_empty_list_if_none(client, user1_token):
     with patch("backend.app.api.user_sessions.SessionRepo.list_user_sessions", new_callable=AsyncMock) as mock:
         mock.return_value = []
