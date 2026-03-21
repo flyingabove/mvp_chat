@@ -721,7 +721,8 @@
       transition: background 0.15s;
     }
     #chat-send-btn:disabled { background: #2a2b30; color: #86878d; cursor: default; }
-    #chat-send-btn:not(:disabled):active { background: #4a4b53; }
+    #chat-send-btn:not(:disabled) { background: var(--red); }
+    #chat-send-btn:not(:disabled):active { background: var(--red-dark); }
 
     /* Chat 3-dot menu dropdown */
     #chat-dropdown {
@@ -1519,6 +1520,12 @@ function $(id){ return document.getElementById(id); }
 function showToast(msg, dur){
   var el = $("toast");
   el.textContent = msg;
+  // Adjust position when in chat (no tab bar)
+  if (appState.currentScreen === "chat") {
+    el.style.bottom = "80px";
+  } else {
+    el.style.bottom = "";
+  }
   el.classList.add("show");
   setTimeout(function(){ el.classList.remove("show"); }, dur || 2500);
 }
@@ -1603,6 +1610,7 @@ function showScreen(name){
   if (name === "home") refreshHomeScreen();
   if (name === "games") renderGamesList();
   if (name === "profile") refreshProfileScreen();
+  if (name === "chat") setTimeout(function(){ $("chat-text-input").focus(); }, 200);
 }
 
 /* ─── HOME SCREEN ───────────────────────────────── */
@@ -1677,6 +1685,19 @@ function renderHomeContent(list){
 
   // Rows
   var rows = [];
+
+  // "Continue Playing" row if user has active sessions
+  var recentSessions = loadSessions().filter(function(s){ return s.turns > 0; }).slice(0, 5);
+  if (recentSessions.length) {
+    var continueStories = recentSessions.map(function(sess){
+      var story = list.find(function(s){ return s.id === sess.story_id; })
+        || { id: sess.story_id, title: sess.story_title, genre: "", description: "" };
+      // Attach session for resume
+      story = Object.assign({}, story, { _session: sess });
+      return story;
+    });
+    rows.push({ title: "Continue Playing", stories: continueStories, wide: true, isResume: true });
+  }
 
   // Featured row
   var featuredList = list.filter(function(s){ return s.featured; });
@@ -1755,7 +1776,11 @@ function buildGameRow(title, stories, wide){
 
     card.appendChild(imgDiv);
     card.appendChild(body);
-    card.onclick = function(){ showGameDetail(story); };
+    if (story._session) {
+      card.onclick = function(){ resumeGameFromSession(story._session); };
+    } else {
+      card.onclick = function(){ showGameDetail(story); };
+    }
 
     scroll.appendChild(card);
   });
@@ -1784,10 +1809,22 @@ function showGameDetail(story){
     heroImg.textContent = emoji;
   }
 
-  $("modal-play-btn").onclick = function(){
-    closeModal("modal-game-detail");
-    startGame(story);
-  };
+  // Check for existing session to show "Resume" instead of "Play Now"
+  var existingSession = loadSessions().find(function(s){ return s.story_id === story.id; });
+  var playBtn = $("modal-play-btn");
+  if (existingSession && existingSession.turns > 0) {
+    playBtn.innerHTML = "▶ Resume Game";
+    playBtn.onclick = function(){
+      closeModal("modal-game-detail");
+      resumeGameFromSession(existingSession);
+    };
+  } else {
+    playBtn.innerHTML = "▶ Play Now";
+    playBtn.onclick = function(){
+      closeModal("modal-game-detail");
+      startGame(story);
+    };
+  }
 
   openModal("modal-game-detail");
 }
@@ -2489,9 +2526,15 @@ function renderSessionsRows(sessions){
 
     var body = document.createElement("div");
     body.className = "game-list-body";
+    var subText = sess.last_message || "Tap to continue";
+    var metaParts = [];
+    if (sess.player_name) metaParts.push(sess.player_name);
+    if (sess.turns) metaParts.push(sess.turns + " turns");
+    var metaLine = metaParts.length ? '<div class="game-list-sub" style="color:var(--text-muted);font-size:11px;margin-bottom:1px;">' + escapeHTML(metaParts.join(" · ")) + '</div>' : '';
     body.innerHTML = [
       '<div class="game-list-title">' + escapeHTML(sess.story_title || story.title || "Game") + '</div>',
-      '<div class="game-list-sub">' + escapeHTML(sess.last_message || "Tap to continue") + '</div>'
+      metaLine,
+      '<div class="game-list-sub">' + escapeHTML(subText) + '</div>'
     ].join("");
 
     var time = document.createElement("div");
