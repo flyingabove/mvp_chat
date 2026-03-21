@@ -63,6 +63,27 @@ Backend
 - Guest ID validated by regex: must be valid UUID hex (32-36 chars), lowercased. Invalid IDs → 401.
 - Privacy: each guest device ID is unique, data isolated by `WHERE user_id = ?`
 
+### Guest session lifecycle
+
+**TTL & cleanup:**
+- Guest sessions expire after **24 hours** of inactivity (`GUEST_TTL_SECONDS = 86400`)
+- Background async task `_guest_cleanup_loop()` runs hourly in `main.py` lifespan
+- Deletes DB rows WHERE `user_id LIKE 'guest:%' AND last_played < cutoff`
+- Also deletes JSONL conversation log files and evicts from in-memory SESSIONS cache
+- Frontend warns at game start: *"Guest mode: your progress will be deleted after 24 hours unless you sign in with Google."*
+
+**Guest → Google transfer:**
+- On OAuth callback (`/auth/google/callback`), backend reads `storieschat_guest_id` cookie
+- If valid UUID, calls `SessionRepo.transfer_sessions(from_guest, to_google_user)`
+- Transfer updates `user_id` in all `game_sessions` DB rows and moves JSONL files
+- In-memory SESSIONS cache updated to reflect new ownership
+- Guest cookie deleted after successful transfer (`resp.delete_cookie(...)`)
+- Idempotent: if guest has no sessions, transfer is a no-op (returns 0)
+
+**Filesystem safety:**
+- `_safe_dir_name(user_id)` replaces `:` with `_` for Windows compatibility
+- All JSONL paths use sanitized user_id: `/data/users/guest_<uuid>/sessions/{sid}.jsonl`
+
 ### Fully anonymous users
 - No JWT AND no X-Guest-Id → `user_id = "anon"` in `chat_handler`
 - In-memory only, no persistence, state lost on server restart

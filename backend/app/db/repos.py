@@ -126,7 +126,7 @@ class SessionRepo:
 
         if deleted:
             # Remove JSONL file
-            jsonl_path = DATA_DIR / "users" / user_id / "sessions" / f"{session_id}.jsonl"
+            jsonl_path = DATA_DIR / "users" / _safe_dir_name(user_id) / "sessions" / f"{session_id}.jsonl"
             try:
                 jsonl_path.unlink(missing_ok=True)
             except Exception:
@@ -157,12 +157,108 @@ class SessionRepo:
     async def delete_session(cls, session_id: str, user_id: str) -> bool:
         return await asyncio.to_thread(cls._delete, session_id, user_id)
 
+    @staticmethod
+    def _transfer(from_user_id: str, to_user_id: str) -> int:
+        """Transfer all sessions from one user_id to another. Returns count."""
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                "UPDATE game_sessions SET user_id = ? WHERE user_id = ?",
+                (to_user_id, from_user_id),
+            )
+            conn.commit()
+            count = cur.rowcount
+        finally:
+            conn.close()
+
+        # Move JSONL files from old user dir to new user dir
+        if count > 0:
+            src_dir = DATA_DIR / "users" / _safe_dir_name(from_user_id) / "sessions"
+            dst_dir = DATA_DIR / "users" / _safe_dir_name(to_user_id) / "sessions"
+            if src_dir.exists():
+                dst_dir.mkdir(parents=True, exist_ok=True)
+                for f in src_dir.iterdir():
+                    try:
+                        f.rename(dst_dir / f.name)
+                    except Exception:
+                        pass
+                # Clean up empty source directory
+                try:
+                    src_dir.rmdir()
+                    src_dir.parent.rmdir()
+                except Exception:
+                    pass
+
+        return count
+
+    @staticmethod
+    def _delete_expired_guests(cutoff_ts: int) -> int:
+        """Delete all guest sessions older than cutoff_ts (Unix seconds).
+        Returns number of sessions deleted."""
+        conn = get_connection()
+        try:
+            # Find sessions to delete (need IDs for JSONL cleanup)
+            rows = conn.execute(
+                "SELECT id, user_id FROM game_sessions "
+                "WHERE user_id LIKE 'guest:%' AND last_played < ?",
+                (cutoff_ts,),
+            ).fetchall()
+
+            if not rows:
+                return 0
+
+            ids = [r["id"] for r in rows]
+            user_ids = {r["user_id"] for r in rows}
+
+            # Delete from DB
+            placeholders = ",".join("?" * len(ids))
+            conn.execute(
+                f"DELETE FROM game_sessions WHERE id IN ({placeholders})",
+                ids,
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Clean up JSONL files
+        for row in rows:
+            jsonl_path = DATA_DIR / "users" / _safe_dir_name(row["user_id"]) / "sessions" / f"{row['id']}.jsonl"
+            try:
+                jsonl_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        # Clean up empty guest user directories
+        for uid in user_ids:
+            sessions_dir = DATA_DIR / "users" / _safe_dir_name(uid) / "sessions"
+            try:
+                if sessions_dir.exists() and not any(sessions_dir.iterdir()):
+                    sessions_dir.rmdir()
+                    sessions_dir.parent.rmdir()
+            except Exception:
+                pass
+
+        return len(ids)
+
+    @classmethod
+    async def transfer_sessions(cls, from_user_id: str, to_user_id: str) -> int:
+        return await asyncio.to_thread(cls._transfer, from_user_id, to_user_id)
+
+    @classmethod
+    async def delete_expired_guest_sessions(cls, cutoff_ts: int) -> int:
+        return await asyncio.to_thread(cls._delete_expired_guests, cutoff_ts)
+
 
 # ---------------------------------------------------------------------------
 # ConversationRepo  (JSONL-based raw logs)
 # ---------------------------------------------------------------------------
+def _safe_dir_name(user_id: str) -> str:
+    """Sanitize user_id for use as a directory name (Windows forbids ':')."""
+    return user_id.replace(":", "_")
+
+
 def _jsonl_path(user_id: str, session_id: str) -> Path:
-    return DATA_DIR / "users" / user_id / "sessions" / f"{session_id}.jsonl"
+    return DATA_DIR / "users" / _safe_dir_name(user_id) / "sessions" / f"{session_id}.jsonl"
 
 
 class ConversationRepo:

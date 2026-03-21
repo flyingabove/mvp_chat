@@ -8,8 +8,8 @@ log = logging.getLogger(__name__)
 
 from backend.app.auth.google_oauth import build_auth_url, exchange_code, get_userinfo
 from backend.app.auth.jwt_utils import create_token
-from backend.app.auth.dependencies import get_current_user
-from backend.app.db.repos import UserRepo
+from backend.app.auth.dependencies import get_current_user, _GUEST_ID_RE
+from backend.app.db.repos import UserRepo, SessionRepo
 
 router = APIRouter()
 
@@ -98,10 +98,31 @@ async def google_callback(code: str, state: str, request: Request):
             content={"error": "db_upsert_failed", "detail": str(exc)},
         )
 
+    # Transfer guest sessions to the newly authenticated user
+    guest_cookie = request.cookies.get("storieschat_guest_id", "")
+    if guest_cookie and _GUEST_ID_RE.match(guest_cookie):
+        guest_user_id = f"guest:{guest_cookie.lower()}"
+        try:
+            count = await SessionRepo.transfer_sessions(
+                from_user_id=guest_user_id, to_user_id=user_id,
+            )
+            if count:
+                log.info("Transferred %d guest sessions from %s to %s", count, guest_user_id, user_id)
+                # Update in-memory SESSIONS cache to reflect new ownership
+                from backend.app.api.prompt_engine import SESSIONS
+                for sid, sess in list(SESSIONS.items()):
+                    if sess.get("user_id") == guest_user_id:
+                        sess["user_id"] = user_id
+        except Exception as exc:
+            log.error("Guest session transfer failed: %s", exc)
+
     jwt_token = create_token(user_id=user_id, email=email, name=name)
 
     frontend_base = _build_frontend_base(request)
-    return RedirectResponse(url=f"{frontend_base}?token={jwt_token}")
+    resp = RedirectResponse(url=f"{frontend_base}?token={jwt_token}")
+    # Clear the guest cookie after transfer (user now has a real account)
+    resp.delete_cookie("storieschat_guest_id", path="/")
+    return resp
 
 
 @router.get("/api/auth/me")

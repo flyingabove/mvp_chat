@@ -3,7 +3,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+import asyncio
+import logging
 import os
+import time
 import threading
 from pathlib import Path
 
@@ -17,6 +20,7 @@ from backend.app.api.debug_engine import router as debug_router, ws_debug
 from backend.app.api.auth import router as auth_router
 from backend.app.api.user_sessions import router as user_sessions_router
 from backend.app.db.database import init_db
+from backend.app.db.repos import SessionRepo
 
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
@@ -72,11 +76,40 @@ def _startup_checks():
 # --------------------------------------------------
 
 
+_log = logging.getLogger(__name__)
+
+GUEST_TTL_SECONDS = 24 * 60 * 60  # 1 day
+
+
+async def _guest_cleanup_loop():
+    """Background task: delete guest sessions older than 24 hours. Runs every hour."""
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            cutoff = int(time.time()) - GUEST_TTL_SECONDS
+            count = await SessionRepo.delete_expired_guest_sessions(cutoff)
+            if count:
+                _log.info("Guest cleanup: deleted %d expired guest sessions", count)
+                # Also evict from in-memory SESSIONS cache
+                from backend.app.api.prompt_engine import SESSIONS
+                expired = [
+                    sid for sid, sess in SESSIONS.items()
+                    if sess.get("user_id", "").startswith("guest:")
+                ]
+                for sid in expired:
+                    SESSIONS.pop(sid, None)
+        except Exception:
+            _log.exception("Guest cleanup task failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     _startup_checks()
+    # Start guest cleanup background task
+    cleanup_task = asyncio.create_task(_guest_cleanup_loop())
     yield
+    cleanup_task.cancel()
 
 
 # --------------------------------------------------
