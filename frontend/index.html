@@ -68,11 +68,20 @@
     ══════════════════════════════════════════════ */
     .screen {
       position: fixed; inset: 0;
-      display: none;
+      display: flex;
       flex-direction: column;
       overflow: hidden;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.18s ease, visibility 0s 0.18s;
+      pointer-events: none;
     }
-    .screen.active { display: flex; }
+    .screen.active {
+      visibility: visible;
+      opacity: 1;
+      transition: opacity 0.18s ease, visibility 0s 0s;
+      pointer-events: auto;
+    }
 
     /* ══════════════════════════════════════════════
        TOP BAR
@@ -907,6 +916,112 @@
     #chat-scroll-wrapper {
       flex: 1; display: flex; flex-direction: column; overflow: hidden;
     }
+
+    /* ══════════════════════════════════════════════
+       TYPEWRITER CURSOR
+    ══════════════════════════════════════════════ */
+    .msg-bubble.npc.typing-active::after {
+      content: '▎';
+      display: inline;
+      color: var(--text-sub);
+      animation: cursor-blink 0.7s steps(1) infinite;
+      margin-left: 1px;
+    }
+    @keyframes cursor-blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* ══════════════════════════════════════════════
+       SETTINGS — RANGE SLIDER
+    ══════════════════════════════════════════════ */
+    .settings-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 120px; height: 4px;
+      background: var(--text-muted); border-radius: 2px;
+      outline: none;
+    }
+    .settings-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--red); cursor: pointer;
+    }
+    .settings-slider::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--red); cursor: pointer; border: none;
+    }
+
+    /* ══════════════════════════════════════════════
+       MY GAMES — SWIPE-TO-DELETE
+    ══════════════════════════════════════════════ */
+    .game-list-item {
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease;
+    }
+    .game-list-item .delete-bg {
+      position: absolute; top: 0; right: 0; bottom: 0;
+      width: 80px; background: #d32f2f;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 13px; font-weight: 700;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .game-list-item.swiped .delete-bg { opacity: 1; }
+    .game-list-item .item-content {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 16px; background: var(--bg);
+      position: relative; z-index: 1;
+      transition: transform 0.2s ease;
+    }
+    .game-list-item.swiped .item-content {
+      transform: translateX(-80px);
+    }
+
+    /* ══════════════════════════════════════════════
+       LOADING SKELETON
+    ══════════════════════════════════════════════ */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 50%, var(--card) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s infinite;
+      border-radius: var(--radius-sm);
+    }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ══════════════════════════════════════════════
+       CONFIRM DIALOG
+    ══════════════════════════════════════════════ */
+    #confirm-dialog {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.85);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #confirm-dialog.open { display: flex; }
+    .confirm-card {
+      background: var(--surface); border-radius: 20px;
+      padding: 28px 24px; width: 100%; max-width: 340px;
+      text-align: center;
+    }
+    .confirm-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+    .confirm-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 24px; line-height: 1.5; }
+    .confirm-actions { display: flex; gap: 10px; }
+    .confirm-cancel {
+      flex: 1; height: 46px; border-radius: 12px;
+      background: rgba(255,255,255,0.08); color: var(--text);
+      border: 1px solid var(--border); cursor: pointer;
+      font-size: 15px; font-weight: 600;
+    }
+    .confirm-ok {
+      flex: 1; height: 46px; border-radius: 12px;
+      background: var(--red); color: white;
+      border: none; cursor: pointer;
+      font-size: 15px; font-weight: 700;
+    }
+    .confirm-ok:active { background: var(--red-dark); }
   </style>
 </head>
 
@@ -1077,11 +1192,20 @@
       </div>
       <div class="profile-btns">
         <button class="btn-profile-edit" id="profile-edit-btn">Edit Profile</button>
+        <button class="btn-profile-edit" id="profile-auth-btn" style="border-color:var(--red);color:var(--red);">Sign in</button>
       </div>
     </div>
 
     <div class="settings-section-header">Settings</div>
     <div class="settings-group">
+      <div class="settings-row">
+        <div class="settings-row-icon">⌨</div>
+        <div class="settings-row-label">Text Speed</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="range" class="settings-slider" id="typewriter-speed" min="0" max="3" step="1" value="1" />
+          <span id="typewriter-speed-label" style="font-size:13px;color:var(--text-sub);min-width:50px;">Normal</span>
+        </div>
+      </div>
       <div class="settings-row">
         <div class="settings-row-icon">🌙</div>
         <div class="settings-row-label">Dark Mode</div>
@@ -1212,6 +1336,18 @@
   <div id="map-modal-locations" class="map-locations"></div>
 </div>
 
+<!-- Confirm dialog -->
+<div id="confirm-dialog">
+  <div class="confirm-card">
+    <div class="confirm-title" id="confirm-title">Exit Game?</div>
+    <div class="confirm-sub" id="confirm-sub">Your progress is saved. You can resume from My Games anytime.</div>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" id="confirm-cancel">Cancel</button>
+      <button class="confirm-ok" id="confirm-ok">Exit</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -1298,6 +1434,17 @@ var PROFILE_KEY  = "storieschat_profile";
 var STATS_KEY    = "storieschat_stats";
 var JWT_KEY      = "storieschat_jwt";
 var GUEST_ID_KEY = "storieschat_guest_id";
+var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
+
+// Typewriter speed: 0=Instant, 1=Normal(30ms), 2=Slow(55ms), 3=Very Slow(80ms)
+var TYPEWRITER_SPEEDS = [0, 30, 55, 80];
+var TYPEWRITER_LABELS = ["Instant", "Normal", "Slow", "V. Slow"];
+
+function getTypewriterDelay(){
+  var idx = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
+  if (idx < 0 || idx >= TYPEWRITER_SPEEDS.length) idx = 1;
+  return TYPEWRITER_SPEEDS[idx];
+}
 
 /* ─── JWT HELPERS ───────────────────────────────── */
 function getToken(){ return localStorage.getItem(JWT_KEY); }
@@ -1893,9 +2040,9 @@ function resumeGameFromSession(sess){
 
   showScreen("chat");
 
-  // Load recent history from backend if logged in
+  // Load recent history from backend (JWT or guest)
   var sessionId = sess.session_id;
-  if (getToken() && sessionId) {
+  if ((getToken() || getGuestId()) && sessionId) {
     fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/history?limit=20", { headers: apiHeaders() })
       .then(function(r){
         if (r.status === 401){ handleUnauthorized(); return null; }
@@ -1905,7 +2052,7 @@ function resumeGameFromSession(sess){
         if (!data) return;
         var entries = data.entries || [];
         entries.forEach(function(e){
-          addMessage(e.role === "user" ? "user" : "npc", e.content);
+          addMessage(e.role === "user" ? "user" : "npc", e.content, { skipTypewriter: true });
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
         if (!entries.length) addSystemMessage("(Continue where you left off)");
@@ -1929,19 +2076,21 @@ function scrollChatToBottom(){
   el.scrollTop = el.scrollHeight;
 }
 
-function addMessage(role, text){
+function addMessage(role, text, options){
+  options = options || {};
   var msgs = $("chat-messages");
   var row = document.createElement("div");
   row.className = "msg-row " + role;
+  var bubble;
 
   if (role === "system"){
     row.className = "msg-row system";
-    var bubble = document.createElement("div");
+    bubble = document.createElement("div");
     bubble.className = "msg-bubble system-msg";
     bubble.innerHTML = formatMsgText(text);
     row.appendChild(bubble);
   } else if (role === "user"){
-    var bubble = document.createElement("div");
+    bubble = document.createElement("div");
     bubble.className = "msg-bubble user";
     bubble.innerHTML = formatMsgText(text);
     var userAv = document.createElement("div");
@@ -1953,17 +2102,79 @@ function addMessage(role, text){
     var av = document.createElement("div");
     av.className = "msg-avatar";
     av.textContent = appState.currentStory ? genreEmoji(appState.currentStory.genre || "") : "🎭";
-    var bubble = document.createElement("div");
+    bubble = document.createElement("div");
     bubble.className = "msg-bubble npc";
-    bubble.innerHTML = formatMsgText(text);
     row.appendChild(av);
     row.appendChild(bubble);
   }
 
   msgs.appendChild(row);
   appState.chatHistory.push({ role: role, text: text });
+
+  // Typewriter effect for NPC messages (not history loads)
+  var delay = getTypewriterDelay();
+  if (role === "npc" && delay > 0 && !options.skipTypewriter) {
+    typewriteMessage(bubble, text, delay);
+  } else if (role === "npc") {
+    bubble.innerHTML = formatMsgText(text);
+  }
+
   scrollChatToBottom();
   return row;
+}
+
+var _typewriterAbort = null; // AbortController for current typewriter
+
+function typewriteMessage(bubble, text, charDelay){
+  // Cancel any prior typewriter
+  if (_typewriterAbort) _typewriterAbort.abort();
+  var controller = new AbortController();
+  _typewriterAbort = controller;
+
+  var formatted = formatMsgText(text);
+  // We type the raw text, then set full HTML at the end
+  var plainText = text.replace(/\\n/g, "\n");
+  bubble.textContent = "";
+  bubble.classList.add("typing-active");
+
+  var idx = 0;
+  var cancelled = false;
+  controller.signal.addEventListener("abort", function(){ cancelled = true; });
+
+  // Allow tap/click to skip to end
+  function skipHandler(){
+    cancelled = true;
+    bubble.removeEventListener("click", skipHandler);
+  }
+  bubble.addEventListener("click", skipHandler);
+  bubble.style.cursor = "pointer";
+
+  function typeNext(){
+    if (cancelled || idx >= plainText.length){
+      bubble.innerHTML = formatted;
+      bubble.classList.remove("typing-active");
+      bubble.style.cursor = "";
+      bubble.removeEventListener("click", skipHandler);
+      if (_typewriterAbort === controller) _typewriterAbort = null;
+      scrollChatToBottom();
+      return;
+    }
+    // Add next character
+    var ch = plainText[idx++];
+    if (ch === "\n") {
+      bubble.appendChild(document.createElement("br"));
+    } else {
+      bubble.appendChild(document.createTextNode(ch));
+    }
+    // Vary speed slightly for natural feel: pause longer on punctuation
+    var d = charDelay;
+    if (".!?".indexOf(ch) >= 0) d = charDelay * 4;
+    else if (",;:".indexOf(ch) >= 0) d = charDelay * 2;
+    scrollChatToBottom();
+    setTimeout(typeNext, d);
+  }
+
+  typeNext();
 }
 
 function addSystemMessage(text){ addMessage("system", text); }
@@ -2185,13 +2396,15 @@ $("dd-epistemic").addEventListener("click", function(){
 
 $("dd-exit").addEventListener("click", function(){
   $("chat-dropdown").classList.remove("open");
-  if (confirm("Exit this game? Your session will be saved.")) {
-    showScreen("home");
-  }
+  showConfirm("Exit Game?", "Your progress is saved. You can resume from My Games anytime.", "Exit", function(){
+    showScreen("games");
+  });
 });
 
 $("chat-back-btn").addEventListener("click", function(){
-  showScreen("home");
+  showConfirm("Leave Game?", "Your progress is saved. You can resume from My Games anytime.", "Leave", function(){
+    showScreen("games");
+  });
 });
 
 /* ─── WORLD MAP MODAL ───────────────────────────── */
@@ -2260,6 +2473,16 @@ function renderSessionsRows(sessions){
     var item = document.createElement("div");
     item.className = "game-list-item";
 
+    // Delete background (visible on swipe)
+    var deleteBg = document.createElement("div");
+    deleteBg.className = "delete-bg";
+    deleteBg.textContent = "Delete";
+    item.appendChild(deleteBg);
+
+    // Item content wrapper (slides on swipe)
+    var content = document.createElement("div");
+    content.className = "item-content";
+
     var thumb = document.createElement("div");
     thumb.className = "game-list-thumb";
     thumb.textContent = genreEmoji(story.genre || "");
@@ -2277,11 +2500,68 @@ function renderSessionsRows(sessions){
     var ts = sess.last_played ? (sess.last_played > 1e12 ? sess.last_played : sess.last_played * 1000) : 0;
     time.textContent = timeAgo(ts);
 
-    item.appendChild(thumb);
-    item.appendChild(body);
-    item.appendChild(time);
+    content.appendChild(thumb);
+    content.appendChild(body);
+    content.appendChild(time);
+    item.appendChild(content);
 
-    item.onclick = function(){
+    // Swipe-to-delete
+    var startX = 0, currentX = 0, swiping = false;
+    content.addEventListener("touchstart", function(e){
+      startX = e.touches[0].clientX;
+      swiping = true;
+    }, { passive: true });
+    content.addEventListener("touchmove", function(e){
+      if (!swiping) return;
+      currentX = e.touches[0].clientX;
+      var dx = startX - currentX;
+      if (dx > 10) {
+        content.style.transform = "translateX(" + Math.max(-80, -dx) + "px)";
+      }
+    }, { passive: true });
+    content.addEventListener("touchend", function(){
+      swiping = false;
+      var dx = startX - currentX;
+      if (dx > 50) {
+        item.classList.add("swiped");
+      } else {
+        item.classList.remove("swiped");
+        content.style.transform = "";
+      }
+    });
+
+    // Delete handler
+    deleteBg.addEventListener("click", function(e){
+      e.stopPropagation();
+      var sessionId = sess.session_id || sess.id;
+      showConfirm("Delete Game?", "This will permanently delete this game session and all conversation history.", "Delete", function(){
+        // Animate removal
+        item.style.transition = "opacity 0.3s, max-height 0.3s";
+        item.style.opacity = "0";
+        item.style.maxHeight = item.offsetHeight + "px";
+        setTimeout(function(){ item.style.maxHeight = "0"; item.style.padding = "0"; }, 50);
+        setTimeout(function(){ item.remove(); }, 350);
+
+        // Delete from backend
+        if (sessionId && (getToken() || getGuestId())) {
+          fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId), {
+            method: "DELETE",
+            headers: apiHeaders()
+          }).catch(function(){});
+        }
+        // Delete from localStorage
+        var local = loadSessions().filter(function(s){ return s.session_id !== sessionId; });
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(local));
+      });
+    });
+
+    // Tap to resume (only if not swiped)
+    content.addEventListener("click", function(){
+      if (item.classList.contains("swiped")) {
+        item.classList.remove("swiped");
+        content.style.transform = "";
+        return;
+      }
       if (appState.stories.length === 0) loadStories();
       // Normalize session shape for resumeGameFromSession
       var normalized = {
@@ -2295,7 +2575,7 @@ function renderSessionsRows(sessions){
         turns: sess.turns || 0,
       };
       resumeGameFromSession(normalized);
-    };
+    });
 
     list.appendChild(item);
   });
@@ -2326,8 +2606,13 @@ function renderGamesList(){
     return;
   }
 
-  // Has identity (JWT or guest ID) — load from backend
-  list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>';
+  // Has identity (JWT or guest ID) — load from backend with skeleton
+  list.innerHTML = Array(3).fill(
+    '<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+    '<div class="skeleton" style="width:56px;height:56px;border-radius:14px;flex-shrink:0;"></div>' +
+    '<div style="flex:1;"><div class="skeleton" style="width:60%;height:14px;margin-bottom:8px;"></div><div class="skeleton" style="width:40%;height:12px;"></div></div>' +
+    '<div class="skeleton" style="width:32px;height:12px;"></div></div>'
+  ).join("");
   fetch(USER_SESSIONS_URL, { headers: apiHeaders() })
     .then(function(r){
       if (r.status === 401){
@@ -2401,7 +2686,14 @@ function refreshProfileScreen(){
   $("stat-turns").textContent = stats.turns || 0;
 
   var token = getToken();
+  var authBtn = $("profile-auth-btn");
+
   if (token) {
+    if (authBtn) {
+      authBtn.textContent = "Sign out";
+      authBtn.style.borderColor = "var(--text-muted)";
+      authBtn.style.color = "var(--text-muted)";
+    }
     fetch(AUTH_ME_URL, { headers: apiHeaders() })
       .then(function(r){
         if (r.status === 401){ handleUnauthorized(); return null; }
@@ -2416,8 +2708,25 @@ function refreshProfileScreen(){
   } else {
     if ($("profile-name")) $("profile-name").textContent = "Guest";
     if ($("profile-handle")) $("profile-handle").textContent = "Sign in to save progress";
+    if (authBtn) {
+      authBtn.textContent = "Sign in";
+      authBtn.style.borderColor = "var(--red)";
+      authBtn.style.color = "var(--red)";
+    }
   }
 }
+
+$("profile-auth-btn").addEventListener("click", function(){
+  if (getToken()) {
+    showConfirm("Sign out?", "You'll need to sign in again to access your saved games.", "Sign out", function(){
+      clearToken();
+      refreshProfileScreen();
+      showToast("Signed out.");
+    });
+  } else {
+    window.location.href = GOOGLE_LOGIN_URL;
+  }
+});
 
 /* ─── TAB BAR ───────────────────────────────────── */
 document.querySelectorAll(".tab-item").forEach(function(tab){
@@ -2437,6 +2746,54 @@ function closeModal(id){ $(id).classList.remove("open"); }
 $("modal-game-detail").addEventListener("click", function(e){
   if (e.target === this) closeModal("modal-game-detail");
 });
+
+/* ─── CONFIRM DIALOG ───────────────────────────── */
+var _confirmCallback = null;
+
+function showConfirm(title, message, okText, callback){
+  $("confirm-title").textContent = title;
+  $("confirm-sub").textContent = message;
+  $("confirm-ok").textContent = okText || "OK";
+  _confirmCallback = callback;
+  openModal("confirm-dialog");
+}
+
+$("confirm-cancel").addEventListener("click", function(){
+  closeModal("confirm-dialog");
+  _confirmCallback = null;
+});
+
+$("confirm-ok").addEventListener("click", function(){
+  closeModal("confirm-dialog");
+  if (_confirmCallback) _confirmCallback();
+  _confirmCallback = null;
+});
+
+$("confirm-dialog").addEventListener("click", function(e){
+  if (e.target === this) {
+    closeModal("confirm-dialog");
+    _confirmCallback = null;
+  }
+});
+
+/* ─── TYPEWRITER SPEED SETTING ─────────────────── */
+(function(){
+  var slider = $("typewriter-speed");
+  var label = $("typewriter-speed-label");
+  if (!slider || !label) return;
+
+  // Load saved value
+  var saved = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
+  if (saved < 0 || saved >= TYPEWRITER_LABELS.length) saved = 1;
+  slider.value = saved;
+  label.textContent = TYPEWRITER_LABELS[saved];
+
+  slider.addEventListener("input", function(){
+    var val = parseInt(this.value, 10);
+    label.textContent = TYPEWRITER_LABELS[val] || "Normal";
+    localStorage.setItem(TYPEWRITER_SPEED_KEY, String(val));
+  });
+})();
 
 /* ─── VERSION ───────────────────────────────────── */
 fetch("version.json", { cache: "no-store" })
