@@ -93,6 +93,9 @@ Option C — Use the gh CLI for auth (cleanest long-term solution):
   beta  — staging   (auto-deploys to beta-api.storieschat.ai / mvpchat-beta on Railway)
   main  — NOT the deploy branch. Do NOT push prod changes here.
 
+⚠️  CRITICAL: `main` is non-deploy and effectively archival for this flow.
+    Production deploys from `prod` only.
+
 ⚠️  CRITICAL: "push to prod" means `git checkout prod`, NOT `git checkout main`.
     Pushing to main does NOT deploy to production. Always use the `prod` branch.
 

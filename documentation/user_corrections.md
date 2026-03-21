@@ -8,7 +8,7 @@ Patterns from user feedback to prevent repeating mistakes.
 
 **What happened:** After fixing SVG thumbnails and hero CSS, I pushed to both `beta` AND `main` (production) without asking.
 
-**Rule:** Always push to `beta` first. Only merge to `main` when the user explicitly requests it. `main` triggers Railway auto-deploy — treat it as sacred.
+**Rule:** Always push to `beta` first. Only merge to `prod` when the user explicitly requests it. `prod` triggers Railway production deploy — treat it as sacred.
 
 **Added to:** CLAUDE.md section 8, MEMORY.md workflow preferences.
 

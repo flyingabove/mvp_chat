@@ -214,3 +214,10 @@ marimo/_lsp/
 __marimo__/
 nul
 scripts/saves/scores.csv
+
+# Local tooling and generated search index artifacts
+.kiro/
+mcp_docs/
+
+# Local runtime DB artifact
+data/storieschat.db

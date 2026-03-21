@@ -7,7 +7,7 @@ Infrastructure Reference
 
 | Layer | Provider | Notes |
 |-------|----------|-------|
-| Backend API | Railway | Docker-based, auto-deploys on push to `main` branch |
+| Backend API | Railway | Docker-based, auto-deploys from `prod` (production) and `beta` (staging) branches |
 | Frontend (game UI) | Namecheap | Static file hosting; `frontend/index.html` |
 | Domain | Namecheap | `storieschat.ai` |
 | Persistent storage | Railway Volume | Mounted at `/data` at runtime |
