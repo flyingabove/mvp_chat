@@ -91,13 +91,10 @@ Option C — Use the gh CLI for auth (cleanest long-term solution):
 
   prod  — production (auto-deploys to api.storieschat.ai / mvpchat-prod on Railway)
   beta  — staging   (auto-deploys to beta-api.storieschat.ai / mvpchat-beta on Railway)
-  main  — NOT the deploy branch. Do NOT push prod changes here.
 
-⚠️  CRITICAL: `main` is non-deploy and effectively archival for this flow.
+⚠️  CRITICAL: There is NO `main` branch. It has been DELETED.
+    Do NOT create, reference, or push to `main`. Only `beta` and `prod` exist.
     Production deploys from `prod` only.
-
-⚠️  CRITICAL: "push to prod" means `git checkout prod`, NOT `git checkout main`.
-    Pushing to main does NOT deploy to production. Always use the `prod` branch.
 
 ⚠️  CRITICAL: ALL code changes MUST be made on the `beta` branch first.
     Flow is always: beta (make changes) → prod (squash-merge FROM beta) → push prod.
@@ -137,11 +134,11 @@ git checkout beta
 ```
 
 **Rules:**
-- ALWAYS use `prod` branch — NEVER push to `main` thinking it deploys to production
+- ALWAYS use `prod` branch — there is NO `main` branch (it was deleted)
 - Always use `--squash` — keeps prod history clean (one commit per promotion)
 - `-X theirs` — beta always wins on merge conflicts
 - Write a real commit message summarising the features/fixes being promoted
-- Always end by switching back to beta (never leave the user on prod or main)
+- Always end by switching back to beta (never leave the user on prod)
 - Never skip the `git checkout beta` at the end
 
 ### If push fails

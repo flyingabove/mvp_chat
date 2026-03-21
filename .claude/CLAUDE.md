@@ -52,10 +52,11 @@ If instructions every conflict with what is designed in the doc, always update t
 - If a test fails to spin up a resources such as a database locally, fix the test or the test environment. Don't skip the test or push with a failing test.
 
 ### 8. Deploy Flow — Beta First, Prod on Request
-- **ALWAYS push to `beta` branch first.** Never push directly to `main` without explicit user approval.
-- After pushing to `beta`, inform the user and wait for them to confirm before merging to `main`.
-- The `main` branch is production (Railway auto-deploys from it). Treat it as sacred.
-- Only merge `beta` → `main` when the user explicitly says to push to prod / merge to main.
+- **ALWAYS push to `beta` branch first.** Never push directly to `prod` without explicit user approval.
+- After pushing to `beta`, inform the user and wait for them to confirm before merging to `prod`.
+- The `prod` branch is production (Railway auto-deploys from it). Treat it as sacred.
+- Only merge `beta` → `prod` when the user explicitly says to push to prod.
+- There is NO `main` branch. It was deleted. Do NOT create or reference `main`.
 
 ## Task Management (任务管理)
 1. **Plan First:** Write plan to `tasks/todo.md` with checkable items

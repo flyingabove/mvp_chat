@@ -89,7 +89,7 @@ All routes live under a single domain (no subdomain juggling):
 
 | URL | What | Railway service |
 |-----|------|-----------------|
-| `https://storieschat.ai/` | Prod game UI | Prod (main branch) |
+| `https://storieschat.ai/` | Prod game UI | Prod (prod branch) |
 | `https://storieschat.ai/debug` | Prod debug UI | Prod |
 | `https://storieschat.ai/beta/` | Beta game UI | Beta (beta branch) |
 | `https://storieschat.ai/beta/debug` | Beta debug UI | Beta |
