@@ -52,7 +52,6 @@ def test_story_loader_warns_when_no_is_main_flag(capfd):
             {"key": "bob", "name": "Bob", "role": "npc"},
         ],
     }
-    logged = []
     with patch("backend.app.engine.story_loader.jlog") as mock_jlog:
         story = StoryDefinition.from_dict(data)
         # Should have called jlog with a warning

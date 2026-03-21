@@ -110,7 +110,7 @@ async def google_callback(code: str, state: str, request: Request):
                 log.info("Transferred %d guest sessions from %s to %s", count, guest_user_id, user_id)
                 # Update in-memory SESSIONS cache to reflect new ownership
                 from backend.app.api.prompt_engine import SESSIONS
-                for sid, sess in list(SESSIONS.items()):
+                for _, sess in list(SESSIONS.items()):
                     if sess.get("user_id") == guest_user_id:
                         sess["user_id"] = user_id
         except Exception as exc:

@@ -1,4 +1,3 @@
-import types
 
 from backend.app.knowledge.runtime import index_service as isvc
 

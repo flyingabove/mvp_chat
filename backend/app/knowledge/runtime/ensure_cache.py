@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 import shutil
 
 from backend.app.knowledge.runtime.cache_paths import default_cache_root

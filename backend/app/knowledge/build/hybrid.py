@@ -1,5 +1,5 @@
 # backend/app/knowledge/build/hybrid.py
-from typing import List, Dict, Tuple
+from typing import List, Dict
 
 def rrf_fuse(ranked_lists: List[List[int]], k: int = 60) -> Dict[int, float]:
     # RRF score: sum(1 / (k + rank))

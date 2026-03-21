@@ -58,5 +58,5 @@ def test_resolve_route_creates_dynamic_edge_for_island(caplog):
     assert len(route.segments) == 1
     assert route.segments[0].edge.from_id == LocationId("A")
     assert route.segments[0].edge.to_id == LocationId("B")
-    assert route.segments[0].edge.is_transit == True
+    assert route.segments[0].edge.is_transit
     assert 8 <= route.segments[0].edge.minutes <= 25

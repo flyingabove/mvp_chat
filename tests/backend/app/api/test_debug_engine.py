@@ -1,7 +1,6 @@
 """Tests for backend/app/api/debug_engine.py"""
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,8 +14,6 @@ from backend.app.api.debug_engine import (
     _load_player_visible_chunks,
     _retrieve_player_context,
     generate,
-    ollama_generate,
-    cloud_generate,
 )
 
 
@@ -220,7 +217,6 @@ async def test_verify_game_ended_trusts_literal_on_llm_error():
 
 def test_debug_ui_route_200(tmp_path):
     """GET /beta/debug should return 200 with the debug.html content."""
-    from pathlib import Path
     import backend.app.main as main_module
 
     # Point _DEBUG_HTML_PATH at a temp file so the test doesn't depend on file system
@@ -363,7 +359,6 @@ def test_verify_game_ended_scripted_phase_flag_logic():
     WebSocket integration test.
     """
     tc_len = 5
-    num_turns = 100
     test_case_continue = True
 
     # Scenario: game-end fires on the last scripted turn (turn 5)

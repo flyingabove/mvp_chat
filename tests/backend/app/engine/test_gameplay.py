@@ -1,4 +1,4 @@
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 from backend.app.engine.gameplay import (
     word_count,
     sanitize_location,

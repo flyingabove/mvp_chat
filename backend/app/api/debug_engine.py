@@ -24,7 +24,7 @@ import uuid
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, WebSocket
 from fastapi.responses import JSONResponse
 
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL

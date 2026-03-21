@@ -633,7 +633,7 @@ def test_map_toggle_multiple_calls_consistent(client):
 
     # Request map three times
     replies = []
-    for i in range(3):
+    for _ in range(3):
         r = client.post("/api/chat", json={"session_id": "map_consistent", "message": "[M]"})
         assert r.status_code == 200
         replies.append(r.json()["reply"])
@@ -940,7 +940,6 @@ def test_chinese_mode_persists_in_session(client_with_translation):
 def test_translate_to_chinese_preserves_formatting(monkeypatch):
     """Test that translation preserves formatting markers."""
     from backend.app.api import prompt_engine as pe_mod
-    import httpx
 
     # Create a mock OpenAI response with formatting
     class _FakeResp:

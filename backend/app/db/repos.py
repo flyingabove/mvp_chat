@@ -2,8 +2,9 @@
 import json
 import time
 import asyncio
+import sqlite3
 from pathlib import Path
-from backend.app.db.database import get_connection, DATA_DIR
+from backend.app.db.database import get_connection, DATA_DIR, init_db
 
 
 # ---------------------------------------------------------------------------
@@ -89,15 +90,25 @@ class SessionRepo:
 
     @staticmethod
     def _get(session_id: str, user_id: str) -> dict | None:
-        conn = get_connection()
+        def _query_once() -> dict | None:
+            conn = get_connection()
+            try:
+                row = conn.execute(
+                    "SELECT * FROM game_sessions WHERE id = ? AND user_id = ?",
+                    (session_id, user_id),
+                ).fetchone()
+                return dict(row) if row else None
+            finally:
+                conn.close()
+
         try:
-            row = conn.execute(
-                "SELECT * FROM game_sessions WHERE id = ? AND user_id = ?",
-                (session_id, user_id),
-            ).fetchone()
-            return dict(row) if row else None
-        finally:
-            conn.close()
+            return _query_once()
+        except sqlite3.OperationalError as exc:
+            # If DB file exists without schema yet, bootstrap then retry once.
+            if "no such table" in str(exc).lower() and "game_sessions" in str(exc).lower():
+                init_db()
+                return _query_once()
+            raise
 
     @staticmethod
     def _list(user_id: str, limit: int = 50) -> list[dict]:

@@ -23,7 +23,6 @@ def test_load_character_indexes_never_attribute_errors(monkeypatch, tmp_path):
 
 
 import json
-from pathlib import Path
 
 import numpy as np
 import pytest

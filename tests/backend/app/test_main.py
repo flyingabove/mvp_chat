@@ -21,7 +21,6 @@ def test_stories_endpoint_is_registered(monkeypatch):
     assert len(data["stories"]) > 0, "At least one story should be available"
 
 
-import os
 import types
 
 import pytest

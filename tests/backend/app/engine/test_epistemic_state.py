@@ -5,7 +5,6 @@ from backend.app.engine.epistemic_state import (
     EpistemicClaim,
     EpistemicFact,
     EpistemicStatus,
-    Observation,
 )
 from backend.app.engine.state import init_state
 

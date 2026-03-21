@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from backend.app.integration_playback.loader import ensure_scenarios_loaded
 from backend.app.integration_playback.scenario_registry import list_scenarios
-from backend.app.integration_playback.runner import ScenarioRunner, run_scenario_async
+from backend.app.integration_playback.runner import ScenarioRunner
 
 router = APIRouter()
 

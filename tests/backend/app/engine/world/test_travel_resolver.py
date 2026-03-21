@@ -1,4 +1,3 @@
-import pytest
 
 from backend.app.engine.world.clock import WorldClock
 from backend.app.engine.world.edge import PathEdge

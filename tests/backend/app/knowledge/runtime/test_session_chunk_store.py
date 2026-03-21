@@ -2,7 +2,6 @@
 
 Tests use no external dependencies — pure in-memory BM25 scoring.
 """
-import pytest
 from backend.app.knowledge.runtime.session_chunk_store import SessionChunkStore
 
 

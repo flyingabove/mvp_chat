@@ -1,9 +1,6 @@
 """Unit tests for SQLite repos using an in-memory DB."""
-import json
 import sqlite3
-import tempfile
 import pytest
-from pathlib import Path
 from unittest.mock import patch
 
 
@@ -57,10 +54,6 @@ def tmp_data_dir(tmp_path):
          patch("backend.app.db.database.DB_PATH", db_path), \
          patch("backend.app.db.repos.DATA_DIR", tmp_path):
         # Also patch get_connection to use our db_path
-        orig_get_conn = None
-        import backend.app.db.database as _db
-        orig_get_conn = _db.get_connection
-
         def patched_conn():
             c = sqlite3.connect(str(db_path), check_same_thread=False)
             c.row_factory = sqlite3.Row
@@ -276,6 +269,43 @@ async def test_transfer_sessions_moves_jsonl_files(tmp_data_dir):
     new_path = tmp_data_dir / "users" / safe_real / "sessions" / "gs3.jsonl"
     assert new_path.exists()
     assert not old_path.exists()
+
+
+def test_session_get_bootstraps_missing_schema(tmp_path):
+    """SessionRepo._get should auto-init schema when game_sessions table is missing."""
+    db_path = tmp_path / "storieschat.db"
+    # Create an empty DB file with no schema.
+    sqlite3.connect(str(db_path)).close()
+
+    import backend.app.db.database as db_module
+    import backend.app.db.repos as repos_module
+
+    with patch.object(db_module, "DB_PATH", db_path), \
+         patch.object(db_module, "DATA_DIR", tmp_path), \
+         patch.object(repos_module, "DATA_DIR", tmp_path):
+        # First call should not raise even though table is initially missing.
+        assert repos_module.SessionRepo._get("missing", "uid1") is None
+
+        # Verify schema now exists by inserting a row and reading it back.
+        conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            now = 1700000000
+            conn.execute(
+                "INSERT INTO users (id, email, name, avatar_url, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?)",
+                ("uid1", "u@example.com", "User", None, now, now),
+            )
+            conn.execute(
+                "INSERT INTO game_sessions (id, user_id, story_id, story_title, player_name, gender, status, created_at, last_played, turns, last_message, state_json, flags_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("sess1", "uid1", "story", "Story", "Alex", "M", "active", now, now, 1, "hi", "{}", "{}"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        row = repos_module.SessionRepo._get("sess1", "uid1")
+        assert row is not None
+        assert row["id"] == "sess1"
 
 
 @pytest.mark.asyncio

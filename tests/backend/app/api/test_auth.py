@@ -1,7 +1,6 @@
 """Integration tests for auth API endpoints."""
 import pytest
 import urllib.parse
-from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from backend.app.main import app

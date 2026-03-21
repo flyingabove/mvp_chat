@@ -1,4 +1,3 @@
-from pathlib import Path
 
 
 def test_stable_json_hash_is_order_independent():

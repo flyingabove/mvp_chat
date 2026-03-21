@@ -44,7 +44,7 @@ from backend.app.config.settings import (
     TRANSIENT_KNOWLEDGE_TURNS,
 
 )
-from backend.app.config.epistemic_flags import set_epistemic_flags, set_master
+from backend.app.config.epistemic_flags import set_master
 
 
 from backend.app.engine.state import (
