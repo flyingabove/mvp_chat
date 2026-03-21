@@ -143,3 +143,64 @@ def test_delete_nonexistent_session_returns_404(client, user1_token):
             headers={"Authorization": f"Bearer {user1_token}"},
         )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Guest (X-Guest-Id) access
+# ---------------------------------------------------------------------------
+
+VALID_GUEST_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+
+def test_list_sessions_with_guest_id(client):
+    """Guest users can list their sessions via X-Guest-Id header."""
+    with patch("backend.app.api.user_sessions.SessionRepo.list_user_sessions", new_callable=AsyncMock) as mock:
+        mock.return_value = [
+            {"id": "gsess1", "story_id": "s1", "story_title": "Guest Game", "turns": 2}
+        ]
+        resp = client.get(
+            "/api/user/sessions",
+            headers={"X-Guest-Id": VALID_GUEST_ID},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["sessions"]) == 1
+    # Verify the repo was called with the prefixed guest user_id
+    mock.assert_called_once_with(user_id=f"guest:{VALID_GUEST_ID}", limit=50)
+
+
+def test_list_sessions_rejects_invalid_guest_id(client):
+    """Invalid guest IDs (not UUID format) should be rejected as 401."""
+    resp = client.get(
+        "/api/user/sessions",
+        headers={"X-Guest-Id": "not-a-valid-uuid"},
+    )
+    assert resp.status_code == 401
+
+
+def test_guest_history_access(client):
+    """Guest users can access their own session history."""
+    with patch("backend.app.api.user_sessions.SessionRepo.get_session", new_callable=AsyncMock) as sess_mock, \
+         patch("backend.app.api.user_sessions.ConversationRepo.load_page", new_callable=AsyncMock) as hist_mock:
+        sess_mock.return_value = {"id": "gsess1", "user_id": f"guest:{VALID_GUEST_ID}"}
+        hist_mock.return_value = [
+            {"turn": 1, "role": "user", "content": "Hello", "ts": 1000},
+            {"turn": 1, "role": "assistant", "content": "Hi", "ts": 1000},
+        ]
+        resp = client.get(
+            "/api/user/sessions/gsess1/history",
+            headers={"X-Guest-Id": VALID_GUEST_ID},
+        )
+    assert resp.status_code == 200
+    assert len(resp.json()["entries"]) == 2
+
+
+def test_guest_cannot_access_auth_user_session(client):
+    """Guest cannot access a JWT-authenticated user's session."""
+    with patch("backend.app.api.user_sessions.SessionRepo.get_session", new_callable=AsyncMock) as mock:
+        mock.return_value = None  # DB returns nothing because user_id doesn't match
+        resp = client.get(
+            "/api/user/sessions/uid1_session/history",
+            headers={"X-Guest-Id": VALID_GUEST_ID},
+        )
+    assert resp.status_code == 404

@@ -19,17 +19,15 @@ domains (prod/beta), not localhost.
 Browser
   ├── Home screen (no auth needed)        → GET /api/stories (public)
   ├── Click Play → JWT missing?
-  │     └── Shows login modal
-  │           → Click "Continue with Google"
-  │           → GET /auth/google/login (backend)
-  │           → Google OAuth consent screen
-  │           → GET /auth/google/callback (backend)
-  │           → Redirect to /?token=<jwt>
-  │           → Frontend stores JWT in localStorage
-  └── Chat (authenticated)               → POST /api/chat + Authorization: Bearer <jwt>
+  │     ├── Shows login modal
+  │     │     → "Continue with Google" → OAuth flow → JWT in localStorage
+  │     └── "Continue as Guest" → generates guest device UUID
+  │           → Stored in localStorage + cookie (1-year expiry)
+  ├── Chat (authenticated)               → POST /api/chat + Authorization: Bearer <jwt>
+  └── Chat (guest)                       → POST /api/chat + X-Guest-Id: <uuid>
 
 Backend
-  ├── JWT validation (FastAPI dependency) → extracts real user_id from sub claim
+  ├── Identity resolution: JWT sub > "guest:<X-Guest-Id>" > "anon"
   ├── SQLite (/data/storieschat.db)       → users + game_sessions tables
   ├── JSONL files (/data/users/{uid}/sessions/{sid}.jsonl) → raw conversation log
   └── In-memory SESSIONS cache           → fast per-turn access, loaded from SQLite on cache miss
@@ -56,10 +54,19 @@ Backend
 - `get_current_user` dependency verifies JWT signature and returns payload
 - `get_optional_user` dependency returns `None` if no JWT (used in `/api/chat`)
 
-### Anonymous users
-- No JWT → `user_id = "anon"` in `chat_handler`
-- Anonymous users can play (in-memory only, no persistence, state lost on server restart)
-- Same experience as before auth was added
+### Guest users (persistent anonymous)
+- No JWT → frontend generates a **guest device ID** (UUID), stored in localStorage + cookie (1-year expiry)
+- Sent as `X-Guest-Id` header on all API requests when no JWT is present
+- Backend maps to `user_id = "guest:<uuid>"` — full DB persistence (same as authenticated users)
+- Guest sessions survive server restarts and appear in "My Games"
+- `get_current_user_or_guest` dependency: accepts JWT OR X-Guest-Id header (validates UUID format)
+- Guest ID validated by regex: must be valid UUID hex (32-36 chars), lowercased. Invalid IDs → 401.
+- Privacy: each guest device ID is unique, data isolated by `WHERE user_id = ?`
+
+### Fully anonymous users
+- No JWT AND no X-Guest-Id → `user_id = "anon"` in `chat_handler`
+- In-memory only, no persistence, state lost on server restart
+- This path is only hit if cookies + localStorage are both cleared
 
 ---
 
@@ -162,9 +169,9 @@ Each line is a single JSON object:
 ### User Sessions
 | Method | Path | Auth required | Description |
 |--------|------|---------------|-------------|
-| GET | `/api/user/sessions` | Yes | List user's game sessions (newest first) |
-| GET | `/api/user/sessions/{id}/history` | Yes | Paginated conversation history |
-| DELETE | `/api/user/sessions/{id}` | Yes | Delete session + JSONL file |
+| GET | `/api/user/sessions` | JWT or X-Guest-Id | List user's game sessions (newest first) |
+| GET | `/api/user/sessions/{id}/history` | JWT or X-Guest-Id | Paginated conversation history |
+| DELETE | `/api/user/sessions/{id}` | JWT or X-Guest-Id | Delete session + JSONL file |
 
 ---
 

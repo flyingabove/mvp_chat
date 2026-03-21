@@ -8,8 +8,8 @@ from backend.app.engine.extractors.turn_extractor import (
     TurnKnowledgeResolution,
 )
 
-from fastapi import APIRouter, Depends
-from backend.app.auth.dependencies import get_optional_user
+from fastapi import APIRouter, Depends, Request
+from backend.app.auth.dependencies import get_optional_user, _extract_guest_id
 from backend.app.db.repos import SessionRepo, ConversationRepo
 
 import httpx
@@ -1130,10 +1130,15 @@ def handle_name_confirmation(user_msg: str, state: GameState):
 # MAIN CHAT ENDPOINT
 # ---------------------------------------------------------------------------
 @router.post("/chat")
-async def chat_handler(data: dict, _auth_user: dict | None = Depends(get_optional_user)):
+async def chat_handler(request: Request, data: dict, _auth_user: dict | None = Depends(get_optional_user)):
     req_id = str(uuid.uuid4())[:8]
     session_id = data.get("session_id") or "default"
-    user_id = _auth_user["sub"] if _auth_user else "anon"
+    # Priority: JWT user > guest device ID > anonymous
+    if _auth_user:
+        user_id = _auth_user["sub"]
+    else:
+        guest_id = _extract_guest_id(request)
+        user_id = f"guest:{guest_id}" if guest_id else "anon"
 
     # Scrub a leading '>' used by the terminal UI for quoting.
     raw_msg = str(data.get("message", "") or "")

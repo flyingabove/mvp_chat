@@ -1297,16 +1297,45 @@ var SESSIONS_KEY = "storieschat_sessions";
 var PROFILE_KEY  = "storieschat_profile";
 var STATS_KEY    = "storieschat_stats";
 var JWT_KEY      = "storieschat_jwt";
+var GUEST_ID_KEY = "storieschat_guest_id";
 
 /* ─── JWT HELPERS ───────────────────────────────── */
 function getToken(){ return localStorage.getItem(JWT_KEY); }
 function setToken(t){ localStorage.setItem(JWT_KEY, t); }
 function clearToken(){ localStorage.removeItem(JWT_KEY); }
 
+/* ─── GUEST ID (persistent anonymous identity) ──── */
+function getGuestId(){
+  // Check localStorage first, then cookie
+  var id = localStorage.getItem(GUEST_ID_KEY);
+  if (id) return id;
+  var match = document.cookie.match(new RegExp("(?:^|; )" + GUEST_ID_KEY + "=([^;]+)"));
+  if (match) {
+    localStorage.setItem(GUEST_ID_KEY, match[1]);
+    return match[1];
+  }
+  return null;
+}
+function getOrCreateGuestId(){
+  var id = getGuestId();
+  if (id) return id;
+  id = genUUID();
+  localStorage.setItem(GUEST_ID_KEY, id);
+  // Set cookie with 1-year expiry so it survives localStorage clears
+  var expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = GUEST_ID_KEY + "=" + id + "; expires=" + expires + "; path=/; SameSite=Lax";
+  return id;
+}
+
 function apiHeaders(){
   var h = { "Content-Type": "application/json" };
   var t = getToken();
-  if (t) h["Authorization"] = "Bearer " + t;
+  if (t) {
+    h["Authorization"] = "Bearer " + t;
+  } else {
+    var gid = getOrCreateGuestId();
+    if (gid) h["X-Guest-Id"] = gid;
+  }
   return h;
 }
 
@@ -1761,7 +1790,7 @@ function launchChat(story, playerName, gender, guestMode){
 
   addSystemMessage("Starting game as " + playerName + "…");
   if (guestMode) {
-    addSystemMessage("Guest mode: sign in later to sync sessions across devices.");
+    addSystemMessage("Guest mode: your progress is saved on this device. Sign in to sync across devices.");
   }
 
   showScreen("chat");
@@ -2274,9 +2303,11 @@ function renderSessionsRows(sessions){
 
 function renderGamesList(){
   var list = $("games-list");
+  var hasAuth = Boolean(getToken());
+  var hasGuestId = Boolean(getGuestId());
 
-  if (!getToken()){
-    // Not logged in — show localStorage sessions or empty + login prompt
+  if (!hasAuth && !hasGuestId){
+    // No identity at all — show empty state with login prompt
     var localSessions = loadSessions();
     if (!localSessions.length){
       list.innerHTML = [
@@ -2295,11 +2326,16 @@ function renderGamesList(){
     return;
   }
 
-  // Logged in — load from backend
+  // Has identity (JWT or guest ID) — load from backend
   list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>';
   fetch(USER_SESSIONS_URL, { headers: apiHeaders() })
     .then(function(r){
-      if (r.status === 401){ handleUnauthorized(); return null; }
+      if (r.status === 401){
+        if (hasAuth) handleUnauthorized();
+        // Fall back to localStorage for guests if server rejects
+        renderSessionsRows(loadSessions());
+        return null;
+      }
       return r.json();
     })
     .then(function(data){
@@ -2307,7 +2343,8 @@ function renderGamesList(){
       renderSessionsRows(data.sessions || []);
     })
     .catch(function(){
-      renderGamesListEmpty();
+      // Network error — fall back to localStorage
+      renderSessionsRows(loadSessions());
     });
 }
 
