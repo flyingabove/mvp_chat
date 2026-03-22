@@ -166,12 +166,17 @@ Each line is a single JSON object:
 }
 ```
 
-**Complex objects NOT serialized** (always rebuilt from story config on resume):
-- `world_runtime` — rebuilt by `WorldLoader`
-- `character_graph` — rebuilt from `StoryDefinition.relationships`
-- `story_cfg` — rebuilt by `_canonicalize_story_cfg()`
-- `epistemic_state` entries — re-seeded by `_seed_epistemic_from_story()`
-- `transient_entries` — re-seeded by `_seed_noncanonical_story_details_to_transient()`
+**Complex objects with persisted runtime snapshots:**
+- `character_graph` — authored base graph is loaded from `StoryDefinition.relationships`, then runtime edge state (trust/fear/affection/suspicion/jealousy, narrative/history fields, and dynamically created edges) is restored from `state_json.character_graph`.
+- `session_chunk_store` — dialogue-extracted session facts are persisted in `state_json.session_chunks` and restored into `SessionChunkStore` so BM25 session-memory retrieval survives restart/resume.
+- `character_locations` — runtime character-to-location assignments are restored from `state_json.character_locations` (overrides story start defaults).
+- `last_turn_*` extractor context — `last_turn_user_msg`, `last_turn_assistant_reply`, and `last_turn_retrieved_chunks` are restored for continuity of single-call extraction behavior.
+
+**Objects still rebuilt from story config on resume:**
+- `world_runtime` — rebuilt by `WorldLoader`.
+- `story_cfg` — rebuilt by `_canonicalize_story_cfg()`.
+- `epistemic_state` seed structures — re-seeded by `_seed_epistemic_from_story()`.
+- `transient_entries` — re-seeded by `_seed_noncanonical_story_details_to_transient()`.
 
 **Session restore** (`_try_load_session_from_db`): Uses `SessionRepo._get()` (synchronous) to load from SQLite on in-memory cache miss. Safe to call from async handlers — SQLite indexed lookups are sub-millisecond. Failures are logged via `logger.exception()`, never silently swallowed.
 
@@ -193,6 +198,11 @@ Each line is a single JSON object:
 | GET | `/api/user/sessions` | JWT or X-Guest-Id | List user's game sessions (newest first) |
 | GET | `/api/user/sessions/{id}/history` | JWT or X-Guest-Id | Paginated conversation history |
 | DELETE | `/api/user/sessions/{id}` | JWT or X-Guest-Id | Delete session + JSONL file |
+
+### Resume behavior across entry points
+- `My Games` always reads from `GET /api/user/sessions` (JWT or guest ID).
+- Home page "Continue Playing" and game-detail "Resume Game" now use a merged local+server session cache; server sessions are fetched from `/api/user/sessions`, merged into local storage, and used by both entry points.
+- Result: users can resume the same in-progress game from either Home or My Games after re-login or server restart.
 
 ---
 

@@ -60,6 +60,7 @@ from backend.app.engine.state import (
     Character,
 
 )
+from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim
 from backend.app.engine.knowledge_chunks import normalize_parties
 from backend.app.engine.story_loader import load_story, StoryDefinition
@@ -900,6 +901,140 @@ async def _translate_to_chinese(text: str) -> str:
 # ---------------------------------------------------------------------------
 # STATE SERIALIZATION / RESTORATION  (only safe primitive fields)
 # ---------------------------------------------------------------------------
+def _serialize_character_graph(graph) -> dict:
+    if graph is None:
+        return {"edges": {}}
+
+    edges: dict[str, dict] = {}
+    for key, edge in (getattr(graph, "edges", {}) or {}).items():
+        try:
+            edges[str(key)] = {
+                "id": str(getattr(edge, "id", "") or key),
+                "from_id": str(getattr(edge, "from_id", "") or ""),
+                "to_id": str(getattr(edge, "to_id", "") or ""),
+                "type": str(getattr(getattr(edge, "type", RelationshipType.OTHER), "value", RelationshipType.OTHER.value)),
+                "state": {
+                    "trust": float(getattr(getattr(edge, "state", None), "trust", 0.0) or 0.0),
+                    "fear": float(getattr(getattr(edge, "state", None), "fear", 0.0) or 0.0),
+                    "affection": float(getattr(getattr(edge, "state", None), "affection", 0.0) or 0.0),
+                    "suspicion": float(getattr(getattr(edge, "state", None), "suspicion", 0.0) or 0.0),
+                    "jealousy": float(getattr(getattr(edge, "state", None), "jealousy", 0.0) or 0.0),
+                },
+                "label": str(getattr(edge, "label", "") or ""),
+                "narrative": str(getattr(edge, "narrative", "") or ""),
+                "narrative_log": [str(x) for x in (getattr(edge, "narrative_log", []) or [])],
+                "met_at": getattr(edge, "met_at", None),
+                "last_met_at": getattr(edge, "last_met_at", None),
+                "meeting_count": int(getattr(edge, "meeting_count", 0) or 0),
+                "prior_relationship": bool(getattr(edge, "prior_relationship", False)),
+                "prior_intimacy": bool(getattr(edge, "prior_intimacy", False)),
+                "in_relationship": bool(getattr(edge, "in_relationship", False)),
+            }
+        except Exception:
+            continue
+
+    return {"edges": edges}
+
+
+def _restore_character_graph(state: GameState, graph_snapshot: dict | None) -> None:
+    if not isinstance(graph_snapshot, dict):
+        return
+
+    graph = getattr(state, "character_graph", None)
+    if graph is None:
+        return
+
+    raw_edges = graph_snapshot.get("edges") or {}
+    if isinstance(raw_edges, list):
+        entries = [(str(i), item) for i, item in enumerate(raw_edges) if isinstance(item, dict)]
+    elif isinstance(raw_edges, dict):
+        entries = [(str(k), v) for k, v in raw_edges.items() if isinstance(v, dict)]
+    else:
+        return
+
+    for edge_key, data in entries:
+        from_id = str(data.get("from_id") or "").strip()
+        to_id = str(data.get("to_id") or "").strip()
+        if (not from_id or not to_id) and "->" in edge_key:
+            from_id, to_id = [x.strip() for x in edge_key.split("->", 1)]
+        if not from_id or not to_id:
+            continue
+
+        type_raw = str(data.get("type", RelationshipType.OTHER.value)).upper()
+        try:
+            rel_type = RelationshipType(type_raw)
+        except Exception:
+            rel_type = RelationshipType.OTHER
+
+        rel_state = RelationshipState.from_dict(data.get("state") or {})
+        narrative_log = [str(x) for x in (data.get("narrative_log") or [])]
+
+        existing = graph.get_edge(from_id, to_id)
+        if existing is not None:
+            existing.type = rel_type
+            existing.state = rel_state
+            existing.label = str(data.get("label", "") or "")
+            existing.narrative = str(data.get("narrative", "") or "")
+            existing.narrative_log = narrative_log
+            existing.met_at = data.get("met_at")
+            existing.last_met_at = data.get("last_met_at")
+            existing.meeting_count = int(data.get("meeting_count", 0) or 0)
+            existing.prior_relationship = bool(data.get("prior_relationship", False))
+            existing.prior_intimacy = bool(data.get("prior_intimacy", False))
+            existing.in_relationship = bool(data.get("in_relationship", False))
+            continue
+
+        new_edge = RelationshipEdge(
+            id=str(data.get("id") or edge_key),
+            from_id=from_id,
+            to_id=to_id,
+            type=rel_type,
+            state=rel_state,
+            label=str(data.get("label", "") or ""),
+            narrative=str(data.get("narrative", "") or ""),
+            narrative_log=narrative_log,
+            met_at=data.get("met_at"),
+            last_met_at=data.get("last_met_at"),
+            meeting_count=int(data.get("meeting_count", 0) or 0),
+            prior_relationship=bool(data.get("prior_relationship", False)),
+            prior_intimacy=bool(data.get("prior_intimacy", False)),
+            in_relationship=bool(data.get("in_relationship", False)),
+        )
+        graph.edges[graph._edge_key(from_id, to_id)] = new_edge
+
+
+def _serialize_session_chunks(state: GameState) -> list[dict]:
+    store = getattr(state, "session_chunk_store", None)
+    if store is None:
+        return []
+
+    all_chunks = []
+    try:
+        all_chunks = store.all_chunks() if hasattr(store, "all_chunks") else []
+    except Exception:
+        return []
+
+    out: list[dict] = []
+    for c in all_chunks or []:
+        if not isinstance(c, dict):
+            continue
+        chunk_id = str(c.get("chunk_id") or "").strip()
+        text = str(c.get("text") or c.get("content") or "").strip()
+        if not chunk_id or not text:
+            continue
+        out.append(
+            {
+                "chunk_id": chunk_id,
+                "text": text,
+                "type": str(c.get("type") or "dialogue_fact"),
+                "source": str(c.get("source") or "dialogue_extractor"),
+                "character_id": str(c.get("character_id") or ""),
+                "timestamp": c.get("timestamp"),
+            }
+        )
+    return out
+
+
 def _serialize_state(state: GameState, log: list) -> str:
     """Serialize only the fields needed to resume a session after a restart."""
     return json.dumps({
@@ -914,6 +1049,15 @@ def _serialize_state(state: GameState, log: list) -> str:
         "turns": state.turns,
         "over": state.over,
         "instance": state.instance,
+        "character_locations": dict(getattr(state, "character_locations", {}) or {}),
+        "world_start_datetime": str(getattr(state, "world_start_datetime", "") or ""),
+        "last_travel_from_id": str(getattr(state, "last_travel_from_id", "") or ""),
+        "last_travel_to_id": str(getattr(state, "last_travel_to_id", "") or ""),
+        "last_turn_user_msg": str(getattr(state, "last_turn_user_msg", "") or ""),
+        "last_turn_assistant_reply": str(getattr(state, "last_turn_assistant_reply", "") or ""),
+        "last_turn_retrieved_chunks": [dict(c) for c in (getattr(state, "last_turn_retrieved_chunks", []) or [])],
+        "character_graph": _serialize_character_graph(getattr(state, "character_graph", None)),
+        "session_chunks": _serialize_session_chunks(state),
         "user_formal_name": getattr(state.user, "formal_name", "") if state.user else "",
         "user_display_name": getattr(state.user, "display_name", "") if state.user else "",
         "log": log,
@@ -973,6 +1117,14 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         restored.turns = saved.get("turns", 0)
         restored.over = saved.get("over", False)
         restored.instance = saved.get("instance", 1)
+        restored.world_start_datetime = saved.get("world_start_datetime", "")
+        restored.last_travel_from_id = saved.get("last_travel_from_id", "")
+        restored.last_travel_to_id = saved.get("last_travel_to_id", "")
+        restored.last_turn_user_msg = saved.get("last_turn_user_msg", "")
+        restored.last_turn_assistant_reply = saved.get("last_turn_assistant_reply", "")
+        restored.last_turn_retrieved_chunks = [
+            dict(c) for c in (saved.get("last_turn_retrieved_chunks") or []) if isinstance(c, dict)
+        ]
         restored.story_cfg = _canonicalize_story_cfg(story_def)
         restored.user_id = user_id
         if restored.user:
@@ -1083,9 +1235,18 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 if k and v
             }
 
+        # Persisted runtime character locations override start defaults.
+        if isinstance(saved.get("character_locations"), dict):
+            restored.character_locations = {
+                str(k).strip(): str(v).strip()
+                for k, v in (saved.get("character_locations") or {}).items()
+                if k and v
+            }
+
         # Character relationship graph
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
             restored.character_graph = story_def.relationships
+            _restore_character_graph(restored, saved.get("character_graph"))
 
         # Fallback knowledge bundle
         if not restored.knowledge_character_id and main_char_def:
@@ -1093,6 +1254,9 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
 
         # Session chunk store
         restored.session_chunk_store = SessionChunkStore()
+        restored.session_chunk_store.add_chunks([
+            dict(c) for c in (saved.get("session_chunks") or []) if isinstance(c, dict)
+        ])
 
         # Re-seed epistemic and transient knowledge (same as newgame)
         _seed_epistemic_from_story(restored.story_cfg, restored)

@@ -1542,6 +1542,7 @@ var appState = {
   pendingStory: null,      // story to start after onboarding
   guestMode: false,
   userAvatarLabel: "U",
+  serverSessionsCache: [],
 };
 
 /* ─── UTILITIES ─────────────────────────────────── */
@@ -1598,11 +1599,83 @@ function loadSessions(){
   try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || "[]"); } catch(e){ return []; }
 }
 
+function saveSessionsList(sessions){
+  var safe = Array.isArray(sessions) ? sessions.slice(0, 50) : [];
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(safe));
+}
+
+function normalizeSessionRecord(sess){
+  if (!sess || typeof sess !== "object") return null;
+  var sessionId = String(sess.session_id || sess.id || "").trim();
+  if (!sessionId) return null;
+  return {
+    story_id: sess.story_id || "",
+    story_title: sess.story_title || "",
+    session_id: sessionId,
+    player_name: sess.player_name || "",
+    gender: sess.gender || "M",
+    started_at: sess.started_at || 0,
+    last_played: sess.last_played || 0,
+    last_message: sess.last_message || "",
+    turns: sess.turns || 0,
+    auth_mode: sess.auth_mode || "user",
+    id: sessionId,
+  };
+}
+
+function mergeSessions(primary, secondary){
+  var mergedById = {};
+  (secondary || []).forEach(function(s){
+    var norm = normalizeSessionRecord(s);
+    if (norm) mergedById[norm.session_id] = norm;
+  });
+  (primary || []).forEach(function(s){
+    var norm = normalizeSessionRecord(s);
+    if (!norm) return;
+    mergedById[norm.session_id] = Object.assign({}, mergedById[norm.session_id] || {}, norm);
+  });
+  var out = Object.keys(mergedById).map(function(k){ return mergedById[k]; });
+  out.sort(function(a, b){ return (b.last_played || 0) - (a.last_played || 0); });
+  return out;
+}
+
+function getKnownSessions(){
+  return mergeSessions(appState.serverSessionsCache, loadSessions());
+}
+
+function refreshSessionCacheFromServer(){
+  var hasAuth = Boolean(getToken());
+  var hasGuest = Boolean(getGuestId());
+  if (!hasAuth && !hasGuest) {
+    appState.serverSessionsCache = [];
+    return Promise.resolve(getKnownSessions());
+  }
+
+  return fetch(USER_SESSIONS_URL, { headers: apiHeaders() })
+    .then(function(r){
+      if (r.status === 401) {
+        if (hasAuth) handleUnauthorized();
+        throw new Error("unauthorized");
+      }
+      return r.json();
+    })
+    .then(function(data){
+      var remote = ((data && data.sessions) || []).map(normalizeSessionRecord).filter(Boolean);
+      appState.serverSessionsCache = remote;
+      var merged = mergeSessions(remote, loadSessions());
+      saveSessionsList(merged);
+      return merged;
+    })
+    .catch(function(){
+      return getKnownSessions();
+    });
+}
+
 function saveSession(sess){
   var sessions = loadSessions().filter(function(s){ return s.session_id !== sess.session_id; });
   sessions.unshift(sess);
   if (sessions.length > 50) sessions = sessions.slice(0, 50);
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  saveSessionsList(sessions);
 }
 
 function loadStats(){
@@ -1639,7 +1712,9 @@ function refreshHomeScreen(){
   if (appState.stories.length === 0) {
     loadStories();
   } else {
-    renderHomeContent(appState.stories);
+    refreshSessionCacheFromServer().finally(function(){
+      renderHomeContent(appState.stories);
+    });
   }
 }
 
@@ -1669,7 +1744,9 @@ function loadStories(){
           throw new Error("Empty story list from " + endpoint);
         }
         appState.stories = list;
-        renderHomeContent(list);
+        refreshSessionCacheFromServer().finally(function(){
+          renderHomeContent(list);
+        });
       })
       .catch(function(err){
         console.warn("Stories fetch failed", endpoint, err);
@@ -1708,7 +1785,7 @@ function renderHomeContent(list){
   var rows = [];
 
   // "Continue Playing" row if user has active sessions
-  var recentSessions = loadSessions().filter(function(s){ return s.turns > 0; }).slice(0, 5);
+  var recentSessions = getKnownSessions().filter(function(s){ return s.turns > 0; }).slice(0, 5);
   if (recentSessions.length) {
     var continueStories = recentSessions.map(function(sess){
       var story = list.find(function(s){ return s.id === sess.story_id; })
@@ -1831,7 +1908,7 @@ function showGameDetail(story){
   }
 
   // Check for existing session to show "Resume" instead of "Play Now"
-  var existingSession = loadSessions().find(function(s){ return s.story_id === story.id; });
+  var existingSession = getKnownSessions().find(function(s){ return s.story_id === story.id; });
   var playBtn = $("modal-play-btn");
   if (existingSession && existingSession.turns > 0) {
     playBtn.innerHTML = "▶ Resume Game";
@@ -2671,7 +2748,7 @@ function renderGamesList(){
 
   if (!hasAuth && !hasGuestId){
     // No identity at all — show empty state with login prompt
-    var localSessions = loadSessions();
+    var localSessions = getKnownSessions();
     if (!localSessions.length){
       list.innerHTML = [
         '<div class="empty-state">',
@@ -2696,23 +2773,12 @@ function renderGamesList(){
     '<div style="flex:1;"><div class="skeleton" style="width:60%;height:14px;margin-bottom:8px;"></div><div class="skeleton" style="width:40%;height:12px;"></div></div>' +
     '<div class="skeleton" style="width:32px;height:12px;"></div></div>'
   ).join("");
-  fetch(USER_SESSIONS_URL, { headers: apiHeaders() })
-    .then(function(r){
-      if (r.status === 401){
-        if (hasAuth) handleUnauthorized();
-        // Fall back to localStorage for guests if server rejects
-        renderSessionsRows(loadSessions());
-        return null;
-      }
-      return r.json();
-    })
-    .then(function(data){
-      if (!data) return;
-      renderSessionsRows(data.sessions || []);
+  refreshSessionCacheFromServer()
+    .then(function(sessions){
+      renderSessionsRows(sessions || []);
     })
     .catch(function(){
-      // Network error — fall back to localStorage
-      renderSessionsRows(loadSessions());
+      renderSessionsRows(getKnownSessions());
     });
 }
 

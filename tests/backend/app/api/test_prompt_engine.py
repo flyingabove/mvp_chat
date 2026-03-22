@@ -1373,6 +1373,129 @@ import json as _json
 import logging
 
 
+def test_serialize_state_includes_runtime_snapshots():
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.state import init_state
+    from backend.app.engine.character_graph import CharacterGraph, RelationshipEdge, RelationshipState, RelationshipType
+    from backend.app.knowledge.runtime.session_chunk_store import SessionChunkStore
+
+    st = init_state()
+    st.story = STORY_ID
+    st.gender = "F"
+    st.player_name = "Alex"
+    st.character_locations = {"iu": "room_a", "player": "room_a"}
+    st.last_turn_user_msg = "where are we"
+    st.last_turn_assistant_reply = "We are in room A"
+    st.last_turn_retrieved_chunks = [{"chunk_id": "k1", "text": "fact"}]
+
+    graph = CharacterGraph()
+    graph.edges["iu->player"] = RelationshipEdge(
+        id="iu->player",
+        from_id="iu",
+        to_id="player",
+        type=RelationshipType.FRIEND,
+        state=RelationshipState(trust=0.8, fear=0.1, affection=0.7, suspicion=0.0, jealousy=0.0),
+        narrative="IU now trusts the player",
+        narrative_log=["IU greeted the player warmly"],
+        met_at=5,
+        last_met_at=12,
+        meeting_count=2,
+        prior_relationship=True,
+        in_relationship=True,
+    )
+    st.character_graph = graph
+
+    st.session_chunk_store = SessionChunkStore()
+    st.session_chunk_store.add_chunks([
+        {"chunk_id": "usr-1-0", "text": "The key is in the drawer", "type": "dialogue_fact"}
+    ])
+
+    saved = _json.loads(pe_mod._serialize_state(st, []))
+    assert "character_graph" in saved
+    assert "session_chunks" in saved
+    assert saved["character_locations"]["iu"] == "room_a"
+    assert saved["last_turn_user_msg"] == "where are we"
+    assert saved["character_graph"]["edges"]["iu->player"]["state"]["trust"] == pytest.approx(0.8)
+    assert saved["session_chunks"][0]["chunk_id"] == "usr-1-0"
+
+
+def test_try_load_session_restores_runtime_graph_and_session_chunks(monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    fake_state = {
+        "story": STORY_ID,
+        "gender": "M",
+        "player_name": "ReplayUser",
+        "turns": 4,
+        "location_id": "room_a",
+        "location": "Room A",
+        "character_locations": {"iu": "room_b", "player": "room_b"},
+        "last_turn_user_msg": "go to room b",
+        "last_turn_assistant_reply": "You arrive in Room B",
+        "last_turn_retrieved_chunks": [{"chunk_id": "g-1", "text": "room b has a locker"}],
+        "character_graph": {
+            "edges": {
+                "player->iu": {
+                    "id": "player->iu",
+                    "from_id": "player",
+                    "to_id": "iu",
+                    "type": "FRIEND",
+                    "state": {
+                        "trust": 0.6,
+                        "fear": 0.0,
+                        "affection": 0.4,
+                        "suspicion": 0.0,
+                        "jealousy": 0.0,
+                    },
+                    "narrative": "Player feels closer to IU",
+                    "narrative_log": ["They shared a clue"],
+                    "met_at": 1,
+                    "last_met_at": 8,
+                    "meeting_count": 3,
+                    "prior_relationship": False,
+                    "prior_intimacy": False,
+                    "in_relationship": False,
+                }
+            }
+        },
+        "session_chunks": [
+            {"chunk_id": "usr-2-0", "text": "A hidden note mentions studio B", "type": "dialogue_fact"}
+        ],
+    }
+
+    fake_row = {
+        "story_id": STORY_ID,
+        "player_name": "ReplayUser",
+        "gender": "M",
+        "state_json": _json.dumps(fake_state),
+        "flags_json": _json.dumps({"debug_mode": True, "epistemic_state": True}),
+    }
+
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(lambda session_id, user_id: fake_row),
+    )
+
+    result = pe_mod._try_load_session_from_db("sess_resume_1", "uid_resume")
+    assert result is not None
+    restored = result["state"]
+
+    assert restored.character_locations.get("iu") == "room_b"
+    assert restored.last_turn_user_msg == "go to room b"
+    assert restored.last_turn_assistant_reply == "You arrive in Room B"
+    assert restored.last_turn_retrieved_chunks[0]["chunk_id"] == "g-1"
+
+    edge = restored.character_graph.get_edge("player", "iu")
+    assert edge is not None
+    assert edge.state.trust == pytest.approx(0.6)
+    assert edge.narrative == "Player feels closer to IU"
+    assert edge.meeting_count == 3
+
+    restored_chunks = restored.session_chunk_store.all_chunks()
+    assert len(restored_chunks) == 1
+    assert restored_chunks[0]["chunk_id"] == "usr-2-0"
+
+
 def test_try_load_session_from_db_sync_path(monkeypatch):
     """Bug 1: _try_load_session_from_db must work even when called from within a
     running event loop (the normal FastAPI path).  The old implementation used
