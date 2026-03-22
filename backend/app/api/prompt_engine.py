@@ -933,6 +933,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         return None
 
     if not row:
+        logger.info("Session %s not found in DB for user %s", session_id, user_id)
         return None
 
     try:
@@ -942,8 +943,17 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         logger.exception("Failed to parse state/flags JSON for session %s", session_id)
         return None
 
+    # If state_json doesn't have story, fall back to the DB row's story_id
     if not saved.get("story"):
+        saved["story"] = row.get("story_id", "")
+    if not saved.get("story"):
+        logger.warning("Session %s has no story in state_json or DB row", session_id)
         return None
+    # Populate player_name/gender from DB row if missing from state_json
+    if not saved.get("player_name"):
+        saved["player_name"] = row.get("player_name", "Player")
+    if not saved.get("gender"):
+        saved["gender"] = row.get("gender", "M")
 
     # Rebuild full GameState from saved primitives (mirrors __cmd_newgame__ setup)
     try:
@@ -1642,12 +1652,27 @@ async def chat_handler(request: Request, data: dict, _auth_user: dict | None = D
 
         return {"reply": reply, "usage": {"total_tokens": 0}, "character": "default"}
 
-    # REGULAR TURN
+    # REGULAR TURN — auto-reinitialize if game state is missing
     if not state.story or not state.story_cfg:
-        return {"reply": "No active game. Use /newgame to begin.", "character": "default"}
+        # Try to recover: look up the DB row for story_id and rebuild
+        db_row = None
+        try:
+            db_row = SessionRepo._get(session_id=session_id, user_id=user_id)
+        except Exception:
+            pass
+        if db_row and db_row.get("story_id"):
+            logger.info("Auto-reinit session %s from DB (story=%s)", session_id, db_row["story_id"])
+            restored = _try_load_session_from_db(session_id, user_id)
+            if restored:
+                SESSIONS[session_id] = restored
+                sess = restored
+                state = sess["state"]
+                log = sess["log"]
+        if not state.story or not state.story_cfg:
+            return {"reply": "Session expired. Please start a new game from the home screen.", "character": "default"}
 
     if state.over:
-        return {"reply": "Game already finished. Type /reset to play again.", "character": "default"}
+        return {"reply": "This story has ended. Start a new game from the home screen to play again.", "character": "default"}
 
     # Keep transient scene memory bounded.
     state.purge_transient_entries()

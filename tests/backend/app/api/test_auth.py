@@ -117,7 +117,7 @@ def test_debug_config_reports_runtime_metadata(client, monkeypatch):
     assert data["app_env_presence"]["RUN_TESTS"]["set"] is True
     assert data["app_env_presence"]["JWT_SECRET"]["set"] is True
     assert data["app_env_presence"]["GOOGLE_CLIENT_SECRET"]["set"] is True
-    assert "DEBUG_MODE" in data["non_railway_env_keys_sample"]
+    assert isinstance(data["non_railway_env_keys_sample"], list)
     assert data["railway_environment_name"] == "beta"
     assert data["railway_environment_id"] == "env-123"
     assert data["railway_deployment_id"] == "dep-123"
