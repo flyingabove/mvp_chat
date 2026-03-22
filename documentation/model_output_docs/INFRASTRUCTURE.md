@@ -67,12 +67,13 @@ python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-coll
 | `PLAYER_API_MODEL` | Cloud model for debug player agent | (unset = OPENAI_MODEL) |
 | `GRADER_API_MODEL` | Cloud model for debug grader | (unset = OPENAI_MODEL) |
 | `KNOWLEDGE_CACHE_DIR` | Where indexes are cached | `/data/knowledge_cache` |
-| `FORCE_REBUILD_INDEX` | Wipe /data and rebuild indexes | `0` (default) |
+| `MASTER_RESET` | **Nuclear option**: wipe ALL user data + indexes and start fresh | `0` (default, set `1` to wipe) |
+| `FORCE_REBUILD_INDEX` | Wipe knowledge cache only (user data preserved) and rebuild indexes | `0` (default) |
 | `RUN_TESTS` | Skip build-time tests | `1` (default, set `0` to skip) |
 | `DEBUG_MODE` | Enable verbose build/startup logs | `FALSE` (default) |
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID | `123...apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret | `GOCSPX-...` |
-| `JWT_SECRET` | HS256 signing key for JWTs | 32+ char random hex |
+| `JWT_SECRET` | HS256 signing key for JWTs (365-day expiry) | 32+ char random hex |
 
 ### Storage path detection (in code)
 ```python
@@ -80,6 +81,42 @@ DATA_DIR = Path("/data") if Path("/data").exists() else Path("./data")
 ```
 Railway has `/data` volume mounted → uses `/data`.
 Local dev has no `/data` → uses `./data` (created if missing).
+
+### Data reset env vars (startup behavior)
+
+| Flag | What it deletes | Indexes rebuilt? | User data preserved? |
+|------|----------------|------------------|---------------------|
+| Neither set | Nothing | Only if missing | Yes |
+| `FORCE_REBUILD_INDEX=1` | `/data/knowledge_cache/` only | Yes | **Yes** |
+| `MASTER_RESET=1` | **Everything** in `/data/` | Yes (forced) | **No** — SQLite DB, JSONL logs, debug runs all wiped |
+
+`MASTER_RESET` takes precedence over `FORCE_REBUILD_INDEX`. Set `MASTER_RESET=1` to
+start completely fresh (e.g., after schema changes or to clear corrupted data).
+**Remember to set it back to `0` after deployment** or every redeploy will wipe data.
+
+### What lives in /data (Railway persistent volume)
+
+```
+/data/
+  storieschat.db          ← SQLite (users, game_sessions tables)
+  users/
+    {user_id}/
+      sessions/
+        {session_id}.jsonl ← Conversation logs (append-only)
+  knowledge_cache/
+    characters/
+      {id}/               ← FAISS index, BM25 corpus, embeddings
+  debug_runs/
+    {run_id}.json          ← Debug player-agent run transcripts
+  debug_scores.csv         ← Grader evaluation history
+  test_cases.json          ← Saved test cases for debug player agent
+```
+
+### JWT token lifetime
+
+JWTs expire after **365 days**. Users should almost never need to re-authenticate.
+If `JWT_SECRET` changes between deployments, all existing tokens become invalid
+and users must sign in again. Keep `JWT_SECRET` stable across deploys.
 
 ---
 
@@ -97,6 +134,88 @@ All routes live under a single domain (no subdomain juggling):
 **How DNS must be configured** (e.g., Cloudflare Workers or similar):
 - `storieschat.ai/beta/*` → Railway beta service (`beta-api.storieschat.ai`)
 - `storieschat.ai/*` → Railway prod service (`api.storieschat.ai`)
+
+### Cloudflare routing control plane (authoritative behavior)
+
+Cloudflare is the effective traffic control plane for the public domain.
+Even when Railway services are healthy, user traffic follows Cloudflare route and
+origin decisions first.
+
+Expected behavior:
+- Zone: `storieschat.ai` managed in Cloudflare.
+- Path-based split at the edge:
+  - `/beta/*` must route to beta origin (`beta-api.storieschat.ai`).
+  - all other paths must route to prod origin (`api.storieschat.ai`).
+- Origin hostnames (`api.storieschat.ai`, `beta-api.storieschat.ai`) are Railway
+  service domains and must continue to point at the intended Railway services.
+
+Important operational fact:
+- This repository does not contain full Cloudflare zone config as code.
+- Cloudflare dashboard/API changes can alter live routing without any git diff in
+  this repo.
+
+### How Cloudflare can be abused to silently reroute the same domain
+
+If an AI agent, operator, or compromised token gets Cloudflare write access, they
+can keep `storieschat.ai` unchanged for users while sending traffic to different
+origins (including a completely separate Railway project/service).
+
+High-risk tamper paths:
+- Edge route tampering:
+  - Change `/beta/*` route target from `beta-api.storieschat.ai` to another
+    hostname (for example, a different Railway project domain).
+  - Change catch-all route so prod traffic goes to an unintended origin.
+- Worker script tampering:
+  - Modify Worker fetch target/origin mapping logic.
+  - Add conditional routing (for specific paths, countries, user agents, or query
+    params) that hides malicious routing during casual checks.
+- DNS record tampering:
+  - Repoint `api.storieschat.ai` or `beta-api.storieschat.ai` CNAME records to
+    different infrastructure.
+  - Add wildcard records that unexpectedly shadow intended hostnames.
+- Rule precedence abuse:
+  - Insert a more specific route/rule above the intended one so only selected
+    paths are hijacked.
+- Header-level deception:
+  - Rewrite `Host` or upstream headers so requests land in a different backend
+    while still appearing under the same public domain.
+
+Potential impact:
+- Parallel "shadow" deployment workflow under the same domain.
+- Traffic split between intended and unintended Railway projects.
+- Hard-to-detect environment drift (especially if only beta or a subset of paths
+  are hijacked).
+
+### Required controls to prevent Cloudflare-based hijack
+
+Access control:
+- Do not give AI agents broad Cloudflare write tokens.
+- Use least-privilege API tokens scoped to specific operations and zones.
+- Separate read-only tokens (inspection) from write tokens (changes).
+- Require MFA + SSO for human Cloudflare admin accounts.
+
+Change management:
+- Treat Cloudflare routing changes like code deploys:
+  - ticket/change request,
+  - explicit approver,
+  - documented rollback plan,
+  - post-change validation checks.
+- Record every routing/origin change in this repo under infrastructure docs.
+
+Detection and verification:
+- Maintain synthetic checks for both paths:
+  - `https://storieschat.ai/`
+  - `https://storieschat.ai/beta/`
+- Verify origin identity, not just status code:
+  - include deployment/service identity in health/debug responses,
+  - alert on unexpected origin/service IDs.
+- Review Cloudflare audit logs for route, Worker, DNS, and token changes.
+
+Incident response (if tamper suspected):
+- Rotate Cloudflare API tokens immediately.
+- Revert routes/Worker/DNS to known-good config.
+- Revalidate origin mapping for prod and beta paths.
+- Force redeploy and verify service metadata from live endpoints.
 
 **Beta/prod auto-detection (no config needed):**
 - `index.html` — if `location.pathname.startsWith('/beta/')` → uses beta API

@@ -52,7 +52,7 @@ GOOGLE_CLIENT_ID: str = _os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET: str = _os.getenv("GOOGLE_CLIENT_SECRET", "")
 JWT_SECRET: str = _os.getenv("JWT_SECRET", "dev-secret-change-in-production")
 JWT_ALGORITHM: str = "HS256"
-JWT_EXPIRY_DAYS: int = 30
+JWT_EXPIRY_DAYS: int = 365
 
 # --- Integration test run counts (used by multi-run scenarios via _integ_run_count()) ---
 # X: number of runs per multi-run scenario when running locally (no RAILWAY_* env vars)

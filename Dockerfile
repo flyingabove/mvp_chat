@@ -118,7 +118,7 @@ CMD ["sh", "-e", "-c", "\
   if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then \
     echo \"================ RUNTIME DEBUG (STARTUP) ================\"; \
     echo \"🧪 ENVIRONMENT VARIABLES (filtered)\"; \
-    env | sort | grep -E '^(PYTHONPATH|KNOWLEDGE_CACHE_DIR|KNOWLEDGE_PERSIST_ROOT|FORCE_REBUILD_INDEX|RUN_TESTS|DEBUG_MODE)=' || true; \
+    env | sort | grep -E '^(PYTHONPATH|KNOWLEDGE_CACHE_DIR|KNOWLEDGE_PERSIST_ROOT|FORCE_REBUILD_INDEX|MASTER_RESET|RUN_TESTS|DEBUG_MODE)=' || true; \
     echo \"\"; \
     echo \"📂 /data tree (runtime; Railway volume should be mounted here)\"; \
     ls -la /data || true; \
@@ -131,15 +131,21 @@ CMD ["sh", "-e", "-c", "\
     echo \"========================================================\"; \
   fi; \
   \
-  if [ \"${FORCE_REBUILD_INDEX:-0}\" = \"1\" ]; then \
-    if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then echo \"🔥 FORCE_REBUILD_INDEX=1 → wiping /data\"; fi; \
+  if [ \"${MASTER_RESET:-0}\" = \"1\" ]; then \
+    echo \"🔥🔥🔥 MASTER_RESET=1 → WIPING ALL USER DATA AND INDEXES 🔥🔥🔥\"; \
+    echo \"Deleting: SQLite DB, user logs, knowledge cache, debug runs, test cases...\"; \
     rm -rf /data/* || true; \
-    if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then echo \"🧹 /data wiped\"; fi; \
+    echo \"✅ /data completely wiped. Starting fresh.\"; \
+    echo \"⚠️  MASTER_RESET forces full index rebuild regardless of FORCE_REBUILD_INDEX.\"; \
+  elif [ \"${FORCE_REBUILD_INDEX:-0}\" = \"1\" ]; then \
+    echo \"🔥 FORCE_REBUILD_INDEX=1 → wiping knowledge cache only\"; \
+    rm -rf /data/knowledge_cache || true; \
+    echo \"🧹 Knowledge cache wiped (user data preserved).\"; \
   else \
-    if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then echo \"ℹ️ FORCE_REBUILD_INDEX=0 → preserving /data\"; fi; \
+    if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then echo \"ℹ️ Preserving /data (no reset flags set)\"; fi; \
   fi; \
   \
-  if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then echo \"🧠 Building knowledge indexes (FORCE_REBUILD_INDEX=${FORCE_REBUILD_INDEX:-0})\"; fi; \
+  if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then echo \"🧠 Building knowledge indexes\"; fi; \
   python -m backend.app.knowledge.build.build_index; \
   \
   if [ \"$DEBUG_MODE\" = \"TRUE\" ]; then \
