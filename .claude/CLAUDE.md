@@ -46,10 +46,18 @@ If instructions every conflict with what is designed in the doc, always update t
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
 
-### 7. Testing & Pushing Changes
+### 7. Testing & Pushing Changes (Multi-Agent Workflow)
 - Always add good unit test for any code changes. If it's a bug fix, add a test that reproduces the bug before fixing it. If it's a new feature, add tests that verify the new behavior.
-- Always add, commit with good message, and push after every change that includes a code change. Make sure all unit tests and integ tests pass and none are skiped except for xfail ones. And make sure it failed not due to some missing resources such as API call or missing database but due to the test itself being flaky.
-- If a test fails to spin up a resources such as a database locally, fix the test or the test environment. Don't skip the test or push with a failing test.
+- **Multiple agents work on `beta` simultaneously.** Follow this flow:
+  1. `git pull --rebase origin beta` **before starting work**
+  2. Make changes + run tests
+  3. `git pull --rebase origin beta` **again before pushing** (catch parallel pushes)
+  4. If new code was pulled in step 3, **run tests again** to catch integration issues
+  5. Commit with detailed message (see AI_LEARNINGS_PUSHING_CODE.md for format), push
+- **Commit messages must be detailed enough for another agent to resolve merge conflicts.** Include WHY, WHAT CHANGED (per file), and SIDE EFFECTS. See `documentation/ai_learnings_mistakes/AI_LEARNINGS_PUSHING_CODE.md` for full format.
+- If merge conflicts arise, read the other agent's commit messages to understand intent, then preserve both agents' work. Never blindly pick "ours" or "theirs".
+- All tests must pass before pushing. No skipped tests except xfail.
+- If a test fails to spin up a resource such as a database locally, fix the test or the test environment. Don't skip the test or push with a failing test.
 
 ### 8. Deploy Flow — Beta First, Prod on Request
 - **ALWAYS push to `beta` branch first.** Never push directly to `prod` without explicit user approval.
