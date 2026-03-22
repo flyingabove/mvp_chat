@@ -1,29 +1,93 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#5b21b6"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+      <stop offset="0%" stop-color="#1a0533"/>
+      <stop offset="60%" stop-color="#2d1052"/>
+      <stop offset="100%" stop-color="#0f0520"/>
     </linearGradient>
-    <filter id="gf"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <radialGradient id="spotlight" cx="50%" cy="35%" r="45%">
+      <stop offset="0%" stop-color="#c084fc" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1a0533" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="softglow"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="blur"><feGaussianBlur stdDeviation="6"/></filter>
+    <clipPath id="hair-clip"><rect x="320" y="60" width="160" height="250"/></clipPath>
   </defs>
+
+  <!-- Background -->
   <rect width="800" height="450" fill="url(#bg)"/>
-  <rect x="0" y="295" width="800" height="155" fill="#3b0764" opacity="0.85"/>
-  <rect x="0" y="260" width="800" height="28" fill="#fde047" opacity="0.95"/>
-  <text x="20" y="280" font-family="Arial Black,sans-serif" font-size="13" fill="#1e1b4b" font-weight="900" letter-spacing="6">POLICE LINE DO NOT CROSS  POLICE LINE DO NOT CROSS  POLICE LINE</text>
-  <rect x="0" y="300" width="800" height="18" fill="#fde047" opacity="0.82"/>
-  <rect x="250" y="55" width="300" height="235" fill="#2e1065" opacity="0.9" rx="4"/>
-  <line x1="400" y1="55" x2="400" y2="290" stroke="#3b0764" stroke-width="12"/>
-  <line x1="250" y1="165" x2="550" y2="165" stroke="#3b0764" stroke-width="12"/>
-  <rect x="260" y="65" width="132" height="92" fill="#a78bfa" opacity="0.22"/>
-  <ellipse cx="400" cy="130" rx="30" ry="34" fill="#1e1b4b"/>
-  <rect x="370" y="164" width="60" height="85" fill="#1e1b4b" rx="8"/>
-  <polygon points="330,308 344,288 358,308" fill="#ef4444"/>
-  <text x="333" y="306" font-family="Arial,sans-serif" font-size="12" fill="white" font-weight="bold">1</text>
-  <polygon points="438,316 452,296 466,316" fill="#ef4444"/>
-  <text x="441" y="314" font-family="Arial,sans-serif" font-size="12" fill="white" font-weight="bold">2</text>
-  <rect x="0" y="0" width="8" height="450" fill="#c026d3" opacity="0.7"/>
-  <rect x="792" y="0" width="8" height="450" fill="#c026d3" opacity="0.5"/>
-  <rect x="0" y="370" width="800" height="80" fill="#1e1b4b" opacity="0.82"/>
-  <text x="400" y="410" font-family="Georgia,serif" font-size="30" fill="#ede9fe" text-anchor="middle" font-weight="bold">IU: Murder Mystery</text>
-  <text x="400" y="435" font-family="Arial,sans-serif" font-size="13" fill="#c4b5fd" text-anchor="middle" letter-spacing="4">CRIME DRAMA</text>
+  <rect width="800" height="450" fill="url(#spotlight)"/>
+
+  <!-- City skyline silhouette (Gangnam) -->
+  <rect x="0" y="280" width="800" height="170" fill="#0a0218"/>
+  <rect x="20" y="220" width="60" height="120" fill="#0d0320" rx="2"/>
+  <rect x="30" y="232" width="12" height="10" fill="#fde047" opacity="0.3"/>
+  <rect x="52" y="248" width="12" height="10" fill="#a78bfa" opacity="0.25"/>
+  <rect x="30" y="260" width="12" height="10" fill="#fde047" opacity="0.2"/>
+  <rect x="95" y="190" width="50" height="150" fill="#0d0320" rx="2"/>
+  <rect x="105" y="202" width="10" height="8" fill="#fde047" opacity="0.35"/>
+  <rect x="120" y="218" width="10" height="8" fill="#c084fc" opacity="0.3"/>
+  <rect x="105" y="234" width="10" height="8" fill="#fde047" opacity="0.2"/>
+  <rect x="160" y="240" width="45" height="100" fill="#0d0320" rx="2"/>
+  <rect x="620" y="200" width="55" height="140" fill="#0d0320" rx="2"/>
+  <rect x="630" y="212" width="10" height="8" fill="#fde047" opacity="0.3"/>
+  <rect x="650" y="228" width="10" height="8" fill="#a78bfa" opacity="0.25"/>
+  <rect x="690" y="230" width="50" height="110" fill="#0d0320" rx="2"/>
+  <rect x="750" y="210" width="50" height="130" fill="#0d0320" rx="2"/>
+  <rect x="760" y="222" width="10" height="8" fill="#fde047" opacity="0.3"/>
+
+  <!-- Korean neon signs on buildings -->
+  <text x="108" y="260" font-family="sans-serif" font-size="9" fill="#f472b6" opacity="0.7" filter="url(#glow)">노래방</text>
+  <text x="635" y="252" font-family="sans-serif" font-size="8" fill="#67e8f9" opacity="0.6" filter="url(#glow)">청담</text>
+
+  <!-- Ground reflection -->
+  <rect x="0" y="340" width="800" height="110" fill="#050110" opacity="0.8"/>
+  <rect x="0" y="340" width="800" height="2" fill="#c084fc" opacity="0.15"/>
+
+  <!-- Police tape (foreground) -->
+  <rect x="0" y="295" width="800" height="22" fill="#fde047" opacity="0.92" transform="rotate(-2, 400, 306)"/>
+  <text x="10" y="311" font-family="Arial Black,sans-serif" font-size="11" fill="#1e1b4b" font-weight="900" letter-spacing="5" transform="rotate(-2, 400, 306)">POLICE LINE DO NOT CROSS    POLICE LINE DO NOT CROSS    POLICE LINE DO NOT CROSS</text>
+  <rect x="0" y="322" width="800" height="16" fill="#fde047" opacity="0.7" transform="rotate(1.5, 400, 330)"/>
+
+  <!-- IU figure — female silhouette with long flowing hair -->
+  <!-- Hair (long, flowing past shoulders) -->
+  <ellipse cx="400" cy="128" rx="38" ry="44" fill="#0a0218"/>
+  <path d="M362,128 Q358,170 352,210 Q348,240 355,270 L370,270 Q368,240 370,210 Q372,180 370,150 Z" fill="#0a0218"/>
+  <path d="M438,128 Q442,170 448,210 Q452,240 445,270 L430,270 Q432,240 430,210 Q428,180 430,150 Z" fill="#0a0218"/>
+  <!-- Face outline (3/4 profile, subtle features) -->
+  <ellipse cx="400" cy="125" rx="30" ry="36" fill="#1a0a2e"/>
+  <!-- Subtle face features -->
+  <ellipse cx="390" cy="118" rx="4" ry="2.5" fill="#2a1548" opacity="0.8"/>
+  <ellipse cx="410" cy="118" rx="4" ry="2.5" fill="#2a1548" opacity="0.8"/>
+  <path d="M394,132 Q400,136 406,132" stroke="#2a1548" stroke-width="1.5" fill="none" opacity="0.6"/>
+  <!-- Body -->
+  <path d="M375,160 Q370,180 368,220 L370,280 L430,280 L432,220 Q430,180 425,160 Z" fill="#0a0218" rx="6"/>
+  <!-- Arms -->
+  <path d="M368,185 Q350,200 340,230 Q335,245 342,250" stroke="#0a0218" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <path d="M432,185 Q450,200 460,230 Q465,245 458,250" stroke="#0a0218" stroke-width="14" fill="none" stroke-linecap="round"/>
+  <!-- Microphone in hand (she's a singer) -->
+  <rect x="454" y="242" width="6" height="22" fill="#888" rx="3"/>
+  <ellipse cx="457" cy="240" rx="8" ry="10" fill="#555" opacity="0.9"/>
+
+  <!-- Ghost glow effect around IU -->
+  <ellipse cx="400" cy="200" rx="80" ry="120" fill="#c084fc" opacity="0.06" filter="url(#blur)"/>
+  <ellipse cx="400" cy="200" rx="50" ry="90" fill="#e9d5ff" opacity="0.04" filter="url(#blur)"/>
+
+  <!-- Evidence markers on ground -->
+  <polygon points="280,330 290,316 300,330" fill="#ef4444"/>
+  <text x="286" y="328" font-family="Arial,sans-serif" font-size="10" fill="white" font-weight="bold">1</text>
+  <polygon points="480,335 490,321 500,335" fill="#ef4444"/>
+  <text x="486" y="333" font-family="Arial,sans-serif" font-size="10" fill="white" font-weight="bold">2</text>
+  <polygon points="560,328 570,314 580,328" fill="#ef4444"/>
+  <text x="566" y="326" font-family="Arial,sans-serif" font-size="10" fill="white" font-weight="bold">3</text>
+
+  <!-- Accent edges -->
+  <rect x="0" y="0" width="5" height="450" fill="#c026d3" opacity="0.6"/>
+  <rect x="795" y="0" width="5" height="450" fill="#c026d3" opacity="0.4"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="370" width="800" height="80" fill="#0a0218" opacity="0.92"/>
+  <text x="400" y="405" font-family="Georgia,serif" font-size="28" fill="#ede9fe" text-anchor="middle" font-weight="bold">Echoes of Cheongdam</text>
+  <text x="400" y="430" font-family="Arial,sans-serif" font-size="12" fill="#c4b5fd" text-anchor="middle" letter-spacing="5">MURDER MYSTERY</text>
 </svg>

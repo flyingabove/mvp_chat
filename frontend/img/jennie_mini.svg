@@ -1,37 +1,100 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#9d174d"/>
-      <stop offset="100%" stop-color="#be185d"/>
+      <stop offset="0%" stop-color="#1a0a1e"/>
+      <stop offset="50%" stop-color="#3b0a2a"/>
+      <stop offset="100%" stop-color="#0d0510"/>
     </linearGradient>
-    <radialGradient id="spot" cx="50%" cy="60%" r="38%">
-      <stop offset="0%" stop-color="#f9a8d4" stop-opacity="0.45"/>
-      <stop offset="100%" stop-color="#9d174d" stop-opacity="0"/>
+    <radialGradient id="spot" cx="40%" cy="45%" r="35%">
+      <stop offset="0%" stop-color="#f9a8d4" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1a0a1e" stop-opacity="0"/>
     </radialGradient>
-    <filter id="gf"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <radialGradient id="spot2" cx="65%" cy="50%" r="30%">
+      <stop offset="0%" stop-color="#dc2626" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#1a0a1e" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="blur"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="softblur"><feGaussianBlur stdDeviation="10"/></filter>
   </defs>
+
+  <!-- Background -->
   <rect width="800" height="450" fill="url(#bg)"/>
   <rect width="800" height="450" fill="url(#spot)"/>
-  <rect x="0" y="315" width="800" height="135" fill="#500724" opacity="0.8"/>
-  <polygon points="350,0 320,0 370,315 400,315" fill="#fda4af" opacity="0.10"/>
-  <polygon points="450,0 480,0 430,315 400,315" fill="#fda4af" opacity="0.10"/>
-  <polygon points="400,0 382,0 392,315 408,315" fill="#ffffff" opacity="0.08"/>
-  <ellipse cx="380" cy="335" rx="75" ry="22" fill="#f472b6" opacity="0.28" filter="url(#gf)"/>
-  <ellipse cx="430" cy="332" rx="70" ry="20" fill="#f472b6" opacity="0.22" filter="url(#gf)"/>
-  <rect x="396" y="172" width="8" height="143" fill="#c77daa" opacity="0.8"/>
-  <ellipse cx="400" cy="170" rx="22" ry="12" fill="#e879a0" opacity="0.9"/>
-  <ellipse cx="400" cy="215" rx="24" ry="28" fill="#4a0520"/>
-  <rect x="376" y="243" width="48" height="74" fill="#4a0520" rx="7"/>
-  <rect x="0" y="0" width="125" height="450" fill="#6b0033" opacity="0.6"/>
-  <rect x="675" y="0" width="125" height="450" fill="#6b0033" opacity="0.6"/>
-  <rect x="0" y="15" width="800" height="10" fill="#7f1d3f" opacity="0.7"/>
-  <ellipse cx="270" cy="15" rx="9" ry="11" fill="#fbbf24" opacity="0.8"/>
-  <ellipse cx="370" cy="15" rx="9" ry="11" fill="#f472b6" opacity="0.9"/>
-  <ellipse cx="430" cy="15" rx="9" ry="11" fill="#f472b6" opacity="0.9"/>
-  <ellipse cx="530" cy="15" rx="9" ry="11" fill="#fbbf24" opacity="0.8"/>
-  <rect x="0" y="0" width="6" height="450" fill="#f472b6" opacity="0.65"/>
-  <rect x="794" y="0" width="6" height="450" fill="#f472b6" opacity="0.5"/>
-  <rect x="0" y="368" width="800" height="82" fill="#500724" opacity="0.8"/>
-  <text x="400" y="408" font-family="Georgia,serif" font-size="30" fill="#fce7f3" text-anchor="middle" font-weight="bold">Jennie: Blackout</text>
-  <text x="400" y="433" font-family="Arial,sans-serif" font-size="13" fill="#f9a8d4" text-anchor="middle" letter-spacing="4">K-DRAMA THRILLER</text>
+  <rect width="800" height="450" fill="url(#spot2)"/>
+
+  <!-- Apartment interior — dark luxury -->
+  <!-- Window with city light bleeding in -->
+  <rect x="520" y="40" width="220" height="200" fill="#0d0510" rx="3"/>
+  <rect x="525" y="45" width="210" height="190" fill="#1a1030" rx="2"/>
+  <line x1="630" y1="45" x2="630" y2="235" stroke="#0d0510" stroke-width="4"/>
+  <line x1="525" y1="140" x2="735" y2="140" stroke="#0d0510" stroke-width="4"/>
+  <!-- City lights through window -->
+  <rect x="540" y="55" width="20" height="30" fill="#fde047" opacity="0.12"/>
+  <rect x="580" y="70" width="15" height="45" fill="#a78bfa" opacity="0.08"/>
+  <rect x="650" y="55" width="25" height="35" fill="#67e8f9" opacity="0.1"/>
+  <rect x="700" y="60" width="18" height="25" fill="#fde047" opacity="0.08"/>
+  <rect x="540" y="150" width="30" height="20" fill="#f472b6" opacity="0.1"/>
+  <rect x="660" y="155" width="20" height="30" fill="#fde047" opacity="0.08"/>
+
+  <!-- Floor -->
+  <rect x="0" y="310" width="800" height="140" fill="#0d0510" opacity="0.9"/>
+  <line x1="0" y1="310" x2="800" y2="310" stroke="#3b0a2a" stroke-width="1" opacity="0.5"/>
+
+  <!-- Couch / sofa silhouette -->
+  <rect x="80" y="255" width="280" height="55" fill="#1a0815" rx="8"/>
+  <rect x="70" y="230" width="40" height="80" fill="#1a0815" rx="6"/>
+  <rect x="330" y="230" width="40" height="80" fill="#1a0815" rx="6"/>
+  <!-- Cushions -->
+  <rect x="95" y="258" width="80" height="30" fill="#220d1a" rx="6"/>
+  <rect x="190" y="260" width="70" height="28" fill="#220d1a" rx="6"/>
+
+  <!-- Jennie figure — seated/slumped on couch, elegant silhouette -->
+  <!-- Head with styled hair -->
+  <ellipse cx="260" cy="195" rx="26" ry="30" fill="#0d0510"/>
+  <!-- Bangs / styled hair -->
+  <path d="M234,190 Q230,170 238,160 Q250,148 262,148 Q274,148 282,160 Q290,170 286,190" fill="#0d0510"/>
+  <path d="M234,195 Q228,215 232,240" stroke="#0d0510" stroke-width="12" fill="none"/>
+  <path d="M286,195 Q292,215 288,240" stroke="#0d0510" stroke-width="12" fill="none"/>
+  <!-- Subtle face -->
+  <ellipse cx="252" cy="190" rx="3.5" ry="2" fill="#1a0a1e" opacity="0.7"/>
+  <ellipse cx="268" cy="190" rx="3.5" ry="2" fill="#1a0a1e" opacity="0.7"/>
+  <path d="M256,200 Q260,203 264,200" stroke="#1a0a1e" stroke-width="1.2" fill="none" opacity="0.5"/>
+  <!-- Body — elegant dress silhouette -->
+  <path d="M245,225 Q240,250 238,270 L282,270 Q280,250 275,225 Z" fill="#0d0510"/>
+  <!-- Arm draped over couch -->
+  <path d="M275,240 Q300,235 320,245 Q335,252 340,260" stroke="#0d0510" stroke-width="10" fill="none" stroke-linecap="round"/>
+
+  <!-- Wine glass on floor (evidence) -->
+  <ellipse cx="420" cy="305" rx="12" ry="4" fill="#6b0033" opacity="0.6"/>
+  <rect x="417" y="290" width="6" height="15" fill="#9a3060" opacity="0.5"/>
+  <ellipse cx="420" cy="288" rx="14" ry="8" fill="none" stroke="#9a3060" stroke-width="1.5" opacity="0.5"/>
+  <!-- Spilled wine pool -->
+  <ellipse cx="445" cy="318" rx="30" ry="8" fill="#6b0033" opacity="0.35" filter="url(#blur)"/>
+
+  <!-- Phone on floor (glowing screen) -->
+  <rect x="470" y="300" width="24" height="42" fill="#111" rx="4" transform="rotate(15, 482, 321)"/>
+  <rect x="473" y="304" width="18" height="34" fill="#67e8f9" opacity="0.15" rx="2" transform="rotate(15, 482, 321)"/>
+
+  <!-- Blood spatter hint -->
+  <circle cx="380" cy="290" r="3" fill="#dc2626" opacity="0.4"/>
+  <circle cx="390" cy="295" r="2" fill="#dc2626" opacity="0.3"/>
+  <circle cx="385" cy="300" r="4" fill="#dc2626" opacity="0.25" filter="url(#blur)"/>
+
+  <!-- Clock on wall -->
+  <circle cx="180" cy="100" r="28" fill="none" stroke="#3b0a2a" stroke-width="2" opacity="0.5"/>
+  <line x1="180" y1="100" x2="180" y2="82" stroke="#f9a8d4" stroke-width="1.5" opacity="0.4"/>
+  <line x1="180" y1="100" x2="192" y2="105" stroke="#f9a8d4" stroke-width="1" opacity="0.3"/>
+
+  <!-- "ONE NIGHT" atmosphere text (very subtle) -->
+  <text x="630" y="380" font-family="Arial,sans-serif" font-size="9" fill="#f472b6" opacity="0.15" letter-spacing="3">11:47 PM</text>
+
+  <!-- Accent edges -->
+  <rect x="0" y="0" width="4" height="450" fill="#f472b6" opacity="0.5"/>
+  <rect x="796" y="0" width="4" height="450" fill="#f472b6" opacity="0.35"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="370" width="800" height="80" fill="#0d0510" opacity="0.92"/>
+  <text x="400" y="405" font-family="Georgia,serif" font-size="28" fill="#fce7f3" text-anchor="middle" font-weight="bold">The Quiet Agreement</text>
+  <text x="400" y="430" font-family="Arial,sans-serif" font-size="12" fill="#f9a8d4" text-anchor="middle" letter-spacing="5">K-DRAMA THRILLER</text>
 </svg>

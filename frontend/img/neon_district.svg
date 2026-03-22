@@ -1,43 +1,117 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1e1b4b"/>
-      <stop offset="100%" stop-color="#312e81"/>
+      <stop offset="0%" stop-color="#0c0a1a"/>
+      <stop offset="50%" stop-color="#15122e"/>
+      <stop offset="100%" stop-color="#080614"/>
     </linearGradient>
+    <radialGradient id="haze" cx="50%" cy="70%" r="50%">
+      <stop offset="0%" stop-color="#c084fc" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#0c0a1a" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="neon"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <filter id="glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="blur"><feGaussianBlur stdDeviation="4"/></filter>
   </defs>
+
+  <!-- Background -->
   <rect width="800" height="450" fill="url(#bg)"/>
-  <rect x="0" y="102" width="92" height="348" fill="#16133a"/>
-  <rect x="102" y="140" width="72" height="310" fill="#120f30"/>
-  <rect x="184" y="82" width="102" height="368" fill="#16133a"/>
-  <rect x="296" y="120" width="82" height="330" fill="#120f30"/>
-  <rect x="388" y="90" width="92" height="360" fill="#16133a"/>
-  <rect x="490" y="60" width="112" height="390" fill="#120f30"/>
-  <rect x="612" y="108" width="92" height="342" fill="#16133a"/>
-  <rect x="714" y="82" width="86" height="368" fill="#120f30"/>
-  <rect x="12" y="122" width="24" height="16" fill="#60a5fa" opacity="0.7"/>
-  <rect x="46" y="122" width="24" height="16" fill="#60a5fa" opacity="0.5"/>
-  <rect x="196" y="102" width="26" height="18" fill="#818cf8" opacity="0.65"/>
-  <rect x="398" y="112" width="28" height="18" fill="#a78bfa" opacity="0.6"/>
-  <rect x="500" y="80" width="30" height="20" fill="#60a5fa" opacity="0.65"/>
-  <rect x="540" y="80" width="30" height="20" fill="#60a5fa" opacity="0.5"/>
-  <rect x="298" y="144" width="84" height="16" fill="#f0abfc" opacity="0.98" filter="url(#glow)"/>
-  <rect x="392" y="114" width="86" height="14" fill="#67e8f9" opacity="0.96" filter="url(#glow)"/>
-  <rect x="196" y="122" width="70" height="12" fill="#fb923c" opacity="0.94" filter="url(#glow)"/>
-  <rect x="12" y="172" width="74" height="13" fill="#f0abfc" opacity="0.96" filter="url(#glow)"/>
-  <rect x="102" y="196" width="60" height="11" fill="#34d399" opacity="0.92" filter="url(#glow)"/>
-  <rect x="500" y="104" width="92" height="14" fill="#f472b6" opacity="0.97" filter="url(#glow)"/>
-  <rect x="620" y="144" width="72" height="13" fill="#38bdf8" opacity="0.93" filter="url(#glow)"/>
-  <rect x="722" y="114" width="60" height="12" fill="#fbbf24" opacity="0.9" filter="url(#glow)"/>
-  <rect x="0" y="355" width="800" height="95" fill="#06050f"/>
-  <rect x="298" y="362" width="84" height="7" fill="#f0abfc" opacity="0.42"/>
-  <rect x="392" y="367" width="86" height="6" fill="#67e8f9" opacity="0.35"/>
-  <rect x="500" y="363" width="92" height="7" fill="#f472b6" opacity="0.38"/>
-  <ellipse cx="400" cy="322" rx="26" ry="40" fill="#030214" opacity="0.98"/>
-  <ellipse cx="400" cy="274" rx="17" ry="20" fill="#030214" opacity="0.98"/>
-  <rect x="0" y="0" width="5" height="450" fill="#38bdf8" opacity="0.6"/>
-  <rect x="795" y="0" width="5" height="450" fill="#f0abfc" opacity="0.5"/>
-  <rect x="0" y="368" width="800" height="82" fill="#06050f" opacity="0.9"/>
-  <text x="400" y="408" font-family="Arial,sans-serif" font-size="30" fill="#f0abfc" text-anchor="middle" font-weight="bold" filter="url(#glow)">Neon District</text>
-  <text x="400" y="433" font-family="Arial,sans-serif" font-size="13" fill="#c084fc" text-anchor="middle" letter-spacing="4">CYBERPUNK NOIR</text>
+  <rect width="800" height="450" fill="url(#haze)"/>
+
+  <!-- Cityscape — tall cyberpunk buildings -->
+  <!-- Far background buildings -->
+  <rect x="0" y="80" width="70" height="370" fill="#0e0c20"/>
+  <rect x="80" y="50" width="60" height="400" fill="#100e24"/>
+  <rect x="150" y="100" width="80" height="350" fill="#0e0c20"/>
+  <rect x="240" y="70" width="55" height="380" fill="#100e24"/>
+  <rect x="305" y="90" width="70" height="360" fill="#0e0c20"/>
+  <rect x="385" y="55" width="65" height="395" fill="#100e24"/>
+  <rect x="460" y="75" width="75" height="375" fill="#0e0c20"/>
+  <rect x="545" y="40" width="60" height="410" fill="#100e24"/>
+  <rect x="615" y="85" width="80" height="365" fill="#0e0c20"/>
+  <rect x="705" y="60" width="55" height="390" fill="#100e24"/>
+  <rect x="765" y="95" width="35" height="355" fill="#0e0c20"/>
+
+  <!-- Neon signs on buildings -->
+  <!-- Korean text signs -->
+  <rect x="86" y="68" width="48" height="16" fill="#f472b6" opacity="0.9" filter="url(#neon)"/>
+  <text x="90" y="81" font-family="sans-serif" font-size="11" fill="#1a0a1e" font-weight="bold">네오서울</text>
+
+  <rect x="310" y="108" width="58" height="14" fill="#67e8f9" opacity="0.85" filter="url(#neon)"/>
+  <text x="314" y="120" font-family="sans-serif" font-size="10" fill="#0a1a1e" font-weight="bold">해커라운지</text>
+
+  <rect x="550" y="58" width="50" height="14" fill="#fb923c" opacity="0.9" filter="url(#neon)"/>
+  <text x="554" y="70" font-family="sans-serif" font-size="10" fill="#1a0d05" font-weight="bold">정보상</text>
+
+  <rect x="160" y="118" width="60" height="12" fill="#a78bfa" opacity="0.85" filter="url(#neon)"/>
+  <rect x="470" y="92" width="55" height="13" fill="#34d399" opacity="0.8" filter="url(#neon)"/>
+  <rect x="625" y="104" width="65" height="12" fill="#f0abfc" opacity="0.85" filter="url(#neon)"/>
+  <rect x="715" y="78" width="40" height="11" fill="#38bdf8" opacity="0.8" filter="url(#neon)"/>
+
+  <!-- Window lights scattered -->
+  <rect x="10" y="100" width="12" height="8" fill="#60a5fa" opacity="0.35"/>
+  <rect x="35" y="120" width="12" height="8" fill="#fbbf24" opacity="0.25"/>
+  <rect x="10" y="150" width="12" height="8" fill="#60a5fa" opacity="0.2"/>
+  <rect x="160" y="140" width="14" height="10" fill="#fbbf24" opacity="0.3"/>
+  <rect x="190" y="160" width="14" height="10" fill="#818cf8" opacity="0.25"/>
+  <rect x="250" y="100" width="12" height="8" fill="#60a5fa" opacity="0.3"/>
+  <rect x="395" y="80" width="14" height="10" fill="#fbbf24" opacity="0.25"/>
+  <rect x="420" y="100" width="14" height="10" fill="#60a5fa" opacity="0.2"/>
+  <rect x="555" y="70" width="12" height="8" fill="#fbbf24" opacity="0.3"/>
+  <rect x="630" y="110" width="14" height="10" fill="#818cf8" opacity="0.25"/>
+  <rect x="720" y="90" width="12" height="8" fill="#60a5fa" opacity="0.2"/>
+
+  <!-- Street level -->
+  <rect x="0" y="310" width="800" height="140" fill="#060514"/>
+
+  <!-- Wet street reflections -->
+  <rect x="0" y="315" width="800" height="135" fill="#0a0820" opacity="0.8"/>
+  <rect x="86" y="340" width="48" height="4" fill="#f472b6" opacity="0.12" filter="url(#blur)"/>
+  <rect x="310" y="345" width="58" height="3" fill="#67e8f9" opacity="0.1" filter="url(#blur)"/>
+  <rect x="550" y="338" width="50" height="4" fill="#fb923c" opacity="0.1" filter="url(#blur)"/>
+  <rect x="160" y="342" width="60" height="3" fill="#a78bfa" opacity="0.08" filter="url(#blur)"/>
+
+  <!-- Rain -->
+  <line x1="80" y1="0" x2="72" y2="50" stroke="#67e8f9" stroke-width="0.6" opacity="0.2"/>
+  <line x1="200" y1="10" x2="192" y2="60" stroke="#67e8f9" stroke-width="0.6" opacity="0.15"/>
+  <line x1="350" y1="5" x2="342" y2="55" stroke="#67e8f9" stroke-width="0.6" opacity="0.2"/>
+  <line x1="500" y1="15" x2="492" y2="65" stroke="#67e8f9" stroke-width="0.6" opacity="0.15"/>
+  <line x1="650" y1="0" x2="642" y2="50" stroke="#67e8f9" stroke-width="0.6" opacity="0.18"/>
+  <line x1="130" y1="50" x2="122" y2="100" stroke="#67e8f9" stroke-width="0.5" opacity="0.12"/>
+  <line x1="420" y1="30" x2="412" y2="80" stroke="#67e8f9" stroke-width="0.5" opacity="0.12"/>
+  <line x1="580" y1="40" x2="572" y2="90" stroke="#67e8f9" stroke-width="0.5" opacity="0.1"/>
+
+  <!-- Trench coat figure (PI) walking in rain — center -->
+  <!-- Hat -->
+  <ellipse cx="400" cy="218" rx="22" ry="8" fill="#060514"/>
+  <rect x="386" y="208" width="28" height="14" fill="#060514" rx="4"/>
+  <!-- Head -->
+  <ellipse cx="400" cy="225" rx="14" ry="16" fill="#060514"/>
+  <!-- Trench coat body -->
+  <path d="M380,245 Q378,270 375,300 L372,310 L428,310 L425,300 Q422,270 420,245 Z" fill="#060514"/>
+  <!-- Coat collar -->
+  <path d="M384,242 L392,255 L400,245 L408,255 L416,242" fill="#060514" stroke="#0a0820" stroke-width="1"/>
+  <!-- Coat flap blowing -->
+  <path d="M372,310 Q365,315 360,310 Q358,305 365,295" fill="#060514"/>
+  <!-- Legs -->
+  <rect x="385" y="310" width="10" height="28" fill="#060514"/>
+  <rect x="403" y="310" width="10" height="30" fill="#060514"/>
+
+  <!-- Neon reflection on figure -->
+  <ellipse cx="400" cy="280" rx="15" ry="40" fill="#f472b6" opacity="0.04" filter="url(#blur)"/>
+
+  <!-- Holographic billboard (floating) -->
+  <rect x="50" y="180" width="80" height="45" fill="#67e8f9" opacity="0.06" rx="2"/>
+  <rect x="52" y="182" width="76" height="41" fill="none" stroke="#67e8f9" stroke-width="0.5" opacity="0.3" rx="1"/>
+  <text x="90" y="200" font-family="monospace" font-size="7" fill="#67e8f9" text-anchor="middle" opacity="0.5">MIRA-7</text>
+  <text x="90" y="212" font-family="monospace" font-size="6" fill="#ef4444" text-anchor="middle" opacity="0.6">WANTED</text>
+
+  <!-- Accent edges -->
+  <rect x="0" y="0" width="4" height="450" fill="#38bdf8" opacity="0.5"/>
+  <rect x="796" y="0" width="4" height="450" fill="#f0abfc" opacity="0.4"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="370" width="800" height="80" fill="#060514" opacity="0.92"/>
+  <text x="400" y="405" font-family="Arial,sans-serif" font-size="28" fill="#f0abfc" text-anchor="middle" font-weight="bold" filter="url(#neon)">Neon District</text>
+  <text x="400" y="430" font-family="Arial,sans-serif" font-size="12" fill="#c084fc" text-anchor="middle" letter-spacing="5">CYBERPUNK NOIR</text>
 </svg>
