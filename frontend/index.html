@@ -2064,6 +2064,10 @@ function resumeGameFromSession(sess){
   appState.chatHistory = [];
   appState.currentStory = story;
   appState.currentMeta = null;
+  appState.debugMode = false;
+  appState.truthMode = false;
+  appState.chineseMode = false;
+  appState.epistemicMode = false;
   appState.userAvatarLabel = getPlayerAvatarLabel(sess.player_name || "Player");
 
   $("chat-char-name").textContent = story.title;
@@ -2073,9 +2077,29 @@ function resumeGameFromSession(sess){
 
   var msgs = $("chat-messages");
   msgs.innerHTML = "";
+
+  // Show character header (same as new game)
+  var header = document.createElement("div");
+  header.id = "chat-character-header";
+  header.innerHTML = [
+    '<div id="chat-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;">' + genreEmoji(story.genre || story.theme) + '</div>',
+    '<div style="font-size:17px;font-weight:700;margin-bottom:2px;">' + escapeHTML(story.title) + '</div>',
+    '<div style="font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;">' + escapeHTML(story.genre || "StoriesChat") + '</div>'
+  ].join("");
+  msgs.appendChild(header);
+
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
 
   showScreen("chat");
+
+  // Load story meta and show world map inline
+  fetch(STORY_URL + "/" + encodeURIComponent(story.id))
+    .then(function(r){ return r.json(); })
+    .then(function(meta){
+      appState.currentMeta = meta;
+      renderInlineWorldMap(meta);
+    })
+    .catch(function(){});
 
   // Load recent history from backend (JWT or guest)
   var sessionId = sess.session_id;
@@ -2098,13 +2122,8 @@ function resumeGameFromSession(sess){
         addSystemMessage("(History unavailable — continue where you left off)");
       });
   } else {
-    addSystemMessage("(History not shown — continue where you left off)");
+    addSystemMessage("(Continue where you left off)");
   }
-
-  fetch(STORY_URL + "/" + encodeURIComponent(story.id))
-    .then(function(r){ return r.json(); })
-    .then(function(meta){ appState.currentMeta = meta; })
-    .catch(function(){});
 }
 
 /* ─── CHAT MESSAGES ─────────────────────────────── */

@@ -945,13 +945,14 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
     if not saved.get("story"):
         return None
 
-    # Rebuild a minimal GameState from saved primitives
+    # Rebuild full GameState from saved primitives (mirrors __cmd_newgame__ setup)
     try:
-        story_def = load_story(saved["story"])
+        story_id = saved["story"]
+        story_def = load_story(story_id)
         if not story_def:
             return None
         restored = init_state()
-        restored.story = saved["story"]
+        restored.story = story_id
         restored.gender = saved.get("gender", "M")
         restored.player_name = saved.get("player_name", "Player")
         restored.minute = saved.get("minute", 0)
@@ -969,10 +970,130 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             restored.user.display_name = saved.get("user_display_name", restored.player_name)
             restored.user.gender = restored.gender
 
+        # Canonical truth (for truth-mode override guidance)
+        restored.canonical_truth = story_def.get("canonical_truth", [])
+
+        # --- World runtime (same as newgame) ---
+        world_cfg = story_def.get("world", {}) or {}
+        seed = int(world_cfg.get("seed", 0))
+        world_file = str(world_cfg.get("file", "")).strip()
+        if world_file:
+            loaded = WorldLoader.load_from_file(
+                f"backend/app/stories/{world_file}",
+                seed=seed,
+                user_id=restored.user_id,
+                story_id=story_id,
+                instance=restored.instance,
+            )
+        else:
+            loaded = WorldLoader.try_load_story_world(
+                story_id,
+                stories_dir="backend/app/stories",
+                seed=seed,
+                user_id=restored.user_id,
+                instance=restored.instance,
+            )
+        if loaded is not None:
+            restored.world_runtime = loaded
+            # Keep saved location rather than overriding with start
+            if not restored.location_id:
+                start_id = str(world_cfg.get("start_location_id", "")).strip()
+                if not start_id:
+                    try:
+                        start_id = next(iter(loaded.world_graph.locations.keys()), "")
+                    except Exception:
+                        start_id = ""
+                if start_id and start_id in loaded.world_graph.locations:
+                    restored.location_id = start_id
+                    try:
+                        restored.location = loaded.world_graph.locations[start_id].name
+                    except Exception:
+                        pass
+            restored.world_start_datetime = str(world_cfg.get("start_datetime", "")).strip()
+
+        # --- Character roster (same as newgame) ---
+        main_char_def = story_def.main_character if isinstance(story_def, StoryDefinition) else None
+        characters = list(story_def.characters) if isinstance(story_def, StoryDefinition) else []
+
+        if not characters:
+            legacy_main = (story_def.get("main_character", {}) or {}) if hasattr(story_def, "get") else {}
+            if legacy_main:
+                main_char_def = Character.from_dict({**legacy_main, "is_main": True})
+                characters.append(main_char_def)
+            for sus in (story_def.get("suspects", []) or []) if hasattr(story_def, "get") else []:
+                characters.append(Character.from_dict({**sus, "is_suspect": True}))
+
+        if not characters:
+            main_char_def = Character.from_dict({"key": "MAIN", "name": "the character", "role": "npc", "is_main": True})
+            characters.append(main_char_def)
+
+        if not main_char_def and characters:
+            main_char_def = next((c for c in characters if c.is_main), characters[0])
+
+        story_self_knowledge = list(
+            (story_def.get("character_self_knowledge") or []) if hasattr(story_def, "get") else []
+        )
+
+        for ch in characters:
+            ch_uuid = ch.uuid or build_deterministic_uuid(
+                user_id=restored.user_id,
+                story_id=story_id,
+                instance=restored.instance,
+                entity_id=ch.key,
+            )
+            game_char = Character(
+                key=ch.key,
+                name=ch.name,
+                role=ch.role or "npc",
+                is_main=ch.is_main,
+                is_suspect=ch.is_suspect,
+                knowledge_character_id=ch.knowledge_character_id,
+                uuid=ch_uuid,
+                tags=list(ch.tags),
+                meta=dict(ch.meta),
+                self_knowledge=story_self_knowledge if ch.is_main else [],
+                emotion=restored.emotion,
+                relationship=restored.relationship,
+            )
+            restored.characters[ch.key] = game_char
+            if ch.is_main:
+                restored.main_character_id = ch.key
+            if ch.is_main and ch.knowledge_character_id and not restored.knowledge_character_id:
+                restored.knowledge_character_id = ch.knowledge_character_id
+
+        if not restored.main_character_id and main_char_def:
+            restored.main_character_id = main_char_def.key
+
+        # Character start locations
+        char_start_locs = world_cfg.get("character_start_locations") or {}
+        if isinstance(char_start_locs, dict):
+            restored.character_locations = {
+                str(k).strip(): str(v).strip()
+                for k, v in char_start_locs.items()
+                if k and v
+            }
+
+        # Character relationship graph
+        if isinstance(story_def, StoryDefinition) and story_def.relationships:
+            restored.character_graph = story_def.relationships
+
+        # Fallback knowledge bundle
+        if not restored.knowledge_character_id and main_char_def:
+            restored.knowledge_character_id = main_char_def.knowledge_character_id
+
+        # Session chunk store
+        restored.session_chunk_store = SessionChunkStore()
+
         # Re-seed epistemic and transient knowledge (same as newgame)
         _seed_epistemic_from_story(restored.story_cfg, restored)
         restored.clear_all_transient_entries()
         _seed_noncanonical_story_details_to_transient(story_def, restored)
+
+        # Label knowledge chunks with player visibility
+        _seed_player_visibility(restored)
+
+        logger.info("Restored session %s for user %s (story=%s, turns=%d)",
+                     session_id, user_id, story_id, restored.turns)
 
         return {
             "state": restored,
