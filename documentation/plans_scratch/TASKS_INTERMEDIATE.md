@@ -14,6 +14,10 @@ Use this file as the single source of truth for intermediate execution tasks.
 	- Added restore logic to rehydrate runtime graph edge state and session BM25 chunks after cache miss/restart.
 	- Synced Home-page resume sources to backend `/api/user/sessions` cache so Home and My Games resume the same sessions.
 	- Verification: `C:/Users/Christian/miniconda3/envs/storieschat/python.exe -m pytest -q` -> `414 passed, 1 xpassed`.
+- 2026-03-22: Cloudflare routing/control-plane documentation hardening complete.
+	- Documented current path-based Cloudflare behavior for `storieschat.ai` (`/beta/*` to beta origin, catch-all to prod origin).
+	- Added explicit tamper vectors showing how domain-preserving reroutes to different Railway projects can happen via Cloudflare changes.
+	- Added required controls: least-privilege tokens, change approval, audit log review, synthetic origin-identity checks, and incident response steps.
 
 ## Cleanup Rules (Quick Reference)
 

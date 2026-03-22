@@ -221,3 +221,6 @@ mcp_docs/
 
 # Local runtime DB artifact
 data/storieschat.db
+
+# Legacy transient task folder (use documentation/plans_scratch/TASKS_INTERMEDIATE.md instead)
+tasks/

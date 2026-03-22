@@ -19,3 +19,11 @@ Patterns from user feedback to prevent repeating mistakes.
 **Rule:** Treat localhost as debug/scorer-only (`/beta/debug`). App login and Google OAuth callbacks should be documented and configured for hosted domains.
 
 **Added to:** `documentation/model_output_docs/AUTH_AND_PERSISTENCE_DESIGN.md`, `documentation/model_output_docs/INFRASTRUCTURE.md`.
+
+## 2026-03-21: Use one canonical intermediate task file
+
+**What happened:** Intermediate task tracking was spread across ad-hoc files/folders (`tasks/`), creating inconsistency and stale leftovers.
+
+**Rule:** Intermediate execution tasks must be tracked in one canonical file: `documentation/plans_scratch/TASKS_INTERMEDIATE.md`. Agents must consume this file before non-trivial work, update it during execution, and clean up completed entries at task end.
+
+**Added to:** `documentation/ai_learnings_mistakes/AI_TASK_WORKFLOW.md`, `documentation/AI_DOC_INDEX_CATALOGUE.md`, `.gitignore`.
