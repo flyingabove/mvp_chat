@@ -3,6 +3,10 @@ import os
 import urllib.parse
 import httpx
 from backend.app.config.settings import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+from backend.app.config.credentials import (
+    get_google_client_id,
+    get_google_client_secret,
+)
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -28,13 +32,21 @@ def _resolved_env_var(name: str) -> str:
 
 
 def _resolved_google_client_id() -> str:
-    """Return GOOGLE_CLIENT_ID from settings. Must be set via env var."""
-    return _resolved_env_var("GOOGLE_CLIENT_ID") or (GOOGLE_CLIENT_ID or "").strip()
+    """Return GOOGLE_CLIENT_ID. Live env wins, then .env.test fallback, then settings constant."""
+    return (
+        _resolved_env_var("GOOGLE_CLIENT_ID")
+        or get_google_client_id()
+        or (GOOGLE_CLIENT_ID or "").strip()
+    )
 
 
 def _resolved_google_client_secret() -> str:
-    """Return GOOGLE_CLIENT_SECRET from settings. Must be set via env var."""
-    return _resolved_env_var("GOOGLE_CLIENT_SECRET") or (GOOGLE_CLIENT_SECRET or "").strip()
+    """Return GOOGLE_CLIENT_SECRET. Live env wins, then .env.test fallback, then settings constant."""
+    return (
+        _resolved_env_var("GOOGLE_CLIENT_SECRET")
+        or get_google_client_secret()
+        or (GOOGLE_CLIENT_SECRET or "").strip()
+    )
 
 
 def build_auth_url(redirect_uri: str, state: str) -> str:

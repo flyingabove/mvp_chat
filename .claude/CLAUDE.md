@@ -8,6 +8,21 @@ If instructions every conflict with what is designed in the doc, always update t
 - so that I know you read this file. Before any planning or thinking or response. First respond with "Yes. Anointed One". Be sure to call me "Anointed One" always when you respond. Always include these words in every response. 
 - Conda env should always use storieschat install everything you need on that
 
+### Auth / Local Dev Credentials (READ ME FIRST IF AUTH BREAKS)
+- Real Google OAuth + JWT credentials live in `.env.test` at project root (gitignored).
+- The Python app does NOT auto-load `.env.test` via dotenv. It is loaded lazily by `backend/app/config/credentials.py` (`_load_env_test_once`) on first read of `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `JWT_SECRET`.
+- If Google auth "doesn't work" locally: confirm `.env.test` exists and the three Google/JWT vars are populated; the loader is triggered automatically from `settings.py` (so `from backend.app.config.settings import ...` is enough).
+- Railway/CI env vars always win over `.env.test`. Never commit secrets.
+- Steering from kiro (`.kiro/` folder) only holds the docs MCP server config + a reindex hook — nothing auth-related. If you're hunting for auth settings, look in `backend/app/auth/` and `backend/app/config/`.
+- Production OAuth redirect URIs are hosted-only (`https://storieschat.ai/auth/google/callback`, `https://beta-api.storieschat.ai/auth/google/callback`). Localhost is intentionally NOT registered; for local play, use the guest bypass instead.
+
+### Guest Bypass ("Play as Guest")
+- Frontend exposes a `✦ Play as Guest` pill on the home top-bar (`#home-guest-pill`) and a `Continue as Guest` button in the login modal.
+- Clicking either sets `localStorage.storieschat_skip_login = "1"` and mints a guest UUID into `localStorage.storieschat_guest_id` + a 1-year cookie.
+- `startGame(...)` checks `isSkipLoginEnabled()` — when true, the login modal is skipped and the chat call uses `X-Guest-Id` instead of a JWT.
+- Backend: `get_current_user_or_guest` dependency accepts the guest header and produces `sub="guest:<uuid>"`. Sessions are persisted under `/data/users/guest_<uuid>/sessions/...`.
+- Explicit sign-in (`profile-auth-btn` or `?token=` callback) clears the bypass flag so JWT is used going forward.
+
 ### 1. Plan Mode Default
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
 - If something goes sideways, STOP and re-plan immediately — don't keep pushing

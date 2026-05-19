@@ -252,6 +252,21 @@ Each line is a single JSON object:
 - The player-facing app and Google sign-in should run on hosted domains.
 - If a localhost OAuth callback is temporarily added for isolated troubleshooting, treat it as temporary and remove it afterward.
 
+### Local credential loading (.env.test)
+
+- Google + JWT secrets live in `.env.test` at project root (gitignored).
+- `backend/app/config/credentials.py` exposes `get_google_client_id()`, `get_google_client_secret()`, `get_jwt_secret()` (alongside `get_openai_api_key()`).
+- Each helper triggers `_load_env_test_once()` only if the live env var is missing — so Railway/CI env vars always take priority.
+- `settings.py` consumes those helpers at import time; `google_oauth.py` and `jwt_utils.py` see fully resolved values.
+- If `GOOGLE_CLIENT_ID` is empty on boot, the OAuth URL Google receives is missing `client_id`, and login silently fails with a 400 from Google. Always confirm via `GET /api/auth/debug-config`.
+
+### Guest bypass UI ("Play as Guest" pill)
+
+- Frontend exposes `✦ Play as Guest` on the home top-bar (`#home-guest-pill`).
+- Storage flag: `localStorage.storieschat_skip_login = "1"` (set by the pill or the modal's "Continue as Guest").
+- When set, `startGame()` skips the login modal entirely, mints a guest UUID, and runs the chat call with `X-Guest-Id`.
+- Cleared on explicit sign-in (profile button or `?token=` callback) so JWT takes over.
+
 ---
 
 ## New Files

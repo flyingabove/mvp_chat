@@ -77,3 +77,46 @@ def require_openai_api_key() -> str:
             "or create a .env.test file at the project root."
         )
     return key
+
+
+def _get_env_with_fallback(name: str) -> str:
+    """Return env var by name, loading .env.test once as a fallback.
+
+    Tolerates case-only key mismatches (e.g. ``google_client_id`` vs
+    ``GOOGLE_CLIENT_ID``) the same way the legacy resolver in
+    ``google_oauth._resolved_env_var`` did.
+    """
+    def _scan() -> str:
+        direct = os.environ.get(name, "")
+        if direct.strip():
+            return direct.strip()
+        target = name.upper()
+        for key, value in os.environ.items():
+            if key.upper() == target and (value or "").strip():
+                return value.strip()
+        return ""
+
+    found = _scan()
+    if found:
+        return found
+    _load_env_test_once()
+    return _scan()
+
+
+def get_google_client_id() -> str:
+    """Return GOOGLE_CLIENT_ID, loading .env.test as fallback if needed."""
+    return _get_env_with_fallback("GOOGLE_CLIENT_ID")
+
+
+def get_google_client_secret() -> str:
+    """Return GOOGLE_CLIENT_SECRET, loading .env.test as fallback if needed."""
+    return _get_env_with_fallback("GOOGLE_CLIENT_SECRET")
+
+
+def get_jwt_secret() -> str:
+    """Return JWT_SECRET, loading .env.test as fallback if needed.
+
+    Falls back to a dev-only sentinel if absolutely nothing is set; production
+    must always set this via Railway env vars.
+    """
+    return _get_env_with_fallback("JWT_SECRET") or "dev-secret-change-in-production"

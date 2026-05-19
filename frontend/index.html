@@ -420,6 +420,18 @@
     }
     .login-guest-btn:active { background: rgba(255,255,255,0.14); }
 
+    /* ── Home "Play as Guest" pill ── */
+    .guest-pill-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 12px; border-radius: 999px;
+      background: rgba(229,9,20,0.12); color: var(--red);
+      border: 1px solid rgba(229,9,20,0.6);
+      font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .guest-pill-btn:active { background: rgba(229,9,20,0.22); }
+    .guest-pill-btn.on { background: var(--red); color: #fff; border-color: var(--red); }
+
     /* ══════════════════════════════════════════════
        iOS INSTALL PROMPT
     ══════════════════════════════════════════════ */
@@ -1103,6 +1115,7 @@
   <div class="top-bar">
     <span class="logo">StoriesChat</span>
     <div class="top-actions">
+      <button class="guest-pill-btn" id="home-guest-pill" title="Play without signing in">✦ Play as Guest</button>
       <button class="icon-btn" id="home-search-btn" title="Search" aria-label="Search">🔍</button>
       <button class="icon-btn" id="home-profile-btn" title="Profile" aria-label="Profile">👤</button>
     </div>
@@ -1506,6 +1519,7 @@ var PROFILE_KEY  = "storieschat_profile";
 var STATS_KEY    = "storieschat_stats";
 var JWT_KEY      = "storieschat_jwt";
 var GUEST_ID_KEY = "storieschat_guest_id";
+var SKIP_LOGIN_KEY = "storieschat_skip_login";
 var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
 
 // Typewriter speed: 0=Instant, 1=Normal(30ms), 2=Slow(55ms), 3=Very Slow(80ms)
@@ -1546,6 +1560,23 @@ function getOrCreateGuestId(){
   return id;
 }
 
+/* ─── SKIP LOGIN (guest bypass preference) ───────── */
+function isSkipLoginEnabled(){
+  return localStorage.getItem(SKIP_LOGIN_KEY) === "1";
+}
+function setSkipLogin(on){
+  if (on) localStorage.setItem(SKIP_LOGIN_KEY, "1");
+  else    localStorage.removeItem(SKIP_LOGIN_KEY);
+  updateGuestPillState();
+}
+function updateGuestPillState(){
+  var btn = $("home-guest-pill");
+  if (!btn) return;
+  var on = isSkipLoginEnabled() && !getToken();
+  if (on) btn.classList.add("on"); else btn.classList.remove("on");
+  btn.textContent = on ? "✓ Guest Mode" : "✦ Play as Guest";
+}
+
 function apiHeaders(){
   var h = { "Content-Type": "application/json" };
   var t = getToken();
@@ -1562,6 +1593,7 @@ function handleUnauthorized(){
   clearToken();
   showToast("Session expired — please sign in again.");
   refreshProfileScreen();
+  updateGuestPillState();
 }
 
 /* ─── APP STATE ─────────────────────────────────── */
@@ -1983,24 +2015,55 @@ $("login-dismiss-btn").addEventListener("click", function(){
 });
 
 $("login-guest-btn").addEventListener("click", function(){
+  // Remember the preference so future plays skip the login modal entirely.
+  setSkipLogin(true);
+  // Mint the guest ID now so the user sees the temp ID immediately.
+  getOrCreateGuestId();
   if (!appState.pendingStory) {
     closeModal("modal-login");
-    showToast("Pick a game, then continue as guest.");
+    showToast("Guest mode on — pick a game to play.");
     return;
   }
   closeModal("modal-login");
   startGame(appState.pendingStory, { guest: true });
 });
 
+/* Home-screen pill: instant guest bypass for "play without signing in" */
+(function bindGuestPill(){
+  var pill = $("home-guest-pill");
+  if (!pill) return;
+  pill.addEventListener("click", function(){
+    if (getToken()) {
+      showToast("Already signed in.");
+      return;
+    }
+    if (isSkipLoginEnabled()) {
+      // Toggle off: opt back into the login gate, keep the existing guest ID.
+      setSkipLogin(false);
+      showToast("Login gate re-enabled.");
+      return;
+    }
+    setSkipLogin(true);
+    var gid = getOrCreateGuestId();
+    showToast("Guest mode on. Temp ID: " + (gid || "").slice(0, 8) + "…");
+  });
+  updateGuestPillState();
+})();
+
 /* ─── ONBOARDING FLOW ───────────────────────────── */
 function startGame(story, options){
   options = options || {};
   var guestMode = Boolean(options.guest);
 
-  // Auth gate: must be logged in to play
+  // Auth gate: must be logged in to play, unless user opted into guest bypass.
   if (!guestMode && !getToken()) {
-    showLoginModal(story);
-    return;
+    if (isSkipLoginEnabled()) {
+      guestMode = true;
+      getOrCreateGuestId();
+    } else {
+      showLoginModal(story);
+      return;
+    }
   }
 
   appState.guestMode = guestMode;
@@ -3026,9 +3089,12 @@ $("profile-auth-btn").addEventListener("click", function(){
     showConfirm("Sign out?", "You'll need to sign in again to access your saved games.", "Sign out", function(){
       clearToken();
       refreshProfileScreen();
+      updateGuestPillState();
       showToast("Signed out.");
     });
   } else {
+    // Explicit sign-in: turn off guest bypass so the OAuth flow can proceed.
+    localStorage.removeItem(SKIP_LOGIN_KEY);
     window.location.href = GOOGLE_LOGIN_URL;
   }
 });
@@ -3163,6 +3229,9 @@ if ("serviceWorker" in navigator) {
 
   if (tokenParam) {
     setToken(tokenParam);
+    // Real account active — clear guest bypass so JWT is used going forward.
+    localStorage.removeItem(SKIP_LOGIN_KEY);
+    updateGuestPillState();
     // Remove token from URL without reloading
     history.replaceState({}, "", window.location.pathname);
     showToast("Welcome back!");

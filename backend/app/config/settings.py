@@ -1,7 +1,12 @@
 # app/config.py
 from __future__ import annotations
 
-from backend.app.config.credentials import get_openai_api_key
+from backend.app.config.credentials import (
+    get_openai_api_key,
+    get_google_client_id,
+    get_google_client_secret,
+    get_jwt_secret,
+)
 
 # --- OpenAI / model config ---
 OPENAI_API_KEY: str = get_openai_api_key()
@@ -48,9 +53,11 @@ DEFAULT_USER_ID: str = "default_user"
 DEFAULT_INSTANCE: int = 1
 
 # --- Auth ---
-GOOGLE_CLIENT_ID: str = _os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET: str = _os.getenv("GOOGLE_CLIENT_SECRET", "")
-JWT_SECRET: str = _os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+# Credentials route through `credentials.py`, which falls back to .env.test when
+# the env var is missing. Railway/CI env vars always take priority.
+GOOGLE_CLIENT_ID: str = get_google_client_id()
+GOOGLE_CLIENT_SECRET: str = get_google_client_secret()
+JWT_SECRET: str = get_jwt_secret()
 JWT_ALGORITHM: str = "HS256"
 JWT_EXPIRY_DAYS: int = 365
 
