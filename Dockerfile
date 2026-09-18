@@ -9,9 +9,14 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBUG_MODE=FALSE
 
-# Build-time secrets — Railway passes these as build args
+# Build-time secret — Railway passes this as a build arg so build-time
+# tests (below) can call OpenAI. A11 fix: this must NOT be promoted to ENV.
+# `ARG` values are available to subsequent RUN instructions in this same
+# build stage automatically, but (unlike ENV) are not written into the
+# final image's config/layer history, so the key never ends up embedded in
+# the shipped image. The real runtime key is injected by the deployment
+# platform (Railway service/environment variable), not by this build arg.
 ARG OPENAI_API_KEY=""
-ENV OPENAI_API_KEY=${OPENAI_API_KEY}
 
 # ------------------------------------------------------------
 # Copy code (clean, deterministic)
