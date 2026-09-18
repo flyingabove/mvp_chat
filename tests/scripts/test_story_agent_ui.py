@@ -67,8 +67,13 @@ def test_load_scorer_instructions_reads_file(engine, tmp_path):
     assert "Score rubric" in result
 
 
-def test_scores_endpoint_reads_csv(engine, tmp_path):
-    """GET /beta/debug/scores returns CSV rows as JSON."""
+def test_scores_endpoint_reads_csv(engine, tmp_path, monkeypatch):
+    """GET /beta/debug/scores returns CSV rows as JSON.
+
+    A03: this route is operator-gated, so the test authenticates with the
+    same DEBUG_TOOLS_ENABLED / OPERATOR_TOKEN env vars + X-Operator-Token
+    header a real operator would use.
+    """
     engine._append_score_csv({
         "timestamp": "2026-01-01 00:00:00",
         "run_id": "run2",
@@ -86,12 +91,18 @@ def test_scores_endpoint_reads_csv(engine, tmp_path):
     from fastapi.testclient import TestClient
     from backend.app.main import app
 
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "test-operator-token")
+
     client = TestClient(app)
     # Patch scores path on the module before reading
     import backend.app.api.debug_engine as de
     from unittest.mock import patch
     with patch.object(de, "SCORES_CSV", tmp_path / "debug_scores.csv"):
-        resp = client.get("/beta/debug/scores")
+        resp = client.get(
+            "/beta/debug/scores",
+            headers={"X-Operator-Token": "test-operator-token"},
+        )
 
     assert resp.status_code == 200
     rows = resp.json()
@@ -100,21 +111,28 @@ def test_scores_endpoint_reads_csv(engine, tmp_path):
     assert rows[0]["canon_fidelity"] == "4"
 
 
-def test_test_cases_api_round_trip(engine, tmp_path):
-    """POST + GET /beta/debug/test-cases should round-trip correctly."""
+def test_test_cases_api_round_trip(engine, tmp_path, monkeypatch):
+    """POST + GET /beta/debug/test-cases should round-trip correctly.
+
+    A03: authenticate as operator (see test_scores_endpoint_reads_csv).
+    """
     from fastapi.testclient import TestClient
     from backend.app.main import app
     import backend.app.api.debug_engine as de
     from unittest.mock import patch
 
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "test-operator-token")
+    op_headers = {"X-Operator-Token": "test-operator-token"}
+
     payload = {"test_cases": [{"name": "Case 1", "messages": ["hi"], "strategy": ""}]}
 
     with patch.object(de, "TEST_CASES_FILE", tmp_path / "test_cases.json"):
         client = TestClient(app)
-        post_resp = client.post("/beta/debug/test-cases", json=payload)
+        post_resp = client.post("/beta/debug/test-cases", json=payload, headers=op_headers)
         assert post_resp.status_code == 200
 
-        get_resp = client.get("/beta/debug/test-cases")
+        get_resp = client.get("/beta/debug/test-cases", headers=op_headers)
         assert get_resp.status_code == 200
         assert get_resp.json() == payload["test_cases"]
 

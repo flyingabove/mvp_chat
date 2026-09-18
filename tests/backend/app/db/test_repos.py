@@ -133,6 +133,36 @@ async def test_session_ownership_isolation(tmp_data_dir):
 
 
 @pytest.mark.asyncio
+async def test_upsert_rejects_cross_owner_overwrite(tmp_data_dir):
+    """A02/A01: SQL upsert must not let a different owner overwrite an
+    existing session's state_json just because the session id collides.
+    Regression test for the finding that ON CONFLICT(id) DO UPDATE had no
+    owner condition, so a caller who knows/guesses another owner's session_id
+    could silently clobber that owner's saved state."""
+    from backend.app.db.repos import UserRepo, SessionRepo, SessionOwnershipError
+    await UserRepo.upsert_user("uid1", "a@b.com", "Alice", None)
+    await UserRepo.upsert_user("uid2", "b@b.com", "Bob", None)
+    await SessionRepo.create_or_update_session(
+        session_id="shared_id", user_id="uid1", story_id="s1",
+        story_title="Alice's Story", player_name="Alice", gender="F",
+        state_json='{"owner":"alice"}', flags_json="{}", turns=10,
+    )
+
+    with pytest.raises(SessionOwnershipError):
+        await SessionRepo.create_or_update_session(
+            session_id="shared_id", user_id="uid2", story_id="s1",
+            story_title="Bob's Story", player_name="Bob", gender="M",
+            state_json='{"owner":"bob"}', flags_json="{}", turns=1,
+        )
+
+    # Alice's original row must be untouched.
+    sess = await SessionRepo.get_session("shared_id", "uid1")
+    assert sess is not None
+    assert sess["state_json"] == '{"owner":"alice"}'
+    assert sess["turns"] == 10
+
+
+@pytest.mark.asyncio
 async def test_list_user_sessions(tmp_data_dir):
     from backend.app.db.repos import UserRepo, SessionRepo
     await UserRepo.upsert_user("uid1", "a@b.com", "Alice", None)
@@ -203,6 +233,51 @@ async def test_load_page_before_turn(tmp_data_dir):
     assert 3 not in turns
     assert 4 not in turns
     assert 1 in turns or 2 in turns
+
+
+@pytest.mark.asyncio
+async def test_append_turns_rejects_path_traversal_session_id(tmp_data_dir):
+    """A02 regression: a traversal-style session_id must not be able to
+    resolve a JSONL path outside the caller's own session directory."""
+    from backend.app.db.repos import ConversationRepo, SessionPathError
+
+    with pytest.raises(SessionPathError):
+        await ConversationRepo.append_turns(
+            "uid1", "../../../evil", "hello", "hi", turn=1
+        )
+
+    # Nothing should have been written outside the intended sessions tree.
+    escaped = tmp_data_dir / "evil.jsonl"
+    assert not escaped.exists()
+
+
+def test_jsonl_path_rejects_traversal_and_stays_contained(tmp_data_dir):
+    """A02 regression: direct unit check on the repository-boundary guard."""
+    from backend.app.db.repos import _jsonl_path, SessionPathError
+
+    for bad_id in ["../evil", "..\\evil", "a/../../b", "/etc/passwd", "a/b", ""]:
+        with pytest.raises(SessionPathError):
+            _jsonl_path("uid1", bad_id)
+
+    # A normal, generated-style id resolves inside the session directory.
+    good = _jsonl_path("uid1", "abc123-DEF_456")
+    expected_base = (tmp_data_dir / "users" / "uid1" / "sessions").resolve()
+    assert good.parent == expected_base
+
+
+@pytest.mark.asyncio
+async def test_upsert_rejects_unsafe_session_id(tmp_data_dir):
+    """A02 regression: unsafe session_ids must be rejected before ever being
+    persisted, so they can never later be turned into a filesystem path."""
+    from backend.app.db.repos import UserRepo, SessionRepo, SessionPathError
+
+    await UserRepo.upsert_user("uid1", "a@b.com", "Alice", None)
+    with pytest.raises(SessionPathError):
+        await SessionRepo.create_or_update_session(
+            session_id="../../etc/passwd", user_id="uid1", story_id="s1",
+            story_title="T", player_name="A", gender="M",
+            state_json="{}", flags_json="{}", turns=0,
+        )
 
 
 @pytest.mark.asyncio

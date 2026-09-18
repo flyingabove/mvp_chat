@@ -24,9 +24,10 @@ import uuid
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Request, WebSocket
+from fastapi import APIRouter, Depends, Request, WebSocket
 from fastapi.responses import JSONResponse
 
+from backend.app.auth.dependencies import require_operator, require_operator_ws
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
 from backend.app.db.database import DATA_DIR
 from backend.app.engine.story_loader import load_story
@@ -443,6 +444,15 @@ active_runs: dict[str, dict] = {}
 # WebSocket handler
 # ---------------------------------------------------------------------------
 async def ws_debug(websocket: WebSocket) -> None:
+    # A03: the debug WebSocket drives real (spend-incurring) model calls and
+    # can mutate/replay game state. Require an operator token before
+    # accepting the connection so unauthenticated callers cannot use it.
+    try:
+        await require_operator_ws(websocket)
+    except Exception:
+        await websocket.close(code=4401)
+        return
+
     await websocket.accept()
     run_id: str | None = None
     try:
@@ -835,7 +845,11 @@ async def ws_debug(websocket: WebSocket) -> None:
 # ---------------------------------------------------------------------------
 # REST router
 # ---------------------------------------------------------------------------
-router = APIRouter()
+# A03: every route on this router runs model-spending tools, mutates
+# debug/run state, or reads other sessions' run data — none of it should be
+# reachable without an operator token (see require_operator, disabled by
+# default in prod-like environments via DEBUG_TOOLS_ENABLED).
+router = APIRouter(dependencies=[Depends(require_operator)])
 
 
 @router.get("/status")

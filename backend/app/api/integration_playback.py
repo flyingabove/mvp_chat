@@ -1,10 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from backend.app.auth.dependencies import require_operator
 from backend.app.integration_playback.loader import ensure_scenarios_loaded
 from backend.app.integration_playback.scenario_registry import list_scenarios
 from backend.app.integration_playback.runner import ScenarioRunner
 
-router = APIRouter()
+# A03: playback runs real turns through the model pipeline and can read
+# other scenarios' logs — operator-only, disabled by default in prod-like
+# environments (see require_operator / DEBUG_TOOLS_ENABLED).
+router = APIRouter(dependencies=[Depends(require_operator)])
 
 
 @router.get("/integration_playback/scenarios")

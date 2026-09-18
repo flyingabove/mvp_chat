@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import json
 import re
 import uuid
 
+from backend.app.auth.dependencies import require_operator
 from backend.app.engine.story_loader import STORIES_DIR
 
 router = APIRouter()
@@ -103,11 +104,14 @@ def _find_story_file(story_id: str) -> Path | None:
 
 
 @router.get("/stories/{story_id}/context")
-async def story_context(story_id: str):
+async def story_context(story_id: str, _op: dict = Depends(require_operator)):
     """Return scoring-relevant context for a story.
 
     The scorer/grader needs story canon to properly evaluate NPC responses.
     This endpoint extracts the key sections without exposing the full config.
+
+    A03: this returns canonical_facts (answers), so it must stay
+    operator-only — never reachable by ordinary players.
     """
     p = _find_story_file(story_id)
     if not p:
@@ -154,11 +158,13 @@ async def story_context(story_id: str):
 
 
 @router.post("/stories/draft")
-async def create_story_draft(req: StoryDraftRequest):
+async def create_story_draft(req: StoryDraftRequest, _op: dict = Depends(require_operator)):
     """Create a minimal stub story JSON for a new draft game.
 
     Saves a skeleton story JSON to backend/app/stories/ so it shows up in
     the story list and can be further developed.
+
+    A03: this is a content-authoring mutation and must stay operator-only.
     """
     title = req.title.strip()
     genre = req.genre.strip()

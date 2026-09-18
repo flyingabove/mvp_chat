@@ -1,10 +1,31 @@
 """Repository classes for users, game sessions, and conversation logs."""
 import json
+import re
 import time
 import asyncio
 import sqlite3
 from pathlib import Path
 from backend.app.db.database import get_connection, DATA_DIR, init_db
+
+
+class SessionPathError(ValueError):
+    """Raised when a session_id is not safe to use in a filesystem path
+    (A02: path traversal via session IDs)."""
+
+
+# Session IDs are always server-generated (uuid4 hex or similar). Reject
+# anything outside a conservative safe charset before it ever reaches a
+# filesystem path — this blocks "../", absolute paths, null bytes, etc.
+_SAFE_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def validate_session_id(session_id: str) -> str:
+    """Request-boundary + repository-boundary guard for session_id values
+    that get turned into filesystem paths. Raises SessionPathError if the
+    id contains anything other than alphanumerics/hyphen/underscore."""
+    if not isinstance(session_id, str) or not _SAFE_SESSION_ID_RE.match(session_id):
+        raise SessionPathError(f"unsafe session_id: {session_id!r}")
+    return session_id
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +76,12 @@ class UserRepo:
 # ---------------------------------------------------------------------------
 # SessionRepo
 # ---------------------------------------------------------------------------
+class SessionOwnershipError(Exception):
+    """Raised when a caller attempts to upsert a session_id that already
+    belongs to a different owner. Callers must never silently overwrite
+    another owner's row (A01)."""
+
+
 class SessionRepo:
     @staticmethod
     def _upsert(
@@ -62,9 +89,27 @@ class SessionRepo:
         player_name: str, gender: str, state_json: str, flags_json: str,
         last_message: str = "", turns: int = 0,
     ) -> None:
+        # A02 fix: reject unsafe session_ids before they can ever be stored
+        # and later turned into a filesystem path elsewhere in this class.
+        validate_session_id(session_id)
         now = int(time.time())
         conn = get_connection()
         try:
+            # A01 fix: ON CONFLICT(id) DO UPDATE previously had no owner
+            # condition, so a caller who knew/guessed another owner's
+            # session_id could overwrite that owner's state_json/flags_json
+            # in place (the user_id column itself was left unchanged, which
+            # made the corruption easy to miss). Check current ownership
+            # first and refuse the write outright on a mismatch instead of
+            # silently clobbering the existing owner's row.
+            existing = conn.execute(
+                "SELECT user_id FROM game_sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+            if existing is not None and existing["user_id"] != user_id:
+                raise SessionOwnershipError(
+                    f"session {session_id!r} is owned by a different user; refusing upsert"
+                )
+
             conn.execute(
                 """
                 INSERT INTO game_sessions
@@ -80,6 +125,7 @@ class SessionRepo:
                     last_message = excluded.last_message,
                     state_json   = excluded.state_json,
                     flags_json   = excluded.flags_json
+                WHERE game_sessions.user_id = excluded.user_id
                 """,
                 (session_id, user_id, story_id, story_title, player_name, gender,
                  now, now, turns, last_message[:120], state_json, flags_json),
@@ -136,9 +182,10 @@ class SessionRepo:
             conn.close()
 
         if deleted:
-            # Remove JSONL file
-            jsonl_path = DATA_DIR / "users" / _safe_dir_name(user_id) / "sessions" / f"{session_id}.jsonl"
+            # Remove JSONL file (routed through _jsonl_path for the same
+            # traversal-containment guard used on every other write/read).
             try:
+                jsonl_path = _jsonl_path(user_id, session_id)
                 jsonl_path.unlink(missing_ok=True)
             except Exception:
                 pass
@@ -231,10 +278,11 @@ class SessionRepo:
         finally:
             conn.close()
 
-        # Clean up JSONL files
+        # Clean up JSONL files (routed through _jsonl_path for the same
+        # traversal-containment guard used on every other write/read).
         for row in rows:
-            jsonl_path = DATA_DIR / "users" / _safe_dir_name(row["user_id"]) / "sessions" / f"{row['id']}.jsonl"
             try:
+                jsonl_path = _jsonl_path(row["user_id"], row["id"])
                 jsonl_path.unlink(missing_ok=True)
             except Exception:
                 pass
@@ -269,7 +317,17 @@ def _safe_dir_name(user_id: str) -> str:
 
 
 def _jsonl_path(user_id: str, session_id: str) -> Path:
-    return DATA_DIR / "users" / _safe_dir_name(user_id) / "sessions" / f"{session_id}.jsonl"
+    # A02 fix: validate at the repository boundary (charset) AND resolve the
+    # final path to assert it is still contained within the caller's own
+    # session directory before any file I/O touches it.
+    validate_session_id(session_id)
+    base_dir = (DATA_DIR / "users" / _safe_dir_name(user_id) / "sessions").resolve()
+    candidate = (base_dir / f"{session_id}.jsonl").resolve()
+    if candidate.parent != base_dir:
+        raise SessionPathError(
+            f"session_id path escaped the session directory: {session_id!r}"
+        )
+    return candidate
 
 
 class ConversationRepo:

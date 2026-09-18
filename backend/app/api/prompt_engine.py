@@ -1303,10 +1303,16 @@ def get_session(session_id: str, user_id: str = "anon"):
                 "user_id": user_id,
             }
 
-    # Defense-in-depth: verify ownership on cache hit to prevent cross-user leaks
+    # Verify ownership on cache hit to prevent cross-user leaks.
+    # IMPORTANT: do NOT exempt "anon" from either side of this comparison.
+    # A01 fix: the previous check only compared owners when *both* the
+    # cached owner and the requesting caller were non-anonymous, which let
+    # an unauthenticated caller (user_id="anon") read any real owner's
+    # cached session, and let a session cached under "anon" be handed to a
+    # different real caller. Ownership must match exactly, always.
     cached = SESSIONS[session_id]
     cached_owner = cached.get("user_id", "anon")
-    if cached_owner != "anon" and user_id != "anon" and cached_owner != user_id:
+    if cached_owner != user_id:
         logger.warning(
             "Session %s owned by %s but requested by %s — creating fresh",
             session_id, cached_owner, user_id,

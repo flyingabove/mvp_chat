@@ -1,6 +1,7 @@
 """FastAPI auth dependencies: get_current_user (required) and get_optional_user."""
+import os
 import re
-from fastapi import Request, HTTPException
+from fastapi import Request, WebSocket, HTTPException
 from backend.app.auth.jwt_utils import decode_token
 
 # Guest IDs must be valid UUIDs (hex, 32-36 chars) to prevent injection
@@ -62,3 +63,49 @@ async def get_current_user_or_guest(request: Request) -> dict:
         return {"sub": f"guest:{guest_id}", "email": "", "name": "Guest"}
 
     raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+# ---------------------------------------------------------------------------
+# Operator/admin authorization (A03)
+# ---------------------------------------------------------------------------
+# Privileged surfaces (debug engine, playback, story authoring/canonical-fact
+# endpoints) must never be reachable by ordinary players. Two independent
+# gates are required:
+#   1. DEBUG_TOOLS_ENABLED must be explicitly turned on. It defaults OFF, so
+#      a prod-like deployment that forgets to configure OPERATOR_TOKEN is
+#      still safe by default.
+#   2. A matching OPERATOR_TOKEN must be supplied via the X-Operator-Token
+#      header (REST) or the operator_token query parameter (WebSocket,
+#      since browsers cannot set custom headers on a WS handshake).
+def _debug_tools_enabled() -> bool:
+    return os.getenv("DEBUG_TOOLS_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _operator_token_configured() -> str:
+    return os.getenv("OPERATOR_TOKEN", "").strip()
+
+
+def _check_operator_token(supplied: str | None) -> None:
+    if not _debug_tools_enabled():
+        raise HTTPException(status_code=403, detail="Debug/authoring tools are disabled")
+    expected = _operator_token_configured()
+    if not expected:
+        # Tools enabled but no token configured: fail closed, not open.
+        raise HTTPException(status_code=403, detail="Operator access is not configured")
+    if not supplied or supplied != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing operator credentials")
+
+
+async def require_operator(request: Request) -> dict:
+    """FastAPI dependency for HTTP routes: require a valid operator token."""
+    supplied = request.headers.get("X-Operator-Token") or request.query_params.get("operator_token")
+    _check_operator_token(supplied)
+    return {"sub": "operator"}
+
+
+async def require_operator_ws(websocket: WebSocket) -> dict:
+    """Same check for WebSocket routes (no custom headers from the browser,
+    so also accept the token as a query parameter on the connect URL)."""
+    supplied = websocket.headers.get("X-Operator-Token") or websocket.query_params.get("operator_token")
+    _check_operator_token(supplied)
+    return {"sub": "operator"}

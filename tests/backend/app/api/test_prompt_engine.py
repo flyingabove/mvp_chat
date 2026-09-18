@@ -1584,6 +1584,59 @@ def test_get_session_rejects_cross_user_cache_hit():
         pe_mod.SESSIONS.pop(test_session_id, None)
 
 
+def test_get_session_anon_caller_cannot_read_owned_cache_hit():
+    """A01 regression: the old ownership check exempted callers/owners of
+    "anon" from comparison (`cached_owner != "anon" and user_id != "anon"`),
+    so an unauthenticated caller (user_id="anon") requesting a session_id
+    that happened to be cached for a real owner got that owner's cached
+    state/log back verbatim instead of a fresh session."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    test_session_id = "_test_anon_reads_owned_sess"
+    try:
+        pe_mod.SESSIONS[test_session_id] = {
+            "state": pe_mod.init_state(),
+            "log": [{"role": "assistant", "content": "owner_secret_data"}],
+            "debug_mode": False,
+            "chinese_mode": False,
+            "epistemic_state": True,
+            "truth_mode": False,
+            "user_id": "guest:real-owner-uuid",
+        }
+
+        # Anonymous caller (no JWT, no guest cookie) guesses/knows the session_id.
+        sess = pe_mod.get_session(test_session_id, "anon")
+        assert sess["user_id"] == "anon"
+        assert sess["log"] == []  # must NOT see the real owner's cached log
+    finally:
+        pe_mod.SESSIONS.pop(test_session_id, None)
+
+
+def test_get_session_owner_cannot_be_bypassed_by_anon_owned_cache():
+    """A01 regression: a session cached with owner "anon" must not be handed
+    to a different real caller just because the cached owner happens to be
+    "anon" (the old check also exempted this direction)."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    test_session_id = "_test_anon_owned_sess"
+    try:
+        pe_mod.SESSIONS[test_session_id] = {
+            "state": pe_mod.init_state(),
+            "log": [{"role": "assistant", "content": "anon_session_data"}],
+            "debug_mode": False,
+            "chinese_mode": False,
+            "epistemic_state": True,
+            "truth_mode": False,
+            "user_id": "anon",
+        }
+
+        sess = pe_mod.get_session(test_session_id, "guest:someone-else")
+        assert sess["user_id"] == "guest:someone-else"
+        assert sess["log"] == []
+    finally:
+        pe_mod.SESSIONS.pop(test_session_id, None)
+
+
 def test_get_session_allows_same_user_cache_hit():
     """Same user should get their own cached session back."""
     from backend.app.api import prompt_engine as pe_mod
