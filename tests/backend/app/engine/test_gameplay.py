@@ -69,6 +69,23 @@ def test_win_condition_detected_with_config_patterns():
     assert win_condition_detected("just chatting", st) is False
 
 
+def test_win_condition_detected_false_for_common_room_open_ended_story():
+    """The Common Room (social_sim, no goal/win_detection) has no fixed win
+    state — win_condition_detected must always return False for it."""
+    from backend.app.engine.story_loader import load_story
+
+    story = load_story("common_room")
+    assert story is not None
+    story_dict = story.as_dict()
+    assert "win_detection" not in story_dict
+    assert "goal" not in story_dict
+
+    st = init_state()
+    st.story_cfg = story_dict
+    assert win_condition_detected("I confess to everything", st) is False
+    assert win_condition_detected("I am the mastermind", st) is False
+
+
 # ─── BUG-06: manifest_mode uses location_id, not display string ─────────────
 
 def test_manifest_mode_uses_location_id_when_location_ids_defined():

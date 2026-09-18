@@ -1,0 +1,102 @@
+{
+  "world_id": "common_room",
+  "version": 1,
+  "time": {
+    "start_minute": 0,
+    "minute_label": "minutes_since_start"
+  },
+  "defaults": {
+    "probabilities": {
+      "p_exit_A": 0.2,
+      "p_pass_C": 0.5,
+      "p_event_at_C": 0.25,
+      "p_enter_B": 0.2,
+      "p_describe_B": 0.6
+    }
+  },
+  "locations": {
+    "front_entry": {
+      "name": "Front Entry",
+      "tags": ["indoor", "transitional", "shared"],
+      "description": "A narrow entryway crowded with shoes, umbrellas, and a corkboard thick with takeout menus and a hand-drawn chore chart.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-front_entry"
+    },
+    "living_room": {
+      "name": "Living Room",
+      "tags": ["indoor", "shared", "social"],
+      "description": "A worn but comfortable couch, string lights, a coffee table that's never quite clean, and the TV nobody can agree what to watch on.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-living_room"
+    },
+    "kitchen": {
+      "name": "Kitchen",
+      "tags": ["indoor", "shared", "social"],
+      "description": "Small and bright, with a whiteboard for grocery lists, mismatched mugs, and the smell of whoever cooked last still lingering.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-kitchen"
+    },
+    "player_bedroom": {
+      "name": "Your Room",
+      "tags": ["private", "indoor", "home"],
+      "description": "Still mostly boxes. The one space in the house that's fully yours, for now half-unpacked.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-player_bedroom"
+    },
+    "mina_room": {
+      "name": "Mina's Room",
+      "tags": ["private", "indoor"],
+      "description": "Tidy, warm-lit, decorated with photos of the whole house through the year.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-mina_room"
+    },
+    "daeho_room": {
+      "name": "Dae-ho's Room",
+      "tags": ["private", "indoor"],
+      "description": "Guitar cases stacked against the wall, cables everywhere, a mattress on the floor.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-daeho_room"
+    },
+    "priya_room": {
+      "name": "Priya's Room",
+      "tags": ["private", "indoor"],
+      "description": "Color-coded folders, a desk lamp that's always on, a laundry hamper labeled with a schedule.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-priya_room"
+    },
+    "shared_bathroom": {
+      "name": "Shared Bathroom",
+      "tags": ["indoor", "shared", "transitional"],
+      "description": "One mirror, four toothbrushes, and a shower schedule nobody actually follows.",
+      "allows_phone": false,
+      "uuid": "default_user-common_room-6-shared_bathroom"
+    },
+    "backyard_patio": {
+      "name": "Backyard Patio",
+      "tags": ["outdoor", "shared", "social"],
+      "description": "A small concrete patio with mismatched chairs, a string of solar lights, and an ashtray nobody claims.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-backyard_patio"
+    },
+    "rooftop_balcony": {
+      "name": "Rooftop Balcony",
+      "tags": ["outdoor", "private", "quiet"],
+      "description": "Up a narrow stairwell, away from the noise of the house — the spot people go when they want to think, or talk, without an audience.",
+      "allows_phone": true,
+      "uuid": "default_user-common_room-6-rooftop_balcony"
+    }
+  },
+  "edges": [
+    {"from": "front_entry", "to": "living_room", "minutes": 1},
+    {"from": "living_room", "to": "kitchen", "minutes": 1},
+    {"from": "living_room", "to": "player_bedroom", "minutes": 1},
+    {"from": "living_room", "to": "mina_room", "minutes": 1},
+    {"from": "living_room", "to": "daeho_room", "minutes": 1},
+    {"from": "living_room", "to": "priya_room", "minutes": 1},
+    {"from": "living_room", "to": "shared_bathroom", "minutes": 1},
+    {"from": "kitchen", "to": "backyard_patio", "minutes": 1},
+    {"from": "living_room", "to": "backyard_patio", "minutes": 2},
+    {"from": "living_room", "to": "rooftop_balcony", "minutes": 3},
+    {"from": "kitchen", "to": "rooftop_balcony", "minutes": 3}
+  ]
+}
