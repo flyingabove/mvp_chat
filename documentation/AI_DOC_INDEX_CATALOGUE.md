@@ -14,6 +14,7 @@
 | [AI_TASK_WORKFLOW.md](ai_learnings_mistakes/AI_TASK_WORKFLOW.md) | ...intermediate task tracking location, consumption requirements, or cleanup policy changes. |
 | [AI_LOGICAL_BUGS.md](ai_learnings_mistakes/AI_LOGICAL_BUGS.md) | ...a new logic bug is discovered and resolved during an audit. |
 | [user_corrections.md](user_corrections.md) | ...the user corrects a mistake that should be remembered across sessions. |
+| [BACKLOG.md](BACKLOG.md) | ...work is knowingly deferred (audit finding, follow-up, manual owner action) instead of finished, or a backlog item is resolved. |
 
 ## Prompt Engine & Turn Orchestration
 
