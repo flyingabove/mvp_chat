@@ -103,6 +103,21 @@ async def require_operator(request: Request) -> dict:
     return {"sub": "operator"}
 
 
+def is_operator_request(request: Request) -> bool:
+    """Non-raising operator check for routes that must stay publicly
+    reachable (e.g. /api/chat) but should only reveal privileged debug data
+    (full system prompt, canonical facts, retrieval internals) to an
+    authenticated operator. Unlike require_operator, never raises — callers
+    use this to conditionally include/omit a response field, not to reject
+    the request. A caller with no/invalid token simply gets False, same as
+    an ordinary player."""
+    supplied = request.headers.get("X-Operator-Token") or request.query_params.get("operator_token")
+    if not supplied or not _debug_tools_enabled():
+        return False
+    expected = _operator_token_configured()
+    return bool(expected) and supplied == expected
+
+
 async def require_operator_ws(websocket: WebSocket) -> dict:
     """Same check for WebSocket routes (no custom headers from the browser,
     so also accept the token as a query parameter on the connect URL)."""

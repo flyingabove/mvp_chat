@@ -165,6 +165,81 @@ def test_chat_newgame_and_turn(client):
     assert not re.match(r"^\[\d{4}-\d{2}-\d{2} ", data2["reply"])  # no leading timestamp
 
 
+def test_prompt_debug_not_leaked_to_ordinary_players(client, monkeypatch):
+    """Live-verified bug (found manually against the deployed beta site while
+    playtesting The Common Room): /api/chat previously returned the FULL
+    assembled system prompt (all canonical facts, character secrets,
+    retrieval chunk text) to every caller unconditionally, on every turn -
+    completely bypassing the A03 operator gate that was supposed to protect
+    exactly this kind of data (it only gated separate debug/authoring
+    *routes*, not this field on the always-public /chat route). An ordinary
+    player's browser devtools Network tab would show it even though the
+    frontend UI never renders it. `prompt_debug` must be absent for any
+    request that isn't an authenticated operator - even one that has
+    toggled the player-facing "[D]" debug_mode command, since that toggle
+    has no auth at all and must not be conflated with the real operator
+    trust boundary."""
+    monkeypatch.delenv("DEBUG_TOOLS_ENABLED", raising=False)
+    monkeypatch.delenv("OPERATOR_TOKEN", raising=False)
+
+    sid = "leak_check_1"
+    r = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"})
+    assert r.status_code == 200
+    assert "prompt_debug" not in r.json()
+
+    # Even with the player-facing "[D]" debug_mode toggle enabled (unauthenticated,
+    # anyone can send it), prompt_debug must still be withheld.
+    r_toggle = client.post("/api/chat", json={"session_id": sid, "message": "[D]"})
+    assert r_toggle.status_code == 200
+    r2 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r2.status_code == 200
+    assert "prompt_debug" not in r2.json()
+
+    # Also withheld when DEBUG_TOOLS_ENABLED is on but no/wrong token supplied.
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "correct-token")
+    r3 = client.post("/api/chat", json={"session_id": sid, "message": "hello again"})
+    assert "prompt_debug" not in r3.json()
+    r4 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello again"},
+        headers={"X-Operator-Token": "wrong-token"},
+    )
+    assert "prompt_debug" not in r4.json()
+
+
+def test_prompt_debug_present_for_authenticated_operator(client, monkeypatch):
+    """The operator/debug/playback tooling (backend/app/api/debug_engine.py)
+    legitimately depends on receiving prompt_debug from /api/chat for
+    grading and playback inspection - it must still get it when it presents
+    a valid operator token, mirroring the token debug_engine.py's own
+    internal httpx calls now send."""
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "correct-token")
+
+    sid = "leak_check_2"
+    r = client.post(
+        "/api/chat",
+        # __cmd_newgame__ just returns the static opening text without an
+        # LLM call, so it never produces a prompt_debug (matches the
+        # unauthenticated-path behavior too) - only a real turn does.
+        json={"session_id": sid, "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"},
+        headers={"X-Operator-Token": "correct-token"},
+    )
+    assert r.status_code == 200
+    assert "prompt_debug" not in r.json()
+
+    r2 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello"},
+        headers={"X-Operator-Token": "correct-token"},
+    )
+    assert r2.status_code == 200
+    body = r2.json()
+    assert "prompt_debug" in body
+    assert "system_prompt_preview" in body["prompt_debug"]
+
+
 @pytest.mark.parametrize("story", all_stories(), ids=lambda s: s["id"])
 def test_every_catalogued_story_initializes_end_to_end(client, story):
     """A05 regression: every story returned by the /api/stories catalogue

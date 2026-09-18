@@ -9,7 +9,7 @@ from backend.app.engine.extractors.turn_extractor import (
 )
 
 from fastapi import APIRouter, Depends, Request
-from backend.app.auth.dependencies import get_optional_user, _extract_guest_id
+from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
 from backend.app.db.repos import SessionRepo, ConversationRepo
 
 import asyncio
@@ -2374,7 +2374,18 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     if bool(sess.get("chinese_mode", False)):
         reply = await _translate_to_chinese(reply)
 
-    result = {"reply": reply, "usage": data.get("usage"), "character": "default", "prompt_debug": prompt_debug}
+    result = {"reply": reply, "usage": data.get("usage"), "character": "default"}
+    # prompt_debug carries the FULL assembled system prompt (all canonical
+    # facts, character secrets, retrieval chunk text) and is only for the
+    # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
+    # which authenticates its own internal /api/chat calls with the same
+    # operator token). It must never reach an ordinary player: unlike the
+    # `debug_mode` toggle below, which is a harmless player-facing "[D]"
+    # bracket command, is_operator_request() checks the real trust boundary
+    # (DEBUG_TOOLS_ENABLED + a matching X-Operator-Token/operator_token),
+    # so typing "[D]" alone cannot unlock it.
+    if is_operator_request(request):
+        result["prompt_debug"] = prompt_debug
     if knowledge_resolution_updates:
         result["knowledge_resolution_updates"] = knowledge_resolution_updates
     if debug_box is not None:

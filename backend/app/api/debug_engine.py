@@ -27,7 +27,7 @@ import httpx
 from fastapi import APIRouter, Depends, Request, WebSocket
 from fastapi.responses import JSONResponse
 
-from backend.app.auth.dependencies import require_operator, require_operator_ws
+from backend.app.auth.dependencies import require_operator, require_operator_ws, _operator_token_configured
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
 from backend.app.db.database import DATA_DIR
 from backend.app.engine.story_loader import load_story
@@ -535,7 +535,14 @@ async def ws_debug(websocket: WebSocket) -> None:
 
         await send("status", {"text": f"Starting {story_id}..."})
 
-        async with httpx.AsyncClient(timeout=60.0) as api:
+        # This handler only runs after require_operator_ws already verified an
+        # operator token on this WebSocket connection, so it's safe/expected
+        # to forward that same token on its own /api/chat calls: /api/chat now
+        # only includes `prompt_debug` (full system prompt, canonical facts)
+        # for an authenticated operator request, and this loop's grading
+        # depends on receiving it.
+        _op_headers = {"X-Operator-Token": _operator_token_configured()}
+        async with httpx.AsyncClient(timeout=60.0, headers=_op_headers) as api:
             # Reset session
             await api.post(f"{api_base}/api/chat", json={
                 "session_id": session_id,
@@ -717,7 +724,14 @@ async def ws_debug(websocket: WebSocket) -> None:
 
                 story_context_block = ""
                 try:
-                    async with httpx.AsyncClient(timeout=10.0) as ctx_client:
+                    # GET /api/stories/{id}/context is operator-gated (A03 -
+                    # it returns canonical_facts). Without this header, this
+                    # call 401s and silently falls through to the `except`
+                    # below, so the grader loads with no story context at all
+                    # (a real regression the A03 fix introduced here — this
+                    # code path already runs only after require_operator_ws
+                    # verified an operator token on this WS connection).
+                    async with httpx.AsyncClient(timeout=10.0, headers=_op_headers) as ctx_client:
                         ctx_r = await ctx_client.get(f"{api_base}/api/stories/{story_id}/context")
                         if ctx_r.status_code == 200:
                             story_context_block = _build_scorer_context(ctx_r.json())
