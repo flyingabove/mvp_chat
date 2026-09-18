@@ -81,6 +81,21 @@ If instructions every conflict with what is designed in the doc, always update t
 - Only merge `beta` → `prod` when the user explicitly says to push to prod.
 - There is NO `main` branch. It was deleted. Do NOT create or reference `main`.
 
+### 9. Use the `/ship-and-verify` skill for shipping changes
+- Any non-trivial change (backend or frontend) should follow
+  `.claude/skills/ship-and-verify/SKILL.md`: implement with tests → verify
+  offline → push to beta → poll the real Railway deploy → actually exercise
+  the feature on the live hosted beta site (browser-level via the Playwright
+  MCP plugin when available, curl-level against the real endpoints
+  otherwise) before calling it done. Passing the local test suite is
+  necessary, not sufficient — BL-03 shipped a bug that only existed in the
+  deployed/browser context, not in pytest.
+- Browser automation: the official Playwright MCP plugin
+  (`playwright@claude-plugins-official`) should be installed
+  (`claude plugin list` to check). If its tools aren't showing up in a
+  session, it needs a Claude Code restart/reconnect to load — say so rather
+  than silently skipping live browser verification.
+
 ## Task Management (任务管理)
 1. **Plan First:** Write plan to `tasks/todo.md` with checkable items
 2. **Verify Plan:** Check in before starting implementation
