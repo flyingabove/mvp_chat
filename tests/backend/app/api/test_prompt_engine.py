@@ -282,6 +282,54 @@ def test_every_catalogued_story_initializes_end_to_end(client, story):
         )
 
 
+def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(client):
+    """Exercise actual initialization, including visibility seeding and prompt assembly."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine import prompt_builder as pb
+
+    sid = "six_strangers_cast_rewrite"
+    response = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert response.status_code == 200
+    opening = response.json()["reply"]
+    assert "\n\n" in opening and "\\n" not in opening
+    state = pe_mod.SESSIONS[sid]["state"]
+    keys = {"makoto", "minori", "yuki", "mizuki", "uchi", "yuriko"}
+    assert set(state.characters) == keys
+    assert state.player_name == "Chris"
+    assert state.main_character_id == "mizuki"
+    assert state.location_id == "front_entry"
+    assert {key: state.character_locations[key] for key in keys} == {
+        "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
+        "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
+    }
+    for key in keys:
+        assert state.characters[key].self_knowledge
+        assert state.character_graph.get_edge(key, "player") is not None
+
+    facts = {fact.id: fact for fact in state.canonical_facts}
+    for key in keys:
+        private = facts[f"{key}_private_concern"]
+        assert private.known_by == [key]
+        assert set(private.not_known_by) == (keys | {"player"}) - {key}
+        assert private.id not in state.player_visible_chunk_ids
+        assert pe_mod._canonical_fact_visibility_for_speaker(state, key, private.content) == "known"
+        for outsider in (keys | {"player"}) - {key}:
+            assert pe_mod._canonical_fact_visibility_for_speaker(state, outsider, private.content) == "not_known"
+        assert private.content not in opening
+
+    system_prompt = pb.system_prompt(state)
+    assert "### GAME MODE CONTEXT" in system_prompt
+    assert "6 recurring housemates/characters" in system_prompt
+    assert "no fixed win condition" in system_prompt
+    assert "Narrator aside device" in system_prompt
+    assert "### CHARACTER IDENTITY — Mizuki Shida" in system_prompt
+    for absent_key in keys - {"mizuki"}:
+        assert f"### CHARACTER IDENTITY — {state.characters[absent_key].name}" not in system_prompt
+
+
 def test_master_prompt_engine_orchestration_flow(monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.extractors.turn_extractor import TurnExtraction, TurnKnowledgeResolution

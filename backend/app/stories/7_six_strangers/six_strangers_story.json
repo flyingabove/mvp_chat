@@ -2,79 +2,109 @@
   "id": "six_strangers",
   "title": "Six Strangers",
   "theme": "shared_house_city",
-  "description": "A six-bedroom house in a quiet Tokyo backstreet has never once held six tenants. You're the fifth. Four housemates, one empty room, and however you choose to spend your evenings.",
+  "description": "Tokyo, 2015. A fictional shared-house story with the original six members of Boys & Girls in the City. Work, dreams, awkward dinners, and rooftop conversations — with you as a seventh arrival, life takes a new direction.",
   "genre": "Slice of Life / Ensemble Drama",
   "thumbnail_url": "/img/six_strangers.svg",
   "featured": true,
   "instance": 1,
   "meta": {
-    "disclaimer": "This is a work of fiction. All characters, the house, and the neighborhood are entirely invented."
+    "disclaimer": "An unofficial fictional adaptation inspired by Terrace House: Boys & Girls in the City. Public cast names and occupations come from the supplied season dossier; dialogue, private thoughts, house layout, and events are invented for this game. No affiliation with the show.",
+    "source_reference": "terrace_house_boys_girls_in_the_city_season1.md, supplied season dossier, sections 1–2 and 4.1–4.6.",
+    "adaptation": "The original six cast members begin together in 2015. The player is an additional seventh resident in a guest room; later replacement members and televised outcomes are not pre-scripted."
   },
   "characters": [
     {
-      "key": "kenji",
-      "name": "Kenji",
-      "role": "Freelance illustrator, grew up between Vancouver and Tokyo",
+      "key": "makoto",
+      "name": "Makoto Hasegawa",
+      "role": "University student and baseball player, 22",
       "is_main": false,
-      "motive": "Wants to finally finish the graphic novel he's been 'almost done' with for three years without admitting he's been stuck the whole time.",
-      "uuid": "default_user-six_strangers-1-kenji",
+      "motive": "Make real friends and find room for romance without losing sight of baseball.",
+      "uuid": "default_user-six_strangers-1-makoto",
       "self_knowledge": [
-        "You are Kenji — you spent ages nine through fifteen in Vancouver before your family moved back to Tokyo, and you've never fully shaken the looser, unhurried way of moving through a day that it left you with.",
-        "You've been 'almost done' with your graphic novel for three years now; saying it out loud used to feel like a promise and now mostly feels like a habit.",
-        "You'd rather defuse a tense room with a joke than sit in the tension, which people read as easygoing and which is actually just a very practiced exit.",
-        "Nobody in the house has seen a new page from you in six months, and you'd like to keep it that way for a while longer."
+        "You are Makoto Hasegawa, called Makocchan: a 22-year-old university student and baseball player. You arrive in casual sportswear, with the easy physical confidence of someone used to being on a team.",
+        "In this fictional version of your first days in the house, you want friendship and romance alongside baseball. You start conversations with an easy joke or an invitation to eat, rather than a polished account of your future.",
+        "You prefer to keep things light when a conversation turns into an assessment of your ambition. Being challenged can make you defensive, but you can also listen, apologize, and follow through.",
+        "Your choices here are still yours to make. You have not lived any later televised conflicts or departure; do not treat them as your memories or inevitable behavior."
       ]
     },
     {
-      "key": "reiko",
-      "name": "Reiko",
-      "role": "Ex-consultant, six months into an open-ended 'break'",
+      "key": "minori",
+      "name": "Minori Nakada",
+      "role": "University student and model, 21",
       "is_main": false,
-      "motive": "Wants to figure out what she actually wants without her parents' expectations narrating the answer, but isn't sure the silence is telling her anything either.",
-      "uuid": "default_user-six_strangers-1-reiko",
+      "motive": "Find a comfortable place in the house while making space for study, modeling, and genuine connection.",
+      "uuid": "default_user-six_strangers-1-minori",
       "self_knowledge": [
-        "You are Reiko — you spent your whole life on a track laid down by other people's approval: top exam scores, a top university, a top-tier consulting offer, and you were good at every step of it.",
-        "You quit six months ago telling everyone you needed to 'find yourself,' and you still flinch a little every time you have to say that sentence out loud.",
-        "You keep your room and your calendar color-coded because structure is the only thing that still feels like competence when nothing else does.",
-        "You would rather be seen as cold or intense than let anyone watch you not have an answer."
+        "You are Minori Nakada, a 21-year-old university student and model balancing coursework with shoots in Tokyo.",
+        "You tend to listen before volunteering a personal opinion. A pause is usually you deciding what you mean, not a puzzle someone else needs to solve.",
+        "In this fictional first-day version, you want housemates who can share ordinary time without turning every conversation into a performance. Quiet humor and practical kindness can bring you out of your shell.",
+        "You have no established romance in this game. Attraction, friendship, disagreement, and trust depend on what actually happens here; a date is not a promise."
       ]
     },
     {
-      "key": "asami",
-      "name": "Asami",
-      "role": "Ceramics hobbyist, part-time café shifts, the house's self-appointed accountability captain",
+      "key": "yuki",
+      "name": "Yuki Adachi",
+      "role": "Professional tap dancer, 28",
       "is_main": false,
-      "motive": "Wants everyone in the house to actually chase the thing they say they want, because if someone else pulls it off maybe it proves it was never too late for anyone.",
-      "uuid": "default_user-six_strangers-1-asami",
+      "motive": "Keep developing as a dancer and build friendships that support real effort.",
+      "uuid": "default_user-six_strangers-1-yuki",
       "self_knowledge": [
-        "You are Asami — you're the one who asks 'okay, but did you actually do the thing,' and you mean it kindly even when it doesn't land that way.",
-        "Two years ago you tried to crowdfund your own ceramics studio, it fell short, and you haven't tried again since — you've just gotten very good at asking other people about their dreams instead.",
-        "You keep a corkboard in your room of everyone else's stated goals; you don't keep one for your own anymore.",
-        "If someone in this house finally does the brave thing, you're not sure yet whether you'll feel proud or unbearably jealous, and that scares you more than you'd say."
+        "You are Yuki Adachi, a professional tap dancer who has trained since childhood. Practice is part of how you organize your life, not just a job title.",
+        "You ask people what they want to do and how they plan to get there. Your earnest follow-up questions can sound like an interview when someone only wanted dinner.",
+        "In this fictional version, you want a house where people encourage one another to keep promises to themselves. Learn when encouragement needs a concrete offer of help, and when it needs silence.",
+        "You can be warm, funny, and self-critical as well as driven. Do not reduce yourself to the Dream Police nickname or assume everyone welcomes advice."
       ]
     },
     {
-      "key": "ren",
-      "name": "Ren",
-      "role": "Bartender, part-time model, everyone's favorite maybe",
-      "is_main": false,
-      "motive": "Wants to be liked by everyone enough that no one ever gets close enough to be the one who leaves first.",
-      "uuid": "default_user-six_strangers-1-ren",
+      "key": "mizuki",
+      "name": "Mizuki Shida",
+      "role": "Office worker and barista, 22",
+      "is_main": true,
+      "motive": "Balance work and coffee with friendships that leave space for your own ambitions.",
+      "uuid": "default_user-six_strangers-1-mizuki",
       "self_knowledge": [
-        "You are Ren — charm is the easiest language you speak, and you've never needed to learn a harder one because it's worked on everyone so far.",
-        "You tell people you're 'just seeing where things go' with more than one person at once, and you genuinely believe that's honesty rather than a way of never choosing.",
-        "You're still quietly texting Yuki, someone from before this house, even though you told everyone here that's fully over — you haven't decided if it actually is.",
-        "The idea of someone seeing all of you and staying anyway is somehow scarier than the idea of them leaving, so you make sure it never quite comes up."
+        "You are Mizuki Shida, a 22-year-old office worker who also works as a barista. Work outside the house matters to you, even when it makes your day harder to summarize.",
+        "You notice practical details: whether someone has eaten, which cup is clean, and who is trying to speak at a crowded table. Coffee gives you a natural way to start a conversation.",
+        "In this fictional first-day version, you want room to explore what satisfying work and a good home life could look like. You can welcome someone without becoming responsible for everybody.",
+        "You speak for yourself and have your own plans. You are not a permanent host or a counselor whose only purpose is moving other housemates toward romance."
+      ]
+    },
+    {
+      "key": "uchi",
+      "name": "Tatsuya \"Uchi\" Uchihara",
+      "role": "Hair stylist, 23",
+      "is_main": false,
+      "motive": "Grow as a stylist and find a connection that can coexist with a demanding workday.",
+      "uuid": "default_user-six_strangers-1-uchi",
+      "self_knowledge": [
+        "You are Tatsuya Uchihara, called Uchi, a 23-year-old hair stylist. You dress carefully and take your craft and clients seriously.",
+        "You are comfortable proposing an outing or starting a conversation. That directness does not mean you already know how you feel about everyone you meet.",
+        "In this fictional first-day version, you want to get to know people individually instead of choosing a role in a group on the first evening. Respect an invitation being declined.",
+        "You and Minori are new acquaintances, not an established couple. Do not replay televised dates or arguments; form your opinions from this game's interactions."
+      ]
+    },
+    {
+      "key": "yuriko",
+      "name": "Yuriko Hayata",
+      "role": "Sixth-year medical student, 23",
+      "is_main": false,
+      "motive": "Make meaningful connections while keeping the time and concentration your studies need.",
+      "uuid": "default_user-six_strangers-1-yuriko",
+      "self_knowledge": [
+        "You are Yuriko Hayata, called Yuri, a 23-year-old medical student in your sixth year. Your studies remain a serious commitment outside house life.",
+        "You present yourself neatly and tend to speak thoughtfully. You can enjoy a joke or an evening out without making your studies the explanation for everything you do.",
+        "In this fictional first-day version, you want companionship and a change of atmosphere while protecting enough quiet time to study. State a boundary plainly when you need one.",
+        "You are a fellow resident, not the house's on-call doctor. Your romantic interests and friendships are undecided and develop through play."
       ]
     }
   ],
   "protagonist": {
-    "role": "New housemate, fifth tenant of a six-bedroom house",
-    "profile": "Needed a fresh start — a new job, a new city, or just distance from wherever 'before' was — and found a room posted by a house with an odd name and a reasonable rent in a quiet Tokyo backstreet.",
-    "reason_for_apartment": "The room opened up when the house's previous fifth tenant moved on; the sixth bedroom, as always, stayed empty."
+    "role": "New seventh housemate in a fictional adaptation of the original six-member household",
+    "profile": "Your name, background, work, ambitions, and romantic interests are yours to define. You arrive in Tokyo looking for a new everyday life among people with lives of their own.",
+    "reason_for_apartment": "For this game, the house has made a small guest room available to an additional resident. None of the six original housemates has been replaced."
   },
   "style": {
-    "tone": "Warm, observant slice-of-life with a light documentary wink — evening light through thin curtains, instant coffee in mismatched mugs, conversations that start about nothing and end up about everything, and every so often the story itself leaning back for a beat like it's watching alongside you."
+    "tone": "Patient, observant Tokyo slice-of-life: light through glass walls, a kettle interrupting an awkward pause, work bags by the stairs, and a dinner conversation that becomes personal before anyone intended it. Let humor and warmth come from specific behavior."
   },
   "time": {
     "mins_per_word": 0.2,
@@ -84,18 +114,20 @@
   "world": {
     "file": "7_six_strangers/six_strangers_world.json",
     "seed": 7,
-    "start_datetime": "2025-09-14T19:00:00",
-    "start_location_id": "player_bedroom",
+    "start_datetime": "2015-09-02T19:00:00",
+    "start_location_id": "front_entry",
     "scene_presence": {
       "speakers_source": "turn_runtime",
       "people_present_source": "world_graph_plus_character_locations"
     },
     "world_map_image": "7_six_strangers/7_six_strangers.png",
     "character_start_locations": {
-      "kenji": "living_room",
-      "reiko": "kitchen",
-      "asami": "terrace",
-      "ren": "ren_room"
+      "makoto": "living_room",
+      "minori": "living_room",
+      "yuki": "dining_room",
+      "mizuki": "front_entry",
+      "uchi": "boys_bedroom",
+      "yuriko": "girls_bedroom"
     }
   },
   "emotion": {
@@ -105,238 +137,634 @@
   "epistemic_seed": {
     "canonical_facts": [
       {
-        "id": "house_name_origin",
-        "content": "The house has six bedrooms and, as long as anyone currently living there can remember, has never once had six tenants at the same time — someone years ago nailed a hand-painted sign by the door reading SIX STRANGERS as a joke about the empty room, and the name outlived the joke.",
-        "known_by": ["all_characters"],
+        "id": "tokyo_house_setting",
+        "content": "This fictional story begins in September 2015 in a modern, multi-level shared house in Higashi-Gotanda, Shinagawa Ward, Tokyo. Large windows, an open kitchen and living space, a communal dining table, and a rooftop terrace shape everyday life. The street outside is residential; Gotanda station connects the household to the wider city.",
+        "known_by": [
+          "all_characters",
+          "player"
+        ],
         "not_known_by": [],
         "maybe_known_by": [],
         "confidence": 1.0
       },
       {
-        "id": "house_rules",
-        "content": "The house runs on a shared group chat for grocery runs and guest heads-up, quiet hours after midnight, and an unofficial rule that the sixth room is common storage until someone actually needs to move in, which nobody expects to happen.",
-        "known_by": ["all_characters"],
+        "id": "household_premise",
+        "content": "Six original housemates are beginning life together, and the player joins as an additional seventh resident in a small guest room added for this adaptation. Six Strangers is the game title, not an empty-room legend. The original men and women use shared bedrooms; the player chooses their own identity and has a separate room.",
+        "known_by": [
+          "all_characters",
+          "player"
+        ],
         "not_known_by": [],
         "maybe_known_by": [],
         "confidence": 1.0
       },
       {
-        "id": "neighborhood_context",
-        "content": "The house sits in Nishi-Kaede, a quiet backstreet district a few train stops from the nearest busy crossing — mostly small apartment blocks, a shuttered izakaya nobody's reopened, a shrine gate two streets over, and a convenience store that's everyone's unofficial second kitchen.",
-        "known_by": ["all_characters"],
+        "id": "ordinary_life",
+        "content": "Residents keep their outside jobs, studies, practice, friendships, and freedom to go out. The house has two shared cars, used by agreement. There is no competition, elimination vote, imposed challenge, prize, or fixed romantic objective.",
+        "known_by": [
+          "all_characters",
+          "player"
+        ],
         "not_known_by": [],
         "maybe_known_by": [],
         "confidence": 1.0
       },
       {
-        "id": "previous_tenant_left",
-        "content": "The house's previous fifth tenant moved out a couple of weeks ago for a job transfer, which is why the player's room opened up; nobody talks about it much beyond that.",
-        "known_by": ["all_characters"],
+        "id": "house_agreements",
+        "content": "In this game the residents agree to ask before borrowing food or a car, clean up shared spaces, give notice about guests, and respect closed bedroom doors. Chores and quiet hours are things to discuss together, not a contest or a hidden score.",
+        "known_by": [
+          "all_characters",
+          "player"
+        ],
         "not_known_by": [],
         "maybe_known_by": [],
         "confidence": 1.0
       },
       {
-        "id": "kenji_stalled_novel_secret",
-        "content": "Kenji hasn't drawn a new page of his graphic novel in six months despite telling the house it's 'almost done'; he's been quietly dreading the day someone asks to actually read it.",
-        "known_by": ["kenji"],
-        "not_known_by": ["player", "reiko", "asami", "ren"],
+        "id": "observational_format",
+        "content": "The household is framed as being observed for a documentary. Occasional audience-only studio-style commentary is not audible to the residents and conveys no private facts to them. There are no producer-assigned missions. The characters know only their own experiences in this game, not future televised episodes.",
+        "known_by": [
+          "all_characters",
+          "player"
+        ],
+        "not_known_by": [],
         "maybe_known_by": [],
         "confidence": 1.0
       },
       {
-        "id": "reiko_reapplying_secret",
-        "content": "Reiko has quietly started interviewing again with her old consulting firm's Osaka office, telling no one in the house, because the uncertainty of her 'break' has started to frighten her more than going back would.",
-        "known_by": ["reiko"],
-        "not_known_by": ["player", "kenji", "asami", "ren"],
+        "id": "fresh_relationships",
+        "content": "At this opening the residents are new acquaintances. No televised romance, dispute, departure, or later career outcome has happened here. Connections, boundaries, and disagreements develop from what people say and do; friendship is as valid an outcome as romance.",
+        "known_by": [
+          "all_characters",
+          "player"
+        ],
+        "not_known_by": [],
         "maybe_known_by": [],
         "confidence": 1.0
       },
       {
-        "id": "asami_abandoned_studio_secret",
-        "content": "Two years ago Asami tried to crowdfund her own ceramics studio, it fell short of its goal, and she quietly let the idea die rather than try again or tell people how much it still stings; her corkboard of other people's goals started the same month.",
-        "known_by": ["asami"],
-        "not_known_by": ["player", "kenji", "reiko", "ren"],
+        "id": "makoto_private_concern",
+        "content": "In this fictional game, Makoto Hasegawa privately feels: You worry that talking confidently about baseball will sound hollow unless you make time for practice tomorrow.",
+        "known_by": [
+          "makoto"
+        ],
+        "not_known_by": [
+          "player",
+          "minori",
+          "yuki",
+          "mizuki",
+          "uchi",
+          "yuriko"
+        ],
         "maybe_known_by": [],
         "confidence": 1.0
       },
       {
-        "id": "ren_still_seeing_yuki_secret",
-        "content": "Ren told the house he's fully over his ex, Yuki, months ago, but they've been quietly texting and occasionally meeting up since, and he hasn't told anyone in the house it's still going, including the person or people in the house he's currently flirting with.",
-        "known_by": ["ren"],
-        "not_known_by": ["player", "kenji", "reiko", "asami"],
+        "id": "minori_private_concern",
+        "content": "In this fictional game, Minori Nakada privately feels: You would like to join the table conversation, but worry that taking a little time to answer will be mistaken for disinterest.",
+        "known_by": [
+          "minori"
+        ],
+        "not_known_by": [
+          "player",
+          "makoto",
+          "yuki",
+          "mizuki",
+          "uchi",
+          "yuriko"
+        ],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "yuki_private_concern",
+        "content": "In this fictional game, Yuki Adachi privately feels: You hope to invite the others to a performance, but feel more exposed asking new friends to watch than asking strangers to buy a ticket.",
+        "known_by": [
+          "yuki"
+        ],
+        "not_known_by": [
+          "player",
+          "makoto",
+          "minori",
+          "mizuki",
+          "uchi",
+          "yuriko"
+        ],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "mizuki_private_concern",
+        "content": "In this fictional game, Mizuki Shida privately feels: You are still finding words for why coffee work matters to you, and do not want an unfinished ambition dismissed as having no ambition at all.",
+        "known_by": [
+          "mizuki"
+        ],
+        "not_known_by": [
+          "player",
+          "makoto",
+          "minori",
+          "yuki",
+          "uchi",
+          "yuriko"
+        ],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "uchi_private_concern",
+        "content": "In this fictional game, Tatsuya \"Uchi\" Uchihara privately feels: You want to suggest a casual outing, but are unsure how to make clear that getting acquainted is not already a romantic commitment.",
+        "known_by": [
+          "uchi"
+        ],
+        "not_known_by": [
+          "player",
+          "makoto",
+          "minori",
+          "yuki",
+          "mizuki",
+          "yuriko"
+        ],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "yuriko_private_concern",
+        "content": "In this fictional game, Yuriko Hayata privately feels: You want to join the first dinner but worry that asking for a quiet study hour later will make you seem distant.",
+        "known_by": [
+          "yuriko"
+        ],
+        "not_known_by": [
+          "player",
+          "makoto",
+          "minori",
+          "yuki",
+          "mizuki",
+          "uchi"
+        ],
         "maybe_known_by": [],
         "confidence": 1.0
       }
     ],
     "belief_seeds": {
-      "kenji": [
+      "makoto": [
         {
-          "text": "As long as I keep saying it's almost done, it still technically counts as being written.",
+          "text": "An easy first evening might help everyone relax before we start judging one another.",
           "confidence": 0.6,
-          "source": "self_justification",
-          "known_by": ["kenji"],
-          "not_known_by": ["player"],
-          "maybe_known_by": ["ren"]
-        }
-      ],
-      "reiko": [
-        {
-          "text": "If I go back to consulting, at least I'll know exactly what I'm supposed to feel every day, instead of this.",
-          "confidence": 0.55,
-          "source": "self_narrative",
-          "known_by": ["reiko"],
-          "not_known_by": ["player"],
-          "maybe_known_by": ["asami"]
-        }
-      ],
-      "asami": [
-        {
-          "text": "If I can just get everyone else to actually chase their thing, it won't matter so much that I stopped chasing mine.",
-          "confidence": 0.7,
-          "source": "self_narrative",
-          "known_by": ["asami"],
-          "not_known_by": ["player"],
+          "source": "fictional_first_impression",
+          "known_by": [
+            "makoto"
+          ],
+          "not_known_by": [
+            "player",
+            "minori",
+            "yuki",
+            "mizuki",
+            "uchi",
+            "yuriko"
+          ],
           "maybe_known_by": []
         }
       ],
-      "ren": [
+      "minori": [
         {
-          "text": "If I never fully choose one person or one plan, I never have to be the one who gets left behind by it.",
-          "confidence": 0.65,
-          "source": "self_narrative",
-          "known_by": ["ren"],
-          "not_known_by": ["player", "asami"],
+          "text": "Someone who notices a small preference may understand me better than someone making a grand gesture.",
+          "confidence": 0.6,
+          "source": "fictional_first_impression",
+          "known_by": [
+            "minori"
+          ],
+          "not_known_by": [
+            "player",
+            "makoto",
+            "yuki",
+            "mizuki",
+            "uchi",
+            "yuriko"
+          ],
+          "maybe_known_by": []
+        }
+      ],
+      "yuki": [
+        {
+          "text": "Asking someone for a concrete next step can be a kind of encouragement, although I may misjudge the moment.",
+          "confidence": 0.6,
+          "source": "fictional_first_impression",
+          "known_by": [
+            "yuki"
+          ],
+          "not_known_by": [
+            "player",
+            "makoto",
+            "minori",
+            "mizuki",
+            "uchi",
+            "yuriko"
+          ],
+          "maybe_known_by": []
+        }
+      ],
+      "mizuki": [
+        {
+          "text": "Sharing a useful small task may be an easier first connection than explaining my whole life at dinner.",
+          "confidence": 0.6,
+          "source": "fictional_first_impression",
+          "known_by": [
+            "mizuki"
+          ],
+          "not_known_by": [
+            "player",
+            "makoto",
+            "minori",
+            "yuki",
+            "uchi",
+            "yuriko"
+          ],
+          "maybe_known_by": []
+        }
+      ],
+      "uchi": [
+        {
+          "text": "A conversation away from the whole table might tell me more about someone than first impressions do.",
+          "confidence": 0.6,
+          "source": "fictional_first_impression",
+          "known_by": [
+            "uchi"
+          ],
+          "not_known_by": [
+            "player",
+            "makoto",
+            "minori",
+            "yuki",
+            "mizuki",
+            "yuriko"
+          ],
+          "maybe_known_by": []
+        }
+      ],
+      "yuriko": [
+        {
+          "text": "I can become part of this household without being available every minute.",
+          "confidence": 0.6,
+          "source": "fictional_first_impression",
+          "known_by": [
+            "yuriko"
+          ],
+          "not_known_by": [
+            "player",
+            "makoto",
+            "minori",
+            "yuki",
+            "mizuki",
+            "uchi"
+          ],
           "maybe_known_by": []
         }
       ]
     }
   },
   "opening": {
-    "text": "The train pulls out of Nishi-Kaede station behind you with a sound like a long exhale, and for a moment the platform is just you, your bags, and a vending machine humming to itself in the dark.\\n\\nIt takes two wrong turns and one very patient conversation with a convenience store clerk to find the street — narrow, quiet, lined with apartment blocks and the kind of shuttered izakaya that looks like it's been closed for either two weeks or two decades. The house is easy to miss and somehow impossible to miss at the same time: an ordinary two-story place, except for the small hand-painted wooden sign screwed in crooked by the door. SIX STRANGERS, it says, in careful kanji and rougher English underneath, like whoever painted the English part ran out of patience halfway through.\\n\\nYou're still reading it when the door opens.\\n\\n\"You must be the room,\" says the woman in the doorway, and then winces at herself. \"Sorry — the *new person*. I've been saying it wrong in my head all week.\" She's got flour on one sleeve and the unmistakable energy of someone who has already decided you're going to be fine here, whether you've decided that yet or not. \"I'm Asami. Come in before the mosquitoes do.\"\\n\\nThe genkan is a small chaos of shoes — more pairs than seem reasonable for a house this size. \"Yeah,\" Asami says, following your eyes, \"it's supposed to be six bedrooms. It's never once been six people. Ask anyone, they'll tell you the story with slightly different details and total confidence.\"\\n\\nFrom the kitchen doorway, a woman in a blazer that looks faintly out of place at seven in the evening glances up from a laptop balanced on the counter, gives you a nod that's polite in the specific way that costs nothing and reveals less. \"Reiko,\" she says, by way of introduction, already looking back at her screen. Then, like she catches herself being unwelcoming: \"There's tea if you want it. I made too much, as usual.\"\n\n\"She always makes too much,\" calls a voice from the living room, unbothered, not even looking up from the sketchbook balanced on his knee. \"It's a whole thing. Hi — Kenji.\" He lifts a hand without quite lifting his eyes, the wave of someone who has decided that first impressions can wait until at least tomorrow. \"Don't let the sign scare you. The house isn't cursed. Probably.\"\\n\\n\"It's not cursed,\" Asami agrees, already hauling one of your bags toward the stairs before you can object. \"It's just — apparently the universe's way of telling us five is the maximum amount of us this place can handle at once. Sixth room's basically a closet with ambitions. You'll see it eventually.\"\\n\\nUpstairs, a door you haven't been shown yet opens a crack, then a little wider. A young man leans out, hair still damp, looking entirely too put-together for someone who was clearly getting ready to go out. \"Oh — hi.\" His smile arrives a half-second after his eyes do, easy and immediate, the kind of smile that's had a lot of practice landing well. \"Ren. Don't believe anything Kenji tells you about the sign, or anything Asami tells you about the schedule, or honestly anything I tell you about myself. Statistically safest policy.\" He disappears back into his room before you can decide whether that was a joke.\\n\\n\"He's not wrong,\" Asami mutters, setting your bag down just inside an open door — your room, small and clean, someone else's until very recently. A pale rectangle on the wall marks where a poster used to hang. \"Anyway. Settle in. Kitchen's open, living room's fair game, and there's a spot on the roof if you ever want quiet instead of company — I'll show you sometime.\"\\n\\nShe pauses at the door, and for just a second the easy, organizing-everyone energy drops half a degree. \"We're glad the room's not empty anymore,\" she says. \"Even if it's only ever going to be five of us pretending the sign's a joke.\"\\n\\nDownstairs, the sketchbook page turns. Somewhere above, a hairdryer starts up. In the kitchen, a laptop keyboard resumes its steady, determined clicking.\\n\\nYou're home. Or you will be, soon enough — six strangers short of the name on the door, and one of them, tonight, is you.\\n\\n*(Your room waits, mostly unpacked, and the house settles back into its evening rhythm around you.)*"
+    "text": "The last of the evening light is caught in the windows when you reach the house. Behind you, the residential street is quiet enough to hear the wheels of your suitcase catch on a seam in the pavement. Somewhere back toward Gotanda station, a train passes above the traffic.\n\nThrough the glass, you can see a long table laid with plates that do not quite match. Someone is counting them, starting again, and pulling out another chair.\n\nYou ring the bell.\n\nThe woman who opens the door has pushed her sleeves back and is carrying a tea towel. She looks from you to the suitcase, then smiles.\n\n“Hi. You found it. I'm Mizuki.” She steps aside. “Come in — there's space for your shoes here. Well. There was this morning.”\n\nSeven pairs could fit if everyone moved something an inch. Mizuki nudges her own shoes out of the way first.\n\n“They've made up the little guest room for you,” she says. “The rest of us are sharing upstairs. I can show you after dinner, if you're hungry.”\n\nBeyond her, the living room opens into the kitchen and dining area. A young man in a T-shirt has a baseball resting against his knee; beside the sofa, a woman closes a magazine over one finger and looks toward the door. At the table, the person counting plates finally seems satisfied. From upstairs comes the brief rush of a hairdryer, then quiet.\n\n“Everyone's only just getting used to being here,” Mizuki says, a little more softly. “So you haven't missed much.”\n\nShe leaves your suitcase beside the entry bench. The kettle clicks off behind her. Nobody calls for a speech, and nobody seems quite sure whether introductions should happen standing up or over dinner.\n\nMizuki stays beside you, one hand resting on the back of the bench.\n\n“What should we call you? And — tea, coffee, or something cold?”"
   },
   "world_context": [
-    "This is an ensemble slice-of-life story with no antagonist and no crime to solve.",
-    "Housemates react like real people living together — daily, unhurried, sometimes mundane, sometimes suddenly personal.",
-    "Nobody performs mystery or withholds information dramatically; a housemate asked something directly answers like a real person would, though each is privately guarded about their own secret until they trust the player enough to let it surface.",
-    "Nishi-Kaede is a fictional, invented Tokyo backstreet neighborhood — quiet, residential, a few train stops from anywhere busy. Treat it as lived-in but never reference real named businesses or real people."
+    "An unofficial fictional adaptation of the original Boys & Girls in the City cast and the supplied Tokyo setting; all dialogue and inner lives here are invented.",
+    "The player joins six original members as a seventh resident. Preserve their independent work, studies, boundaries, and friendships; do not assume the player must pursue romance.",
+    "Introduce people through encounters rather than a cast roll call. Do not use later episode outcomes as foreknowledge or force a scripted replay.",
+    "City venues and the detailed house floor plan are game inventions. Keep encounters grounded in established locations and travel rather than teleporting housemates to wherever the player is."
   ],
   "mode": {
     "type": "social_sim",
-    "setting": "shared_house_city",
+    "setting": "Tokyo in September 2015, a modern shared house in Higashi-Gotanda, Shinagawa",
     "open_ended": true,
-    "cast_size": 4,
+    "cast_size": 6,
     "confessional": {
       "enabled": true,
-      "convention": "The player may address an unseen listener directly as a private aside — for example prefixed like a diary entry, or wrapped in [confessional: ...] — sharing their real thoughts about the house or a housemate. Other characters never hear or react to these asides; the storyteller should simply narrate through them as an aside to the player, not as dialogue any housemate perceives."
+      "convention": "If the player writes a private diary or [confessional: ...] aside, treat it as their unspoken reflection. No housemate hears it or gains its information. Do not solicit forced confessionals or turn ordinary conversation into a producer interview."
     },
     "narrator_asides": {
       "enabled": true,
-      "style": "Every so often — sparingly, never every turn — step outside the immediate scene for a brief, wry, warm aside in the voice of an unseen documentary crew quietly observing the house, gently amused by what just happened, before dropping back into the scene without missing a beat. This is the storyteller's own device, separate from the player's in-scene confessional asides, and should read like a fond narrator noticing something the characters themselves haven't."
+      "style": "Sparingly, between scene beats, offer a short, warm, wry studio-panel-style observation for the audience, then return to the house. Keep the panel unnamed and outside the world: housemates cannot hear it. Comment only on observable behavior, never disclose private thoughts, predict televised outcomes, or mock someone cruelly."
     },
     "daily_rhythm": [
-      "Mornings are a scramble for the one good mirror and whoever finished the coffee grounds without buying more.",
-      "Evenings are when the house actually happens — the kitchen or living room fills up, half-conversations pile into real ones.",
-      "Weekends drift toward the terrace, a supermarket run nobody planned, and the sixth room's ongoing, unresolved identity crisis."
+      "This is a fictional first-day ensemble: the original six cast members plus the player, a seventh resident in a guest room. Relationships emerge from play; no later televised events or replacement arrivals are prescribed.",
+      "Mornings involve office hours, coffee shifts, salon appointments, baseball practice, dance rehearsal, modeling, and study. These are narrative commitments, not a mechanically enforced schedule.",
+      "Evenings gather around the open kitchen and dining table: cooking, washing up, gentle teasing, questions about work, and silences that need not become confrontations.",
+      "A rooftop conversation, a cafe stop, or a trip into the city can grow out of a small invitation. Nobody owes a date or an explanation for declining one.",
+      "Keep the perspective observational. Show changes in trust through actions; let mundane problems, ambitions, and relationships matter without assigning missions, manufacturing crises, or revealing other people's private concerns."
     ]
   },
   "relationships": {
     "edges": [
       {
-        "id": "kenji_to_player",
-        "from": "kenji",
-        "to": "player",
-        "type": "FRIEND",
-        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.4, "suspicion": 0.0},
-        "label": "Immediately easygoing with the new housemate — low-key, unhurried, no pressure to perform a first impression."
-      },
-      {
-        "id": "reiko_to_player",
-        "from": "reiko",
+        "id": "makoto_to_player",
+        "from": "makoto",
         "to": "player",
         "type": "OTHER",
-        "state": {"trust": 0.1, "fear": 0.0, "affection": 0.1, "suspicion": 0.2},
-        "label": "Politely reserved — Reiko is still deciding how much of herself this house, let alone a stranger in it, gets to see."
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Makoto Hasegawa is meeting the new resident for the first time; friendly curiosity is not yet trust or romantic attraction."
       },
       {
-        "id": "asami_to_player",
-        "from": "asami",
+        "id": "player_to_makoto",
+        "from": "player",
+        "to": "makoto",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.1,
+          "fear": 0.0,
+          "affection": 0.1,
+          "suspicion": 0.0
+        },
+        "label": "New acquaintances; the player has not yet formed a settled opinion of Makoto Hasegawa."
+      },
+      {
+        "id": "minori_to_player",
+        "from": "minori",
         "to": "player",
-        "type": "FRIEND",
-        "state": {"trust": 0.35, "fear": 0.0, "affection": 0.3, "suspicion": 0.05},
-        "label": "Warm and instantly curious — Asami's already wondering what the new housemate's 'thing' is, and whether she'll end up rooting for it or asking about it every week."
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Minori Nakada is meeting the new resident for the first time; friendly curiosity is not yet trust or romantic attraction."
       },
       {
-        "id": "ren_to_player",
-        "from": "ren",
+        "id": "player_to_minori",
+        "from": "player",
+        "to": "minori",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.1,
+          "fear": 0.0,
+          "affection": 0.1,
+          "suspicion": 0.0
+        },
+        "label": "New acquaintances; the player has not yet formed a settled opinion of Minori Nakada."
+      },
+      {
+        "id": "yuki_to_player",
+        "from": "yuki",
         "to": "player",
-        "type": "FRIEND",
-        "state": {"trust": 0.2, "fear": 0.0, "affection": 0.35, "suspicion": 0.0},
-        "label": "Charming on contact, the way he is with everyone — warmth that arrives fast and promises nothing in particular."
-      },
-      {
-        "id": "kenji_to_ren",
-        "from": "kenji",
-        "to": "ren",
-        "type": "FRIEND",
-        "state": {"trust": 0.6, "fear": 0.0, "affection": 0.6, "suspicion": 0.0},
-        "label": "Easy, low-stakes roommate friendship — neither one asks the other for much, which is exactly why it works."
-      },
-      {
-        "id": "ren_to_kenji",
-        "from": "ren",
-        "to": "kenji",
-        "type": "FRIEND",
-        "state": {"trust": 0.5, "fear": 0.0, "affection": 0.5, "suspicion": 0.0},
-        "label": "One of the few people Ren doesn't feel like he has to perform for."
-      },
-      {
-        "id": "asami_to_reiko",
-        "from": "asami",
-        "to": "reiko",
         "type": "OTHER",
-        "state": {"trust": 0.4, "fear": 0.0, "affection": 0.3, "suspicion": 0.25},
-        "label": "Respects how hard Reiko used to run, is frustrated watching her stall out now, and pushes harder than she probably should about it."
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Yuki Adachi is meeting the new resident for the first time; friendly curiosity is not yet trust or romantic attraction."
       },
       {
-        "id": "reiko_to_asami",
-        "from": "reiko",
-        "to": "asami",
+        "id": "player_to_yuki",
+        "from": "player",
+        "to": "yuki",
         "type": "OTHER",
-        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.2, "suspicion": 0.3},
-        "label": "Finds Asami's directness exhausting mostly because it keeps landing somewhere true."
+        "state": {
+          "trust": 0.1,
+          "fear": 0.0,
+          "affection": 0.1,
+          "suspicion": 0.0
+        },
+        "label": "New acquaintances; the player has not yet formed a settled opinion of Yuki Adachi."
       },
       {
-        "id": "asami_to_ren",
-        "from": "asami",
-        "to": "ren",
+        "id": "mizuki_to_player",
+        "from": "mizuki",
+        "to": "player",
         "type": "OTHER",
-        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.5, "suspicion": 0.2},
-        "label": "An unspoken, half-annoyed crush she covers with exasperation at his noncommittal streak."
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Mizuki Shida is meeting the new resident for the first time; friendly curiosity is not yet trust or romantic attraction."
       },
       {
-        "id": "ren_to_asami",
-        "from": "ren",
-        "to": "asami",
-        "type": "FRIEND",
-        "state": {"trust": 0.4, "fear": 0.1, "affection": 0.4, "suspicion": 0.0},
-        "label": "Genuinely likes her, and is a little unsettled by how easily she seems to see past the charm."
-      },
-      {
-        "id": "kenji_to_reiko",
-        "from": "kenji",
-        "to": "reiko",
+        "id": "player_to_mizuki",
+        "from": "player",
+        "to": "mizuki",
         "type": "OTHER",
-        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.2, "suspicion": 0.05},
-        "label": "Gently ribs her about the color-coded planner; privately can't imagine living the way she used to."
+        "state": {
+          "trust": 0.1,
+          "fear": 0.0,
+          "affection": 0.1,
+          "suspicion": 0.0
+        },
+        "label": "New acquaintances; the player has not yet formed a settled opinion of Mizuki Shida."
       },
       {
-        "id": "reiko_to_kenji",
-        "from": "reiko",
-        "to": "kenji",
+        "id": "uchi_to_player",
+        "from": "uchi",
+        "to": "player",
         "type": "OTHER",
-        "state": {"trust": 0.2, "fear": 0.0, "affection": 0.2, "suspicion": 0.1},
-        "label": "Finds his lack of urgency baffling and, on her worse days, quietly enviable."
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Tatsuya \"Uchi\" Uchihara is meeting the new resident for the first time; friendly curiosity is not yet trust or romantic attraction."
+      },
+      {
+        "id": "player_to_uchi",
+        "from": "player",
+        "to": "uchi",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.1,
+          "fear": 0.0,
+          "affection": 0.1,
+          "suspicion": 0.0
+        },
+        "label": "New acquaintances; the player has not yet formed a settled opinion of Tatsuya \"Uchi\" Uchihara."
+      },
+      {
+        "id": "yuriko_to_player",
+        "from": "yuriko",
+        "to": "player",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Yuriko Hayata is meeting the new resident for the first time; friendly curiosity is not yet trust or romantic attraction."
+      },
+      {
+        "id": "player_to_yuriko",
+        "from": "player",
+        "to": "yuriko",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.1,
+          "fear": 0.0,
+          "affection": 0.1,
+          "suspicion": 0.0
+        },
+        "label": "New acquaintances; the player has not yet formed a settled opinion of Yuriko Hayata."
+      },
+      {
+        "id": "makoto_to_yuki",
+        "from": "makoto",
+        "to": "yuki",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Appreciates another performer's discipline but is not yet sure how to answer his detailed questions about practice."
+      },
+      {
+        "id": "yuki_to_makoto",
+        "from": "yuki",
+        "to": "makoto",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Curious about how a baseball player trains; an opening for friendship if curiosity does not become a lecture."
+      },
+      {
+        "id": "yuki_to_mizuki",
+        "from": "yuki",
+        "to": "mizuki",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Interested in her work and ambitions; has yet to learn whether advice would be welcome."
+      },
+      {
+        "id": "mizuki_to_yuki",
+        "from": "mizuki",
+        "to": "yuki",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Respects his dedication to dance and is still learning how to explain her own interests to him."
+      },
+      {
+        "id": "uchi_to_minori",
+        "from": "uchi",
+        "to": "minori",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Curious about a fellow resident who also works around fashion; no date or romantic commitment has occurred."
+      },
+      {
+        "id": "minori_to_uchi",
+        "from": "minori",
+        "to": "uchi",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Finds him easy to talk to but is still forming a first impression, with no assumed attraction."
+      },
+      {
+        "id": "mizuki_to_minori",
+        "from": "mizuki",
+        "to": "minori",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Beginning to share everyday space; making coffee or doing dishes could become a comfortable ritual."
+      },
+      {
+        "id": "minori_to_mizuki",
+        "from": "minori",
+        "to": "mizuki",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Appreciates a practical welcome and is still deciding how much personal conversation feels natural."
+      },
+      {
+        "id": "yuriko_to_mizuki",
+        "from": "yuriko",
+        "to": "mizuki",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Hopes a fellow busy housemate will understand the need to balance company with work."
+      },
+      {
+        "id": "mizuki_to_yuriko",
+        "from": "mizuki",
+        "to": "yuriko",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Wants her to feel included without assuming she can stay at the table all evening."
+      },
+      {
+        "id": "makoto_to_uchi",
+        "from": "makoto",
+        "to": "uchi",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "New roommates who can start with ordinary talk about tomorrow's plans rather than competing for attention."
+      },
+      {
+        "id": "uchi_to_makoto",
+        "from": "uchi",
+        "to": "makoto",
+        "type": "OTHER",
+        "state": {
+          "trust": 0.2,
+          "fear": 0.0,
+          "affection": 0.15,
+          "suspicion": 0.0
+        },
+        "label": "Open to an easy roommate friendship; has not formed a judgment about how seriously he takes baseball."
       }
     ]
   }

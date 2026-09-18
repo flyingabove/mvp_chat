@@ -1,6 +1,10 @@
+import json
+import re
+from pathlib import Path
 from unittest.mock import patch
 
-from backend.app.engine.story_loader import load_story, StoryDefinition
+from backend.app.engine.story_loader import load_story, StoryDefinition, STORIES_DIR
+from backend.app.engine.world.world_loader import WorldLoader
 from tests.conftest import first_story_id
 
 STORY_ID = first_story_id()
@@ -134,13 +138,10 @@ def test_story_definition_preserves_per_character_self_knowledge_round_trip():
 
 
 def test_six_strangers_all_characters_have_distinct_self_knowledge():
-    """Six Strangers ships four housemates and, per BL-07 (self_knowledge is
-    genuinely per-character now), every one of them must author their own
-    non-empty self_knowledge array — no falling back to a single main
-    character's block. Each array must also be distinct from the others."""
+    """The original six each retain their own identity through normalization."""
     story = load_story("six_strangers")
     assert story is not None
-    assert len(story.characters) == 4
+    assert len(story.characters) == 6
 
     seen_texts = []
     for char in story.characters:
@@ -151,4 +152,88 @@ def test_six_strangers_all_characters_have_distinct_self_knowledge():
         seen_texts.append(joined)
 
     keys = {c.key for c in story.characters}
-    assert keys == {"kenji", "reiko", "asami", "ren"}
+    assert keys == {"makoto", "minori", "yuki", "mizuki", "uchi", "yuriko"}
+    assert [c.key for c in story.characters if c.is_main] == ["mizuki"]
+
+
+def test_six_strangers_content_references_and_private_concerns_are_consistent():
+    """Renaming the cast must update every knowledge and relationship reference."""
+    story = load_story("six_strangers")
+    cfg = story.as_dict()
+    keys = {c.key for c in story.characters}
+    participants = keys | {"player"}
+    visibility_keys = participants | {"all_characters"}
+    facts = cfg["epistemic_seed"]["canonical_facts"]
+    assert len({fact["id"] for fact in facts}) == len(facts)
+    for fact in facts:
+        assert (fact.get("content") or fact.get("text") or "").strip()
+        assert fact["confidence"] == 1.0
+        for field in ("known_by", "not_known_by", "maybe_known_by"):
+            assert set(fact[field]) <= visibility_keys
+        assert not set(fact["known_by"]) & set(fact["not_known_by"])
+    by_id = {fact["id"]: fact for fact in facts}
+    for key in keys:
+        private = by_id[f"{key}_private_concern"]
+        assert private["known_by"] == [key]
+        assert set(private["not_known_by"]) == participants - {key}
+        assert private["maybe_known_by"] == []
+
+    beliefs = cfg["epistemic_seed"]["belief_seeds"]
+    assert set(beliefs) == keys
+    for claims in beliefs.values():
+        for claim in claims:
+            for field in ("known_by", "not_known_by", "maybe_known_by"):
+                assert set(claim.get(field, [])) <= visibility_keys
+    edges = cfg["relationships"]["edges"]
+    pairs = [(edge["from"], edge["to"]) for edge in edges]
+    assert len(pairs) == len(set(pairs)), "Duplicate directed edges overwrite each other"
+    for edge in edges:
+        assert edge["from"] in participants
+        assert edge["to"] in participants
+        assert edge["from"] != edge["to"]
+        assert not edge.get("prior_relationship", False)
+        assert not edge.get("prior_intimacy", False)
+        assert not edge.get("in_relationship", False)
+    assert {(key, "player") for key in keys} <= set(pairs)
+    assert any(source in keys and target in keys for source, target in pairs)
+
+    opening = cfg["opening"]["text"]
+    assert "\n\n" in opening
+    assert "\\n" not in opening, "Opening paragraphs must use actual newlines"
+    content = json.dumps(cfg, ensure_ascii=False)
+    assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", content, re.I)
+    assert cfg["mode"]["type"] == "social_sim"
+    assert cfg["mode"]["cast_size"] == len(keys)
+    assert cfg["mode"]["open_ended"] is True
+    assert "goal" not in cfg and "win_detection" not in cfg
+
+
+def test_six_strangers_world_supports_return_travel_and_all_starting_characters():
+    """Inspect authored edges directly: route resolution hides islands with fallback edges."""
+    story = load_story("six_strangers")
+    world_cfg = story.as_dict()["world"]
+    world_path = Path(STORIES_DIR) / world_cfg["file"]
+    loaded = WorldLoader.load_from_file(str(world_path), story_id="six_strangers")
+    graph = loaded.world_graph
+    locations = set(graph.locations)
+    assert world_cfg["start_location_id"] == "front_entry"
+    starts = world_cfg["character_start_locations"]
+    assert starts == {
+        "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
+        "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
+    }
+    assert set(starts.values()) <= locations
+    assert {"boys_bedroom", "girls_bedroom", "player_bedroom", "terrace", "gotanda_station"} <= locations
+    for start in locations:
+        visited = {start}
+        pending = [start]
+        while pending:
+            for edge in graph.get_outgoing(pending.pop()).to_tuple():
+                assert edge.minutes > 0
+                assert edge.to_id.value in locations
+                if not edge.blocked and edge.to_id.value not in visited:
+                    visited.add(edge.to_id.value)
+                    pending.append(edge.to_id.value)
+        assert visited == locations, f"Cannot travel from {start} to {locations - visited}"
+    world_text = world_path.read_text(encoding="utf-8")
+    assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", world_text, re.I)

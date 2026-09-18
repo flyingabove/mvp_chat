@@ -118,7 +118,7 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 
 1. **Folder & files**: `backend/app/stories/<n>_<slug>/<slug>_story.json` + `<slug>_world.json`. Use the next available numeric prefix (check the highest existing one) or a descriptive folder name. The declared `id` field (not the filename) is what the content registry (`story_loader.py::build_story_registry()`) keys on — see `AI_GAME_STRUCTURE.md`.
 2. **World**: model your rooms as locations with short travel edges (1-3 minutes within a house). Tag at least one location `"private"`/`"quiet"` for confessional-style private conversations (see `rooftop_balcony` in Common Room's world JSON).
-3. **Cast**: 2-4 recurring characters, each with a `role`, a `motive` (repurposed as a personal-life-goal/insecurity summary, not a crime motive), and no `is_suspect`/`tells` (those are mystery-genre vocabulary and are optional fields — `Character.from_dict` in `backend/app/engine/state.py` doesn't require them). If you don't set `is_main` explicitly on anyone, the loader's BUG-13 fallback assigns it to the first character listed — but that no longer determines who gets an identity section (see §5), so list order only matters for that narrative "focal lens" framing, not for self_knowledge.
+3. **Cast**: author a manageable recurring ensemble (Common Room uses three NPCs; Six Strangers uses six), each with a `role`, a `motive` (repurposed as a personal-life-goal/insecurity summary, not a crime motive), and no `is_suspect`/`tells` (those are mystery-genre vocabulary and are optional fields — `Character.from_dict` in `backend/app/engine/state.py` doesn't require them). If you don't set `is_main` explicitly on anyone, the loader's BUG-13 fallback assigns it to the first character listed — but that no longer determines who gets an identity section (see §5), so list order only matters for that narrative "focal lens" framing, not for self_knowledge.
 4. **`self_knowledge`**: give each character you want an identity section their own `self_knowledge` array on their `characters[]` entry — 2-4 first-person "You are..." identity facts, same style as the mystery stories. Non-main characters only surface their block when they're present in the current scene (see §5); the main character's block is unconditional.
 5. **`epistemic_seed.canonical_facts`**: house lore everyone knows (`known_by: ["all_characters"]`) plus one private-secret fact per character (`known_by: [<key>]`) for things the player should discover through conversation, not be told upfront.
 6. **`relationships.edges`**: seed every housemate→player edge, and at least one NPC-NPC edge, so `ROOM DYNAMICS` prose reflects real ensemble relationships when multiple characters share a scene.
@@ -132,3 +132,39 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 - **No quest/schedule/resource engine.** Chore wheels, jobs, daily routines, etc. are narrative content NPCs can reference in conversation — they are not mechanically simulated (no calendar, no NPC schedules, no resource meters). See `GAME_DESIGN_SYSTEMS.md` and `documentation/BACKLOG.md`.
 - **Relationship drift is asymmetric.** Only player→NPC relationship edges are updated by structured turn extraction today; NPC→player and NPC↔NPC edges are seeded at game start but not mechanically driven during play (only the main NPC has a narrative-tag-driven affection path). Tracked in `documentation/BACKLOG.md`.
 - **`character_self_knowledge` per-character injection is scene-presence-gated for non-main characters** (§5, BL-07) — a housemate's own identity block only appears when they're present in the current scene; the main character's block is unconditional. This bounds prompt length but means an absent housemate's self_knowledge contributes nothing to that turn's prompt (their `motive` + canonical facts/belief seeds/relationship edges still shape their characterization when they're the one being discussed but not present).
+
+## 9. Six Strangers: Tokyo cast adaptation (2026-09-18)
+
+`7_six_strangers` now uses the opening six members from the user-supplied
+`terrace_house_boys_girls_in_the_city_season1.md` dossier (sections 1–2 and
+4.1–4.6): Makoto Hasegawa, Minori Nakada, Yuki Adachi, Mizuki Shida, Tatsuya
+"Uchi" Uchihara, and Yuriko Hayata. The dossier supplied the public cast
+identities, occupations, observational format, and Higashi-Gotanda / Shinagawa,
+Tokyo setting. Its later episode outcomes and replacement roster are not a
+script for play. Dialogue, inner lives, local venues, and the detailed floor
+plan are fictional game content, identified as such in the story metadata.
+
+The opening takes place in September 2015. The player is a seventh arrival
+using a small guest room added for this adaptation; the six original residents
+remain NPCs (`mode.cast_size = 6`). This replaces the old four fictional
+housemates and empty-sixth-bedroom legend. Mizuki is the explicit focal NPC and
+greets the player at `front_entry`; other housemates are encountered naturally
+throughout the house. Initial relationships represent new acquaintances, with
+no predetermined romance or later-show knowledge. Every NPC has a distinct
+identity block, private concern, belief, and relationships in both directions
+with the player. Private concerns are invented, character-scoped information,
+not biographical claims about the real cast.
+
+The world includes shared bedrooms, an open kitchen/living/dining space, rooftop,
+garage with two shared cars, and reachable neighborhood, station, cafe, salon,
+and dance studio locations. World edges are directed: each walkable connection
+is authored in both directions. The PNG map is a schematic of this game world,
+not an architectural reconstruction of the filming location. Public map text
+does not expose private character concerns. The existing `social_sim` mode
+provides observational pacing and occasional audience-only, unnamed panel-style
+asides; no schedule, cast-rotation, or panel-character engine is added.
+
+Start a new game to use the revised roster and locations. Existing sessions
+retain their saved characters and world snapshots; this content change does
+not migrate old saves. The story ID and title remain `six_strangers` / Six
+Strangers.
