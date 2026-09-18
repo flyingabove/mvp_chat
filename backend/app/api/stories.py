@@ -8,7 +8,7 @@ import re
 import uuid
 
 from backend.app.auth.dependencies import require_operator
-from backend.app.engine.story_loader import STORIES_DIR
+from backend.app.engine.story_loader import STORIES_DIR, build_story_registry
 
 router = APIRouter()
 
@@ -26,32 +26,15 @@ async def list_stories():
     This endpoint enables the frontend to build a dynamic menu so new
     game modes / characters can be added by dropping in a new story JSON.
     Stories can be in backend/app/stories/ directly or in subdirectories.
-    """
-    stories_path = Path(STORIES_DIR)
-    out = []
-    if not stories_path.exists():
-        return {"stories": out}
 
-    # Collect story files from both root and subdirectories
-    story_files = []
-    
-    # Root level stories
-    story_files.extend(sorted(stories_path.glob("*.json")))
-    
-    # Subdirectory stories (e.g., <int>_<slug>/*, etc.)
-    for subdir in sorted(stories_path.iterdir()):
-        if subdir.is_dir() and not subdir.name.startswith("__"):
-            story_files.extend(sorted(subdir.glob("*.json")))
-    
-    for p in story_files:
-        # Skip world graph sidecar files.
-        if p.name.endswith("_world.json"):
-            continue
-        try:
-            cfg = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        sid = str(cfg.get("id") or p.stem).strip()
+    A05: built from the same build_story_registry() the runtime loader
+    (backend/app/engine/story_loader.load_story) uses, keyed by each
+    story's *declared* `id` field — never by filename-guessing. This is
+    what guarantees every card the catalogue advertises actually loads.
+    """
+    out = []
+    for sid, entry in build_story_registry().items():
+        cfg = entry["raw"]
         title = str(cfg.get("title") or sid).strip()
         theme = str(cfg.get("theme") or "").strip()
         genre = str(cfg.get("genre") or theme or "").strip()
@@ -72,35 +55,10 @@ async def list_stories():
 
 
 def _find_story_file(story_id: str) -> Path | None:
-    """Locate the story JSON file for a given story_id."""
-    stories_path = Path(STORIES_DIR)
-    if not stories_path.exists():
-        return None
-
-    # Check root-level files
-    for p in stories_path.glob("*.json"):
-        if p.name.endswith("_world.json"):
-            continue
-        try:
-            cfg = json.loads(p.read_text(encoding="utf-8"))
-            if str(cfg.get("id") or p.stem).strip() == story_id:
-                return p
-        except Exception:
-            continue
-
-    # Check subdirectories
-    for subdir in sorted(stories_path.iterdir()):
-        if subdir.is_dir() and not subdir.name.startswith("__"):
-            for p in subdir.glob("*.json"):
-                if p.name.endswith("_world.json"):
-                    continue
-                try:
-                    cfg = json.loads(p.read_text(encoding="utf-8"))
-                    if str(cfg.get("id") or p.stem).strip() == story_id:
-                        return p
-                except Exception:
-                    continue
-    return None
+    """Locate the story JSON file for a given story_id (by declared id,
+    via the shared content registry — A05)."""
+    entry = build_story_registry().get(story_id)
+    return Path(entry["path"]) if entry else None
 
 
 @router.get("/stories/{story_id}/context")

@@ -36,15 +36,19 @@
     "canonical_facts": [
       {
         "id": "cf_dr_hale_dead",
-        "statement": "Dr. Hale was found dead in her office at 7:30 AM. Cause of death: undetermined.",
+        "content": "Dr. Hale was found dead in her office at 7:30 AM. Cause of death: undetermined.",
         "confidence": 1.0,
-        "known_by": ["dr_cole"]
+        "known_by": [
+          "dr_cole"
+        ]
       },
       {
         "id": "cf_last_note_missing",
-        "statement": "The session notes from Dr. Hale's 9 PM appointment are missing from the system.",
+        "content": "The session notes from Dr. Hale's 9 PM appointment are missing from the system.",
         "confidence": 1.0,
-        "known_by": ["dr_cole"]
+        "known_by": [
+          "dr_cole"
+        ]
       }
     ],
     "belief_seeds": []

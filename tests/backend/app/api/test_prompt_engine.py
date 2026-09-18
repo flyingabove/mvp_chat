@@ -165,6 +165,48 @@ def test_chat_newgame_and_turn(client):
     assert not re.match(r"^\[\d{4}-\d{2}-\d{2} ", data2["reply"])  # no leading timestamp
 
 
+@pytest.mark.parametrize("story", all_stories(), ids=lambda s: s["id"])
+def test_every_catalogued_story_initializes_end_to_end(client, story):
+    """A05 regression: every story returned by the /api/stories catalogue
+    must actually initialize through the runtime loader (discovery -> load
+    -> init game state -> opening reply), not just parse as JSON.
+
+    Before the A05 fix, blackout_manor/neon_district/the_last_session were
+    advertised by the catalogue (declared `id` read directly from the JSON)
+    but failed to load at runtime because load_story() guessed filenames
+    instead of using the declared id, and their canonical_facts used a
+    `statement` key the seeder didn't read (so even a name-based fix alone
+    would have silently produced empty canonical facts).
+    """
+    story_id = story["id"]
+    r = client.post(
+        "/api/chat",
+        json={"session_id": f"catalogue_{story_id}", "message": f"__cmd_newgame__:{story_id}|M|Chris"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert "reply" in data
+    assert data["reply"].strip(), f"story {story_id} produced an empty opening reply"
+
+    from backend.app.api import prompt_engine as pe_mod
+    sess = pe_mod.SESSIONS.get(f"catalogue_{story_id}")
+    assert sess is not None
+    state = sess["state"]
+    assert state is not None
+    assert state.story == story_id
+
+    # If the story declares canonical facts, confirm they actually seeded
+    # with non-empty content (guards against the `statement`-vs-`content`
+    # key mismatch reproduced above).
+    canonical_cfg = (story["config"].get("epistemic_seed") or {}).get("canonical_facts") or []
+    if canonical_cfg:
+        seeded = getattr(state, "canonical_facts", []) or []
+        assert seeded, f"story {story_id} declares canonical_facts but none were seeded"
+        assert all((f.content or "").strip() for f in seeded), (
+            f"story {story_id} seeded canonical facts with empty content"
+        )
+
+
 def test_master_prompt_engine_orchestration_flow(monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.extractors.turn_extractor import TurnExtraction, TurnKnowledgeResolution
@@ -718,9 +760,16 @@ def test_story_with_world_config_loads_correctly(client):
 
 
 def test_file_consolidation_single_location(client):
-    """Test that all story files are in the expected story folder (auto-discovered)."""
+    """Test that all story files are in the expected story folder (auto-discovered).
+
+    A05 note: story JSON filenames are NOT required to match the story's
+    declared `id` (e.g. blackout_manor's file is 3_story.json) — resolution
+    goes through build_story_registry(), not filename-guessing. This test
+    resolves the story's actual path via that registry rather than assuming
+    a {id}.json / {id}_story.json naming convention.
+    """
     import os
-    from backend.app.engine.story_loader import find_story_dir, _story_json_candidates
+    from backend.app.engine.story_loader import find_story_dir, build_story_registry
 
     # Verify old duplicate backend/stories directory doesn't exist
     assert not os.path.exists("backend/stories"), "Old backend/stories duplicate should be removed"
@@ -732,12 +781,10 @@ def test_file_consolidation_single_location(client):
     full_dir = os.path.join("backend", "app", "stories", story_dir)
     assert os.path.isdir(full_dir), f"Story directory {full_dir} should exist"
 
-    # Verify the story JSON exists (either {id}.json or {id}_story.json)
-    found_story_json = any(
-        os.path.isfile(os.path.join(full_dir, f))
-        for f in _story_json_candidates(STORY_ID)
-    )
-    assert found_story_json, f"Story JSON for {STORY_ID} should exist in {full_dir}"
+    # Verify the story JSON resolves via the content registry (by declared id).
+    entry = build_story_registry().get(STORY_ID)
+    assert entry is not None, f"Story JSON for {STORY_ID} should be in the registry"
+    assert os.path.isfile(entry["path"]), f"Story JSON for {STORY_ID} should exist at {entry['path']}"
 
     # Verify a world JSON exists ({id}_world.json)
     world_json = os.path.join(full_dir, f"{STORY_ID}_world.json")
@@ -1557,6 +1604,55 @@ def test_try_load_session_from_db_returns_none_when_not_found(monkeypatch):
 
     result = pe_mod._try_load_session_from_db("nonexistent", "user1")
     assert result is None
+
+
+def test_restore_then_travel_does_not_roll_clock_backward(monkeypatch):
+    """A07 regression: restoring a session at a late minute and then
+    traveling must not roll the world clock backward. Before the fix,
+    WorldLoader always built a *fresh* WorldClock seeded from the authored
+    world's start_minute (0 here); the restored `state.minute` was set
+    correctly but the world_runtime's clock was not resynced to it, so the
+    first travel action would overwrite state.minute with
+    (fresh_start + delta), rolling the clock back from ~2000 to single
+    digits."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.gameplay import advance_time
+
+    late_minute = 2000
+    fake_row = {
+        "state_json": _json.dumps({
+            "story": STORY_ID,
+            "gender": "M",
+            "player_name": "ClockTest",
+            "turns": 10,
+            "minute": late_minute,
+            "location_id": "iu_apartment_room",
+            "location": "IU's Apartment",
+        }),
+        "flags_json": _json.dumps({
+            "debug_mode": False, "chinese_mode": False,
+            "epistemic_state": True, "truth_mode": False,
+        }),
+    }
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(lambda session_id, user_id: fake_row),
+    )
+
+    result = pe_mod._try_load_session_from_db("sess_clock_test", "user_clock")
+    assert result is not None
+    state = result["state"]
+    assert state.minute == late_minute
+    assert state.world_runtime is not None
+    # The world runtime's own clock must be resynced to the restored value,
+    # not left at the authored world's start_minute (0).
+    assert state.world_runtime.world_clock.now_minute() == late_minute
+
+    # Now perform a travel action and confirm the clock only ever advances.
+    advance_time(state, "go to apartment lobby")
+    assert state.minute >= late_minute, (
+        f"clock rolled backward on travel after restore: {late_minute} -> {state.minute}"
+    )
 
 
 def test_get_session_rejects_cross_user_cache_hit():

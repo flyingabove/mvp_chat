@@ -36,15 +36,19 @@
     "canonical_facts": [
       {
         "id": "cf_lord_dead",
-        "statement": "Lord Hargreave was found dead in the east wing study at 9:15 PM.",
+        "content": "Lord Hargreave was found dead in the east wing study at 9:15 PM.",
         "confidence": 1.0,
-        "known_by": ["eleanor"]
+        "known_by": [
+          "eleanor"
+        ]
       },
       {
         "id": "cf_candlestick",
-        "statement": "A heavy silver candlestick is missing from the mantelpiece in the east wing study.",
+        "content": "A heavy silver candlestick is missing from the mantelpiece in the east wing study.",
         "confidence": 1.0,
-        "known_by": ["eleanor"]
+        "known_by": [
+          "eleanor"
+        ]
       }
     ],
     "belief_seeds": []

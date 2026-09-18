@@ -1157,6 +1157,17 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             )
         if loaded is not None:
             restored.world_runtime = loaded
+            # A07 fix: WorldLoader always builds a *fresh* WorldClock seeded
+            # from the authored world's start_minute. Resync it to the
+            # persisted, authoritative `restored.minute` here so a later
+            # travel action advances from the restored game time instead of
+            # the freshly-authored start — otherwise travel would silently
+            # overwrite state.minute with (authored_start + delta), rolling
+            # the clock backward relative to what was saved.
+            try:
+                restored.world_runtime.world_clock.set_minute(int(restored.minute))
+            except Exception:
+                logger.exception("Failed to resync world clock on restore for session")
             # Keep saved location rather than overriding with start
             if not restored.location_id:
                 start_id = str(world_cfg.get("start_location_id", "")).strip()

@@ -134,89 +134,86 @@ class StoryDefinition:
         return mc.role if mc else ""
 
 
-def _story_json_candidates(story_id: str) -> list[str]:
-    """Filenames to try when resolving a story (handles _story suffix convention)."""
-    return [f"{story_id}.json", f"{story_id}_story.json"]
+# ---------------------------------------------------------------------------
+# Story content registry (A05)
+# ---------------------------------------------------------------------------
+# Single source of truth for resolving a story by its *declared* `id` field
+# inside the JSON \u2014 never by filename-guessing. Filenames are an authoring
+# convenience and are allowed to disagree with the declared id (this is
+# exactly what happened for blackout_manor/neon_district/the_last_session,
+# whose files are named 3_story.json/4_story.json/5_story.json). Both the
+# runtime loader (load_story/find_story_dir below) and the catalogue
+# endpoint (backend/app/api/stories.py) must build their view of "what
+# stories exist" from this same registry so they can never disagree.
+def _iter_story_files():
+    """Yield (path, subdir_or_None) for every candidate story JSON file
+    (root level and one level of subdirectories), skipping world sidecars."""
+    if not os.path.isdir(STORIES_DIR):
+        return
+    for fname in sorted(os.listdir(STORIES_DIR)):
+        full = os.path.join(STORIES_DIR, fname)
+        if os.path.isfile(full) and fname.endswith(".json") and not fname.endswith("_world.json"):
+            yield full, None
+    for d in sorted(os.listdir(STORIES_DIR)):
+        sub = os.path.join(STORIES_DIR, d)
+        if os.path.isdir(sub) and not d.startswith("__"):
+            for fname in sorted(os.listdir(sub)):
+                full = os.path.join(sub, fname)
+                if os.path.isfile(full) and fname.endswith(".json") and not fname.endswith("_world.json"):
+                    yield full, d
+
+
+def build_story_registry() -> Dict[str, Dict[str, Any]]:
+    """Scan STORIES_DIR once and build {declared_id: {"path", "subdir", "raw"}}.
+
+    Falls back to the filename stem only when a file has no `id` field.
+    Re-scanned on every call (the catalogue is small and
+    POST /stories/draft writes new files at runtime that must show up
+    immediately), so do not cache this without also invalidating on draft
+    creation.
+    """
+    registry: Dict[str, Dict[str, Any]] = {}
+    for path, subdir in _iter_story_files():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw_text = f.read()
+            raw_text = raw_text.lstrip("\ufeff")
+            cfg = json.loads(raw_text)
+        except Exception as e:
+            jlog({"kind": "story_registry_parse_error", "path": path, "error": str(e)})
+            continue
+        story_id = str(cfg.get("id") or os.path.splitext(os.path.basename(path))[0]).strip()
+        if not story_id:
+            continue
+        registry[story_id] = {"path": path, "subdir": subdir, "raw": cfg}
+    return registry
 
 
 def find_story_dir(story_id: str) -> str | None:
     """
-    Return the subdirectory name that contains
-    the story JSON for story_id, or None if it lives at root / not found.
+    Return the subdirectory name that contains the story JSON for
+    story_id (matched by declared id), or None if it lives at root / not found.
     """
-    # Direct path (root level)
-    for fname in _story_json_candidates(story_id):
-        if os.path.isfile(os.path.join(STORIES_DIR, fname)):
-            return None
-
-    try:
-        for d in os.listdir(STORIES_DIR):
-            if os.path.isdir(os.path.join(STORIES_DIR, d)) and not d.startswith("__"):
-                for fname in _story_json_candidates(story_id):
-                    if os.path.isfile(os.path.join(STORIES_DIR, d, fname)):
-                        return d
-    except Exception:
-        pass
-    return None
+    entry = build_story_registry().get(story_id)
+    return entry["subdir"] if entry else None
 
 
 def load_story(story_id: str) -> Optional[StoryDefinition]:
     """
-    Load a story JSON file by id, trying both {story_id}.json and
-    {story_id}_story.json in root and subdirectories.
+    Load a story by its declared `id` field via the content registry
+    (build_story_registry), not by filename-guessing (A05).
 
     Returns a StoryDefinition or None if not found/failed to parse.
     """
-    story_path = None
-
-    # Try root level first
-    for fname in _story_json_candidates(story_id):
-        candidate = os.path.join(STORIES_DIR, fname)
-        if os.path.isfile(candidate):
-            story_path = candidate
-            break
-
-    jlog({"kind": "story_load_attempt", "story_id": story_id,
-          "path": story_path or os.path.join(STORIES_DIR, f"{story_id}.json"),
-          "exists": story_path is not None})
-
-    # If not found at root, try subdirectories
-    if not story_path:
-        try:
-            subdirs = [d for d in os.listdir(STORIES_DIR)
-                      if os.path.isdir(os.path.join(STORIES_DIR, d)) and not d.startswith("__")]
-            for subdir in subdirs:
-                for fname in _story_json_candidates(story_id):
-                    alt_path = os.path.join(STORIES_DIR, subdir, fname)
-                    if os.path.isfile(alt_path):
-                        story_path = alt_path
-                        jlog({"kind": "story_found_in_subdir", "story_id": story_id, "subdir": subdir})
-                        break
-                if story_path:
-                    break
-        except Exception as e:
-            jlog({"kind": "story_subdir_scan_error", "story_id": story_id, "error": str(e)})
-
-    if not story_path:
+    entry = build_story_registry().get(story_id)
+    if not entry:
         jlog({"kind": "story_not_found", "story_id": story_id})
         return None
 
+    jlog({"kind": "story_load_attempt", "story_id": story_id, "path": entry["path"], "exists": True})
+
     try:
-        # Read raw text first so we can strip BOM
-        with open(story_path, "r", encoding="utf-8") as f:
-            raw = f.read()
-
-        # Strip Byte Order Mark (common cause of silent JSON failure)
-        if raw.startswith("\ufeff"):
-            jlog({"kind": "story_bom_stripped", "story_id": story_id})
-            raw = raw.lstrip("\ufeff")
-
-        return StoryDefinition.from_dict(json.loads(raw))
-
-    except json.JSONDecodeError as e:
-        jlog({"kind": "story_json_error", "story_id": story_id, "error": str(e), "path": story_path})
-        return None
-
+        return StoryDefinition.from_dict(entry["raw"])
     except Exception as e:
         jlog({"kind": "story_load_error", "story_id": story_id, "error": str(e)})
         return None
