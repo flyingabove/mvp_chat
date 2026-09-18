@@ -237,3 +237,48 @@ def test_transient_entries_use_default_ttl_of_eight():
     )
     assert len(st.transient_entries) == 1
     assert st.transient_entries[0].turns_remaining == TRANSIENT_KNOWLEDGE_TURNS
+
+
+# ─── BL-07: per-character self_knowledge round-trips through Character ──────
+
+def test_character_from_dict_parses_self_knowledge_when_present():
+    ch = Character.from_dict({
+        "key": "daeho",
+        "name": "Dae-ho",
+        "self_knowledge": ["You are quietly proud.", "You hate asking for help."],
+    })
+    assert ch.self_knowledge == ["You are quietly proud.", "You hate asking for help."]
+    # Must not leak into the meta forward-compat bucket.
+    assert "self_knowledge" not in ch.meta
+
+
+def test_character_from_dict_self_knowledge_absent_defaults_to_empty_list():
+    ch = Character.from_dict({"key": "npc", "name": "NPC"})
+    assert ch.self_knowledge == []
+
+
+def test_character_from_dict_self_knowledge_drops_blank_entries():
+    ch = Character.from_dict({
+        "key": "npc",
+        "name": "NPC",
+        "self_knowledge": ["Real entry.", "   ", "", "Another real one."],
+    })
+    assert ch.self_knowledge == ["Real entry.", "Another real one."]
+
+
+def test_character_to_dict_serializes_self_knowledge():
+    ch = Character(key="mina", name="Mina", self_knowledge=["You love mornings."])
+    d = ch.to_dict()
+    assert d["self_knowledge"] == ["You love mornings."]
+
+
+def test_character_self_knowledge_round_trips_from_dict_to_dict():
+    original = {
+        "key": "priya",
+        "name": "Priya",
+        "role": "housemate",
+        "self_knowledge": ["You are fiercely independent."],
+    }
+    ch = Character.from_dict(original)
+    round_tripped = Character.from_dict(ch.to_dict())
+    assert round_tripped.self_knowledge == ["You are fiercely independent."]

@@ -110,6 +110,7 @@ class Character:
         knowledge_character_id = str(data.get("knowledge_character_id") or "").strip()
         uuid = str(data.get("uuid") or "").strip()
         tags = list(data.get("tags") or [])
+        self_knowledge = [str(x) for x in (data.get("self_knowledge") or []) if str(x).strip()]
         # Determine character_type: is_main → MAIN; else parse from JSON or default CANONICAL
         if is_main:
             character_type = CharacterType.MAIN
@@ -121,7 +122,7 @@ class Character:
                 character_type = CharacterType.CANONICAL
         known_keys = {
             "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
-            "knowledge_character_id", "uuid", "tags", "character_type",
+            "knowledge_character_id", "uuid", "tags", "character_type", "self_knowledge",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
         return cls(
@@ -135,6 +136,7 @@ class Character:
             uuid=uuid,
             tags=tags,
             meta=meta,
+            self_knowledge=self_knowledge,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -148,6 +150,7 @@ class Character:
             "knowledge_character_id": self.knowledge_character_id,
             "uuid": self.uuid,
             "tags": self.tags,
+            "self_knowledge": self.self_knowledge,
             **(self.meta or {}),
         }
 

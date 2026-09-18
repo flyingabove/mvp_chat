@@ -69,7 +69,7 @@ No new mechanics were built. Everything below reuses primitives that already exi
 | Primitive | Mystery usage | Ensemble/slice-of-life usage |
 |---|---|---|
 | `world` locations | Crime-scene rooms, offices | House rooms (kitchen, living room, bedrooms, a quiet balcony) |
-| `character_self_knowledge` | The one central NPC's identity facts | The one `is_main` housemate's identity facts (see §5 — this is still single-character) |
+| `character_self_knowledge` (per-character `self_knowledge`) | The one central NPC's identity facts | Each present housemate's own identity facts (see §5 — per-character, gated by scene presence for non-main characters) |
 | `epistemic_seed.canonical_facts` | Case facts, alibis | House lore/history everyone knows (`known_by: ["all_characters"]`), plus each housemate's private secret (`known_by: [<that character's key>]`) that the player can discover through conversation |
 | `epistemic_seed.belief_seeds` | Suspects' self-serving beliefs | Housemates' private, sometimes self-deceiving beliefs about themselves or the house |
 | `relationships.edges` | Suspect↔victim/detective trust-fear-affection-suspicion | Housemate↔player bonds **and** housemate↔housemate bonds (NPC-NPC edges), so the graph is genuinely ensemble, not hub-and-spoke |
@@ -77,19 +77,25 @@ No new mechanics were built. Everything below reuses primitives that already exi
 | `goal`/`win_detection` | A confession regex | **Omitted entirely** for an open-ended game — confirmed by `gameplay.py::win_condition_detected()` returning `False` whenever `win_detection.regex` is absent |
 | `motive` (character field) | Why a suspect might have done it | Repurposed as a personal-life-goal/insecurity summary for authoring flavor (surfaced via the same transient story-detail path suspects already use — it isn't read by any dedicated prompt layer for either genre) |
 
-## 5. Known limitation: `character_self_knowledge` is single-character
+## 5. `character_self_knowledge` is per-character, gated by scene presence (BL-07, resolved)
 
-This is the one place the ensemble framing runs into a real, pre-existing engine constraint, and it's worth being explicit about rather than pretending it doesn't exist (the same policy `GAME_DESIGN_SYSTEMS.md` already applies to the missing quest/schedule engine).
+This used to be a single-character limitation — flagged and deliberately deferred as BL-07 while building the `mode` layer — and has since been fixed. Documented here for anyone reading older commits/discussions that reference the old constraint.
 
-`_character_identity_section()` in `prompt_builder.py` only ever reads `state.main_character.self_knowledge` — i.e. whichever character has `is_main: true` (or, per the existing BUG-13 fallback in `story_loader.py`, the first character in `characters[]` when none is explicitly flagged, logged as a `story_warning`). This is true for every existing story: in the murder mysteries, only the central ghost/victim NPC has `character_self_knowledge` entries; the suspects don't get this layer at all.
+**Current behavior:**
+- Each `characters[]` entry may declare its own `self_knowledge: [...]` array (parsed by `Character.from_dict()` in `state.py`, round-tripped by `Character.to_dict()`, and preserved through `StoryDefinition.from_dict()`'s normalization pass).
+- `backend/app/api/prompt_engine.py`'s two character-roster-construction sites (new-game path in `_chat_handler_impl`, restore path in `_try_load_session_from_db`) apply this precedence: **a character's own authored `self_knowledge` always wins when present.** The top-level story-wide `character_self_knowledge` array remains a fallback used ONLY for whichever character is `is_main` and has no per-character `self_knowledge` of its own — this is exactly the backward-compatible path that keeps all 5 pre-existing mystery stories (which only ever set the top-level key) unchanged.
+- `_character_identity_section()` in `prompt_builder.py` injects one `### CHARACTER IDENTITY — {name}` block per qualifying character:
+  - The **main character's** block is always included when they have `self_knowledge`, unconditionally (not gated by scene presence — a ghost NPC who isn't tied to a location still gets their identity section, same as before this change).
+  - **Every other character** (not main, not `"player"`) who is currently present in the scene (per `_get_people_present_keys(state)`) AND has non-empty `self_knowledge` gets their own block too, in deterministic (sorted-by-key) order.
+- Net effect: a story where only the main character declares `self_knowledge` produces byte-identical prompt output to before this change (regression-tested against `iu_murder_mystery`). A story like The Common Room, where every housemate now authors their own `self_knowledge`, gets a genuinely ensemble identity layer — present housemates each speak their own first-person truths, not just the one the loader happened to assign `is_main`.
 
-The Common Room follows the same pattern rather than extending the engine: all three housemates are authored with `is_main: false` (matching the "ensemble, no single protagonist NPC" framing), and the loader's existing fallback assigns `is_main` to the first character listed (Mina) with a logged warning — a supported, tested code path (`test_story_loader_warns_when_no_is_main_flag`), not a hack. Mina's `character_self_knowledge` block is what gets injected as the `### CHARACTER IDENTITY` section. Dae-ho and Priya's inner lives are instead carried by:
+The Common Room now demonstrates this directly: Mina, Dae-ho, and Priya each have their own `self_knowledge` array on their `characters[]` entry. Mina still ends up `is_main` (via the existing BUG-13 loader fallback, since none of the three declare `is_main: true` — `is_main` remains a narrative "focal lens" concept for scene-brief phrasing, but is no longer the *gate* on who gets an identity section). Dae-ho and Priya's inner lives are carried by their own `self_knowledge` now, in addition to:
 - their `motive` field (authoring flavor, same mechanism suspects use),
-- their private secret as an `epistemic_seed.canonical_facts` entry scoped to just them (`known_by: ["daeho"]` etc.), discoverable through play,
+- their private secret as an `epistemic_seed.canonical_facts` entry scoped to just them (`known_by: ["daeho"]` etc.), discoverable through play — self_knowledge is about identity/personality/history, not a place to spoil the secret fact itself,
 - their `belief_seeds`,
 - and their relationship edges (including the two NPC-NPC edges).
 
-A future engine change to give every present character their own self-knowledge section (not just `main_character`) is tracked in `documentation/BACKLOG.md` rather than built here, since it would touch a layer shared by all 5 existing stories and was out of scope for the `mode` layer itself.
+**Touches:** `backend/app/engine/state.py` (`Character`), `backend/app/api/prompt_engine.py`, `backend/app/engine/prompt_builder.py`, `backend/app/stories/6_common_room/common_room_story.json`.
 
 ## 6. Confessional convention: prompt convention, not a bracket command
 
@@ -106,8 +112,8 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 
 1. **Folder & files**: `backend/app/stories/<n>_<slug>/<slug>_story.json` + `<slug>_world.json`. Use the next available numeric prefix (check the highest existing one) or a descriptive folder name. The declared `id` field (not the filename) is what the content registry (`story_loader.py::build_story_registry()`) keys on — see `AI_GAME_STRUCTURE.md`.
 2. **World**: model your rooms as locations with short travel edges (1-3 minutes within a house). Tag at least one location `"private"`/`"quiet"` for confessional-style private conversations (see `rooftop_balcony` in Common Room's world JSON).
-3. **Cast**: 2-4 recurring characters, each with a `role`, a `motive` (repurposed as a personal-life-goal/insecurity summary, not a crime motive), and no `is_suspect`/`tells` (those are mystery-genre vocabulary and are optional fields — `Character.from_dict` in `backend/app/engine/state.py` doesn't require them). List the character you want to carry `character_self_knowledge` first if you don't want to set `is_main` explicitly (see §5).
-4. **`character_self_knowledge`**: 2-4 first-person "You are..." identity facts for that one focal character, same style as the mystery stories.
+3. **Cast**: 2-4 recurring characters, each with a `role`, a `motive` (repurposed as a personal-life-goal/insecurity summary, not a crime motive), and no `is_suspect`/`tells` (those are mystery-genre vocabulary and are optional fields — `Character.from_dict` in `backend/app/engine/state.py` doesn't require them). If you don't set `is_main` explicitly on anyone, the loader's BUG-13 fallback assigns it to the first character listed — but that no longer determines who gets an identity section (see §5), so list order only matters for that narrative "focal lens" framing, not for self_knowledge.
+4. **`self_knowledge`**: give each character you want an identity section their own `self_knowledge` array on their `characters[]` entry — 2-4 first-person "You are..." identity facts, same style as the mystery stories. Non-main characters only surface their block when they're present in the current scene (see §5); the main character's block is unconditional.
 5. **`epistemic_seed.canonical_facts`**: house lore everyone knows (`known_by: ["all_characters"]`) plus one private-secret fact per character (`known_by: [<key>]`) for things the player should discover through conversation, not be told upfront.
 6. **`relationships.edges`**: seed every housemate→player edge, and at least one NPC-NPC edge, so `ROOM DYNAMICS` prose reflects real ensemble relationships when multiple characters share a scene.
 7. **`opening.text`**: write real, evocative move-in-day (or equivalent) prose — this is a creative deliverable, not boilerplate.
@@ -119,4 +125,4 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 
 - **No quest/schedule/resource engine.** Chore wheels, jobs, daily routines, etc. are narrative content NPCs can reference in conversation — they are not mechanically simulated (no calendar, no NPC schedules, no resource meters). See `GAME_DESIGN_SYSTEMS.md` and `documentation/BACKLOG.md`.
 - **Relationship drift is asymmetric.** Only player→NPC relationship edges are updated by structured turn extraction today; NPC→player and NPC↔NPC edges are seeded at game start but not mechanically driven during play (only the main NPC has a narrative-tag-driven affection path). Tracked in `documentation/BACKLOG.md`.
-- **`character_self_knowledge` is single-character** (§5) — an ensemble cast's other members rely on `motive` + per-character canonical facts/belief seeds, not their own identity-section layer.
+- **`character_self_knowledge` per-character injection is scene-presence-gated for non-main characters** (§5, BL-07) — a housemate's own identity block only appears when they're present in the current scene; the main character's block is unconditional. This bounds prompt length but means an absent housemate's self_knowledge contributes nothing to that turn's prompt (their `motive` + canonical facts/belief seeds/relationship edges still shape their characterization when they're the one being discussed but not present).

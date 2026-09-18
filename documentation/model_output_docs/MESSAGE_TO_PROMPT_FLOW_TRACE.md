@@ -143,7 +143,7 @@ Then call `build_messages(prompt_input, return_debug=True)`.
 5. Scene brief includes explicit per-turn scene context:
    - `people_present` list and count,
    - `speakers` list.
-6. Character self-knowledge (`_character_identity_section` — single main-character only, see `SOCIAL_MODE_DESIGN.md` §5).
+6. Character self-knowledge (`_character_identity_section` — per-character; main character's block is unconditional, other present characters' blocks are gated by scene presence, see `SOCIAL_MODE_DESIGN.md` §5).
 7. Optional truth-mode override.
 
 Important current rule in preface:

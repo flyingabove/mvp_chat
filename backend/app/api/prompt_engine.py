@@ -1231,7 +1231,11 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 uuid=ch_uuid,
                 tags=list(ch.tags),
                 meta=dict(ch.meta),
-                self_knowledge=story_self_knowledge if ch.is_main else [],
+                self_knowledge=(
+                    list(ch.self_knowledge)
+                    if ch.self_knowledge
+                    else (story_self_knowledge if ch.is_main else [])
+                ),
                 emotion=restored.emotion,
                 relationship=restored.relationship,
             )
@@ -1807,7 +1811,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 uuid=ch_uuid,
                 tags=list(ch.tags),
                 meta=dict(ch.meta),
-                self_knowledge=story_self_knowledge if ch.is_main else [],
+                self_knowledge=(
+                    list(ch.self_knowledge)
+                    if ch.self_knowledge
+                    else (story_self_knowledge if ch.is_main else [])
+                ),
                 emotion=new_state.emotion,
                 relationship=new_state.relationship,
             )

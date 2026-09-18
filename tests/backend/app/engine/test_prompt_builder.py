@@ -732,6 +732,93 @@ def test_character_identity_section_absent_when_not_defined():
     assert "### CHARACTER IDENTITY" not in sysmsg
 
 
+# ─── BL-07: per-character self_knowledge for present non-main characters ─────
+
+def test_character_identity_section_includes_present_non_main_character():
+    """A non-main character with their own self_knowledge who is present in
+    the scene gets their own CHARACTER IDENTITY block, alongside the main
+    character's block."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["mina"] = Character(
+        key="mina", name="Mina", role="housemate", is_main=True,
+        self_knowledge=["You are the first to notice when someone's upset."],
+    )
+    st.characters["daeho"] = Character(
+        key="daeho", name="Dae-ho", role="housemate",
+        self_knowledge=["You hate asking anyone for help.", "You keep score of every favor."],
+    )
+    st.characters["priya"] = Character(
+        key="priya", name="Priya", role="housemate",
+        self_knowledge=["You left home to prove you could stand alone."],
+    )
+    st.main_character_id = "mina"
+
+    # Only Mina and Dae-ho are present; Priya is not.
+    st.add_transient_entry(
+        id="pp::mina", namespace="test", scope="scene",
+        text="__people_present_marker__:mina", expires_after_turns=4,
+    )
+    st.add_transient_entry(
+        id="pp::daeho", namespace="test", scope="scene",
+        text="__people_present_marker__:daeho", expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "### CHARACTER IDENTITY — Mina" in sysmsg
+    assert "You are the first to notice when someone's upset." in sysmsg
+    assert "### CHARACTER IDENTITY — Dae-ho" in sysmsg
+    assert "You hate asking anyone for help." in sysmsg
+    assert "You keep score of every favor." in sysmsg
+    assert "### CHARACTER IDENTITY — Priya" not in sysmsg
+    assert "You left home to prove you could stand alone." not in sysmsg
+
+
+def test_character_identity_section_absent_non_main_character_not_present():
+    """A non-main character with self_knowledge who is NOT currently present
+    contributes no block (scoping to scene presence keeps prompt length
+    bounded)."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate", is_main=True)
+    st.characters["priya"] = Character(
+        key="priya", name="Priya", role="housemate",
+        self_knowledge=["You left home to prove you could stand alone."],
+    )
+    st.main_character_id = "mina"
+
+    st.add_transient_entry(
+        id="pp::mina", namespace="test", scope="scene",
+        text="__people_present_marker__:mina", expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "### CHARACTER IDENTITY" not in sysmsg
+
+
+def test_character_identity_section_main_character_unconditional_regardless_of_presence():
+    """The main character's identity block is unconditional (a ghost NPC not
+    tied to a location still gets their block) — unchanged legacy behavior."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = Character(
+        key="iu", name="IU", role="ghost", is_main=True,
+        self_knowledge=["You are a ghost."],
+    )
+    st.main_character_id = "iu"
+    # No people-present markers at all.
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "### CHARACTER IDENTITY — IU" in sysmsg
+    assert "You are a ghost." in sysmsg
+
+
 # ─── Optional `mode` layer (social_sim / ensemble slice-of-life games) ───────
 # See documentation/model_output_docs/SOCIAL_MODE_DESIGN.md for the schema.
 

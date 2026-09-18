@@ -1849,3 +1849,193 @@ def test_api_end_to_end_5_turns_time_and_location():
 @pytest.mark.xfail(reason="LLM non-deterministic: narration reveals identity but evaluator acceptance varies", strict=False)
 def test_iu_identity_correction():
     IUIdentityCorrectionScenario.run_as_test()
+
+
+# ---------------------------------------------------------------------------
+# BL-07: per-character self_knowledge propagation through prompt_engine.py
+# (new-game path and restore path build the character roster separately,
+# so both are covered here).
+# ---------------------------------------------------------------------------
+
+def test_newgame_path_prefers_per_character_self_knowledge_over_story_fallback(client):
+    """New-game roster construction: a non-main character (Dae-ho) with his
+    own `self_knowledge` gets it verbatim; Mina (the loader-assigned is_main
+    fallback) also carries her own per-character self_knowledge now that it's
+    authored on her character entry rather than only the top-level key;
+    Priya (no scene presence assumed here) still has her own self_knowledge
+    parsed onto her Character object regardless of presence -- presence
+    gating happens at the prompt_builder injection layer, not at roster
+    construction."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "bl07_newgame_common_room"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:common_room|M|Chris"},
+    )
+    assert r.status_code == 200
+
+    sess = pe_mod.SESSIONS.get(sid)
+    assert sess is not None
+    state = sess["state"]
+
+    mina = state.characters.get("mina")
+    daeho = state.characters.get("daeho")
+    priya = state.characters.get("priya")
+    assert mina is not None and daeho is not None and priya is not None
+
+    assert mina.self_knowledge, "Mina should carry her own authored self_knowledge"
+    assert any("house mom" in e for e in mina.self_knowledge)
+
+    assert daeho.self_knowledge, "Dae-ho should carry his own authored self_knowledge"
+    assert any("easygoing" in e.lower() for e in daeho.self_knowledge)
+
+    assert priya.self_knowledge, "Priya should carry her own authored self_knowledge"
+    assert any("structure" in e.lower() for e in priya.self_knowledge)
+
+
+def test_restore_path_prefers_per_character_self_knowledge_over_story_fallback(monkeypatch):
+    """Restore roster construction (_try_load_session_from_db) applies the
+    same per-character-wins-over-story-fallback rule as the new-game path."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    fake_state = {"story": "common_room", "turns": 1, "location_id": "kitchen", "location": "Kitchen"}
+    fake_row = {
+        "story_id": "common_room",
+        "player_name": "ReplayUser",
+        "gender": "M",
+        "state_json": _json.dumps(fake_state),
+        "flags_json": _json.dumps({}),
+    }
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(lambda session_id, user_id: fake_row),
+    )
+
+    result = pe_mod._try_load_session_from_db("bl07_restore_common_room", "uid_bl07")
+    assert result is not None
+    restored = result["state"]
+
+    mina = restored.characters.get("mina")
+    daeho = restored.characters.get("daeho")
+    priya = restored.characters.get("priya")
+    assert mina is not None and daeho is not None and priya is not None
+
+    assert any("house mom" in e for e in mina.self_knowledge)
+    assert any("easygoing" in e.lower() for e in daeho.self_knowledge)
+    assert any("structure" in e.lower() for e in priya.self_knowledge)
+
+
+def test_newgame_and_restore_paths_keep_iu_murder_mystery_single_character_fallback(client, monkeypatch):
+    """Backward-compat: iu_murder_mystery's suspects have never had their own
+    self_knowledge -- only the story-level `character_self_knowledge` array,
+    applied via the is_main fallback to `iu`. Both roster-construction sites
+    must still produce that exact single-character shape."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    # New-game path.
+    sid = "bl07_newgame_iu"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.characters["iu"].self_knowledge, "main character (fallback) must still get story-level self_knowledge"
+    for key, ch in state.characters.items():
+        if key in ("iu", "player"):
+            continue
+        assert ch.self_knowledge == [], f"suspect {key} unexpectedly has self_knowledge"
+
+    # Restore path.
+    fake_state = {"story": "iu_murder_mystery", "turns": 1}
+    fake_row = {
+        "story_id": "iu_murder_mystery",
+        "player_name": "ReplayUser",
+        "gender": "M",
+        "state_json": _json.dumps(fake_state),
+        "flags_json": _json.dumps({}),
+    }
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        staticmethod(lambda session_id, user_id: fake_row),
+    )
+    result = pe_mod._try_load_session_from_db("bl07_restore_iu", "uid_bl07_iu")
+    assert result is not None
+    restored = result["state"]
+    assert restored.characters["iu"].self_knowledge
+    for key, ch in restored.characters.items():
+        if key in ("iu", "player"):
+            continue
+        assert ch.self_knowledge == [], f"suspect {key} unexpectedly has self_knowledge on restore"
+
+
+def test_backward_compat_iu_murder_mystery_identity_section_unchanged(client):
+    """Critical regression guard for BL-07: assembling the full system prompt
+    for iu_murder_mystery must still produce exactly ONE
+    '### CHARACTER IDENTITY' block (for `iu`, the ghost/main character),
+    worded exactly as it was before per-character self_knowledge existed --
+    none of the suspects define their own self_knowledge, so the new
+    'other present characters' loop in _character_identity_section must
+    contribute nothing for this story."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine import prompt_builder as pb
+
+    sid = "bl07_iu_identity_regression"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    sysmsg = pb.system_prompt(state, current_user_msg="hello")
+    assert sysmsg.count("### CHARACTER IDENTITY") == 1
+    assert "### CHARACTER IDENTITY — IU" in sysmsg
+    assert "- You are the ghost of the previous tenant of this apartment" in sysmsg
+    assert "speak them directly in first person" in sysmsg
+
+
+def test_common_room_mina_and_daeho_present_together_identity_blocks():
+    """Common-Room-specific BL-07 coverage: with Mina and Dae-ho both present
+    in the same location, the assembled system prompt contains both
+    '### CHARACTER IDENTITY' blocks with their respective authored content;
+    Priya's block is absent because she isn't present in this scene."""
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.state import init_state
+    from backend.app.engine.story_loader import load_story
+
+    story = load_story("common_room")
+    assert story is not None
+    by_key = {c.key: c for c in story.characters}
+    assert by_key["mina"].self_knowledge
+    assert by_key["daeho"].self_knowledge
+    assert by_key["priya"].self_knowledge
+
+    st = init_state()
+    st.story_cfg = {"meta": story.get("meta", {})}
+    st.characters["mina"] = by_key["mina"]
+    st.characters["daeho"] = by_key["daeho"]
+    st.characters["priya"] = by_key["priya"]
+    st.main_character_id = "mina"
+
+    st.add_transient_entry(
+        id="pp::mina", namespace="test", scope="scene",
+        text="__people_present_marker__:mina", expires_after_turns=4,
+    )
+    st.add_transient_entry(
+        id="pp::daeho", namespace="test", scope="scene",
+        text="__people_present_marker__:daeho", expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert sysmsg.count("### CHARACTER IDENTITY") == 2
+    assert "### CHARACTER IDENTITY — Mina" in sysmsg
+    assert "### CHARACTER IDENTITY — Dae-ho" in sysmsg
+    assert "### CHARACTER IDENTITY — Priya" not in sysmsg
+    for entry in by_key["mina"].self_knowledge:
+        assert entry in sysmsg
+    for entry in by_key["daeho"].self_knowledge:
+        assert entry in sysmsg
+    for entry in by_key["priya"].self_knowledge:
+        assert entry not in sysmsg

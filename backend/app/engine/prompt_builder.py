@@ -1111,23 +1111,8 @@ def _mode_context_section(state) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _character_identity_section(state) -> str:
-    """
-    Directly injects character self_knowledge entries as a named system prompt
-    section with explicit first-person behavioral instructions. Always present
-    when the main character has self_knowledge; never FAISS-dependent.
-    """
-    main_char = getattr(state, "main_character", None)
-    char_name = (getattr(main_char, "name", "") or "the focal character").strip() or "the focal character"
-    entries = list(getattr(main_char, "self_knowledge", None) or [])
-    # Fallback: legacy story_cfg path for tests that set story_cfg directly
-    if not entries:
-        cfg = getattr(state, "story_cfg", {}) or {}
-        if isinstance(cfg, dict):
-            entries = list(cfg.get("character_self_knowledge") or [])
-    if not entries:
-        return ""
-
+def _identity_block(char_name: str, entries: list) -> str:
+    """Render one '### CHARACTER IDENTITY — <name>' block for the given entries."""
     lines = [
         "\n────────────────────────────────────────",
         f"### CHARACTER IDENTITY — {char_name}",
@@ -1142,6 +1127,55 @@ def _character_identity_section(state) -> str:
     for entry in entries:
         lines.append(f"- {entry}")
     return "\n".join(lines) + "\n"
+
+
+def _character_identity_section(state) -> str:
+    """
+    Directly injects character self_knowledge entries as named system prompt
+    sections with explicit first-person behavioral instructions. Never
+    FAISS-dependent.
+
+    - The main character's block is always included when they have
+      self_knowledge, regardless of scene presence (unchanged from legacy
+      behavior — e.g. a ghost NPC who isn't tied to a location).
+    - Every OTHER character (not main, not "player") who is currently present
+      in the scene AND has their own non-empty self_knowledge also gets a
+      block, iterated in deterministic (sorted-by-key) order. This is additive:
+      stories where only the main character has self_knowledge produce
+      byte-identical output to before this function was extended.
+    """
+    main_char = getattr(state, "main_character", None)
+    main_key = (getattr(main_char, "key", "") or "").strip().lower()
+    char_name = (getattr(main_char, "name", "") or "the focal character").strip() or "the focal character"
+    entries = list(getattr(main_char, "self_knowledge", None) or [])
+    # Fallback: legacy story_cfg path for tests that set story_cfg directly
+    if not entries:
+        cfg = getattr(state, "story_cfg", {}) or {}
+        if isinstance(cfg, dict):
+            entries = list(cfg.get("character_self_knowledge") or [])
+
+    blocks: list[str] = []
+    if entries:
+        blocks.append(_identity_block(char_name, entries))
+
+    # Additional present, non-main characters with their own self_knowledge.
+    people_present_keys = _get_people_present_keys(state)
+    characters = getattr(state, "characters", {}) or {}
+    for key in sorted(people_present_keys):
+        if key == "player" or key == main_key:
+            continue
+        ch = characters.get(key)
+        if ch is None:
+            continue
+        other_entries = list(getattr(ch, "self_knowledge", None) or [])
+        if not other_entries:
+            continue
+        other_name = (getattr(ch, "name", "") or key).strip() or key
+        blocks.append(_identity_block(other_name, other_entries))
+
+    if not blocks:
+        return ""
+    return "".join(blocks)
 
 
 def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
