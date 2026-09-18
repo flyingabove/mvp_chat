@@ -1448,10 +1448,19 @@ var host = window.location.hostname.toLowerCase();
 var path = window.location.pathname.toLowerCase();
 var IS_BETA = host.startsWith("beta.") || path.includes("/beta/") || path.endsWith("/beta");
 
-// API is served from the same origin as the frontend (single Docker container).
-// Using same-origin avoids any subdomain DNS/CORS issues.
-var API_BASE    = window.location.origin + "/api";
-var AUTH_BASE   = window.location.origin;
+// API is normally served from the same origin as the frontend (single Docker
+// container per environment), EXCEPT when this page is loaded from the path
+// router at storieschat.ai/beta/ — Cloudflare only routes /beta/* page
+// requests to the beta origin, not a same-origin /api call made from that
+// page, so same-origin would silently hit the PROD api (confirmed live bug,
+// see documentation/BACKLOG.md BL-03). Mirrors the BACKEND_ORIGIN detection
+// already used for OAuth below (LOGIN_AUTH_BASE) and in frontend/debug.html.
+var BACKEND_ORIGIN = window.location.origin;
+if (IS_BETA && (host === "storieschat.ai" || host === "www.storieschat.ai")) {
+  BACKEND_ORIGIN = "https://beta-api.storieschat.ai";
+}
+var API_BASE    = BACKEND_ORIGIN + "/api";
+var AUTH_BASE   = BACKEND_ORIGIN;
 var STORIES_URL = API_BASE + "/stories";
 var STORY_URL   = API_BASE + "/story";
 var CHAT_URL    = API_BASE + "/chat";
@@ -1459,16 +1468,15 @@ var DRAFT_URL   = API_BASE + "/stories/draft";
 var USER_SESSIONS_URL = API_BASE + "/user/sessions";
 var AUTH_ME_URL = API_BASE + "/auth/me";
 var LOGIN_AUTH_BASE = AUTH_BASE;
-if (IS_BETA && (host === "storieschat.ai" || host === "www.storieschat.ai")) {
-  // storieschat.ai beta currently lacks auth routes; initiate OAuth on beta-api.
-  LOGIN_AUTH_BASE = "https://beta-api.storieschat.ai";
-}
 var GOOGLE_LOGIN_URL = LOGIN_AUTH_BASE + "/api/auth/google/login";
 
 function getStoriesEndpointCandidates(){
   var endpoints = [STORIES_URL];
   var origin = window.location.origin.replace(/\/$/, "");
-  var canonical = "https://storieschat.ai/api/stories";
+  // Canonical fallback must match the same environment as BACKEND_ORIGIN —
+  // falling back to prod's URL from a beta page would silently re-introduce
+  // BL-03 whenever the primary candidate above failed.
+  var canonical = BACKEND_ORIGIN.replace(/\/$/, "") + "/api/stories";
 
   if (origin.indexOf("www.") !== -1) {
     endpoints.push(origin.replace("://www.", "://") + "/api/stories");
