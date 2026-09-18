@@ -353,6 +353,11 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "canonical_truth": src.get("canonical_truth") or [],
         "characters": characters,
         "relationships": src.get("relationships") or {},
+        # Optional ensemble/slice-of-life mode context (see
+        # documentation/model_output_docs/SOCIAL_MODE_DESIGN.md). Absent for
+        # all pre-existing stories, so this key is simply {} for them and the
+        # prompt_builder mode layer emits nothing.
+        "mode": src.get("mode") or {},
     }
 
 
@@ -362,6 +367,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         "id", "title", "theme", "instance", "opening", "world", "time", "emotion",
         "goal", "win_detection", "epistemic_seed", "canonical_truth", "characters", "relationships",
         "character_self_knowledge",  # injected directly into system prompt; not via FAISS
+        "mode",  # injected directly via the prompt_builder mode-context layer; not via FAISS
     }
 
     details: list[str] = []

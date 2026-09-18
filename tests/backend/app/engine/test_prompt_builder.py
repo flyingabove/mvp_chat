@@ -730,3 +730,99 @@ def test_character_identity_section_absent_when_not_defined():
 
     sysmsg = pb.system_prompt(st)
     assert "### CHARACTER IDENTITY" not in sysmsg
+
+
+# ─── Optional `mode` layer (social_sim / ensemble slice-of-life games) ───────
+# See documentation/model_output_docs/SOCIAL_MODE_DESIGN.md for the schema.
+
+def test_mode_context_section_absent_when_no_mode_key():
+    """Backward compatibility: a story without `mode` gets zero extra content."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["npc"] = Character(key="npc", name="NPC", role="guard")
+    st.main_character_id = "npc"
+
+    sysmsg = pb.system_prompt(st)
+    assert "GAME MODE CONTEXT" not in sysmsg
+    assert pb._mode_context_section(st) == ""
+
+
+def test_mode_context_section_byte_identical_prompt_for_existing_story():
+    """A05-style regression guard: adding the mode layer must not change the
+    assembled prompt for any story that predates it (e.g. the IU mystery),
+    byte for byte."""
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.story_loader import load_story
+
+    story = load_story("iu_murder_mystery")
+    assert story is not None
+    story_dict = story.as_dict()
+    assert "mode" not in story_dict, "fixture assumption: iu_murder_mystery has no mode key"
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": story_dict.get("meta", {}),
+        "character_self_knowledge": story_dict.get("character_self_knowledge", []),
+    }
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+
+    before = pb.system_prompt(st, current_user_msg="hello")
+    # Sanity: the mode layer genuinely contributes nothing for this story_cfg.
+    assert pb._mode_context_section(st) == ""
+    after = pb.system_prompt(st, current_user_msg="hello")
+    assert before == after
+
+
+def test_mode_context_section_injected_for_social_sim_story():
+    """A story with a `mode` block gets the GAME MODE CONTEXT section, including
+    the confessional convention text when confessional.enabled is true."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {"disclaimer": "fiction"},
+        "mode": {
+            "type": "social_sim",
+            "setting": "shared_house",
+            "open_ended": True,
+            "cast_size": 3,
+            "confessional": {
+                "enabled": True,
+                "convention": "Player may address an unseen listener directly as a private aside.",
+            },
+            "daily_rhythm": ["Mornings are rushed."],
+        },
+    }
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate")
+    st.main_character_id = "mina"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### GAME MODE CONTEXT" in sysmsg
+    assert "ensemble slice-of-life story" in sysmsg
+    assert "shared house" in sysmsg
+    assert "no fixed win condition" in sysmsg
+    assert "Confessional convention" in sysmsg
+    assert "Player may address an unseen listener directly as a private aside." in sysmsg
+    assert "Mornings are rushed." in sysmsg
+    # Never react to confessional asides as an NPC.
+    assert "never have an NPC" in sysmsg or "react to" in sysmsg
+
+
+def test_mode_context_section_omitted_confessional_block():
+    """confessional.enabled False (or absent) means no confessional text."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {"type": "social_sim", "setting": "shared_house", "open_ended": True, "cast_size": 3},
+    }
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate")
+    st.main_character_id = "mina"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### GAME MODE CONTEXT" in sysmsg
+    assert "Confessional convention" not in sysmsg

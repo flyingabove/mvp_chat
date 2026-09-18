@@ -133,16 +133,18 @@ Then call `build_messages(prompt_input, return_debug=True)`.
 ## 7) System Prompt Construction (`prompt_builder.py`)
 `system_prompt(...)` composes:
 1. Base behavior/style rules.
-2. Epistemic knowledge stack (`_format_labeled_knowledge_stack`):
+2. Optional mode-context layer (`_mode_context_section`, see `SOCIAL_MODE_DESIGN.md`) — tone/setting prose for stories that declare a top-level `mode` object (e.g. `social_sim` ensemble games). Empty string (no-op) for any story without `mode`.
+3. Epistemic knowledge stack (`_format_labeled_knowledge_stack`):
    - `CANONICAL_CORE`: character basics + canonical facts,
    - `CANONICAL_GRAPH`: current place info,
    - `SUBJECTIVE_BELIEF`: belief claims for active speaker,
    - `RETRIEVED_MEMORY`: FAISS/BM25 chunks.
-3. Relationship section (`character_graph.format_for_prompt`).
-4. Scene brief includes explicit per-turn scene context:
+4. Relationship section (`character_graph.format_for_prompt`).
+5. Scene brief includes explicit per-turn scene context:
    - `people_present` list and count,
    - `speakers` list.
-5. Optional truth-mode override.
+6. Character self-knowledge (`_character_identity_section` — single main-character only, see `SOCIAL_MODE_DESIGN.md` §5).
+7. Optional truth-mode override.
 
 Important current rule in preface:
 - If chunk visibility is not explicit for speaker, model should make best reasonable determination; hedge when uncertain.

@@ -1036,6 +1036,81 @@ def _room_relationship_section(state: GameState, room_character_ids: set) -> str
     )
 
 
+def _mode_context_section(state) -> str:
+    """
+    Optional game-mode context layer.
+
+    Purely additive/backward-compatible: reads the OPTIONAL top-level `mode`
+    object from story_cfg (see documentation/model_output_docs/SOCIAL_MODE_DESIGN.md).
+    Stories that omit `mode` (all 5 pre-existing stories at the time this layer
+    was added) get an empty string here, so the assembled prompt is unchanged
+    for them. Intended for ensemble/slice-of-life "social_sim" style games
+    (e.g. a shared-house game) where there is no single mystery to solve.
+    """
+    cfg = getattr(state, "story_cfg", {}) or {}
+    mode_cfg = cfg.get("mode") if isinstance(cfg, dict) else None
+    if not isinstance(mode_cfg, dict) or not mode_cfg:
+        return ""
+
+    mode_type = str(mode_cfg.get("type") or "").strip()
+    if not mode_type:
+        return ""
+
+    setting = str(mode_cfg.get("setting") or "").strip()
+    setting_prose = setting.replace("_", " ").strip()
+    cast_size = mode_cfg.get("cast_size")
+    open_ended = bool(mode_cfg.get("open_ended"))
+
+    desc_bits: list[str] = []
+    if mode_type == "social_sim":
+        tail = f" set in a {setting_prose}" if setting_prose else ""
+        desc_bits.append(f"This is an ensemble slice-of-life story{tail}.")
+        if cast_size:
+            desc_bits.append(
+                f"The cast includes {cast_size} recurring housemates/characters "
+                "living day-to-day life together — this is not a mystery to solve."
+            )
+        if open_ended:
+            desc_bits.append(
+                "There is no fixed win condition; play centers on daily life, "
+                "house dynamics, and relationships that can deepen (as friendship "
+                "or romance) depending on player choices."
+            )
+    else:
+        tail = f" ({setting_prose})" if setting_prose else ""
+        desc_bits.append(f"This story runs in '{mode_type}' mode{tail}.")
+
+    daily_rhythm = mode_cfg.get("daily_rhythm")
+    if isinstance(daily_rhythm, list) and daily_rhythm:
+        rhythm_text = " ".join(str(x).strip() for x in daily_rhythm if str(x).strip())
+        if rhythm_text:
+            desc_bits.append(f"Typical daily texture: {rhythm_text}")
+
+    lines = [
+        "\n────────────────────────────────────────",
+        "### GAME MODE CONTEXT",
+        "────────────────────────────────────────",
+        " ".join(desc_bits),
+    ]
+
+    confessional = mode_cfg.get("confessional")
+    if isinstance(confessional, dict) and confessional.get("enabled"):
+        convention = str(confessional.get("convention") or "").strip()
+        if not convention:
+            convention = (
+                "The player may address an unseen listener directly as a private "
+                "aside; other characters never hear or react to these asides."
+            )
+        lines.append("")
+        lines.append(f"Confessional convention: {convention}")
+        lines.append(
+            "Simply narrate through these asides as authored — never have an NPC "
+            "react to, acknowledge, or overhear them."
+        )
+
+    return "\n".join(lines) + "\n"
+
+
 def _character_identity_section(state) -> str:
     """
     Directly injects character self_knowledge entries as a named system prompt
@@ -1226,6 +1301,8 @@ but the character's spoken words must still carry the correction.
 The focal character is {char_name}. Current emotional posture is {emotion}.
 """
 
+    mode_context = _mode_context_section(state)
+
     character_identity = _character_identity_section(state)
 
     scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)
@@ -1280,6 +1357,7 @@ EXAMPLE (WRONG — do NOT do this):
     # most recent instruction the LLM sees before processing the user's message.
     full_prompt = (
         base_prompt
+        + mode_context
         + scene_brief
         + knowledge_stack_section
         + relationship_section
@@ -1290,6 +1368,7 @@ EXAMPLE (WRONG — do NOT do this):
     if return_layers:
         layers = {
             "base_prompt": base_prompt,
+            "mode_context": mode_context,
             "character_identity": character_identity,
             "scene_brief": scene_brief,
             "knowledge_stack": knowledge_stack_section,
