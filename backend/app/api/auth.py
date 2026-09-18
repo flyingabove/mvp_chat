@@ -13,6 +13,23 @@ from backend.app.db.repos import UserRepo, SessionRepo
 
 router = APIRouter()
 
+# A04 fix: OAuth CSRF protection. The `state` param Google echoes back on
+# callback must be bound to the browser that initiated the flow, single-use,
+# and short-lived. We have no server-side session store for a pre-login
+# anonymous browser, so we bind it via a short-lived HttpOnly cookie set on
+# /login and checked (then cleared, so it can't be replayed) on /callback.
+# Without this, an attacker could start their own OAuth flow, then trick a
+# victim's browser into visiting the callback URL with the attacker's
+# code+state — logging the victim in as the attacker's account (and, worse,
+# transferring the victim's guest session data to the attacker, since
+# callback also transfers guest sessions to the authenticated user).
+_OAUTH_STATE_COOKIE = "storieschat_oauth_state"
+_OAUTH_STATE_MAX_AGE_SECONDS = 600  # 10 minutes
+
+
+def _clear_oauth_state_cookie(resp) -> None:
+    resp.delete_cookie(_OAUTH_STATE_COOKIE, path="/")
+
 
 def _build_redirect_uri(request: Request) -> str:
     """Build the OAuth callback URL based on the incoming host.
@@ -39,11 +56,24 @@ def _build_frontend_base(request: Request) -> str:
 @router.get("/auth/google/login")
 async def google_login(request: Request):
     """Redirect browser to Google OAuth consent screen."""
-    state = secrets.token_urlsafe(16)
+    state = secrets.token_urlsafe(32)
     redirect_uri = _build_redirect_uri(request)
     url = build_auth_url(redirect_uri=redirect_uri, state=state)
     log.info("OAuth redirect_uri=%s  auth_url=%s", redirect_uri, url[:200])
-    return RedirectResponse(url=url)
+
+    resp = RedirectResponse(url=url)
+    host = request.headers.get("host", "")
+    is_local = host.startswith("localhost") or host.startswith("127.0.0.1")
+    resp.set_cookie(
+        _OAUTH_STATE_COOKIE,
+        state,
+        max_age=_OAUTH_STATE_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=not is_local,
+        path="/",
+    )
+    return resp
 
 
 @router.get("/api/auth/google/callback")
@@ -57,32 +87,53 @@ async def google_callback(code: str, state: str, request: Request):
     - create JWT
     - redirect to frontend with ?token=<jwt>
     """
+    # A04 fix: validate state BEFORE doing anything else (token exchange,
+    # userinfo, guest-session transfer). Reject missing/mismatched state.
+    # The cookie is single-use: it is cleared on every response below,
+    # success or failure, so a replayed callback (same code+state) cannot
+    # succeed twice even if state validation passed once already.
+    cookie_state = request.cookies.get(_OAUTH_STATE_COOKIE, "")
+    if not cookie_state or not state or not secrets.compare_digest(cookie_state, state):
+        log.warning("OAuth callback rejected: state missing/mismatched (has_cookie=%s)", bool(cookie_state))
+        resp = JSONResponse(
+            status_code=400,
+            content={"error": "invalid_state", "detail": "OAuth state is missing, expired, or does not match"},
+        )
+        _clear_oauth_state_cookie(resp)
+        return resp
+
     redirect_uri = _build_redirect_uri(request)
     try:
         token_data = await exchange_code(code=code, redirect_uri=redirect_uri)
     except Exception as exc:
         log.error("OAuth token exchange failed: %s", exc)
-        return JSONResponse(
+        resp = JSONResponse(
             status_code=502,
             content={"error": "token_exchange_failed", "detail": str(exc)},
         )
+        _clear_oauth_state_cookie(resp)
+        return resp
 
     access_token = token_data.get("access_token", "")
     if not access_token:
         log.error("OAuth token response missing access_token: %s", token_data)
-        return JSONResponse(
+        resp = JSONResponse(
             status_code=502,
             content={"error": "no_access_token", "detail": "Google did not return an access token"},
         )
+        _clear_oauth_state_cookie(resp)
+        return resp
 
     try:
         user_info = await get_userinfo(access_token)
     except Exception as exc:
         log.error("OAuth userinfo fetch failed: %s", exc)
-        return JSONResponse(
+        resp = JSONResponse(
             status_code=502,
             content={"error": "userinfo_failed", "detail": str(exc)},
         )
+        _clear_oauth_state_cookie(resp)
+        return resp
 
     user_id = user_info.get("id") or user_info.get("sub", "")
     email = user_info.get("email", "")
@@ -93,10 +144,12 @@ async def google_callback(code: str, state: str, request: Request):
         await UserRepo.upsert_user(user_id=user_id, email=email, name=name, avatar_url=avatar_url)
     except Exception as exc:
         log.error("OAuth user upsert failed: %s", exc)
-        return JSONResponse(
+        resp = JSONResponse(
             status_code=500,
             content={"error": "db_upsert_failed", "detail": str(exc)},
         )
+        _clear_oauth_state_cookie(resp)
+        return resp
 
     # Transfer guest sessions to the newly authenticated user
     guest_cookie = request.cookies.get("storieschat_guest_id", "")
@@ -122,6 +175,8 @@ async def google_callback(code: str, state: str, request: Request):
     resp = RedirectResponse(url=f"{frontend_base}?token={jwt_token}")
     # Clear the guest cookie after transfer (user now has a real account)
     resp.delete_cookie("storieschat_guest_id", path="/")
+    # Single-use: the OAuth state cookie must not survive a successful login either.
+    _clear_oauth_state_cookie(resp)
     return resp
 
 
