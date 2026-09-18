@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Request
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id
 from backend.app.db.repos import SessionRepo, ConversationRepo
 
+import asyncio
 import httpx
 import json
 import logging
@@ -1439,10 +1440,52 @@ def handle_name_confirmation(user_msg: str, state: GameState):
 
 
 # ---------------------------------------------------------------------------
+# A12: per-session turn serialization
+# ---------------------------------------------------------------------------
+# The turn pipeline reads/mutates shared mutable state cached in SESSIONS,
+# awaits a model call, then persists in a separate step — two overlapping
+# calls for the SAME session_id (parallel tabs, a client retry racing the
+# original request, etc.) could interleave and double-apply a turn or have
+# one overwrite the other's progress. A per-process asyncio.Lock keyed by
+# session_id is sufficient here because this service runs a single uvicorn
+# worker process (see Dockerfile's `exec uvicorn ... ` with no --workers
+# flag, and Railway.toml has no replica/scale config) — if that ever
+# changes to multiple worker processes/containers serving the same
+# session, this in-process lock stops being sufficient and a DB-level
+# revision/optimistic-concurrency check would additionally be needed. Not
+# implemented here: request-ID based dedup of an identical retried
+# request (the audit's fuller recommendation) — this lock only prevents
+# concurrent turns from corrupting each other; a *retried* request for the
+# same turn will still serialize and apply a second time. That is a
+# smaller, separate piece of work flagged as out of scope for this pass.
+_SESSION_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _get_session_lock(session_id: str) -> asyncio.Lock:
+    lock = _SESSION_LOCKS.get(session_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _SESSION_LOCKS[session_id] = lock
+    return lock
+
+
+# ---------------------------------------------------------------------------
 # MAIN CHAT ENDPOINT
 # ---------------------------------------------------------------------------
 @router.post("/chat")
 async def chat_handler(request: Request, data: dict, _auth_user: dict | None = Depends(get_optional_user)):
+    """Thin, lock-acquiring wrapper around _chat_handler_impl (A12).
+
+    Serializes turn processing per session_id so two overlapping requests
+    for the same session (parallel tabs, a racing retry) run one at a time
+    instead of interleaving reads/writes of the shared cached session state.
+    """
+    session_id = data.get("session_id") or "default"
+    async with _get_session_lock(session_id):
+        return await _chat_handler_impl(request, data, _auth_user)
+
+
+async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | None):
     req_id = str(uuid.uuid4())[:8]
     session_id = data.get("session_id") or "default"
     # Priority: JWT user > guest device ID > anonymous

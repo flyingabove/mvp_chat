@@ -1780,6 +1780,67 @@ from backend.app.integration_playback.scenarios.scenario_iu_identity_correction 
 
 
 @pytest.mark.integration
+# ============================================================================
+# A12: per-session turn serialization
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_chat_handler_serializes_overlapping_calls_for_same_session(monkeypatch):
+    """A12 regression: two overlapping /api/chat-style calls for the SAME
+    session_id must not run their turn-processing critical sections
+    concurrently (which could interleave reads/writes of the shared
+    SESSIONS[session_id] cache and double-apply or corrupt a turn)."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = {"current": 0, "max_concurrent": 0}
+
+    async def _fake_impl(request, data, _auth_user):
+        state["current"] += 1
+        state["max_concurrent"] = max(state["max_concurrent"], state["current"])
+        await asyncio.sleep(0.05)
+        state["current"] -= 1
+        return {"reply": "ok"}
+
+    monkeypatch.setattr(pe_mod, "_chat_handler_impl", _fake_impl)
+
+    same_session = {"session_id": "a12_same_sess", "message": "hi"}
+    results = await asyncio.gather(
+        pe_mod.chat_handler(request=None, data=dict(same_session), _auth_user=None),
+        pe_mod.chat_handler(request=None, data=dict(same_session), _auth_user=None),
+    )
+    assert all(r == {"reply": "ok"} for r in results)
+    assert state["max_concurrent"] == 1, (
+        f"overlapping calls for the same session_id ran concurrently: max_concurrent={state['max_concurrent']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_chat_handler_does_not_serialize_different_sessions(monkeypatch):
+    """The per-session lock must not become a global lock — two DIFFERENT
+    session_ids should still be able to process turns concurrently."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = {"current": 0, "max_concurrent": 0}
+
+    async def _fake_impl(request, data, _auth_user):
+        state["current"] += 1
+        state["max_concurrent"] = max(state["max_concurrent"], state["current"])
+        await asyncio.sleep(0.05)
+        state["current"] -= 1
+        return {"reply": "ok"}
+
+    monkeypatch.setattr(pe_mod, "_chat_handler_impl", _fake_impl)
+
+    results = await asyncio.gather(
+        pe_mod.chat_handler(request=None, data={"session_id": "a12_sess_x", "message": "hi"}, _auth_user=None),
+        pe_mod.chat_handler(request=None, data={"session_id": "a12_sess_y", "message": "hi"}, _auth_user=None),
+    )
+    assert all(r == {"reply": "ok"} for r in results)
+    assert state["max_concurrent"] == 2, (
+        f"different sessions were serialized against each other: max_concurrent={state['max_concurrent']}"
+    )
+
+
 def test_api_end_to_end_5_turns_time_and_location():
     ChatFiveTurnScenario.run_as_test()
 
