@@ -2129,6 +2129,32 @@ $("onboard-continue-btn").addEventListener("click", function(){
 });
 
 /* ─── CHAT SCREEN ───────────────────────────────── */
+// A06 fix: launchChat and resumeGameFromSession each used to (1) write
+// directly to the static #chat-header-name node, then (2) wipe #chat-messages
+// via innerHTML="" (destroying that node), then (3) rebuild a new
+// #chat-character-header block that did NOT recreate #chat-header-name (or
+// #chat-avatar). Step (1)'s write was already a no-op in practice (erased a
+// moment later by step 2), but after the FIRST launch/resume call those ids
+// no longer existed in the DOM at all — so a SECOND launch/resume call
+// (e.g. launch -> home -> launch again, or resume -> launch) would
+// null-dereference $("chat-header-name") and throw. This single function is
+// now the only place that builds the header, and it always (re)creates
+// chat-avatar/chat-header-name/chat-header-badge together as one unit, so
+// the ids are never left dangling between calls.
+function renderChatCharacterHeader(story){
+  var msgs = $("chat-messages");
+  msgs.innerHTML = "";
+  var header = document.createElement("div");
+  header.id = "chat-character-header";
+  header.innerHTML = [
+    '<div id="chat-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;">' + genreEmoji(story.genre || story.theme) + '</div>',
+    '<div id="chat-header-name" style="font-size:17px;font-weight:700;margin-bottom:2px;">' + escapeHTML(story.title) + '</div>',
+    '<div id="chat-header-badge" style="font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;">' + escapeHTML(story.genre || "StoriesChat") + '</div>'
+  ].join("");
+  msgs.appendChild(header);
+  return header;
+}
+
 function launchChat(story, playerName, gender, guestMode){
   guestMode = Boolean(guestMode);
   var session = {
@@ -2159,20 +2185,9 @@ function launchChat(story, playerName, gender, guestMode){
   $("chat-char-sub").textContent = story.genre || "Game";
   $("chat-char-avatar-mini").textContent = genreEmoji(story.genre || story.theme);
   $("chat-user-dock-avatar").textContent = appState.userAvatarLabel;
-  $("chat-header-name").textContent = story.title;
-  $("chat-avatar").textContent = genreEmoji(story.genre || story.theme);
 
-  // Clear messages (keep only character header)
-  var msgs = $("chat-messages");
-  msgs.innerHTML = "";
-  var header = document.createElement("div");
-  header.id = "chat-character-header";
-  header.innerHTML = [
-    '<div id="chat-avatar" class="" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;">' + genreEmoji(story.genre || story.theme) + '</div>',
-    '<div style="font-size:17px;font-weight:700;margin-bottom:2px;">' + escapeHTML(story.title) + '</div>',
-    '<div style="font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;">' + escapeHTML(story.genre || "StoriesChat") + '</div>'
-  ].join("");
-  msgs.appendChild(header);
+  // Clear messages and (re)build the character header as one unit (A06).
+  renderChatCharacterHeader(story);
 
   addSystemMessage("Starting game as " + playerName + "…");
   if (guestMode) {
@@ -2277,18 +2292,8 @@ function resumeGameFromSession(sess){
   $("chat-char-avatar-mini").textContent = genreEmoji(story.genre || story.theme);
   $("chat-user-dock-avatar").textContent = appState.userAvatarLabel;
 
-  var msgs = $("chat-messages");
-  msgs.innerHTML = "";
-
-  // Show character header (same as new game)
-  var header = document.createElement("div");
-  header.id = "chat-character-header";
-  header.innerHTML = [
-    '<div id="chat-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;">' + genreEmoji(story.genre || story.theme) + '</div>',
-    '<div style="font-size:17px;font-weight:700;margin-bottom:2px;">' + escapeHTML(story.title) + '</div>',
-    '<div style="font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;">' + escapeHTML(story.genre || "StoriesChat") + '</div>'
-  ].join("");
-  msgs.appendChild(header);
+  // Clear messages and (re)build the character header as one unit (A06).
+  renderChatCharacterHeader(story);
 
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
 
