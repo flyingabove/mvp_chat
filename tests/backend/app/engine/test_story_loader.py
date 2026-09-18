@@ -131,3 +131,24 @@ def test_story_definition_preserves_per_character_self_knowledge_round_trip():
         "You are quietly resentful.",
         "You never forget a slight.",
     ]
+
+
+def test_six_strangers_all_characters_have_distinct_self_knowledge():
+    """Six Strangers ships four housemates and, per BL-07 (self_knowledge is
+    genuinely per-character now), every one of them must author their own
+    non-empty self_knowledge array — no falling back to a single main
+    character's block. Each array must also be distinct from the others."""
+    story = load_story("six_strangers")
+    assert story is not None
+    assert len(story.characters) == 4
+
+    seen_texts = []
+    for char in story.characters:
+        assert char.self_knowledge, f"{char.key} is missing self_knowledge"
+        assert len(char.self_knowledge) >= 2
+        joined = " ".join(char.self_knowledge)
+        assert joined not in seen_texts, f"{char.key}'s self_knowledge duplicates another character's"
+        seen_texts.append(joined)
+
+    keys = {c.key for c in story.characters}
+    assert keys == {"kenji", "reiko", "asami", "ren"}

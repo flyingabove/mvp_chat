@@ -26,7 +26,11 @@ Optional top-level key in story JSON:
     "Mornings are rushed — someone's always looking for their keys.",
     "Evenings are the real social currency of the house.",
     "Weekends drift."
-  ]
+  ],
+  "narrator_asides": {
+    "enabled": true,
+    "style": "Every so often, step outside the scene for a brief, wry, warm aside in the voice of an unseen documentary crew quietly observing the house, then drop back into the scene."
+  }
 }
 ```
 
@@ -41,6 +45,8 @@ Field-by-field:
 | `confessional.enabled` | bool | no | Turns on the confessional-convention paragraph. |
 | `confessional.convention` | string | no | Custom convention text. If omitted while `enabled: true`, a sensible default sentence is used. |
 | `daily_rhythm` | string[] | no | Up to a few flavor lines describing typical daily texture (used for prompt tone only, not simulated). |
+| `narrator_asides.enabled` | bool | no | Turns on the narrator-aside instruction — an occasional, brief moment where the *storyteller itself* (not the player) steps outside the scene into a wry, external observer voice (e.g. a documentary-crew aside), then returns to the scene. Added for `six_strangers`; introduced additively the same way `confessional` was, so stories that omit it (including The Common Room) render byte-identical prompts to before this field existed — see `test_mode_context_section_narrator_asides_absent_by_default` in `tests/backend/app/engine/test_prompt_builder.py`. |
+| `narrator_asides.style` | string | no | Custom description of the aside's voice/style. If omitted while `enabled: true`, a sensible default sentence is used. This is deliberately distinct from `confessional`: confessional is the *player* addressing an unseen listener in-scene; `narrator_asides` is the *storyteller* briefly breaking from the scene in its own voice. |
 
 Implementation: `backend/app/engine/prompt_builder.py::_mode_context_section(state)`. It reads `state.story_cfg["mode"]` and returns `""` when the key is absent/empty/malformed — so a story with no `mode` key, an empty `{}` `mode`, or a `mode` missing `type` all fall back to zero-length output.
 
@@ -118,8 +124,8 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 6. **`relationships.edges`**: seed every housemate→player edge, and at least one NPC-NPC edge, so `ROOM DYNAMICS` prose reflects real ensemble relationships when multiple characters share a scene.
 7. **`opening.text`**: write real, evocative move-in-day (or equivalent) prose — this is a creative deliverable, not boilerplate.
 8. **No `goal`/`win_detection`** if the game is meant to be open-ended — just omit both keys.
-9. **`mode`**: add the block from §2 with `type: "social_sim"`.
-10. **Test**: the parametrized `test_every_catalogued_story_initializes_end_to_end` in `tests/backend/app/api/test_prompt_engine.py` automatically picks up any story returned by `all_stories()`/the registry — no per-story test needed, but do add a targeted `win_condition_detected` test if you're omitting `goal`/`win_detection` (see `test_win_condition_detected_false_for_common_room_open_ended_story` in `tests/backend/app/engine/test_gameplay.py`).
+9. **`mode`**: add the block from §2 with `type: "social_sim"`. Optionally add `narrator_asides` (see §2) if your game wants the storyteller to occasionally step outside the scene in its own wry, external-observer voice — `six_strangers` uses this for a "documentary aside" device; The Common Room does not use it and is unaffected (backward-compatible, see the field's test above).
+10. **Test**: the parametrized `test_every_catalogued_story_initializes_end_to_end` in `tests/backend/app/api/test_prompt_engine.py` automatically picks up any story returned by `all_stories()`/the registry — no per-story test needed, but do add a targeted `win_condition_detected` test if you're omitting `goal`/`win_detection` (see `test_win_condition_detected_false_for_common_room_open_ended_story` / `test_win_condition_detected_false_for_six_strangers_open_ended_story` in `tests/backend/app/engine/test_gameplay.py`), plus a per-character `self_knowledge` sanity test if you author more than one character (see `test_six_strangers_all_characters_have_distinct_self_knowledge` in `tests/backend/app/engine/test_story_loader.py`).
 
 ## 8. Explicit limitations (read before assuming more exists)
 

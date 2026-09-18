@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0e1a2a"/>
+      <stop offset="55%" stop-color="#14243a"/>
+      <stop offset="100%" stop-color="#080f18"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="80%" cy="20%" r="30%">
+      <stop offset="0%" stop-color="#a5f3fc" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#0e1a2a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="warm3" cx="25%" cy="60%" r="35%">
+      <stop offset="0%" stop-color="#f472b6" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#0e1a2a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="450" fill="url(#bg2)"/>
+  <rect width="800" height="450" fill="url(#moon)"/>
+  <rect width="800" height="450" fill="url(#warm3)"/>
+
+  <!-- Distant city rooftops skyline -->
+  <rect x="0" y="150" width="60" height="150" fill="#0a1420" opacity="0.9"/>
+  <rect x="70" y="120" width="50" height="180" fill="#0a1420" opacity="0.9"/>
+  <rect x="130" y="165" width="70" height="135" fill="#0a1420" opacity="0.9"/>
+  <rect x="620" y="110" width="55" height="190" fill="#0a1420" opacity="0.9"/>
+  <rect x="685" y="150" width="60" height="150" fill="#0a1420" opacity="0.9"/>
+  <rect x="750" y="130" width="50" height="170" fill="#0a1420" opacity="0.9"/>
+  <circle cx="85" cy="140" r="3" fill="#fde68a" opacity="0.6"/>
+  <circle cx="150" cy="185" r="3" fill="#fde68a" opacity="0.6"/>
+  <circle cx="645" cy="140" r="3" fill="#fde68a" opacity="0.6"/>
+  <circle cx="705" cy="175" r="3" fill="#fde68a" opacity="0.6"/>
+
+  <!-- Moon -->
+  <circle cx="640" cy="90" r="22" fill="#e0f2fe" opacity="0.8"/>
+
+  <!-- Terrace floor -->
+  <rect x="0" y="300" width="800" height="150" fill="#08111c" opacity="0.92"/>
+  <line x1="0" y1="300" x2="800" y2="300" stroke="#1e3350" stroke-width="1" opacity="0.6"/>
+
+  <!-- Terrace railing -->
+  <line x1="0" y1="298" x2="800" y2="298" stroke="#22405e" stroke-width="4"/>
+  <line x1="40" y1="260" x2="40" y2="298" stroke="#22405e" stroke-width="4"/>
+  <line x1="160" y1="260" x2="160" y2="298" stroke="#22405e" stroke-width="4"/>
+  <line x1="280" y1="260" x2="280" y2="298" stroke="#22405e" stroke-width="4"/>
+  <line x1="520" y1="260" x2="520" y2="298" stroke="#22405e" stroke-width="4"/>
+  <line x1="640" y1="260" x2="640" y2="298" stroke="#22405e" stroke-width="4"/>
+  <line x1="760" y1="260" x2="760" y2="298" stroke="#22405e" stroke-width="4"/>
+
+  <!-- Four housemate silhouettes -->
+  <ellipse cx="150" cy="222" rx="22" ry="25" fill="#08111c"/>
+  <path d="M139,241 Q133,264 131,286 L169,286 Q167,264 161,241 Z" fill="#08111c"/>
+
+  <ellipse cx="270" cy="215" rx="22" ry="25" fill="#08111c"/>
+  <path d="M259,234 Q253,262 251,286 L289,286 Q287,262 281,234 Z" fill="#08111c"/>
+
+  <ellipse cx="500" cy="218" rx="22" ry="25" fill="#08111c"/>
+  <path d="M489,237 Q483,263 481,286 L519,286 Q517,263 511,237 Z" fill="#08111c"/>
+
+  <ellipse cx="620" cy="212" rx="22" ry="25" fill="#08111c"/>
+  <path d="M609,231 Q603,261 601,286 L639,286 Q637,261 631,231 Z" fill="#08111c"/>
+
+  <!-- Small potted lemon tree -->
+  <path d="M390,296 Q382,260 372,240 M390,296 Q396,255 408,232 M390,296 Q400,262 412,246" stroke="#a3e635" stroke-width="4" fill="none" opacity="0.7" stroke-linecap="round"/>
+  <rect x="375" y="294" width="30" height="24" fill="#3a2a1e" rx="3"/>
+
+  <!-- Plastic chairs -->
+  <rect x="330" y="270" width="30" height="10" fill="#274056" rx="2"/>
+  <rect x="440" y="272" width="30" height="10" fill="#274056" rx="2"/>
+
+  <!-- Accent edges -->
+  <rect x="0" y="0" width="4" height="450" fill="#38bdf8" opacity="0.4"/>
+  <rect x="796" y="0" width="4" height="450" fill="#f472b6" opacity="0.3"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="370" width="800" height="80" fill="#08111c" opacity="0.92"/>
+  <text x="400" y="405" font-family="Georgia,serif" font-size="28" fill="#e0f2fe" text-anchor="middle" font-weight="bold">Six Strangers</text>
+  <text x="400" y="430" font-family="Arial,sans-serif" font-size="12" fill="#93c5fd" text-anchor="middle" letter-spacing="5">ENSEMBLE DRAMA</text>
+</svg>

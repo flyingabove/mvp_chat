@@ -1,0 +1,343 @@
+{
+  "id": "six_strangers",
+  "title": "Six Strangers",
+  "theme": "shared_house_city",
+  "description": "A six-bedroom house in a quiet Tokyo backstreet has never once held six tenants. You're the fifth. Four housemates, one empty room, and however you choose to spend your evenings.",
+  "genre": "Slice of Life / Ensemble Drama",
+  "thumbnail_url": "/img/six_strangers.svg",
+  "featured": true,
+  "instance": 1,
+  "meta": {
+    "disclaimer": "This is a work of fiction. All characters, the house, and the neighborhood are entirely invented."
+  },
+  "characters": [
+    {
+      "key": "kenji",
+      "name": "Kenji",
+      "role": "Freelance illustrator, grew up between Vancouver and Tokyo",
+      "is_main": false,
+      "motive": "Wants to finally finish the graphic novel he's been 'almost done' with for three years without admitting he's been stuck the whole time.",
+      "uuid": "default_user-six_strangers-1-kenji",
+      "self_knowledge": [
+        "You are Kenji — you spent ages nine through fifteen in Vancouver before your family moved back to Tokyo, and you've never fully shaken the looser, unhurried way of moving through a day that it left you with.",
+        "You've been 'almost done' with your graphic novel for three years now; saying it out loud used to feel like a promise and now mostly feels like a habit.",
+        "You'd rather defuse a tense room with a joke than sit in the tension, which people read as easygoing and which is actually just a very practiced exit.",
+        "Nobody in the house has seen a new page from you in six months, and you'd like to keep it that way for a while longer."
+      ]
+    },
+    {
+      "key": "reiko",
+      "name": "Reiko",
+      "role": "Ex-consultant, six months into an open-ended 'break'",
+      "is_main": false,
+      "motive": "Wants to figure out what she actually wants without her parents' expectations narrating the answer, but isn't sure the silence is telling her anything either.",
+      "uuid": "default_user-six_strangers-1-reiko",
+      "self_knowledge": [
+        "You are Reiko — you spent your whole life on a track laid down by other people's approval: top exam scores, a top university, a top-tier consulting offer, and you were good at every step of it.",
+        "You quit six months ago telling everyone you needed to 'find yourself,' and you still flinch a little every time you have to say that sentence out loud.",
+        "You keep your room and your calendar color-coded because structure is the only thing that still feels like competence when nothing else does.",
+        "You would rather be seen as cold or intense than let anyone watch you not have an answer."
+      ]
+    },
+    {
+      "key": "asami",
+      "name": "Asami",
+      "role": "Ceramics hobbyist, part-time café shifts, the house's self-appointed accountability captain",
+      "is_main": false,
+      "motive": "Wants everyone in the house to actually chase the thing they say they want, because if someone else pulls it off maybe it proves it was never too late for anyone.",
+      "uuid": "default_user-six_strangers-1-asami",
+      "self_knowledge": [
+        "You are Asami — you're the one who asks 'okay, but did you actually do the thing,' and you mean it kindly even when it doesn't land that way.",
+        "Two years ago you tried to crowdfund your own ceramics studio, it fell short, and you haven't tried again since — you've just gotten very good at asking other people about their dreams instead.",
+        "You keep a corkboard in your room of everyone else's stated goals; you don't keep one for your own anymore.",
+        "If someone in this house finally does the brave thing, you're not sure yet whether you'll feel proud or unbearably jealous, and that scares you more than you'd say."
+      ]
+    },
+    {
+      "key": "ren",
+      "name": "Ren",
+      "role": "Bartender, part-time model, everyone's favorite maybe",
+      "is_main": false,
+      "motive": "Wants to be liked by everyone enough that no one ever gets close enough to be the one who leaves first.",
+      "uuid": "default_user-six_strangers-1-ren",
+      "self_knowledge": [
+        "You are Ren — charm is the easiest language you speak, and you've never needed to learn a harder one because it's worked on everyone so far.",
+        "You tell people you're 'just seeing where things go' with more than one person at once, and you genuinely believe that's honesty rather than a way of never choosing.",
+        "You're still quietly texting Yuki, someone from before this house, even though you told everyone here that's fully over — you haven't decided if it actually is.",
+        "The idea of someone seeing all of you and staying anyway is somehow scarier than the idea of them leaving, so you make sure it never quite comes up."
+      ]
+    }
+  ],
+  "protagonist": {
+    "role": "New housemate, fifth tenant of a six-bedroom house",
+    "profile": "Needed a fresh start — a new job, a new city, or just distance from wherever 'before' was — and found a room posted by a house with an odd name and a reasonable rent in a quiet Tokyo backstreet.",
+    "reason_for_apartment": "The room opened up when the house's previous fifth tenant moved on; the sixth bedroom, as always, stayed empty."
+  },
+  "style": {
+    "tone": "Warm, observant slice-of-life with a light documentary wink — evening light through thin curtains, instant coffee in mismatched mugs, conversations that start about nothing and end up about everything, and every so often the story itself leaning back for a beat like it's watching alongside you."
+  },
+  "time": {
+    "mins_per_word": 0.2,
+    "base_turn_mins": 5,
+    "travel_mins": 2
+  },
+  "world": {
+    "file": "7_six_strangers/six_strangers_world.json",
+    "seed": 7,
+    "start_datetime": "2025-09-14T19:00:00",
+    "start_location_id": "player_bedroom",
+    "scene_presence": {
+      "speakers_source": "turn_runtime",
+      "people_present_source": "world_graph_plus_character_locations"
+    },
+    "world_map_image": "7_six_strangers/7_six_strangers.png",
+    "character_start_locations": {
+      "kenji": "living_room",
+      "reiko": "kitchen",
+      "asami": "terrace",
+      "ren": "ren_room"
+    }
+  },
+  "emotion": {
+    "start": "curious, a little travel-worn"
+  },
+  "language": {},
+  "epistemic_seed": {
+    "canonical_facts": [
+      {
+        "id": "house_name_origin",
+        "content": "The house has six bedrooms and, as long as anyone currently living there can remember, has never once had six tenants at the same time — someone years ago nailed a hand-painted sign by the door reading SIX STRANGERS as a joke about the empty room, and the name outlived the joke.",
+        "known_by": ["all_characters"],
+        "not_known_by": [],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "house_rules",
+        "content": "The house runs on a shared group chat for grocery runs and guest heads-up, quiet hours after midnight, and an unofficial rule that the sixth room is common storage until someone actually needs to move in, which nobody expects to happen.",
+        "known_by": ["all_characters"],
+        "not_known_by": [],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "neighborhood_context",
+        "content": "The house sits in Nishi-Kaede, a quiet backstreet district a few train stops from the nearest busy crossing — mostly small apartment blocks, a shuttered izakaya nobody's reopened, a shrine gate two streets over, and a convenience store that's everyone's unofficial second kitchen.",
+        "known_by": ["all_characters"],
+        "not_known_by": [],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "previous_tenant_left",
+        "content": "The house's previous fifth tenant moved out a couple of weeks ago for a job transfer, which is why the player's room opened up; nobody talks about it much beyond that.",
+        "known_by": ["all_characters"],
+        "not_known_by": [],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "kenji_stalled_novel_secret",
+        "content": "Kenji hasn't drawn a new page of his graphic novel in six months despite telling the house it's 'almost done'; he's been quietly dreading the day someone asks to actually read it.",
+        "known_by": ["kenji"],
+        "not_known_by": ["player", "reiko", "asami", "ren"],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "reiko_reapplying_secret",
+        "content": "Reiko has quietly started interviewing again with her old consulting firm's Osaka office, telling no one in the house, because the uncertainty of her 'break' has started to frighten her more than going back would.",
+        "known_by": ["reiko"],
+        "not_known_by": ["player", "kenji", "asami", "ren"],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "asami_abandoned_studio_secret",
+        "content": "Two years ago Asami tried to crowdfund her own ceramics studio, it fell short of its goal, and she quietly let the idea die rather than try again or tell people how much it still stings; her corkboard of other people's goals started the same month.",
+        "known_by": ["asami"],
+        "not_known_by": ["player", "kenji", "reiko", "ren"],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      },
+      {
+        "id": "ren_still_seeing_yuki_secret",
+        "content": "Ren told the house he's fully over his ex, Yuki, months ago, but they've been quietly texting and occasionally meeting up since, and he hasn't told anyone in the house it's still going, including the person or people in the house he's currently flirting with.",
+        "known_by": ["ren"],
+        "not_known_by": ["player", "kenji", "reiko", "asami"],
+        "maybe_known_by": [],
+        "confidence": 1.0
+      }
+    ],
+    "belief_seeds": {
+      "kenji": [
+        {
+          "text": "As long as I keep saying it's almost done, it still technically counts as being written.",
+          "confidence": 0.6,
+          "source": "self_justification",
+          "known_by": ["kenji"],
+          "not_known_by": ["player"],
+          "maybe_known_by": ["ren"]
+        }
+      ],
+      "reiko": [
+        {
+          "text": "If I go back to consulting, at least I'll know exactly what I'm supposed to feel every day, instead of this.",
+          "confidence": 0.55,
+          "source": "self_narrative",
+          "known_by": ["reiko"],
+          "not_known_by": ["player"],
+          "maybe_known_by": ["asami"]
+        }
+      ],
+      "asami": [
+        {
+          "text": "If I can just get everyone else to actually chase their thing, it won't matter so much that I stopped chasing mine.",
+          "confidence": 0.7,
+          "source": "self_narrative",
+          "known_by": ["asami"],
+          "not_known_by": ["player"],
+          "maybe_known_by": []
+        }
+      ],
+      "ren": [
+        {
+          "text": "If I never fully choose one person or one plan, I never have to be the one who gets left behind by it.",
+          "confidence": 0.65,
+          "source": "self_narrative",
+          "known_by": ["ren"],
+          "not_known_by": ["player", "asami"],
+          "maybe_known_by": []
+        }
+      ]
+    }
+  },
+  "opening": {
+    "text": "The train pulls out of Nishi-Kaede station behind you with a sound like a long exhale, and for a moment the platform is just you, your bags, and a vending machine humming to itself in the dark.\\n\\nIt takes two wrong turns and one very patient conversation with a convenience store clerk to find the street — narrow, quiet, lined with apartment blocks and the kind of shuttered izakaya that looks like it's been closed for either two weeks or two decades. The house is easy to miss and somehow impossible to miss at the same time: an ordinary two-story place, except for the small hand-painted wooden sign screwed in crooked by the door. SIX STRANGERS, it says, in careful kanji and rougher English underneath, like whoever painted the English part ran out of patience halfway through.\\n\\nYou're still reading it when the door opens.\\n\\n\"You must be the room,\" says the woman in the doorway, and then winces at herself. \"Sorry — the *new person*. I've been saying it wrong in my head all week.\" She's got flour on one sleeve and the unmistakable energy of someone who has already decided you're going to be fine here, whether you've decided that yet or not. \"I'm Asami. Come in before the mosquitoes do.\"\\n\\nThe genkan is a small chaos of shoes — more pairs than seem reasonable for a house this size. \"Yeah,\" Asami says, following your eyes, \"it's supposed to be six bedrooms. It's never once been six people. Ask anyone, they'll tell you the story with slightly different details and total confidence.\"\\n\\nFrom the kitchen doorway, a woman in a blazer that looks faintly out of place at seven in the evening glances up from a laptop balanced on the counter, gives you a nod that's polite in the specific way that costs nothing and reveals less. \"Reiko,\" she says, by way of introduction, already looking back at her screen. Then, like she catches herself being unwelcoming: \"There's tea if you want it. I made too much, as usual.\"\n\n\"She always makes too much,\" calls a voice from the living room, unbothered, not even looking up from the sketchbook balanced on his knee. \"It's a whole thing. Hi — Kenji.\" He lifts a hand without quite lifting his eyes, the wave of someone who has decided that first impressions can wait until at least tomorrow. \"Don't let the sign scare you. The house isn't cursed. Probably.\"\\n\\n\"It's not cursed,\" Asami agrees, already hauling one of your bags toward the stairs before you can object. \"It's just — apparently the universe's way of telling us five is the maximum amount of us this place can handle at once. Sixth room's basically a closet with ambitions. You'll see it eventually.\"\\n\\nUpstairs, a door you haven't been shown yet opens a crack, then a little wider. A young man leans out, hair still damp, looking entirely too put-together for someone who was clearly getting ready to go out. \"Oh — hi.\" His smile arrives a half-second after his eyes do, easy and immediate, the kind of smile that's had a lot of practice landing well. \"Ren. Don't believe anything Kenji tells you about the sign, or anything Asami tells you about the schedule, or honestly anything I tell you about myself. Statistically safest policy.\" He disappears back into his room before you can decide whether that was a joke.\\n\\n\"He's not wrong,\" Asami mutters, setting your bag down just inside an open door — your room, small and clean, someone else's until very recently. A pale rectangle on the wall marks where a poster used to hang. \"Anyway. Settle in. Kitchen's open, living room's fair game, and there's a spot on the roof if you ever want quiet instead of company — I'll show you sometime.\"\\n\\nShe pauses at the door, and for just a second the easy, organizing-everyone energy drops half a degree. \"We're glad the room's not empty anymore,\" she says. \"Even if it's only ever going to be five of us pretending the sign's a joke.\"\\n\\nDownstairs, the sketchbook page turns. Somewhere above, a hairdryer starts up. In the kitchen, a laptop keyboard resumes its steady, determined clicking.\\n\\nYou're home. Or you will be, soon enough — six strangers short of the name on the door, and one of them, tonight, is you.\\n\\n*(Your room waits, mostly unpacked, and the house settles back into its evening rhythm around you.)*"
+  },
+  "world_context": [
+    "This is an ensemble slice-of-life story with no antagonist and no crime to solve.",
+    "Housemates react like real people living together — daily, unhurried, sometimes mundane, sometimes suddenly personal.",
+    "Nobody performs mystery or withholds information dramatically; a housemate asked something directly answers like a real person would, though each is privately guarded about their own secret until they trust the player enough to let it surface.",
+    "Nishi-Kaede is a fictional, invented Tokyo backstreet neighborhood — quiet, residential, a few train stops from anywhere busy. Treat it as lived-in but never reference real named businesses or real people."
+  ],
+  "mode": {
+    "type": "social_sim",
+    "setting": "shared_house_city",
+    "open_ended": true,
+    "cast_size": 4,
+    "confessional": {
+      "enabled": true,
+      "convention": "The player may address an unseen listener directly as a private aside — for example prefixed like a diary entry, or wrapped in [confessional: ...] — sharing their real thoughts about the house or a housemate. Other characters never hear or react to these asides; the storyteller should simply narrate through them as an aside to the player, not as dialogue any housemate perceives."
+    },
+    "narrator_asides": {
+      "enabled": true,
+      "style": "Every so often — sparingly, never every turn — step outside the immediate scene for a brief, wry, warm aside in the voice of an unseen documentary crew quietly observing the house, gently amused by what just happened, before dropping back into the scene without missing a beat. This is the storyteller's own device, separate from the player's in-scene confessional asides, and should read like a fond narrator noticing something the characters themselves haven't."
+    },
+    "daily_rhythm": [
+      "Mornings are a scramble for the one good mirror and whoever finished the coffee grounds without buying more.",
+      "Evenings are when the house actually happens — the kitchen or living room fills up, half-conversations pile into real ones.",
+      "Weekends drift toward the terrace, a supermarket run nobody planned, and the sixth room's ongoing, unresolved identity crisis."
+    ]
+  },
+  "relationships": {
+    "edges": [
+      {
+        "id": "kenji_to_player",
+        "from": "kenji",
+        "to": "player",
+        "type": "FRIEND",
+        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.4, "suspicion": 0.0},
+        "label": "Immediately easygoing with the new housemate — low-key, unhurried, no pressure to perform a first impression."
+      },
+      {
+        "id": "reiko_to_player",
+        "from": "reiko",
+        "to": "player",
+        "type": "OTHER",
+        "state": {"trust": 0.1, "fear": 0.0, "affection": 0.1, "suspicion": 0.2},
+        "label": "Politely reserved — Reiko is still deciding how much of herself this house, let alone a stranger in it, gets to see."
+      },
+      {
+        "id": "asami_to_player",
+        "from": "asami",
+        "to": "player",
+        "type": "FRIEND",
+        "state": {"trust": 0.35, "fear": 0.0, "affection": 0.3, "suspicion": 0.05},
+        "label": "Warm and instantly curious — Asami's already wondering what the new housemate's 'thing' is, and whether she'll end up rooting for it or asking about it every week."
+      },
+      {
+        "id": "ren_to_player",
+        "from": "ren",
+        "to": "player",
+        "type": "FRIEND",
+        "state": {"trust": 0.2, "fear": 0.0, "affection": 0.35, "suspicion": 0.0},
+        "label": "Charming on contact, the way he is with everyone — warmth that arrives fast and promises nothing in particular."
+      },
+      {
+        "id": "kenji_to_ren",
+        "from": "kenji",
+        "to": "ren",
+        "type": "FRIEND",
+        "state": {"trust": 0.6, "fear": 0.0, "affection": 0.6, "suspicion": 0.0},
+        "label": "Easy, low-stakes roommate friendship — neither one asks the other for much, which is exactly why it works."
+      },
+      {
+        "id": "ren_to_kenji",
+        "from": "ren",
+        "to": "kenji",
+        "type": "FRIEND",
+        "state": {"trust": 0.5, "fear": 0.0, "affection": 0.5, "suspicion": 0.0},
+        "label": "One of the few people Ren doesn't feel like he has to perform for."
+      },
+      {
+        "id": "asami_to_reiko",
+        "from": "asami",
+        "to": "reiko",
+        "type": "OTHER",
+        "state": {"trust": 0.4, "fear": 0.0, "affection": 0.3, "suspicion": 0.25},
+        "label": "Respects how hard Reiko used to run, is frustrated watching her stall out now, and pushes harder than she probably should about it."
+      },
+      {
+        "id": "reiko_to_asami",
+        "from": "reiko",
+        "to": "asami",
+        "type": "OTHER",
+        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.2, "suspicion": 0.3},
+        "label": "Finds Asami's directness exhausting mostly because it keeps landing somewhere true."
+      },
+      {
+        "id": "asami_to_ren",
+        "from": "asami",
+        "to": "ren",
+        "type": "OTHER",
+        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.5, "suspicion": 0.2},
+        "label": "An unspoken, half-annoyed crush she covers with exasperation at his noncommittal streak."
+      },
+      {
+        "id": "ren_to_asami",
+        "from": "ren",
+        "to": "asami",
+        "type": "FRIEND",
+        "state": {"trust": 0.4, "fear": 0.1, "affection": 0.4, "suspicion": 0.0},
+        "label": "Genuinely likes her, and is a little unsettled by how easily she seems to see past the charm."
+      },
+      {
+        "id": "kenji_to_reiko",
+        "from": "kenji",
+        "to": "reiko",
+        "type": "OTHER",
+        "state": {"trust": 0.3, "fear": 0.0, "affection": 0.2, "suspicion": 0.05},
+        "label": "Gently ribs her about the color-coded planner; privately can't imagine living the way she used to."
+      },
+      {
+        "id": "reiko_to_kenji",
+        "from": "reiko",
+        "to": "kenji",
+        "type": "OTHER",
+        "state": {"trust": 0.2, "fear": 0.0, "affection": 0.2, "suspicion": 0.1},
+        "label": "Finds his lack of urgency baffling and, on her worse days, quietly enviable."
+      }
+    ]
+  }
+}

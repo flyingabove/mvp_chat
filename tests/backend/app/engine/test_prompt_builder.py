@@ -913,3 +913,83 @@ def test_mode_context_section_omitted_confessional_block():
     sysmsg = pb.system_prompt(st)
     assert "### GAME MODE CONTEXT" in sysmsg
     assert "Confessional convention" not in sysmsg
+
+
+def test_mode_context_section_narrator_asides_absent_by_default():
+    """Backward compatibility: a `mode` block without `narrator_asides` (e.g.
+    The Common Room's mode config) renders no narrator-aside text — this is
+    the byte-identical guarantee for stories that predate the field."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {
+            "type": "social_sim",
+            "setting": "shared_house",
+            "open_ended": True,
+            "cast_size": 3,
+            "confessional": {"enabled": True, "convention": "Aside convention."},
+            "daily_rhythm": ["Mornings are rushed."],
+        },
+    }
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate")
+    st.main_character_id = "mina"
+
+    before = pb.system_prompt(st)
+    sysmsg = pb.system_prompt(st)
+    assert "Narrator aside device" not in sysmsg
+    assert before == sysmsg
+
+
+def test_mode_context_section_narrator_asides_rendered_when_enabled():
+    """A story that opts into `mode.narrator_asides` gets the documentary-aside
+    instruction rendered, distinct from the player's confessional convention."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {
+            "type": "social_sim",
+            "setting": "shared_house_city",
+            "open_ended": True,
+            "cast_size": 4,
+            "confessional": {"enabled": True, "convention": "Aside convention."},
+            "narrator_asides": {
+                "enabled": True,
+                "style": "Step outside the scene for a wry documentary-crew aside.",
+            },
+        },
+    }
+    st.characters["kenji"] = Character(key="kenji", name="Kenji", role="housemate")
+    st.main_character_id = "kenji"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### GAME MODE CONTEXT" in sysmsg
+    assert "Narrator aside device" in sysmsg
+    assert "Step outside the scene for a wry documentary-crew aside." in sysmsg
+    assert "distinct" in sysmsg or "storyteller's own voice" in sysmsg
+    # Still renders the confessional convention alongside it, unaffected.
+    assert "Confessional convention" in sysmsg
+
+
+def test_mode_context_section_narrator_asides_default_style_when_blank():
+    """narrator_asides.enabled=True with no custom `style` falls back to a
+    sensible default sentence rather than rendering nothing."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {
+            "type": "social_sim",
+            "narrator_asides": {"enabled": True},
+        },
+    }
+    st.characters["kenji"] = Character(key="kenji", name="Kenji", role="housemate")
+    st.main_character_id = "kenji"
+
+    sysmsg = pb.system_prompt(st)
+    assert "Narrator aside device:" in sysmsg
+    assert "documentary crew" in sysmsg

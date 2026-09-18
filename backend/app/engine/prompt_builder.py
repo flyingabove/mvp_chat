@@ -1108,6 +1108,26 @@ def _mode_context_section(state) -> str:
             "react to, acknowledge, or overhear them."
         )
 
+    narrator_asides = mode_cfg.get("narrator_asides")
+    if isinstance(narrator_asides, dict) and narrator_asides.get("enabled"):
+        style = str(narrator_asides.get("style") or "").strip()
+        if not style:
+            style = (
+                "Occasionally step outside the scene for a brief, wry, warm aside "
+                "in an external observer's voice — as if an unseen documentary crew "
+                "is quietly commenting on what just happened — then return fully to "
+                "the scene."
+            )
+        lines.append("")
+        lines.append(f"Narrator aside device: {style}")
+        lines.append(
+            "Use this sparingly (roughly once every several turns, never every "
+            "turn) and keep it brief — one or two sentences, clearly set apart "
+            "(e.g. italicized or in parentheses) — before dropping back into the "
+            "scene. This is the storyteller's own voice stepping out, distinct "
+            "from the player's in-scene confessional asides."
+        )
+
     return "\n".join(lines) + "\n"
 
 
