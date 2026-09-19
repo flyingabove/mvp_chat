@@ -167,6 +167,23 @@ def test_prompt_layers_dict_has_new_keys():
     assert "knowledge_chunks" in layers
 
 
+def test_prompt_includes_default_persona():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.user.persona_mode = "default"
+    st.user.persona_name = "Paul Dingus"
+    st.user.persona_other = "quietly observant"
+
+    sysmsg = pb.system_prompt(st)
+    assert "Your default persona is Paul Dingus" in sysmsg
+    assert "Other attributes: " in sysmsg
+    assert "quietly observant" in sysmsg
+
+
 def test_prompt_labels_canonical_truths_with_known_by_visibility():
     from backend.app.engine import prompt_builder as pb
     from backend.app.engine.epistemic_state import EpistemicFact

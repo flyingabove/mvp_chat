@@ -58,6 +58,12 @@ class UserState:
     formal_name: str = ""
     display_name: str = ""
     gender: Optional[str] = None
+    # Persona mode for human-controlled character: 'temp' (per-session temporary) or 'default'
+    persona_mode: str = ""
+    # Optional persona identifier or display name (e.g., 'first_time_user' or a custom label)
+    persona_name: str = ""
+    # Freeform extra attributes / notes for the persona (hidden vs visible handled elsewhere)
+    persona_other: str = ""
 
 
 # ======================================================================

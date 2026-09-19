@@ -15,6 +15,20 @@ StoryCharacter = Character
 # Canonical stories directory — single source of truth for all modules.
 STORIES_DIR: str = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stories")
 
+# Reusable active-story allowlist for the product catalog.
+# Keep this small and explicit so the app is easy to reason about while still
+# staying generic for future expansion via env override.
+DEFAULT_ACTIVE_STORY_IDS = ("iu_murder_mystery", "six_strangers")
+
+
+def get_active_story_ids() -> list[str]:
+    raw = (os.getenv("ACTIVE_STORY_IDS") or "").strip()
+    if raw:
+        parsed = [p.strip() for p in raw.split(",") if p.strip()]
+        if parsed:
+            return parsed
+    return list(DEFAULT_ACTIVE_STORY_IDS)
+
 
 @dataclass
 class StoryDefinition:
@@ -173,6 +187,7 @@ def build_story_registry() -> Dict[str, Dict[str, Any]]:
     creation.
     """
     registry: Dict[str, Dict[str, Any]] = {}
+    active_story_ids = set(get_active_story_ids())
     for path, subdir in _iter_story_files():
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -183,7 +198,7 @@ def build_story_registry() -> Dict[str, Dict[str, Any]]:
             jlog({"kind": "story_registry_parse_error", "path": path, "error": str(e)})
             continue
         story_id = str(cfg.get("id") or os.path.splitext(os.path.basename(path))[0]).strip()
-        if not story_id:
+        if not story_id or story_id not in active_story_ids:
             continue
         registry[story_id] = {"path": path, "subdir": subdir, "raw": cfg}
     return registry

@@ -27,3 +27,11 @@ Patterns from user feedback to prevent repeating mistakes.
 **Rule:** Intermediate execution tasks must be tracked in one canonical file: `documentation/plans_scratch/TASKS_INTERMEDIATE.md`. Agents must consume this file before non-trivial work, update it during execution, and clean up completed entries at task end.
 
 **Added to:** `documentation/ai_learnings_mistakes/AI_TASK_WORKFLOW.md`, `documentation/AI_DOC_INDEX_CATALOGUE.md`, `.gitignore`.
+
+## 2026-09-18: Human characters are personas; default persona is canonical and reuseable
+
+**What happened:** User clarified that NPCs and player-controlled humans must be treated differently. The human character path is always a `persona`, not an NPC or a generic "player" avatar, and the app should support exactly two persona modes for now: a temp per-game persona and a built-in default persona.
+
+**Rule:** Use the term `persona` for the human-controlled character layer, reserve `NPC`/`character` for story cast members, and default to the server-stored Paul Dingus persona unless the user chooses a temp persona. Keep the system reusable across both active games and avoid custom persona creation/storage in this pass.
+
+**Added to:** `backend/app/personas/persona_store.py`, `backend/app/engine/state.py`, `frontend/index.html`.

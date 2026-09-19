@@ -1173,6 +1173,9 @@ def _serialize_state(state: GameState, log: list) -> str:
         "session_chunks": _serialize_session_chunks(state),
         "user_formal_name": getattr(state.user, "formal_name", "") if state.user else "",
         "user_display_name": getattr(state.user, "display_name", "") if state.user else "",
+        "user_persona_mode": getattr(state.user, "persona_mode", "") if state.user else "",
+        "user_persona_name": getattr(state.user, "persona_name", "") if state.user else "",
+        "user_persona_other": getattr(state.user, "persona_other", "") if state.user else "",
         "log": log,
     })
 
@@ -1244,6 +1247,14 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             restored.user.formal_name = saved.get("user_formal_name", restored.player_name)
             restored.user.display_name = saved.get("user_display_name", restored.player_name)
             restored.user.gender = restored.gender
+            # Restore persona metadata if present (persona_mode: 'temp'|'default', persona_name: label/key)
+            try:
+                restored.user.persona_mode = saved.get("user_persona_mode", restored.user.persona_mode)
+                restored.user.persona_name = saved.get("user_persona_name", restored.user.persona_name)
+                restored.user.persona_other = saved.get("user_persona_other", restored.user.persona_other)
+            except Exception:
+                # Be tolerant of missing fields from older saves
+                pass
 
         # Canonical truth (for truth-mode override guidance)
         restored.canonical_truth = story_def.get("canonical_truth", [])
@@ -1886,6 +1897,37 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             new_state.world_start_datetime = str(world_cfg.get("start_datetime", "")).strip()
 
         new_state.user.gender = new_state.gender
+        # Persona selection: support 'temp' (session-only) or 'default'. Frontend may supply persona_mode/persona_name/persona_other in the POST data.
+        try:
+            persona_mode = str(data.get("persona_mode") or data.get("personaMode") or "").strip()
+            persona_name = str(data.get("persona_name") or data.get("personaName") or "").strip()
+            persona_other = str(data.get("persona_other") or data.get("personaOther") or "").strip()
+            if not persona_mode:
+                # Backwards compatible default: 'temp' (temporary per-session persona created from player name)
+                persona_mode = "temp"
+            new_state.user.persona_mode = persona_mode
+            new_state.user.persona_name = persona_name
+            new_state.user.persona_other = persona_other
+            # Derive display name for the in-story player node: prefer default-persona name, else typed player_name
+            try:
+                if getattr(new_state.user, "persona_mode", "") == "default" and new_state.user.persona_name:
+                    persona_display = new_state.user.persona_name
+                else:
+                    persona_display = new_state.player_name or "Player"
+                new_state.user.display_name = persona_display
+                # Create the player Character node for prompt_builder usage
+                try:
+                    from backend.app.engine.state import make_player_character
+                    new_state.characters["player"] = make_player_character(display_name=persona_display)
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        except Exception:
+            # tolerate missing/invalid fields
+            new_state.user.persona_mode = "temp"
+            new_state.user.persona_name = ""
+            new_state.user.persona_other = ""
         # Keep a human-readable location. If the world graph is active we prefer
         # the graph's display name; otherwise fall back to the story's setting string.
         if not getattr(new_state, "location_id", ""):

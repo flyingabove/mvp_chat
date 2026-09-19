@@ -1364,11 +1364,20 @@
   </div>
 </div>
 
-<!-- Onboarding modal (name + gender) -->
+<!-- Onboarding modal (persona + name + gender) -->
 <div id="modal-onboard">
   <div class="onboard-card">
     <div class="onboard-title" id="onboard-title">What's your name?</div>
     <div class="onboard-sub" id="onboard-sub">You'll play as this character in the story.</div>
+
+    <!-- Persona selector: choose default or create your own persona -->
+    <div id="onboard-persona-row" style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="persona-btn" data-mode="default">Use Default Persona</button>
+      <button class="persona-btn" data-mode="create">Create Persona</button>
+    </div>
+    <input id="onboard-persona-name" class="onboard-input" type="text" placeholder="Persona role (e.g. Detective)" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="words" style="display:none;margin-bottom:10px;" />
+    <textarea id="onboard-persona-other" class="onboard-input" placeholder="Extra persona attributes (optional)" maxlength="300" style="display:none;margin-bottom:10px;height:64px;resize:vertical;"></textarea>
+
     <input id="onboard-name-input" class="onboard-input" type="text" placeholder="Enter your name" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" />
     <div id="onboard-gender-row" class="gender-row" style="display:none;">
       <button class="gender-btn" data-gender="M">Male</button>
@@ -2086,11 +2095,21 @@ function startGame(story, options){
   appState.onboardStep = "name";
   appState.onboardName = "";
   appState.onboardGender = null;
+  appState.personaMode = "default";   // "default" or "create" (future: "select")
+  appState.personaName = "";
+  appState.personaLabel = "Default";
+  appState.personaOther = "";
 
   $("onboard-title").textContent = "What's your name?";
-  $("onboard-sub").textContent = 'You\'ll play as this character in "' + story.title + '".';
+  $("onboard-sub").textContent = 'You\'ll play as this persona in "' + story.title + '".';
   $("onboard-name-input").value = "";
+  $("onboard-persona-name").value = "";
   $("onboard-gender-row").style.display = "none";
+  $("onboard-persona-name").style.display = "none";
+  // Reset persona button states and select default
+  document.querySelectorAll(".persona-btn").forEach(function(b){ b.classList.remove("selected"); });
+  var defBtn = document.querySelector('.persona-btn[data-mode="default"]'); if (defBtn) defBtn.classList.add('selected');
+
   $("onboard-continue-btn").disabled = true;
   $("onboard-continue-btn").textContent = "Continue";
   document.querySelectorAll(".gender-btn").forEach(function(b){ b.classList.remove("selected"); });
@@ -2102,7 +2121,19 @@ function startGame(story, options){
 $("onboard-name-input").addEventListener("input", function(){
   var val = this.value.trim();
   if (appState.onboardStep === "name") {
-    $("onboard-continue-btn").disabled = val.length < 1;
+    var personaOk = true;
+    if (appState.personaMode === "create") {
+      var p = ($("onboard-persona-name") ? $("onboard-persona-name").value.trim() : "");
+      personaOk = p.length > 0;
+    }
+    $("onboard-continue-btn").disabled = val.length < 1 || !personaOk;
+  }
+});
+
+$("onboard-persona-name").addEventListener("input", function(){
+  if (appState.onboardStep === "name" && appState.personaMode === "create"){
+    var nameVal = ($("onboard-name-input").value || "").trim();
+    $("onboard-continue-btn").disabled = !(nameVal.length > 0 && this.value.trim().length > 0);
   }
 });
 
@@ -2110,6 +2141,28 @@ $("onboard-name-input").addEventListener("keydown", function(e){
   if (e.key === "Enter" && !$("onboard-continue-btn").disabled) {
     $("onboard-continue-btn").click();
   }
+});
+
+// Persona selector buttons
+document.querySelectorAll(".persona-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll(".persona-btn").forEach(function(b){ b.classList.remove("selected"); });
+    this.classList.add("selected");
+    appState.personaMode = this.dataset.mode;
+    if (appState.personaMode === "create") {
+      $("onboard-persona-name").style.display = "";
+      $("onboard-persona-other").style.display = "";
+    } else {
+      $("onboard-persona-name").style.display = "none";
+      $("onboard-persona-other").style.display = "none";
+      appState.personaName = "";
+      $("onboard-persona-name").value = "";
+      $("onboard-persona-other").value = "";
+    }
+    var nameVal = ($("onboard-name-input").value || "").trim();
+    var personaOk = (appState.personaMode !== "create") || ($("onboard-persona-name").value || "").trim().length>0;
+    $("onboard-continue-btn").disabled = (nameVal.length < 1) || !personaOk;
+  });
 });
 
 document.querySelectorAll(".gender-btn").forEach(function(btn){
@@ -2125,12 +2178,28 @@ $("onboard-continue-btn").addEventListener("click", function(){
   if (appState.onboardStep === "name") {
     var name = $("onboard-name-input").value.replace(/[^A-Za-z\s\-']/g,"").trim().slice(0, 40);
     if (!name){ showToast("Please enter a valid name."); return; }
+    // Capture persona info
+    if (appState.personaMode === "create"){
+      var pName = ($("onboard-persona-name").value || "").trim().slice(0, 60);
+        var pOther = ($("onboard-persona-other").value || "").trim().slice(0, 300);
+        if (!pName){ showToast("Please enter a persona role/name."); return; }
+        appState.personaName = pName;
+        appState.personaLabel = pName;
+        appState.personaOther = pOther;
+      } else {
+        // Default persona selected: choose default label and clear custom fields
+        appState.personaName = "";
+        appState.personaLabel = "Default";
+        appState.personaOther = "";
+      }
+
     appState.onboardName = name;
     appState.onboardStep = "gender";
 
-    $("onboard-title").textContent = "Your character";
+    $("onboard-title").textContent = "Your persona";
     $("onboard-sub").textContent = "How do they identify?";
     $("onboard-name-input").style.display = "none";
+    $("onboard-persona-name").style.display = "none";
     $("onboard-gender-row").style.display = "flex";
     $("onboard-continue-btn").disabled = true;
     $("onboard-continue-btn").textContent = "Start Game";
@@ -2178,6 +2247,9 @@ function launchChat(story, playerName, gender, guestMode){
     session_id: genUUID(),
     player_name: playerName,
     gender: gender,
+    persona_mode: appState.personaMode || "default",
+    persona_name: (appState.personaMode === "default" ? "Paul Dingus" : (appState.personaName || appState.personaLabel || "Default")),
+    persona_other: (appState.personaOther || ""),
     started_at: Date.now(),
     last_played: Date.now(),
     last_message: "",
@@ -2204,7 +2276,8 @@ function launchChat(story, playerName, gender, guestMode){
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
 
-  addSystemMessage("Starting game as " + playerName + "…");
+  var personaDisplay = session.persona_name || "Default";
+  addSystemMessage("Starting game as " + playerName + " (persona: " + personaDisplay + ")…");
   if (guestMode) {
     addSystemMessage("Guest mode: your progress will be deleted after 24 hours unless you sign in with Google.");
   }
@@ -2617,10 +2690,18 @@ function sendMessage(text, isInit, options){
 
   var session = appState.session;
 
+  var payload = { message: text, session_id: session ? session.session_id : genUUID() };
+  // If this is the initial new-game command, include persona metadata so backend can seed the session
+  if (isInit && session) {
+    payload.persona_mode = session.persona_mode || "default";
+    payload.persona_name = session.persona_name || (appState.personaLabel || "Default");
+    payload.persona_other = session.persona_other || "";
+  }
+
   fetch(CHAT_URL, {
     method: "POST",
     headers: apiHeaders(),
-    body: JSON.stringify({ message: text, session_id: session ? session.session_id : genUUID() })
+    body: JSON.stringify(payload)
   })
   .then(function(r){
     if (r.status === 401){ handleUnauthorized(); throw new Error("auth"); }

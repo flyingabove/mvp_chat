@@ -8,6 +8,7 @@ from backend.app.config.settings import (
     REL_START,
     MEMORY_TURNS,
 )
+from backend.app.personas.persona_store import get_default_persona_prompt_text
 from backend.app.utils.logging_utils import jlog as _jlog, truncate as _truncate
 
 
@@ -35,6 +36,42 @@ def _extract_story_cfg(state: GameState):
     story_def = cfg_obj if hasattr(cfg_obj, "as_dict") else None
     cfg_dict = story_def.as_dict() if story_def else cfg_obj
     return cfg_dict, story_def
+
+
+def _persona_section(state: GameState) -> str:
+    """Inject the currently selected persona as a small, reusable prompt layer."""
+    user = getattr(state, "user", None)
+    if user is None:
+        return ""
+
+    mode = str(getattr(user, "persona_mode", "") or "").strip().lower()
+    name = str(getattr(user, "persona_name", "") or "").strip()
+    free_text = str(getattr(user, "persona_other", "") or "").strip()
+
+    if mode == "default":
+        persona_text = get_default_persona_prompt_text("paul_dingus")
+        if not persona_text:
+            return ""
+        return (
+            "\n────────────────────────────────────────\n"
+            "### PLAYER PERSONA\n"
+            "────────────────────────────────────────\n"
+            f"{persona_text}\n"
+        )
+
+    if mode == "create" and name:
+        lines = [f"Your player persona is {name}."]
+        if free_text:
+            lines.append(f"Other attributes: {free_text}")
+        return (
+            "\n────────────────────────────────────────\n"
+            "### PLAYER PERSONA\n"
+            "────────────────────────────────────────\n"
+            + "\n".join(lines)
+            + "\n"
+        )
+
+    return ""
 
 
 def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> str:
@@ -1367,6 +1404,7 @@ but the character's spoken words must still carry the correction.
 The focal character is {char_name}. Current emotional posture is {emotion}.
 """
 
+    persona_section = _persona_section(state)
     mode_context = _mode_context_section(state)
 
     character_identity = _character_identity_section(state)
@@ -1423,6 +1461,7 @@ EXAMPLE (WRONG — do NOT do this):
     # most recent instruction the LLM sees before processing the user's message.
     full_prompt = (
         base_prompt
+        + persona_section
         + mode_context
         + scene_brief
         + knowledge_stack_section
@@ -1434,6 +1473,7 @@ EXAMPLE (WRONG — do NOT do this):
     if return_layers:
         layers = {
             "base_prompt": base_prompt,
+            "persona_section": persona_section,
             "mode_context": mode_context,
             "character_identity": character_identity,
             "scene_brief": scene_brief,

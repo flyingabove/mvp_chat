@@ -236,6 +236,58 @@ def test_cast_replacement_updates_world_location_and_focal_character(client):
     assert state.main_character_id == "arman"
 
 
+def test_try_load_session_from_db_restores_persona_metadata(monkeypatch):
+    import json as _json
+    import backend.app.api.prompt_engine as pe_mod
+
+    fake_state = {
+        "story": STORY_ID,
+        "gender": "M",
+        "player_name": "Paul",
+        "minute": 2,
+        "location": "Living room",
+        "location_id": "front_entry",
+        "emotion": "calm",
+        "relationship": 0,
+        "turns": 1,
+        "over": False,
+        "instance": 1,
+        "character_locations": {},
+        "world_start_datetime": "",
+        "last_travel_from_id": "",
+        "last_travel_to_id": "",
+        "last_turn_user_msg": "",
+        "last_turn_assistant_reply": "",
+        "last_turn_retrieved_chunks": [],
+        "character_graph": {"edges": {}},
+        "session_chunks": [],
+        "user_formal_name": "Paul",
+        "user_display_name": "Paul",
+        "user_persona_mode": "default",
+        "user_persona_name": "Paul Dingus",
+        "user_persona_other": "quietly observant",
+        "log": [{"role": "user", "content": "hello"}],
+    }
+
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        lambda **kwargs: {
+            "session_id": "sess_persona",
+            "user_id": "uid_persona",
+            "story_id": STORY_ID,
+            "state_json": _json.dumps(fake_state),
+            "flags_json": "{}",
+        },
+    )
+
+    restored = pe_mod._try_load_session_from_db("sess_persona", "uid_persona")
+    assert restored is not None
+    state = restored["state"]
+    assert state.user.persona_mode == "default"
+    assert state.user.persona_name == "Paul Dingus"
+    assert state.user.persona_other == "quietly observant"
+
+
 def test_prompt_debug_not_leaked_to_ordinary_players(client, monkeypatch):
     """Live-verified bug (found manually against the deployed beta site while
     playtesting The Common Room): /api/chat previously returned the FULL

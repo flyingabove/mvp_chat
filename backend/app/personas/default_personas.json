@@ -1,0 +1,11 @@
+{
+  "paul_dingus": {
+    "id": "paul_dingus",
+    "name": "Paul Dingus",
+    "gender": "M",
+    "free_text": "Practical, awkward, quietly observant, a little underprepared for drama, and more emotionally competent than he looks.",
+    "inject_to_llm": true,
+    "visible_attributes": ["name", "gender"],
+    "notes": "Default server-side persona used when the player selects the built-in persona path."
+  }
+}
