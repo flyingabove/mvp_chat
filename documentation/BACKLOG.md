@@ -58,7 +58,7 @@
 _(move resolved items here with the commit SHA that closed them)_
 
 ### Six Strangers audit Phase 1 — truthful scenes and durable state (2026-09-19, source: [audit and proposal](SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md))
-**Resolved by:** _pending commit — updated immediately after push to beta._
+**Resolved by:** `6c90667` (`fix(six-strangers): Phase 1 audit fixes - scene truth and atomic turn commit`), pushed to `beta`.
 **What was found:** live beta contradicted the roster and world state in two ways: asking about an upcoming resident (Arman) confirmed his residency and exposed his authored private concern; an explicit solitary-scene request ("I go to the rooftop alone") still had the focal NPC (Mizuki) narrated as joining. Root cause for both: several call sites bypassed the lifecycle-eligibility primitives (`CastLifecycleState.is_scene_eligible`, `_cast_scene_eligible`) that already existed and were correctly used elsewhere (`_get_people_present_keys`, `_cast_roster_payload`). Separately, `_serialize_state` never included `beliefs`/`observation_log`, and `over`/`last_turn_*` were set on `state` *after* the one session save call, so a persisted row always lagged the turn just completed (BL-01).
 **What was done:**
 - `backend/app/api/prompt_engine.py`: `character_key_to_name` (the turn extractor's `allowed_character_keys`) now filtered through `_cast_scene_eligible` before being sent to `_TURN_EXTRACTOR.extract(...)`.
