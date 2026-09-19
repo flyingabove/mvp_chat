@@ -861,7 +861,14 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     terrace_prompt = rendered_messages[-1][0]["content"]
     for key in ("makoto", "minori", "yuki", "uchi", "yuriko"):
         assert f"### CHARACTER IDENTITY — {state.characters[key].name}" not in terrace_prompt
-    assert "### CHARACTER IDENTITY — Mizuki Shida" in terrace_prompt
+    # Six Strangers audit fix (2026-09-19): a genuinely empty destination
+    # (people_present == []) means the main character (Mizuki, a separate
+    # NPC housemate, not the player's own POV) is also absent - her identity
+    # block must NOT render just because she is the story's authored main
+    # character. Previously this asserted the opposite, which is exactly the
+    # live-reproduced bug where the focal NPC kept narrating as present in a
+    # scene the player explicitly went to alone.
+    assert "### CHARACTER IDENTITY — Mizuki Shida" not in terrace_prompt
     assert state.latest_scene_knowledge().location_id == "terrace"
     assert state.latest_scene_knowledge().people_present == []
 

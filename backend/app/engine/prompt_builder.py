@@ -1228,8 +1228,13 @@ def _main_character_scene_eligible(state) -> bool:
     this turn. Non-lifecycle stories (cast_lifecycle absent/disabled) always
     return True — preserves legacy ghost-NPC / non-spatial behavior byte-for-
     byte. Lifecycle-enabled stories (e.g. Six Strangers) require the main
-    character to actually be present in the current scene, unless no
-    location-based presence signal exists yet (e.g. opening turn)."""
+    character to actually be present in the current scene.
+
+    A location's presence set can legitimately be empty (an empty room), and
+    that must NOT be treated the same as "presence has never been computed
+    yet" (e.g. the very first turn, before any scene knowledge exists) — the
+    former means "no one is here," the latter means "no signal either way."
+    Only the latter falls back to assuming main is present."""
     lifecycle = getattr(state, "cast_lifecycle", None)
     if lifecycle is None or not getattr(lifecycle, "enabled", False):
         return True
@@ -1237,10 +1242,29 @@ def _main_character_scene_eligible(state) -> bool:
     main_key = (getattr(main_char, "key", "") or "").strip().lower()
     if not _cast_scene_eligible(state, main_key):
         return False
-    people_present_keys = _get_people_present_keys(state)
-    if not people_present_keys:
+    if not _scene_presence_has_been_computed(state):
         return True
-    return main_key in people_present_keys
+    return main_key in _get_people_present_keys(state)
+
+
+def _scene_presence_has_been_computed(state) -> bool:
+    """True once at least one turn has recorded scene knowledge (people
+    present markers or a scene-knowledge entry) for the current location —
+    at that point an empty presence set is authoritative, not a missing
+    signal."""
+    for e in getattr(state, "transient_entries", []) or []:
+        txt = (getattr(e, "text", "") or "").strip()
+        if txt.startswith("__people_present_marker__:"):
+            return True
+    latest_scene = getattr(state, "latest_scene_knowledge", None)
+    if callable(latest_scene):
+        item = latest_scene()
+        if item is not None:
+            loc_id = str(getattr(state, "location_id", "") or "")
+            item_loc_id = str(getattr(item, "location_id", "") or "")
+            if not loc_id or item_loc_id == loc_id:
+                return True
+    return False
 
 
 def _character_identity_section(state) -> str:
