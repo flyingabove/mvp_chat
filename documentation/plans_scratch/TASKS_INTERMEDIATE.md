@@ -4,7 +4,9 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
-- [ ] (empty)
+- [x] Finalize the two-story catalog: keep only IU Murder Mystery and Six Strangers, delete stale inactive games, and align runtime tests to the active catalogue.
+- [x] Keep the server-backed default persona system and temp persona flow for the active titles.
+- [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
 
