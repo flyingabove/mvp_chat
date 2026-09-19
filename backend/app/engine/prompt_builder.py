@@ -1336,6 +1336,26 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
     user_line = (current_user_msg or "").strip()
     user_line_text = f'Current player line: "{user_line}".' if user_line else "Current player line is available in the user message."
 
+    roster_closure_line = ""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is not None and getattr(lifecycle, "enabled", False):
+        active_names = []
+        for key in lifecycle.active_ids():
+            ch = chars.get(key)
+            active_names.append((getattr(ch, "name", None) or key).strip())
+        active_roster_text = ", ".join(active_names) if active_names else "no one"
+        roster_closure_line = (
+            f"The complete current cast is: {active_roster_text}. This is a closed list — "
+            "no other named individual currently lives in, works at, or is otherwise part of "
+            "this world. If the player asks about, or a character is asked about, anyone whose "
+            "name is not on this list, that person is unfamiliar and unknown to every character "
+            "here — do not have any character claim to know them, confirm they are a housemate, "
+            "describe them as away/busy/arriving soon, or otherwise invent a relationship to "
+            "them. A character who is asked about an unfamiliar name responds the way a real "
+            "person would to an unfamiliar name: with genuine unfamiliarity, not vague "
+            "recognition.\n\n"
+        )
+
     main_present = _main_character_scene_eligible(state)
     if main_present:
         focal_line = (
@@ -1368,6 +1388,7 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         f"People present in this location right now ({people_present_count}): {people_present_text}.\n"
         f"Current-turn speakers: {speakers_text}.\n\n"
         f"{cast_pressure_line}"
+        f"{roster_closure_line}"
         "Narrate only what the player's message actually states or implies. "
         "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote.\n\n"
         f"{user_line_text}\n"

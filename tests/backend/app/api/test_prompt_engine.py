@@ -448,6 +448,42 @@ def test_upcoming_character_private_facts_excluded_from_canonical_stack(client):
     )
 
 
+def test_scene_brief_closes_roster_against_upcoming_characters(client):
+    """Live-verified gap (2026-09-19, checked against the deployed beta site
+    after the initial Phase 1 fix landed): removing Arman's private fact from
+    the knowledge stack was not sufficient by itself - across repeated live
+    trials the model still reliably answered "Who is Arman? Does he already
+    live here?" with "he's one of the housemates" (fabricated, not from any
+    leaked fact - the model just filled in a plausible-sounding answer for an
+    unfamiliar name). The scene brief must explicitly close the cast roster
+    and instruct the narrator that any name not on the active list is
+    genuinely unfamiliar to every character, not merely omit their private
+    facts."""
+    from backend.app.engine.prompt_builder import _storyteller_scene_section
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "roster_closure_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    scene_brief = _storyteller_scene_section(state, "Who is Arman? Does he already live here?")
+    assert "closed list" in scene_brief
+
+    # The player's own line is legitimately echoed verbatim at the end of the
+    # brief ("Current player line: ..."); strip it before checking that the
+    # roster-closure text itself never names the upcoming character.
+    closure_only = scene_brief.split("Current player line:")[0]
+    assert "arman" not in closure_only.lower(), (
+        "upcoming character 'arman' must not appear in the roster-closure text"
+    )
+    for active_name_fragment in ("Makoto", "Yuki Adachi", "Mizuki"):
+        assert active_name_fragment in scene_brief
+
+
 def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client):
     """P1 audit finding: prompt_engine.py built the turn extractor's
     `allowed_character_keys` catalog from the full character roster with no
