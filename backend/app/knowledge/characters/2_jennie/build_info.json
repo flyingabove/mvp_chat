@@ -1,8 +1,0 @@
-{
-  "character_id": "2_jennie",
-  "chunks_count": 14,
-  "embedding_dim": 768,
-  "bm25_schema": "bm25_v2",
-  "fingerprint": "manual-jennie-mini-001",
-  "notes": "Deterministic test artifacts for Jennie mini-case; fictional scenario."
-}

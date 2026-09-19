@@ -586,8 +586,9 @@
       width: 36px; height: 36px; border-radius: 50%;
       background: linear-gradient(135deg, #232734 0%, #3a3f51 100%);
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
+      font-size: 18px; flex-shrink: 0; overflow: hidden; position: relative;
     }
+    #chat-char-avatar-mini img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     #chat-char-meta { min-width: 0; }
     #chat-char-name {
       font-size: 16px; font-weight: 700;
@@ -672,6 +673,12 @@
     .msg-avatar.user-avatar {
       background: linear-gradient(135deg, #30466d 0%, #5f6b82 100%);
     }
+    .cast-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, #30466d 0%, #5f6b82 100%);
+      overflow: hidden; position: relative; flex-shrink: 0;
+    }
+    .cast-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .msg-bubble.system-msg {
       background: transparent; color: var(--text-muted);
       font-size: 13px; text-align: center;
@@ -732,8 +739,9 @@
       width: 38px; height: 38px; border-radius: 50%;
       background: linear-gradient(135deg, #30466d 0%, #5f6b82 100%);
       display: flex; align-items: center; justify-content: center;
-      font-size: 16px; color: #fff; flex-shrink: 0;
+      font-size: 16px; color: #fff; flex-shrink: 0; overflow: hidden; position: relative;
     }
+    #chat-user-dock-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     #chat-text-input {
       flex: 1; min-height: 28px; max-height: 120px;
       background: transparent; border: none;
@@ -794,8 +802,8 @@
     .chat-system-box .box-title { font-weight: 700; color: var(--text-sub); margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
     .cast-roster-section + .cast-roster-section { margin-top: 10px; }
     .cast-roster-heading { color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-    .cast-roster-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 4px; }
-    .cast-roster-name { color: var(--text); font-size: 13px; }
+    .cast-roster-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; }
+    .cast-roster-name { color: var(--text); font-size: 13px; flex: 1; }
     .cast-roster-detail { color: var(--text-muted); font-size: 11px; text-align: right; }
     .cast-roster-vacancy .cast-roster-name { color: var(--text-muted); font-style: italic; }
 
@@ -1549,6 +1557,65 @@ var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
 // Typewriter speed: 0=Instant, 1=Normal(30ms), 2=Slow(55ms), 3=Very Slow(80ms)
 var TYPEWRITER_SPEEDS = [0, 30, 55, 80];
 var TYPEWRITER_LABELS = ["Instant", "Normal", "Slow", "V. Slow"];
+var CHARACTER_ASSET_MAP = {
+  makoto: "/img/characters/Makoto_Hasegawa.png",
+  minori: "/img/characters/Minori_Nakada.png",
+  yuki: "/img/characters/Yuki_Adachi.png",
+  mizuki: "/img/characters/Mizuki_Shida.png",
+  uchi: "/img/characters/Tatsuya_Uchihara.png",
+  yuriko: "/img/characters/Yuriko_Hayata.png",
+  arman: "/img/characters/Arman_Bitaraf.png",
+  arisa: "/img/characters/Arisa_Ohata.png",
+  hikaru: "/img/characters/Hikaru_Ota.png",
+  natsumi: "/img/characters/Natsumi_Saito.png",
+  misaki: "/img/characters/Misaki_Tamori.png",
+  yuto: "/img/characters/Yuto_Handa.png",
+  riko: "/img/characters/Riko_Nagai.png",
+  momoka: "/img/characters/Momoka_Mitsunaga.png",
+  hayato: "/img/characters/Hayato_Terashima.png",
+  yuuki_byrnes: "/img/characters/Yuuki_Byrnes.png",
+  masako: "/img/characters/Masako_Endo_Martha.png",
+  player: "/img/avatars/persona_default.svg",
+  persona: "/img/avatars/persona_default.svg",
+  default_persona: "/img/avatars/persona_default.svg",
+  six_strangers: "/img/characters/Mizuki_Shida.png"
+};
+
+function normalizeAssetKey(value){
+  var text = String(value || "").trim().toLowerCase();
+  text = text.replace(/[\"']/g, "");
+  text = text.replace(/[^a-z0-9]+/g, "_");
+  return text.replace(/^_+|_+$/g, "");
+}
+
+function getCharacterAvatarSrc(characterId, characterName){
+  var candidates = [];
+  if (characterId) candidates.push(characterId);
+  if (characterName) candidates.push(characterName);
+  var fallback = "/img/avatars/persona_default.svg";
+  for (var i = 0; i < candidates.length; i++) {
+    var key = normalizeAssetKey(candidates[i]);
+    if (CHARACTER_ASSET_MAP[key]) return CHARACTER_ASSET_MAP[key];
+    var parts = key.split("_").filter(Boolean);
+    for (var j = 0; j < parts.length; j++) {
+      if (CHARACTER_ASSET_MAP[parts[j]]) return CHARACTER_ASSET_MAP[parts[j]];
+    }
+    for (var k = parts.length - 1; k >= 0; k--) {
+      if (CHARACTER_ASSET_MAP[parts[k]]) return CHARACTER_ASSET_MAP[parts[k]];
+    }
+  }
+  return fallback;
+}
+
+function renderAvatarImage(target, src, label){
+  if (!target) return null;
+  target.innerHTML = '<img src="' + escapeHTML(src || "/img/avatars/persona_default.svg") + '" alt="' + escapeHTML(label || "Avatar") + '" />';
+  return target.querySelector("img");
+}
+
+function renderCharacterAvatar(target, characterId, characterName, fallbackText){
+  return renderAvatarImage(target, getCharacterAvatarSrc(characterId, characterName), fallbackText || characterName || "Character");
+}
 
 function getTypewriterDelay(){
   var idx = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
@@ -2230,13 +2297,23 @@ function renderChatCharacterHeader(story){
   msgs.innerHTML = "";
   var header = document.createElement("div");
   header.id = "chat-character-header";
-  header.innerHTML = [
-    '<div id="chat-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;">' + genreEmoji(story.genre || story.theme) + '</div>',
-    '<div id="chat-header-name" style="font-size:17px;font-weight:700;margin-bottom:2px;">' + escapeHTML(story.title) + '</div>',
-    '<div id="chat-header-badge" style="font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;">' + escapeHTML(story.genre || "StoriesChat") + '</div>'
-  ].join("");
-  msgs.appendChild(header);
-  return header;
+var avatarEl = document.createElement("div");
+avatarEl.id = "chat-avatar";
+avatarEl.style.cssText = "width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;";
+renderAvatarImage(avatarEl, getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
+var nameEl = document.createElement("div");
+nameEl.id = "chat-header-name";
+nameEl.style.cssText = "font-size:17px;font-weight:700;margin-bottom:2px;";
+nameEl.textContent = story.title || "Story";
+var badgeEl = document.createElement("div");
+badgeEl.id = "chat-header-badge";
+badgeEl.style.cssText = "font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;";
+badgeEl.textContent = story.genre || "StoriesChat";
+header.appendChild(avatarEl);
+header.appendChild(nameEl);
+header.appendChild(badgeEl);
+msgs.appendChild(header);
+return header;
 }
 
 function launchChat(story, playerName, gender, guestMode){
@@ -2270,8 +2347,8 @@ function launchChat(story, playerName, gender, guestMode){
   // Setup chat UI
   $("chat-char-name").textContent = story.title;
   $("chat-char-sub").textContent = story.genre || "Game";
-  $("chat-char-avatar-mini").textContent = genreEmoji(story.genre || story.theme);
-  $("chat-user-dock-avatar").textContent = appState.userAvatarLabel;
+  renderAvatarImage($("chat-char-avatar-mini"), getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
+  renderAvatarImage($("chat-user-dock-avatar"), getCharacterAvatarSrc("persona", appState.personaName || "Paul Dingus"), appState.userAvatarLabel || "U");
 
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
@@ -2446,13 +2523,14 @@ function addMessage(role, text, options){
     bubble.innerHTML = formatMsgText(text);
     var userAv = document.createElement("div");
     userAv.className = "msg-avatar user-avatar";
-    userAv.textContent = appState.userAvatarLabel || "U";
+    renderAvatarImage(userAv, getCharacterAvatarSrc("persona", appState.personaName || appState.userAvatarLabel || "Paul Dingus"), appState.onboardName || "You");
     row.appendChild(bubble);
     row.appendChild(userAv);
   } else { // npc
     var av = document.createElement("div");
     av.className = "msg-avatar";
-    av.textContent = appState.currentStory ? genreEmoji(appState.currentStory.genre || "") : "🎭";
+    var npcName = appState.currentStory ? (appState.currentStory.title || "Character") : "Character";
+    renderAvatarImage(av, getCharacterAvatarSrc(appState.currentStory && appState.currentStory.id, npcName), npcName);
     bubble = document.createElement("div");
     bubble.className = "msg-bubble npc";
     row.appendChild(av);
@@ -2631,9 +2709,15 @@ function renderCastRoster(roster){
     members.forEach(function(member){
       var row = document.createElement("div");
       row.className = "cast-roster-row" + (vacancy ? " cast-roster-vacancy" : "");
+      var avatarWrap = document.createElement("div");
+      avatarWrap.className = "cast-avatar";
+      var memberText = vacancy ? memberName(member) || "Room available" : memberName(member);
+      var memberKey = (member && typeof member === "object") ? (member.id || member.name || member.label || memberText) : memberText;
+      renderAvatarImage(avatarWrap, getCharacterAvatarSrc(memberKey, memberText), memberText || "Character");
+      row.appendChild(avatarWrap);
       var name = document.createElement("span");
       name.className = "cast-roster-name";
-      name.textContent = vacancy ? memberName(member) || "Room available" : memberName(member);
+      name.textContent = memberText;
       row.appendChild(name);
       var detail = memberDetail(member);
       if (detail){
