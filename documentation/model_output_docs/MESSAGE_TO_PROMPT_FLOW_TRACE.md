@@ -94,11 +94,19 @@ Returned chunks are candidate memory fragments for prompt construction and for t
    - previous-turn speakers,
    - previous-turn knowledge updates (`chunk_id/knows/confidence/reason`).
 3. If extractor yields a valid move destination:
-   - canonicalize message to `go to <destination_id>`.
+   - create a separate movement input, `go to <destination_id>`, for travel resolution only; preserve the complete player message.
 4. Apply extracted previous-turn scene knowledge into FIFO scene buffer.
 5. Apply extracted previous-turn knowledge updates into belief graph + transient mirror entries.
-6. Fallback heuristic can still convert message to movement command if extractor returns no move.
-7. `advance_time(state, msg)` executes travel/time updates and world graph movement.
+6. The fallback heuristic can populate the separate movement input if the extractor returns no move.
+7. `advance_time` executes travel/time updates using that movement input (or the original message for a non-movement turn).
+8. After a location change, refresh destination people-present and active-character markers and scene FIFO context before rendering. Clear prior-location speakers; an empty destination must not fall back to the previous room's occupants.
+
+Movement normalization must never replace the player message in the storyteller
+prompt, conversation echo, in-memory history, persisted transcript, fact
+extraction, or `last_turn_user_msg`. A request such as “I return to the living
+room and ask Makoto about baseball” must retain its question as well as move
+the player. Destination characters' identity sections must be available on
+that same turn, not one turn later.
 
 ---
 
@@ -121,7 +129,7 @@ After reply, scene speaker markers are updated:
 Create `PromptInput` with:
 - current `state`,
 - trimmed `log`,
-- canonicalized user message,
+- complete player message (after request-intake cleanup, without replacing it with the travel command),
 - retrieved chunks,
 - truth mode toggle,
 - retrieval debug payload.

@@ -1990,6 +1990,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     knowledge_resolution_updates: list[dict] = []
     extraction = None
     extraction_applied = False
+    # Travel parsing needs a strict command; narration and memory need the full message.
+    movement_msg = msg
     if runtime is not None and getattr(state, "location_id", ""):
         previous_candidate_chunks = _unknown_knowledge_chunks_for_speaker(
             state,
@@ -2085,13 +2087,12 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
             if extraction.movement_intent == "MOVE" and extraction.destination_id:
                 if extraction.destination_id in runtime.world_graph.locations:
-                    original_msg = msg
-                    msg = f"go to {extraction.destination_id}"
+                    movement_msg = f"go to {extraction.destination_id}"
                     extraction_applied = True
                     _log({
                         "kind": "turn_extraction_movement_applied",
-                        "original_msg": original_msg,
-                        "canonicalized_msg": msg,
+                        "original_msg": msg,
+                        "canonicalized_msg": movement_msg,
                         "destination_id": extraction.destination_id,
                     })
                 else:
@@ -2111,13 +2112,12 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         if not extraction_applied:
             dest = _match_world_destination(msg, runtime, getattr(state, "location_id", ""))
             if dest:
-                original_msg = msg
-                msg = f"go to {dest}"
+                movement_msg = f"go to {dest}"
                 extraction_applied = True
                 _log({
                     "kind": "turn_extraction_heuristic_applied",
-                    "original_msg": original_msg,
-                    "canonicalized_msg": msg,
+                    "original_msg": msg,
+                    "canonicalized_msg": movement_msg,
                     "destination_id": dest,
                 })
     else:
@@ -2126,9 +2126,28 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         elif not getattr(state, "location_id", ""):
             _log({"kind": "turn_extraction_skipped", "reason": "no_location_id"})
 
-    # advance_time runs AFTER location extraction so the canonicalized msg
-    # (e.g. "go to interview_room_bob") matches the strict movement regex.
-    advance_time(state, msg)
+    # Only travel/time consumes the command; preserve player dialogue everywhere else.
+    advance_time(state, movement_msg)
+
+    if str(getattr(state, "location_id", "") or "") != _current_location_id:
+        # Travel clears location markers. Rebuild them and the FIFO fallback from
+        # the destination, including empty rooms, before assembling this turn's prompt.
+        _location_changed = True
+        _carryover_speakers = set()
+        _people_present = get_people_present_keys(state)
+        _pre_active_chars = compute_active_character_set(
+            state=state, user_msg=msg, recent_log=[], carryover_speakers=set(),
+        )
+        _upsert_active_character_markers(state, _pre_active_chars)
+        _upsert_people_present_markers(state, _people_present)
+        _upsert_scene_speaker_markers(state, set())
+        state.upsert_scene_knowledge(
+            key=f"turn:{int(getattr(state, 'turns', 0) or 0)}",
+            location_id=state.location_id,
+            speakers=[],
+            people_present=sorted(_people_present),
+            payload={"location_changed_from_previous": True, "source": "movement_destination"},
+        )
 
     # Record short-lived conversational scene context for current turn.
     try:

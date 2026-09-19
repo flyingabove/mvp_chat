@@ -63,10 +63,11 @@ The single extractor receives:
 ```
 
 ## Engine Application Rules
-1. Apply `movement` pre-render (canonicalize to `go to <destination_id>` if valid).
+1. Apply `movement` pre-render using a separate `go to <destination_id>` input if valid. Preserve the full player text for the storyteller, history, and next-turn extraction.
 2. Apply `previous_scene` into scene FIFO (`scene_knowledge_entries`).
 3. Apply `knowledge_updates` into belief graph + transient mirror entries.
 4. Persist current turn artifacts (`last_turn_user_msg`, `last_turn_assistant_reply`, `last_turn_retrieved_chunks`) for next turn extraction.
+5. After travel changes location, refresh destination scene presence before rendering, including an explicitly empty scene when appropriate. Do not carry the previous room's speakers or identity gates into the destination.
 
 ## Validation Rules
 - `destination_id` must be in allowed world location ids; otherwise drop move.

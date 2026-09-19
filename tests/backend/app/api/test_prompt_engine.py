@@ -330,6 +330,80 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
         assert f"### CHARACTER IDENTITY — {state.characters[absent_key].name}" not in system_prompt
 
 
+@pytest.mark.parametrize("movement_source", ["extractor", "heuristic"])
+def test_movement_preserves_combined_dialogue_and_destination_cast(client, monkeypatch, movement_source):
+    """Travel cannot erase the player's question or render the room they just left."""
+    import json
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    saved_turns = []
+    saved_sessions = []
+    rendered_messages = []
+    real_build = pe_mod.build_messages
+
+    async def save_session(**kwargs):
+        saved_sessions.append(kwargs)
+
+    async def save_turn(**kwargs):
+        saved_turns.append(kwargs)
+
+    def capture_messages(*args, **kwargs):
+        result = real_build(*args, **kwargs)
+        rendered_messages.append(result[0])
+        return result
+
+    async def extract(**kwargs):
+        if movement_source == "extractor":
+            destination = "terrace" if "terrace" in kwargs["user_msg"] else "living_room"
+            return TurnExtraction(movement_intent="MOVE", destination_id=destination, confidence=1.0)
+        return TurnExtraction()
+
+    monkeypatch.setattr(pe_mod.SessionRepo, "create_or_update_session", save_session)
+    monkeypatch.setattr(pe_mod.ConversationRepo, "append_turns", save_turn)
+    monkeypatch.setattr(pe_mod, "build_messages", capture_messages)
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", extract)
+    sid = f"combined_movement_{movement_source}"
+    headers = {"X-Guest-Id": "10000000-0000-4000-8000-000000000001"}
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    ).status_code == 200
+    original = "I walk to the living room and ask Makoto and Minori: what do you each do for work?"
+    response = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"> {original}  "},
+    )
+    assert response.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.location_id == "living_room"
+    messages = rendered_messages[-1]
+    assert original in messages[-1]["content"]
+    assert state.last_turn_user_msg == original
+    assert pe_mod.SESSIONS[sid]["log"][-2] == {"role": "user", "content": original}
+    assert saved_turns[-1]["user_msg"] == original
+    saved = json.loads(saved_sessions[-1]["state_json"])
+    assert {"role": "user", "content": original} in saved["log"]
+    assert any(entry.text == f"Player said: {original}" for entry in state.transient_entries)
+    system_prompt = messages[0]["content"]
+    assert "### CHARACTER IDENTITY — Makoto Hasegawa" in system_prompt
+    assert "### CHARACTER IDENTITY — Minori Nakada" in system_prompt
+
+    # Leaving an occupied room must also clear its FIFO presence fallback when
+    # the destination is empty and consequently has no people-present markers.
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "I walk to the terrace to enjoy the evening air."},
+    ).status_code == 200
+    assert state.location_id == "terrace"
+    terrace_prompt = rendered_messages[-1][0]["content"]
+    for key in ("makoto", "minori", "yuki", "uchi", "yuriko"):
+        assert f"### CHARACTER IDENTITY — {state.characters[key].name}" not in terrace_prompt
+    assert "### CHARACTER IDENTITY — Mizuki Shida" in terrace_prompt
+    assert state.latest_scene_knowledge().location_id == "terrace"
+    assert state.latest_scene_knowledge().people_present == []
+
+
 def test_master_prompt_engine_orchestration_flow(monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.extractors.turn_extractor import TurnExtraction, TurnKnowledgeResolution

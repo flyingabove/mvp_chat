@@ -423,3 +423,19 @@ SUMMARY TABLE
 | BUG-11| gameplay.py:67                | LOW      | Implicit ordering        |
 | BUG-12| prompt_builder.py (rel prose) | LOW      | Unhelpful "npc" output   |
 | BUG-13| story_loader.py               | LOW      | Silent is_main mutation  |
+
+## 2026-09-18 — Movement dropped dialogue and rendered the previous room's cast
+
+Live Six Strangers verification reproduced two related defects: a request to
+return to the living room and ask Makoto and Minori about their work became
+only `go to living_room` in the saved transcript, and the reply confused the
+baseball player with Uchi.
+
+The turn handler overwrote `msg` with the movement command before prompt
+assembly and persistence. Travel also cleared scene markers populated before
+movement, allowing prompt construction to fall back to the previous scene's
+occupants. Fix: use a separate movement input for `advance_time`, retain player
+text throughout the conversation pipeline, and refresh destination scene
+presence before rendering. Regression coverage checks both extractor and
+heuristic movement, original text in the prompt/transcript, and destination
+identity blocks including empty-room transitions.
