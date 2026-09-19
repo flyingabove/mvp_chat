@@ -42,6 +42,7 @@
 | [GAME_DESIGN_SYSTEMS.md](model_output_docs/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). |
 | [NPC_SIDEQUEST_DESIGN.md](model_output_docs/NPC_SIDEQUEST_DESIGN.md) | ...NPC behavior, sidequest triggers, or quest logic changes. |
 | [SOCIAL_MODE_DESIGN.md](model_output_docs/SOCIAL_MODE_DESIGN.md) | ...the optional `mode` story-JSON schema, the mode prompt layer, or ensemble/slice-of-life ("social_sim") authoring guidance changes. |
+| [CAST_LIFECYCLE_DESIGN.md](model_output_docs/CAST_LIFECYCLE_DESIGN.md) | ...characters can enter, leave, rotate through capacity-limited slots, or lifecycle eligibility/persistence changes. |
 
 ## Tests & Integration Playback
 

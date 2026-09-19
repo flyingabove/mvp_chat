@@ -237,7 +237,7 @@ def _get_active_character_keys(state: GameState) -> set[str]:
     """
     keys: set[str] = set()
     main_id = getattr(state, "main_character_id", "") or ""
-    if main_id:
+    if main_id and _cast_scene_eligible(state, main_id):
         keys.add(main_id)
     keys.add("player")
 
@@ -246,17 +246,27 @@ def _get_active_character_keys(state: GameState) -> set[str]:
         if txt.startswith("__active_character_marker__:"):
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
-                keys.add(ch_key)
+                if _cast_scene_eligible(state, ch_key):
+                    keys.add(ch_key)
         elif txt.startswith("__scene_speaker_marker__:"):
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
-                keys.add(ch_key)
+                if _cast_scene_eligible(state, ch_key):
+                    keys.add(ch_key)
         elif txt.startswith("__on_call_character_marker__:"):
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
-                keys.add(ch_key)
+                if _cast_scene_eligible(state, ch_key):
+                    keys.add(ch_key)
 
     return keys
+
+
+def _cast_scene_eligible(state: GameState, key: str) -> bool:
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not getattr(lifecycle, "enabled", False):
+        return True
+    return key == "player" or lifecycle.is_scene_eligible(key)
 
 
 def _get_people_present_keys(state: GameState) -> set[str]:
@@ -266,7 +276,8 @@ def _get_people_present_keys(state: GameState) -> set[str]:
         if txt.startswith("__people_present_marker__:"):
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
-                keys.add(ch_key)
+                if _cast_scene_eligible(state, ch_key):
+                    keys.add(ch_key)
     if keys:
         return keys
 
@@ -277,7 +288,7 @@ def _get_people_present_keys(state: GameState) -> set[str]:
             return {
                 str(k or "").strip().lower()
                 for k in (getattr(item, "people_present", []) or [])
-                if str(k or "").strip()
+                if str(k or "").strip() and _cast_scene_eligible(state, str(k or "").strip().lower())
             }
     return set()
 
@@ -289,7 +300,8 @@ def _get_scene_speaker_keys(state: GameState) -> set[str]:
         if txt.startswith("__scene_speaker_marker__:"):
             ch_key = txt.split(":", 1)[1].strip().lower()
             if ch_key:
-                keys.add(ch_key)
+                if _cast_scene_eligible(state, ch_key):
+                    keys.add(ch_key)
     if keys:
         return keys
 
@@ -300,7 +312,7 @@ def _get_scene_speaker_keys(state: GameState) -> set[str]:
             return {
                 str(k or "").strip().lower()
                 for k in (getattr(item, "speakers", []) or [])
-                if str(k or "").strip()
+                if str(k or "").strip() and _cast_scene_eligible(state, str(k or "").strip().lower())
             }
     return set()
 
@@ -686,7 +698,7 @@ def _scene_cast_keys(state: GameState) -> list[str]:
         keys.append(key)
 
     main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
-    if main_id:
+    if main_id and _cast_scene_eligible(state, main_id):
         add_key(main_id)
 
     add_key("player")
@@ -711,7 +723,7 @@ def _scene_cast_keys(state: GameState) -> list[str]:
         for sp in raw_speakers:
             add_key(str(sp or ""))
 
-    return keys[:8]
+    return [key for key in keys if _cast_scene_eligible(state, key)][:8]
 
 
 def _humanize_rel_word(token: str) -> str:

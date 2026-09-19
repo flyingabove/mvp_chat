@@ -135,14 +135,15 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 
 ## 9. Six Strangers: Tokyo cast adaptation (2026-09-18)
 
-`7_six_strangers` now uses the opening six members from the user-supplied
+`7_six_strangers` now authors all 17 members from the user-supplied
 `terrace_house_boys_girls_in_the_city_season1.md` dossier (sections 1–2 and
 4.1–4.6): Makoto Hasegawa, Minori Nakada, Yuki Adachi, Mizuki Shida, Tatsuya
 "Uchi" Uchihara, and Yuriko Hayata. The dossier supplied the public cast
 identities, occupations, observational format, and Higashi-Gotanda / Shinagawa,
-Tokyo setting. Its later episode outcomes and replacement roster are not a
-script for play. Dialogue, inner lives, local venues, and the detailed floor
-plan are fictional game content, identified as such in the story metadata.
+Tokyo setting. Six are active at game start and eleven are stored as upcoming
+members in season-entry order. Later episode outcomes are not a script for
+play. Dialogue, inner lives, local venues, and the detailed floor plan are
+fictional game content, identified as such in the story metadata.
 
 The opening takes place in September 2015. The player is a seventh arrival
 using a small guest room added for this adaptation; the six original residents
@@ -162,7 +163,10 @@ is authored in both directions. The PNG map is a schematic of this game world,
 not an architectural reconstruction of the filming location. Public map text
 does not expose private character concerns. The existing `social_sim` mode
 provides observational pacing and occasional audience-only, unnamed panel-style
-asides; no schedule, cast-rotation, or panel-character engine is added.
+asides. The generic cast lifecycle, persistence, scene filtering, replacement
+operation, and private Cast menu are documented in `CAST_LIFECYCLE_DESIGN.md`.
+Automatic committed-intent detection and next-day scheduling remain the next
+integration phase.
 
 Start a new game to use the revised roster and locations. Existing sessions
 retain their saved characters and world snapshots; this content change does

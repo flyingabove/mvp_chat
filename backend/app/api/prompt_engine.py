@@ -62,6 +62,7 @@ from backend.app.engine.state import (
 
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
+from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim
 from backend.app.engine.knowledge_chunks import normalize_parties
 from backend.app.engine.story_loader import load_story, StoryDefinition
@@ -358,7 +359,100 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         # all pre-existing stories, so this key is simply {} for them and the
         # prompt_builder mode layer emits nothing.
         "mode": src.get("mode") or {},
+        "cast_lifecycle": src.get("cast_lifecycle") or {},
     }
+
+
+def _initialize_cast_lifecycle(state: GameState, snapshot: dict | None = None) -> None:
+    """Restore or seed optional rotating-cast state for a story.
+
+    Stories without ``cast_lifecycle.enabled`` retain legacy behavior. A saved
+    snapshot is authoritative so departures survive server restarts; older
+    saves seed from the authored config on first load.
+    """
+    config = (getattr(state, "story_cfg", None) or {}).get("cast_lifecycle") or {}
+    if snapshot is not None:
+        state.cast_lifecycle = CastLifecycleState.from_dict(snapshot)
+        return
+    if not config or not bool(config.get("enabled", False)):
+        state.cast_lifecycle = None
+        return
+    location_ids = None
+    runtime = getattr(state, "world_runtime", None)
+    if runtime is not None:
+        location_ids = list((getattr(runtime.world_graph, "locations", None) or {}).keys())
+    state.cast_lifecycle = CastLifecycleState.from_config(
+        config,
+        character_ids=(getattr(state, "characters", None) or {}).keys(),
+        location_ids=location_ids,
+    )
+
+
+def _cast_roster_payload(state: GameState) -> dict:
+    """Return the public roster without exposing upcoming character names."""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not lifecycle.enabled:
+        characters = getattr(state, "characters", {}) or {}
+        active = [
+            {"id": key, "name": ch.name, "role": ch.role}
+            for key, ch in characters.items()
+        ]
+        return {"title": "Cast", "active": active, "vacancies": [], "departed": []}
+
+    characters = getattr(state, "characters", {}) or {}
+    active = []
+    departed = []
+    for key in lifecycle.active_ids():
+        ch = characters.get(key)
+        if ch is not None:
+            active.append({"id": key, "name": ch.name, "role": ch.role})
+    for key, member in lifecycle.members.items():
+        if member.status is CastStatus.DEPARTED:
+            ch = characters.get(key)
+            if ch is not None:
+                departed.append({"id": key, "name": ch.name, "role": ch.role})
+    vacancies = []
+    for group, label in lifecycle.slot_labels.items():
+        for index in range(lifecycle.vacancies(group)):
+            vacancies.append({"id": f"{group}:{index}", "label": label})
+    return {
+        "title": "Housemates",
+        "labels": {"active": "Present", "vacancy": "Room available", "departed": "Moved out"},
+        "active": active,
+        "vacancies": vacancies,
+        "departed": departed,
+    }
+
+
+def _apply_cast_replacement(
+    state: GameState,
+    departing_id: str,
+    *,
+    reason: str,
+    event_id: str,
+    arriving_id: str | None = None,
+):
+    """Apply one validated replacement and synchronize world-facing state."""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None:
+        raise ValueError("story has no cast lifecycle")
+    transition = lifecycle.replace(
+        departing_id,
+        minute=int(getattr(state, "minute", 0) or 0),
+        reason=reason,
+        event_id=event_id,
+        arriving_id=arriving_id,
+    )
+    state.character_locations.pop(departing_id, None)
+    if transition.arriving_id:
+        state.character_locations[transition.arriving_id] = lifecycle.arrival_location_id
+    state.transient_entries = [
+        entry for entry in (getattr(state, "transient_entries", []) or [])
+        if not (getattr(entry, "text", "") or "").strip().endswith(f":{departing_id}")
+    ]
+    if getattr(state, "main_character_id", None) == departing_id:
+        state.main_character_id = transition.arriving_id or next(iter(lifecycle.active_ids()), None)
+    return transition
 
 
 def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | dict, state: GameState) -> None:
@@ -368,6 +462,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         "goal", "win_detection", "epistemic_seed", "canonical_truth", "characters", "relationships",
         "character_self_knowledge",  # injected directly into system prompt; not via FAISS
         "mode",  # injected directly via the prompt_builder mode-context layer; not via FAISS
+        "cast_lifecycle",  # runtime state; never seed future entrants into transient context
     }
 
     details: list[str] = []
@@ -696,6 +791,13 @@ MAP_TOGGLE_TOKENS = {
 
 def _is_map_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in MAP_TOGGLE_TOKENS
+
+
+CAST_ROSTER_TOKENS = {"[CAST]", "(CAST)"}
+
+
+def _is_cast_roster_request(msg: str) -> bool:
+    return (msg or "").strip().upper() in CAST_ROSTER_TOKENS
 
 
 # ---------------------------------------------------------------------------
@@ -1057,6 +1159,10 @@ def _serialize_state(state: GameState, log: list) -> str:
         "over": state.over,
         "instance": state.instance,
         "character_locations": dict(getattr(state, "character_locations", {}) or {}),
+        "cast_lifecycle": (
+            state.cast_lifecycle.to_dict()
+            if getattr(state, "cast_lifecycle", None) is not None else None
+        ),
         "world_start_datetime": str(getattr(state, "world_start_datetime", "") or ""),
         "last_travel_from_id": str(getattr(state, "last_travel_from_id", "") or ""),
         "last_travel_to_id": str(getattr(state, "last_travel_to_id", "") or ""),
@@ -1248,6 +1354,8 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         if not restored.main_character_id and main_char_def:
             restored.main_character_id = main_char_def.key
 
+        _initialize_cast_lifecycle(restored, saved.get("cast_lifecycle"))
+
         # Character start locations
         char_start_locs = world_cfg.get("character_start_locations") or {}
         if isinstance(char_start_locs, dict):
@@ -1264,6 +1372,13 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 for k, v in (saved.get("character_locations") or {}).items()
                 if k and v
             }
+
+        if (
+            restored.cast_lifecycle is not None
+            and restored.main_character_id
+            and not restored.cast_lifecycle.is_scene_eligible(restored.main_character_id)
+        ):
+            restored.main_character_id = next(iter(restored.cast_lifecycle.active_ids()), None)
 
         # Character relationship graph
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
@@ -1611,6 +1726,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 pass
         return result
 
+    # Read-only, zero-token roster view. Upcoming names are deliberately not
+    # returned, so authored future arrivals cannot leak through the UI.
+    if _is_cast_roster_request(msg):
+        roster = _cast_roster_payload(state)
+        return {
+            "reply": "",
+            "cast_roster": roster,
+            "usage": {"total_tokens": 0},
+            "character": "default",
+        }
+
     # TRUTH TOGGLE - Force character to answer honestly (debug tool)
     if _is_truth_toggle(msg):
         currently_on = bool(sess.get("truth_mode", False))
@@ -1827,6 +1953,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         if not new_state.main_character_id and main_char_def:
             new_state.main_character_id = main_char_def.key
+
+        _initialize_cast_lifecycle(new_state)
 
         # Seed character start locations from world config
         # character_start_locations: {character_key: location_id} — explicit positions at game start

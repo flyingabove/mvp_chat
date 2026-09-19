@@ -165,6 +165,77 @@ def test_chat_newgame_and_turn(client):
     assert not re.match(r"^\[\d{4}-\d{2}-\d{2} ", data2["reply"])  # no leading timestamp
 
 
+def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_cast_roster"
+    start = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert start.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert len(state.cast_lifecycle.active_ids()) == 6
+
+    response = client.post("/api/chat", json={"session_id": sid, "message": "[CAST]"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["usage"]["total_tokens"] == 0
+    assert payload["reply"] == ""
+    assert {item["id"] for item in payload["cast_roster"]["active"]} == {
+        "makoto", "yuki", "uchi", "minori", "mizuki", "yuriko"
+    }
+    public_ids = {
+        item.get("id") for group in ("active", "departed")
+        for item in payload["cast_roster"][group]
+    }
+    for future_id in ("arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko", "momoka", "hayato", "yuuki_byrnes", "masako"):
+        assert future_id not in public_ids
+
+
+def test_six_strangers_lifecycle_round_trips_in_session_snapshot(client):
+    import json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_cast_snapshot"
+    response = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|F|Chris"},
+    )
+    assert response.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    state.cast_lifecycle.replace(
+        "makoto", minute=state.minute, reason="committed to leaving", event_id="test:departure:1"
+    )
+    saved = json.loads(pe_mod._serialize_state(state, []))
+    restored = pe_mod.CastLifecycleState.from_dict(saved["cast_lifecycle"])
+    assert restored.members["makoto"].status.value == "departed"
+    assert restored.members["arman"].status.value == "active"
+    assert restored.history[0].event_id == "test:departure:1"
+
+
+def test_cast_replacement_updates_world_location_and_focal_character(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_cast_replace"
+    response = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert response.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    state.main_character_id = "makoto"
+
+    transition = pe_mod._apply_cast_replacement(
+        state, "makoto", reason="committed to leaving", event_id="test:replace:makoto"
+    )
+
+    assert transition.arriving_id == "arman"
+    assert "makoto" not in state.character_locations
+    assert state.character_locations["arman"] == "front_entry"
+    assert state.main_character_id == "arman"
+
+
 def test_prompt_debug_not_leaked_to_ordinary_players(client, monkeypatch):
     """Live-verified bug (found manually against the deployed beta site while
     playtesting The Common Room): /api/chat previously returned the FULL
@@ -296,18 +367,25 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     opening = response.json()["reply"]
     assert "\n\n" in opening and "\\n" not in opening
     state = pe_mod.SESSIONS[sid]["state"]
-    keys = {"makoto", "minori", "yuki", "mizuki", "uchi", "yuriko"}
+    active_keys = {"makoto", "minori", "yuki", "mizuki", "uchi", "yuriko"}
+    keys = active_keys | {
+        "arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko",
+        "momoka", "hayato", "yuuki_byrnes", "masako",
+    }
     assert set(state.characters) == keys
     assert state.player_name == "Chris"
     assert state.main_character_id == "mizuki"
     assert state.location_id == "front_entry"
-    assert {key: state.character_locations[key] for key in keys} == {
+    assert {key: state.character_locations[key] for key in active_keys} == {
         "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
         "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
     }
     for key in keys:
         assert state.characters[key].self_knowledge
-        assert state.character_graph.get_edge(key, "player") is not None
+        if key in active_keys:
+            assert state.character_graph.get_edge(key, "player") is not None
+        else:
+            assert state.character_graph.get_edge(key, "player") is None
 
     facts = {fact.id: fact for fact in state.canonical_facts}
     for key in keys:

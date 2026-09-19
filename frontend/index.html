@@ -792,6 +792,12 @@
       font-size: 12px; color: var(--text-sub); line-height: 1.5;
     }
     .chat-system-box .box-title { font-weight: 700; color: var(--text-sub); margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .cast-roster-section + .cast-roster-section { margin-top: 10px; }
+    .cast-roster-heading { color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .cast-roster-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 4px; }
+    .cast-roster-name { color: var(--text); font-size: 13px; }
+    .cast-roster-detail { color: var(--text-muted); font-size: 11px; text-align: right; }
+    .cast-roster-vacancy .cast-roster-name { color: var(--text-muted); font-style: italic; }
 
     /* ══════════════════════════════════════════════
        CREATE SCREEN
@@ -1178,6 +1184,7 @@
     <!-- Dropdown menu -->
     <div id="chat-dropdown">
       <div class="dropdown-item" id="dd-map"><span class="di-icon">🗺</span> World Map</div>
+      <div class="dropdown-item" id="dd-cast"><span class="di-icon">👥</span> <span id="dd-cast-label">Cast</span></div>
       <div class="dropdown-item" id="dd-debug"><span class="di-icon">🔬</span> Debug Info</div>
       <div class="dropdown-item" id="dd-truth"><span class="di-icon">💡</span> Truth Mode</div>
       <div class="dropdown-item" id="dd-chinese"><span class="di-icon">🀄</span> Chinese Mode</div>
@@ -2518,11 +2525,82 @@ function addDebugBox(debugBox){
   scrollChatToBottom();
 }
 
+function renderCastRoster(roster){
+  if (!roster || typeof roster !== "object") return;
+
+  var active = Array.isArray(roster.active) ? roster.active : [];
+  var departed = Array.isArray(roster.departed) ? roster.departed : [];
+  var vacancies = Array.isArray(roster.vacancies)
+    ? roster.vacancies
+    : Array.from({ length: Math.max(0, Number(roster.vacancies) || 0) }, function(){ return {}; });
+  var labels = roster.labels && typeof roster.labels === "object" ? roster.labels : {};
+  var title = String(roster.title || "Cast");
+
+  function memberName(member){
+    if (typeof member === "string") return member;
+    if (!member || typeof member !== "object") return "";
+    return String(member.name || member.label || "");
+  }
+
+  function memberDetail(member){
+    if (!member || typeof member !== "object") return "";
+    return String(member.role || member.detail || "");
+  }
+
+  function addSection(wrap, heading, members, vacancy){
+    if (!members.length) return;
+    var section = document.createElement("div");
+    section.className = "cast-roster-section";
+    var headingEl = document.createElement("div");
+    headingEl.className = "cast-roster-heading";
+    headingEl.textContent = heading;
+    section.appendChild(headingEl);
+    members.forEach(function(member){
+      var row = document.createElement("div");
+      row.className = "cast-roster-row" + (vacancy ? " cast-roster-vacancy" : "");
+      var name = document.createElement("span");
+      name.className = "cast-roster-name";
+      name.textContent = vacancy ? memberName(member) || "Room available" : memberName(member);
+      row.appendChild(name);
+      var detail = memberDetail(member);
+      if (detail){
+        var detailEl = document.createElement("span");
+        detailEl.className = "cast-roster-detail";
+        detailEl.textContent = detail;
+        row.appendChild(detailEl);
+      }
+      section.appendChild(row);
+    });
+    wrap.appendChild(section);
+  }
+
+  var wrap = document.createElement("div");
+  wrap.className = "chat-system-box cast-roster-box";
+  var titleEl = document.createElement("div");
+  titleEl.className = "box-title";
+  titleEl.textContent = title;
+  wrap.appendChild(titleEl);
+  addSection(wrap, String(labels.active || "Present"), active, false);
+  addSection(wrap, String(labels.vacancy || "Room available"), vacancies, true);
+  addSection(wrap, String(labels.departed || "Moved out"), departed, false);
+
+  if (!active.length && !vacancies.length && !departed.length){
+    var empty = document.createElement("div");
+    empty.className = "cast-roster-detail";
+    empty.textContent = "No roster information is available yet.";
+    wrap.appendChild(empty);
+  }
+
+  $("chat-messages").appendChild(wrap);
+  scrollChatToBottom();
+}
+
 function showTypingIndicator(){ $("typing-indicator").classList.add("visible"); scrollChatToBottom(); }
 function hideTypingIndicator(){ $("typing-indicator").classList.remove("visible"); }
 
 /* ─── SEND / RECEIVE ────────────────────────────── */
-function sendMessage(text, isInit){
+function sendMessage(text, isInit, options){
+  options = options || {};
   if (appState.awaitingResponse && !isInit) return;
   appState.awaitingResponse = true;
 
@@ -2531,7 +2609,7 @@ function sendMessage(text, isInit){
   if (input){ input.value = ""; input.style.height = ""; }
   if (sendBtn) sendBtn.disabled = true;
 
-  if (!isInit) {
+  if (!isInit && !options.suppressUserMessage) {
     addMessage("user", text);
   }
 
@@ -2554,17 +2632,19 @@ function sendMessage(text, isInit){
       addSystemMessage("Error: " + data.error);
     } else {
       var reply = (data && data.reply) ? data.reply : "";
-      addMessage("npc", reply);
+      if (reply) addMessage("npc", reply);
+      if (data && data.cast_roster) renderCastRoster(data.cast_roster);
       addDebugBox(data && data.debug_box);
 
       // Update session
       if (session){
         session.last_played = Date.now();
-        session.last_message = reply.slice(0, 80);
-        if (!isInit) session.turns = (session.turns || 0) + 1;
+        if (reply) session.last_message = reply.slice(0, 80);
+        var countsAsTurn = !isInit && options.countAsTurn !== false;
+        if (countsAsTurn) session.turns = (session.turns || 0) + 1;
         saveSession(session);
 
-        if (!isInit) {
+        if (countsAsTurn) {
           var stats = loadStats();
           stats.turns = (stats.turns || 0) + 1;
           saveStats(stats);
@@ -2635,6 +2715,11 @@ document.addEventListener("click", function(){
 $("dd-map").addEventListener("click", function(){
   $("chat-dropdown").classList.remove("open");
   showMapModal();
+});
+
+$("dd-cast").addEventListener("click", function(){
+  $("chat-dropdown").classList.remove("open");
+  sendMessage("[CAST]", false, { suppressUserMessage: true, countAsTurn: false });
 });
 
 $("dd-debug").addEventListener("click", function(){
