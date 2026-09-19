@@ -44,6 +44,12 @@
 **What's needed:** Design a lightweight, story-JSON-declarable schedule/trigger primitive (e.g. NPC location-by-time-of-day, simple flag-gated triggers) that both mystery and social_sim stories could opt into.
 **Touches:** `backend/app/engine/gameplay.py`, story JSON schema, `documentation/model_output_docs/GAME_DESIGN_SYSTEMS.md`.
 
+### BL-10 — Hosted beta still serving stale story catalog despite repo being correct (source: live verification, 2026-09-19)
+**What:** The repo code and local validation are correct: `build_story_registry()` resolves only `iu_murder_mystery` and `six_strangers`, and the Python test suite passes. The live beta API at `https://beta-api.storieschat.ai/api/stories`, however, still returns the old catalog with inactive story IDs (`jennie_murder_mini`, `blackout_manor`, etc.), which means the deployment environment is not reflecting the repo state.
+**Why deferred:** This is not a repo-side logic bug in the current branch; it appears to be an infra/deploy freshness issue in the hosted beta environment. The real fix is external to the codebase: a fresh Railway build/redeploy or a clean environment rebuild.
+**What's needed:** Re-trigger the beta deployment from the actual hosting environment, confirm the rebuilt container is serving the repo state, and re-run the live curl/browser smoke check against the real hosted endpoints before claiming the push is accepted.
+**Touches:** deployment environment / Railway, hosted beta API, `frontend/index.html` smoke verification.
+
 ---
 
 ## Done
