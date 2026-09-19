@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.state import GameState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
+from backend.app.engine.cast_lifecycle import CastStatus
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -414,13 +415,16 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
             continue
         if _is_legacy_relationship_telemetry(text):
             continue
+        fact_known_by = normalize_parties(getattr(fact, "known_by", []) or [])
+        if _fact_owner_only_upcoming(state, [str(k).strip().lower() for k in fact_known_by]):
+            continue
         chunks.append(KnowledgeChunk(
             id=f"fact::{getattr(fact, 'id', '') or 'unknown'}",
             text=text,
             tier="CANONICAL_CORE",
             source="epistemic_seed.canonical_facts",
             certainty="certain",
-            known_by=normalize_parties(getattr(fact, "known_by", []) or []),
+            known_by=fact_known_by,
             not_known_by=normalize_parties(getattr(fact, "not_known_by", []) or []),
             maybe_known_by=normalize_parties(getattr(fact, "maybe_known_by", []) or []),
         ))
@@ -623,6 +627,25 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
     return preface + "\n\n".join(sections) + "\n", debug_chunks
 
 
+def _fact_owner_only_upcoming(state: GameState, known_by: list[str]) -> bool:
+    """True when every named owner of a fact is an upcoming (never-yet-active)
+    lifecycle character. Facts shared with "all"/"all_characters", or owned by
+    at least one currently-eligible character, are never suppressed here —
+    this only blocks a not-yet-arrived character's own private biography from
+    leaking before they've actually joined the scene."""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not getattr(lifecycle, "enabled", False):
+        return False
+    named = [k for k in known_by if k not in ("all", "all_characters")]
+    if not named:
+        return False
+    return all(
+        not _cast_scene_eligible(state, key) and key in lifecycle.members
+        and lifecycle.members[key].status is CastStatus.UPCOMING
+        for key in named
+    )
+
+
 def _canonical_facts_for_speaker(state: GameState) -> list[str]:
     speaker_id = (getattr(state, "main_character_id", "") or "").strip().lower()
     out: list[str] = []
@@ -633,6 +656,8 @@ def _canonical_facts_for_speaker(state: GameState) -> list[str]:
             continue
         known_by = [str(x).strip().lower() for x in (getattr(fact, "known_by", []) or []) if str(x).strip()]
         if known_by and speaker_id and speaker_id not in known_by and "all" not in known_by and "all_characters" not in known_by:
+            continue
+        if _fact_owner_only_upcoming(state, known_by):
             continue
         out.append(text)
 
@@ -1198,15 +1223,37 @@ def _identity_block(char_name: str, entries: list) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _main_character_scene_eligible(state) -> bool:
+    """Whether the main character's identity/focal framing should be injected
+    this turn. Non-lifecycle stories (cast_lifecycle absent/disabled) always
+    return True — preserves legacy ghost-NPC / non-spatial behavior byte-for-
+    byte. Lifecycle-enabled stories (e.g. Six Strangers) require the main
+    character to actually be present in the current scene, unless no
+    location-based presence signal exists yet (e.g. opening turn)."""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not getattr(lifecycle, "enabled", False):
+        return True
+    main_char = getattr(state, "main_character", None)
+    main_key = (getattr(main_char, "key", "") or "").strip().lower()
+    if not _cast_scene_eligible(state, main_key):
+        return False
+    people_present_keys = _get_people_present_keys(state)
+    if not people_present_keys:
+        return True
+    return main_key in people_present_keys
+
+
 def _character_identity_section(state) -> str:
     """
     Directly injects character self_knowledge entries as named system prompt
     sections with explicit first-person behavioral instructions. Never
     FAISS-dependent.
 
-    - The main character's block is always included when they have
-      self_knowledge, regardless of scene presence (unchanged from legacy
-      behavior — e.g. a ghost NPC who isn't tied to a location).
+    - The main character's block is included when they have self_knowledge
+      AND are scene-eligible (see `_main_character_scene_eligible`): always
+      true for non-lifecycle stories (unchanged legacy behavior — e.g. a
+      ghost NPC who isn't tied to a location); for lifecycle-enabled stories,
+      only when main is actually present in the current scene.
     - Every OTHER character (not main, not "player") who is currently present
       in the scene AND has their own non-empty self_knowledge also gets a
       block, iterated in deterministic (sorted-by-key) order. This is additive:
@@ -1224,7 +1271,7 @@ def _character_identity_section(state) -> str:
             entries = list(cfg.get("character_self_knowledge") or [])
 
     blocks: list[str] = []
-    if entries:
+    if entries and _main_character_scene_eligible(state):
         blocks.append(_identity_block(char_name, entries))
 
     # Additional present, non-main characters with their own self_knowledge.
@@ -1289,15 +1336,40 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
     user_line = (current_user_msg or "").strip()
     user_line_text = f'Current player line: "{user_line}".' if user_line else "Current player line is available in the user message."
 
+    main_present = _main_character_scene_eligible(state)
+    if main_present:
+        focal_line = (
+            f"The scene is currently in {location} at minute {minute} of the session, "
+            f"with {main_name} as the focal lens. "
+            f"{main_name} is a {main_role} and is currently emotionally {emotion}, "
+            f"with relationship baseline {rel}.\n\n"
+        )
+        cast_pressure_line = (
+            f"Relevant cast pressure around this moment includes: {cast_text}. "
+            f"Use this cast context to keep the world feeling populated and story-driven, "
+            f"while keeping {main_name} as the primary focus.\n\n"
+        )
+    else:
+        focal_line = (
+            f"The scene is currently in {location} at minute {minute} of the session. "
+            f"{main_name} is not present in this scene right now — do not have them appear, "
+            f"speak, or join unless a validated arrival event adds them to the people present.\n\n"
+        )
+        cast_pressure_line = (
+            f"Relevant cast pressure around this moment includes: {cast_text}. "
+            f"Use this only as background context, not as characters who may appear uninvited.\n\n"
+        )
+
     return (
         "\n────────────────────────────────────────\n"
         "### SCENE BRIEF\n"
         "────────────────────────────────────────\n"
-        f"The scene is currently in {location} at minute {minute} of the session, with {main_name} as the focal lens. "
-        f"{main_name} is a {main_role} and is currently emotionally {emotion}, with relationship baseline {rel}.\n\n"
+        f"{focal_line}"
         f"People present in this location right now ({people_present_count}): {people_present_text}.\n"
         f"Current-turn speakers: {speakers_text}.\n\n"
-        f"Relevant cast pressure around this moment includes: {cast_text}. Use this cast context to keep the world feeling populated and story-driven, while keeping {main_name} as the primary focus.\n\n"
+        f"{cast_pressure_line}"
+        "Narrate only what the player's message actually states or implies. "
+        "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote.\n\n"
         f"{user_line_text}\n"
     )
 

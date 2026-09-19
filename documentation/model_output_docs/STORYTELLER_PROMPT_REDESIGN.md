@@ -105,6 +105,18 @@ Current runtime contract:
 - `speakers`: current-turn speaking cast
 - If location is unchanged, prior-turn speakers are eligible carry-over into current cast list
 - Phone-call edge cases are deferred for now by product decision
+- **Focal-lens framing is conditional for lifecycle-enabled stories** (2026-09-19
+  fix, see `documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md`):
+  `_storyteller_scene_section` and `_character_identity_section` in
+  `prompt_builder.py` only frame the main character as "the focal lens" (and
+  inject their identity block) when `_main_character_scene_eligible(state)`
+  is true — for a lifecycle-enabled story (`state.cast_lifecycle.enabled`),
+  that requires the main character to actually be in `people_present` for the
+  current scene. When absent, the scene brief instead states plainly that the
+  main character is not present and must not appear/speak/join uninvited.
+  Non-lifecycle stories are unaffected (always eligible, unchanged legacy
+  behavior — supports an always-present ghost/narrator NPC). This closes the
+  bug where an explicit solitary scene still had the main NPC narrated in.
 
 ---
 

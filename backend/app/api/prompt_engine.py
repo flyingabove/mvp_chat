@@ -13,6 +13,7 @@ from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, 
 from backend.app.db.repos import SessionRepo, ConversationRepo
 
 import asyncio
+import dataclasses
 import httpx
 import json
 import logging
@@ -22,6 +23,8 @@ import re
 import time
 
 import uuid
+
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +66,8 @@ from backend.app.engine.state import (
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
-from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim
-from backend.app.engine.knowledge_chunks import normalize_parties
+from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
+from backend.app.engine.knowledge_chunks import normalize_parties, KnowledgeChunk
 from backend.app.engine.story_loader import load_story, StoryDefinition
 from backend.app.engine.gameplay import (
 
@@ -77,7 +80,8 @@ from backend.app.engine.time_utils import WorldTimeFormatter
 from backend.app.engine.world.world_loader import WorldLoader
 from backend.app.engine.prompt_builder import (
 
-    build_messages
+    build_messages,
+    _cast_scene_eligible,
 
 )
 from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace_key
@@ -1045,6 +1049,47 @@ def _serialize_character_graph(graph) -> dict:
     return {"edges": edges}
 
 
+def _serialize_knowledge_chunk(chunk: KnowledgeChunk) -> dict:
+    return dataclasses.asdict(chunk)
+
+
+def _restore_knowledge_chunk(data: dict) -> Optional[KnowledgeChunk]:
+    if not isinstance(data, dict):
+        return None
+    fields = {f.name for f in dataclasses.fields(KnowledgeChunk)}
+    try:
+        return KnowledgeChunk(**{k: v for k, v in data.items() if k in fields})
+    except Exception:
+        return None
+
+
+def _serialize_beliefs(beliefs: Dict[str, BeliefState]) -> dict:
+    out: dict[str, dict] = {}
+    for char_id, bs in (beliefs or {}).items():
+        out[str(char_id)] = {
+            "character_id": str(getattr(bs, "character_id", char_id) or char_id),
+            "claims": [_serialize_knowledge_chunk(c) for c in (getattr(bs, "claims", []) or [])],
+            "observations": [_serialize_knowledge_chunk(o) for o in (getattr(bs, "observations", []) or [])],
+        }
+    return out
+
+
+def _restore_beliefs(saved: dict | None) -> Dict[str, BeliefState]:
+    beliefs: Dict[str, BeliefState] = {}
+    if not isinstance(saved, dict):
+        return beliefs
+    for char_id, data in saved.items():
+        if not isinstance(data, dict):
+            continue
+        bs = BeliefState(character_id=str(data.get("character_id") or char_id))
+        bs.claims = [c for c in (_restore_knowledge_chunk(x) for x in (data.get("claims") or [])) if c is not None]
+        bs.observations = [
+            o for o in (_restore_knowledge_chunk(x) for x in (data.get("observations") or [])) if o is not None
+        ]
+        beliefs[str(char_id)] = bs
+    return beliefs
+
+
 def _restore_character_graph(state: GameState, graph_snapshot: dict | None) -> None:
     if not isinstance(graph_snapshot, dict):
         return
@@ -1170,6 +1215,8 @@ def _serialize_state(state: GameState, log: list) -> str:
         "last_turn_assistant_reply": str(getattr(state, "last_turn_assistant_reply", "") or ""),
         "last_turn_retrieved_chunks": [dict(c) for c in (getattr(state, "last_turn_retrieved_chunks", []) or [])],
         "character_graph": _serialize_character_graph(getattr(state, "character_graph", None)),
+        "beliefs": _serialize_beliefs(getattr(state, "beliefs", {}) or {}),
+        "observation_log": [_serialize_knowledge_chunk(o) for o in (getattr(state, "observation_log", []) or [])],
         "session_chunks": _serialize_session_chunks(state),
         "user_formal_name": getattr(state.user, "formal_name", "") if state.user else "",
         "user_display_name": getattr(state.user, "display_name", "") if state.user else "",
@@ -1406,8 +1453,21 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             dict(c) for c in (saved.get("session_chunks") or []) if isinstance(c, dict)
         ])
 
-        # Re-seed epistemic and transient knowledge (same as newgame)
+        # Re-seed epistemic and transient knowledge (same as newgame). Canonical
+        # facts are static authored content and safe to re-derive every restore.
+        # Beliefs/observations are player-driven runtime state: restore the saved
+        # values when present, and only fall back to re-seeding belief_seeds for
+        # a session that has none saved yet (first restore of an old save, or a
+        # session that genuinely has no belief history).
         _seed_epistemic_from_story(restored.story_cfg, restored)
+        saved_beliefs = saved.get("beliefs")
+        if saved_beliefs:
+            restored.beliefs = _restore_beliefs(saved_beliefs)
+        saved_observations = saved.get("observation_log")
+        if saved_observations:
+            restored.observation_log = [
+                c for c in (_restore_knowledge_chunk(x) for x in saved_observations) if c is not None
+            ]
         restored.clear_all_transient_entries()
         _seed_noncanonical_story_details_to_transient(story_def, restored)
 
@@ -2175,7 +2235,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         character_key_to_name = {
             str(key).strip().lower(): str(getattr(ch, "name", "") or key)
             for key, ch in (getattr(state, "characters", {}) or {}).items()
-            if str(key).strip()
+            if str(key).strip() and _cast_scene_eligible(state, str(key).strip().lower())
         }
 
         try:
@@ -2408,42 +2468,6 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     log.append({"role": "assistant", "content": clean})
     sess["log"] = log[-MEMORY_TURNS:]
 
-    # Persist state + raw log after every turn (authenticated users only)
-    if user_id != "anon":
-        try:
-            story_title = ""
-            if hasattr(state, "story_cfg") and state.story_cfg:
-                cfg = state.story_cfg
-                story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
-            await SessionRepo.create_or_update_session(
-                session_id=session_id,
-                user_id=user_id,
-                story_id=state.story or "",
-                story_title=story_title,
-                player_name=state.player_name or "",
-                gender=state.gender or "M",
-                state_json=_serialize_state(state, sess["log"]),
-                flags_json=json.dumps({
-                    "debug_mode": bool(sess.get("debug_mode", False)),
-                    "chinese_mode": bool(sess.get("chinese_mode", False)),
-                    "epistemic_state": bool(sess.get("epistemic_state", True)),
-                    "truth_mode": bool(sess.get("truth_mode", False)),
-                }),
-                last_message=clean[:120],
-                turns=state.turns,
-            )
-            await ConversationRepo.append_turns(
-                user_id=user_id,
-                session_id=session_id,
-                user_msg=msg,
-                assistant_reply=clean,
-                turn=state.turns,
-                user_msg_id=user_msg_id,
-                ai_msg_id=ai_msg_id,
-            )
-        except Exception:
-            logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
-
     try:
         state.add_transient_entry(
             id=str(uuid.uuid4()),
@@ -2493,9 +2517,50 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
 
     # Persist this completed turn for next turn's single-call extractor analysis.
+    # These must be set BEFORE the session save below so the persisted row
+    # reflects the turn just completed, not the prior one (see BL-01).
     state.last_turn_user_msg = msg
     state.last_turn_assistant_reply = clean
     state.last_turn_retrieved_chunks = [dict(c) for c in (retrieved or [])]
+
+    # Persist state + raw log after every turn (authenticated users only).
+    # All in-memory mutations for this turn (including `over` and
+    # `last_turn_*` above) must happen before this single save point so the
+    # persisted snapshot is atomic with respect to the turn just completed.
+    if user_id != "anon":
+        try:
+            story_title = ""
+            if hasattr(state, "story_cfg") and state.story_cfg:
+                cfg = state.story_cfg
+                story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
+            await SessionRepo.create_or_update_session(
+                session_id=session_id,
+                user_id=user_id,
+                story_id=state.story or "",
+                story_title=story_title,
+                player_name=state.player_name or "",
+                gender=state.gender or "M",
+                state_json=_serialize_state(state, sess["log"]),
+                flags_json=json.dumps({
+                    "debug_mode": bool(sess.get("debug_mode", False)),
+                    "chinese_mode": bool(sess.get("chinese_mode", False)),
+                    "epistemic_state": bool(sess.get("epistemic_state", True)),
+                    "truth_mode": bool(sess.get("truth_mode", False)),
+                }),
+                last_message=clean[:120],
+                turns=state.turns,
+            )
+            await ConversationRepo.append_turns(
+                user_id=user_id,
+                session_id=session_id,
+                user_msg=msg,
+                assistant_reply=clean,
+                turn=state.turns,
+                user_msg_id=user_msg_id,
+                ai_msg_id=ai_msg_id,
+            )
+        except Exception:
+            logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
 
     # Fire background fact extraction (non-blocking).
     # Extracted facts are stored in state.session_chunk_store with IDs:

@@ -144,11 +144,39 @@ Lifecycle filtering is defense in depth:
 - Upcoming names and biographies never appear in player-visible cast output.
 - The character graph retains all nodes and accumulated edges; rendering filters
   by eligibility.
+- The turn extractor's `allowed_character_keys` catalog
+  (`prompt_engine.py`'s `character_key_to_name`) is filtered through the same
+  `_cast_scene_eligible` predicate before being sent to the LLM-backed
+  extractor — an upcoming/departed character's key and real name are not
+  handed to the extractor as a candidate, matching every other eligibility
+  gate in this section (2026-09-19 fix; previously this one call site built
+  the catalog from the full unfiltered roster).
+- A canonical fact whose *only* `known_by` owner is a still-`upcoming`
+  character (e.g. that character's private concern/biography) is excluded
+  from both `_knowledge_chunks_from_state` and `_canonical_facts_for_speaker`
+  in `prompt_builder.py`, even if something in the scene would otherwise
+  surface it as "known by" the speaker. Facts shared with `all`/
+  `all_characters`, or owned by at least one already-active character, are
+  unaffected. Departed characters' facts remain visible to characters who
+  already knew them — this filter only blocks a character who has *never yet
+  arrived* from leaking their private facts early.
 
 The authored `is_main` flag remains a starting preference, not permanent
 membership. If that member departs, the runtime focal moves to the replacement,
 or to the deterministic first active character when the queue is empty. Static
 authoring flags are not mutated.
+
+For a lifecycle-enabled story, the main character's identity block
+(`_character_identity_section`) and "focal lens" framing
+(`_storyteller_scene_section`'s scene brief) are now also gated on the main
+character actually being present in the current scene
+(`_main_character_scene_eligible`, `prompt_builder.py`), not injected
+unconditionally. Non-lifecycle stories are unaffected — they keep the legacy
+always-inject-main behavior (an always-present ghost/narrator NPC not tied to
+a location remains supported). This fixes the audit-reported bug where an
+explicit solitary scene ("I go to the rooftop alone") still had the focal NPC
+narrated as present, because the identity/framing layers ignored scene
+presence entirely for the main character.
 
 ## 7. Persistence and compatibility
 

@@ -8,11 +8,11 @@
 
 ## Open
 
-### BL-01 — Non-atomic turn snapshot (source: audit A08, P1)
-**What:** The turn save happens before `over`/`last_turn_*` updates and before async background fact-extraction completes; belief/observation state isn't fully snapshotted and gets re-seeded on restore.
-**Why deferred:** Audit itself calls this "a meaningful refactor" — needs a versioned snapshot boundary plus a durable outbox for background fact-extraction, not a quick patch. Rushing it risked a bad abstraction.
-**What's needed:** Design a turn-commit boundary that atomically persists core state + `over` + `last_turn_*` + belief/observation state together; move background fact-extraction to a durable queue/outbox with its own completion marker. Add a restore-fidelity test (save mid-turn → restore → assert `over`/`last_turn_*`/beliefs match).
-**Touches:** `backend/app/api/prompt_engine.py`, `backend/app/db/repos.py`, `backend/app/engine/state.py`.
+### BL-01b — Durable outbox for background fact-extraction (source: audit A08 / Six Strangers audit 2026-09-19, remainder of BL-01)
+**What:** Background fact-extraction (`_extract_and_store` in `prompt_engine.py`) still fires via `asyncio.ensure_future(...)` after the turn save, fully unawaited and with no durable completion marker. A save between turns can race or miss it; a crash after the turn save but before extraction completes silently drops that turn's extracted facts with no record that it happened.
+**Why deferred:** The turn-commit-ordering and beliefs/observation_log persistence gaps (the rest of the original BL-01) are now fixed (see Done section below); this remaining piece needs a durable queue/outbox with its own completion marker, which is separate surface area from a save-ordering fix.
+**What's needed:** Move background fact-extraction to a durable queue/outbox (e.g. a DB-backed pending-extraction table) with its own completion marker, so a crash mid-extraction is recoverable/retryable instead of silently lossy.
+**Touches:** `backend/app/api/prompt_engine.py`, `backend/app/db/repos.py`.
 
 ### BL-02 — Turn retry idempotency (source: audit A12 remainder, P1)
 **What:** Per-session corruption is now prevented via an `asyncio.Lock` (commit `9c3070f`), but a *retried* request (e.g. client timeout + resend) can still double-apply a turn — there's no request-ID based idempotency.
@@ -45,6 +45,7 @@
 **Touches:** `backend/app/engine/gameplay.py`, story JSON schema, `documentation/model_output_docs/GAME_DESIGN_SYSTEMS.md`.
 
 ### BL-10 — Hosted beta still serving stale story catalog despite repo being correct (source: live verification, 2026-09-19)
+**Latest verification (2026-09-19):** No longer reproduces: Railway deployment `23b0daa3-f2b6-4302-9ec1-e822f2f122da` succeeded for `c3e2a19`; live beta returns only `iu_murder_mystery` and `six_strangers`, and `[CAST]` returns the structured zero-token roster. Historical cause was not established. Keep deployment build identity and acceptance checks as follow-up work. See [audit and proposal](SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md) for current evidence and gameplay findings; the older observations below are historical.
 **What:** The repo code and local validation are correct: `build_story_registry()` resolves only `iu_murder_mystery` and `six_strangers`, and the Python test suite passes. The live beta API at `https://beta-api.storieschat.ai/api/stories`, however, still returns the old catalog with inactive story IDs (`jennie_murder_mini`, `blackout_manor`, etc.), which means the deployment environment is not reflecting the repo state.
 **Why deferred:** This is not a repo-side logic bug in the current branch; it appears to be an infra/deploy freshness issue in the hosted beta environment. The real fix is external to the codebase: a fresh Railway build/redeploy or a clean environment rebuild.
 **What's needed:** Re-trigger the beta deployment from the actual hosting environment, confirm the rebuilt container is serving the repo state, and re-run the live curl/browser smoke check against the real hosted endpoints before claiming the push is accepted.
@@ -55,6 +56,18 @@
 ## Done
 
 _(move resolved items here with the commit SHA that closed them)_
+
+### Six Strangers audit Phase 1 — truthful scenes and durable state (2026-09-19, source: [audit and proposal](SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md))
+**Resolved by:** _pending commit — updated immediately after push to beta._
+**What was found:** live beta contradicted the roster and world state in two ways: asking about an upcoming resident (Arman) confirmed his residency and exposed his authored private concern; an explicit solitary-scene request ("I go to the rooftop alone") still had the focal NPC (Mizuki) narrated as joining. Root cause for both: several call sites bypassed the lifecycle-eligibility primitives (`CastLifecycleState.is_scene_eligible`, `_cast_scene_eligible`) that already existed and were correctly used elsewhere (`_get_people_present_keys`, `_cast_roster_payload`). Separately, `_serialize_state` never included `beliefs`/`observation_log`, and `over`/`last_turn_*` were set on `state` *after* the one session save call, so a persisted row always lagged the turn just completed (BL-01).
+**What was done:**
+- `backend/app/api/prompt_engine.py`: `character_key_to_name` (the turn extractor's `allowed_character_keys`) now filtered through `_cast_scene_eligible` before being sent to `_TURN_EXTRACTOR.extract(...)`.
+- `backend/app/engine/prompt_builder.py`: added `_fact_owner_only_upcoming()` — excludes a canonical fact from both `_knowledge_chunks_from_state` and `_canonical_facts_for_speaker` when its only `known_by` owner is a still-`upcoming` character. Added `_main_character_scene_eligible()` — gates `_character_identity_section`'s main-character block and `_storyteller_scene_section`'s "focal lens" framing on the main character actually being present in the scene, for lifecycle-enabled stories only (non-lifecycle stories keep legacy always-inject behavior byte-for-byte). Added an explicit "do not invent player feelings/actions" instruction to the scene brief.
+- `backend/app/api/prompt_engine.py`: reordered the turn handler so `state.over`/`last_turn_user_msg`/`last_turn_assistant_reply`/`last_turn_retrieved_chunks` are all set before the single `create_or_update_session` save call, not after (closes the BL-01 save-ordering gap). Added `_serialize_beliefs`/`_restore_beliefs`/`_serialize_knowledge_chunk`/`_restore_knowledge_chunk` and wired `beliefs`/`observation_log` into `_serialize_state` and the restore path in `_try_load_session_from_db` (only re-seeds from `belief_seeds` when no saved beliefs exist, so real play state is restored instead of re-derived).
+- `backend/app/config/build_info.py` (new): `get_build_info()` returns `commit`/`environment`/`content_schema_version`, reading `RAILWAY_GIT_COMMIT_SHA`/`RAILWAY_ENVIRONMENT_NAME` with local-dev fallbacks. Wired into `/api/version`, `/version.json`, `/beta/version.json` (`backend/app/main.py`) and `/api/health` (`backend/app/api/health.py`), replacing the previous hardcoded `"1.0.0"` stub. `Railway.toml` now sets `[deploy] healthcheckPath = "/api/health"` (previously unset).
+- Tests added: `tests/backend/app/api/test_prompt_engine.py` (`test_upcoming_character_private_facts_excluded_from_canonical_stack`, `test_turn_extractor_catalog_excludes_upcoming_and_departed_characters`, `test_main_character_identity_not_injected_when_absent_from_scene`, `test_main_character_identity_unaffected_for_non_lifecycle_story`, `test_turn_commit_persists_over_and_last_turn_fields_from_same_turn`, `test_beliefs_and_observation_log_round_trip_through_restore`); `tests/backend/app/test_main.py` extended `test_version_endpoint`/`test_health_endpoint`, added `test_version_json_endpoints_expose_build_identity`.
+- Full suite: 509 passed, 1 xfailed, 0 failed at time of this fix.
+**Deliberately not done (see BL-01b, BL-02, BACKLOG P2 items):** durable outbox for background fact-extraction; request-ID turn-retry idempotency; Phase 2 (cast-cycling-as-playable-feature: departure proposals in the turn extractor, scheduler, arrival relationship seeding), Phase 3 (routines/commitments/goals), and Phase 4 (journal/recap/time-skip UI) from the audit's own phasing are explicitly out of scope for this pass.
 
 ### BL-09 — `/api/chat` leaked the full system prompt to every player (found + fixed 2026-09-17, source: live playtest verification of The Common Room, /ship-and-verify skill Phase 3)
 **Resolved by:** `446477b` (`fix(security): stop /api/chat leaking the full system prompt to players`), pushed to `beta`.

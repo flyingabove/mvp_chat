@@ -405,6 +405,244 @@ def test_every_catalogued_story_initializes_end_to_end(client, story):
         )
 
 
+# ============================================================================
+# Six Strangers audit Phase 1: future-resident leakage, focal-NPC/solitude,
+# atomic turn commit (see documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md)
+# ============================================================================
+
+def test_upcoming_character_private_facts_excluded_from_canonical_stack(client):
+    """P1 audit finding: an upcoming (never-yet-active) character's private
+    canonical facts must not render into the assembled prompt just because
+    they are the sole `known_by` owner - this is what let Arman's private
+    concern (and, by extension, confirmation of his residency) leak into
+    narration before he had actually joined the house."""
+    from backend.app.engine.prompt_builder import _canonical_facts_for_speaker, _knowledge_chunks_from_state
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "upcoming_fact_leak_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.cast_lifecycle.members["arman"].status.value == "upcoming"
+
+    # Speak as Arman's owner-only fact would only ever surface via known_by
+    # containing "arman"; simulate the main character being Arman is not
+    # required - the leak is that _knowledge_chunks_from_state renders ANY
+    # canonical fact whose only owner is upcoming, regardless of speaker.
+    chunks = _knowledge_chunks_from_state(state, [])
+    arman_chunk_texts = [c.text for c in chunks if c.id == "fact::arman_private_concern"]
+    assert arman_chunk_texts == [], (
+        "Arman's private concern rendered into the knowledge stack while he is still upcoming"
+    )
+
+    # Also confirm the speaker-scoped variant excludes it when the speaker
+    # happens to be flipped to Arman before he's actually active.
+    state.main_character_id = "arman"
+    facts = _canonical_facts_for_speaker(state)
+    assert not any("firefighter application" in f for f in facts), (
+        "Arman's private concern was exposed to the canonical-facts-for-speaker projection "
+        "while he is still an upcoming (not-yet-arrived) character"
+    )
+
+
+def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client):
+    """P1 audit finding: prompt_engine.py built the turn extractor's
+    `allowed_character_keys` catalog from the full character roster with no
+    lifecycle filtering, handing every upcoming/departed character's real
+    name to the extractor every turn."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "extractor_catalog_leak_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    captured = {}
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    async def _capture_extract(*args, **kwargs):
+        captured["character_key_to_name"] = kwargs.get("character_key_to_name", {})
+        return TurnExtraction()
+
+    with __import__("unittest").mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _capture_extract):
+        r2 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r2.status_code == 200
+
+    keys = captured.get("character_key_to_name", {})
+    assert keys, "turn extractor was never invoked with a character catalog"
+    assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
+    for active_key in ("makoto", "yuki", "uchi", "minori", "mizuki", "yuriko"):
+        assert active_key in keys, f"active character {active_key!r} unexpectedly missing from extractor catalog"
+
+
+def test_main_character_identity_not_injected_when_absent_from_scene(client):
+    """P1 audit finding: the focal NPC's identity block and 'focal lens'
+    framing were injected unconditionally, which is what let Mizuki (the
+    Six Strangers main character) override an explicit solitary-rooftop
+    request. For a lifecycle-enabled story, when the main character is not
+    present in the current scene, their identity block and focal framing
+    must be omitted from the assembled system prompt."""
+    from backend.app.engine.prompt_builder import _character_identity_section, _storyteller_scene_section
+
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "solitude_focal_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    main_name = state.main_character.name
+
+    # No people-present marker for main -> scene-eligible-but-absent path.
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if "__people_present_marker__" not in getattr(e, "text", "")
+    ]
+    state.add_transient_entry(
+        id="present-marker-other-only",
+        namespace="test",
+        scope="conversation",
+        text="__people_present_marker__:yuki",
+        expires_after_turns=10,
+    )
+
+    identity_section = _character_identity_section(state)
+    assert main_name not in identity_section, (
+        f"{main_name}'s identity block was injected even though they are absent from the scene"
+    )
+
+    scene_brief = _storyteller_scene_section(state, "I go to the rooftop alone.")
+    assert "as the focal lens" not in scene_brief
+    assert "is not present in this scene right now" in scene_brief
+
+
+def test_main_character_identity_unaffected_for_non_lifecycle_story(client):
+    """Regression guard: non-lifecycle stories (cast_lifecycle absent/disabled)
+    must keep the legacy always-inject-main behavior byte-for-byte, since
+    some stories intentionally use an always-present narrator (e.g. a ghost
+    NPC not tied to any location)."""
+    from backend.app.engine.prompt_builder import _character_identity_section, _storyteller_scene_section
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "non_lifecycle_identity_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert getattr(state, "cast_lifecycle", None) is None
+
+    main_name = state.main_character.name
+    identity_section = _character_identity_section(state)
+    if state.main_character.self_knowledge:
+        assert main_name in identity_section
+
+    scene_brief = _storyteller_scene_section(state, "hello")
+    assert "as the focal lens" in scene_brief
+
+
+def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, monkeypatch):
+    """BL-01: the session save must reflect `over` and `last_turn_*` for the
+    turn just completed, not the prior turn - previously the save happened
+    before these fields were set on `state`, so a crash/restore between the
+    save and those assignments would resume from stale end-state."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    captured = {}
+    orig_create = pe_mod.SessionRepo.create_or_update_session
+
+    async def _capture_save(*args, **kwargs):
+        captured["state_json"] = kwargs.get("state_json")
+        return await orig_create(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.SessionRepo, "create_or_update_session", _capture_save)
+
+    guest_headers = {"X-Guest-Id": "11111111-2222-4333-8444-555555555555"}
+    sid = "atomic_commit_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+        headers=guest_headers,
+    )
+    assert r.status_code == 200
+
+    r2 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello there"},
+        headers=guest_headers,
+    )
+    assert r2.status_code == 200
+
+    assert "state_json" in captured, "session save did not fire for a guest-authenticated request"
+    saved = _json.loads(captured["state_json"])
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert saved["last_turn_user_msg"] == state.last_turn_user_msg == "hello there"
+    assert saved["last_turn_assistant_reply"] == state.last_turn_assistant_reply
+    assert saved["over"] == state.over
+
+
+def test_beliefs_and_observation_log_round_trip_through_restore(client):
+    """BL-01: `_serialize_state` previously never included `beliefs` or
+    `observation_log`, so a restore always re-seeded beliefs from story
+    config instead of restoring actual play state. Confirm both now survive
+    a save/restore round trip."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "belief_restore_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    bs = state.get_belief_state("player")
+    bs.record_observation(
+        id="test_obs_1",
+        content="The player noticed a locked drawer.",
+        source="player",
+    )
+    state.record_observation(id="test_obs_1_global", content="Global log entry.", source="player")
+
+    saved_json = pe_mod._serialize_state(state, [])
+    saved = _json.loads(saved_json)
+    assert saved["beliefs"]["player"]["observations"], "beliefs were not serialized"
+    assert saved["observation_log"], "observation_log was not serialized"
+
+    monkeypatch_get = {
+        "session_id": "belief_restore_sess",
+        "user_id": "belief_restore_user",
+        "story_id": STORY_ID,
+        "state_json": saved_json,
+        "flags_json": "{}",
+    }
+    import unittest.mock as _mock
+    with _mock.patch("backend.app.db.repos.SessionRepo._get", return_value=monkeypatch_get):
+        restored = pe_mod._try_load_session_from_db("belief_restore_sess", "belief_restore_user")
+
+    assert restored is not None
+    restored_state = restored["state"]
+    restored_bs = restored_state.beliefs.get("player")
+    assert restored_bs is not None
+    assert any(
+        o.content == "The player noticed a locked drawer." for o in restored_bs.observations
+    ), "player belief observation did not survive restore"
+    assert any(
+        o.content == "Global log entry." for o in restored_state.observation_log
+    ), "observation_log did not survive restore"
+
+
 def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(client):
     """Exercise actual initialization, including visibility seeding and prompt assembly."""
     from backend.app.api import prompt_engine as pe_mod

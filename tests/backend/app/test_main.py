@@ -168,6 +168,21 @@ def test_version_endpoint(client):
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "ok"
+    # Build identity (audit P2: no way to confirm what commit a live
+    # deployment is serving) - must be present and non-empty.
+    assert data["commit"]
+    assert data["environment"]
+    assert isinstance(data["content_schema_version"], int)
+
+
+def test_version_json_endpoints_expose_build_identity(client):
+    for path in ("/version.json", "/beta/version.json"):
+        r = client.get(path)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["commit"]
+        assert data["environment"]
+        assert isinstance(data["content_schema_version"], int)
 
 
 def test_health_endpoint(client):
@@ -176,6 +191,9 @@ def test_health_endpoint(client):
     data = r.json()
     assert data["ok"] is True
     assert "php" in data
+    assert data["commit"]
+    assert data["environment"]
+    assert isinstance(data["content_schema_version"], int)
 
 
 def test_echo_endpoint(client):

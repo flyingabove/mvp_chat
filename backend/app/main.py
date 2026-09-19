@@ -24,6 +24,7 @@ from backend.app.db.repos import SessionRepo
 
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
+from backend.app.config.build_info import get_build_info
 
 _DEBUG_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
 _INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.html"
@@ -216,7 +217,8 @@ async def version():
     return {
         "status": "ok",
         "backend": "python",
-        "message": "StoriesChat FastAPI backend running"
+        "message": "StoriesChat FastAPI backend running",
+        **get_build_info(),
     }
 
 
@@ -224,4 +226,4 @@ async def version():
 @app.get("/version.json")
 @app.get("/beta/version.json")
 async def version_json():
-    return {"version": "1.0.0"}
+    return get_build_info()

@@ -211,6 +211,21 @@ Detection and verification:
   - alert on unexpected origin/service IDs.
 - Review Cloudflare audit logs for route, Worker, DNS, and token changes.
 
+**Build identity endpoints (2026-09-19 fix)**: `GET /api/version`, `GET /version.json`,
+`GET /beta/version.json`, and `GET /api/health` all now return the same
+`commit`/`environment`/`content_schema_version` fields from
+`backend/app/config/build_info.get_build_info()`. `commit` reads
+`RAILWAY_GIT_COMMIT_SHA` (set automatically by Railway on every deploy; falls
+back to a local `git rev-parse HEAD` when unset, for local dev). `environment`
+reads `RAILWAY_ENVIRONMENT_NAME` (falls back to `"local"`). Before this fix,
+`/api/version` had no version field at all and `/version.json`/`/beta/version.json`
+returned a hardcoded `"1.0.0"` disconnected from the actual deployed commit —
+there was no way to confirm what commit a live deployment was actually serving
+without trusting the Railway dashboard (see
+`documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md`, which found this
+gap while trying to verify a deployment). `Railway.toml` now also sets
+`[deploy] healthcheckPath = "/api/health"` — previously unset.
+
 Incident response (if tamper suspected):
 - Rotate Cloudflare API tokens immediately.
 - Revert routes/Worker/DNS to known-good config.
