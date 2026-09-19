@@ -560,6 +560,63 @@ def test_main_character_identity_not_injected_when_absent_from_scene(client):
     assert "is not present in this scene right now" in scene_brief
 
 
+def test_system_prompt_forbids_main_character_entering_solitary_scene(client):
+    """Live-verified gap (2026-09-19, second round of beta verification after
+    the roster-closure fix landed): gating only the identity block and scene
+    brief was NOT sufficient - across repeated live trials, Mizuki still
+    physically walked onto the rooftop and spoke to the player during an
+    explicit solitary scene, because the STORYTELLER CONTRACT and FOCAL STATE
+    sections of the base system prompt (assembled in `system_prompt()`)
+    unconditionally said 'Keep {char_name} as the focal character' /
+    'The focal character is {char_name}' regardless of scene presence,
+    directly contradicting the scene-brief instruction. Confirm the full
+    assembled system prompt now carries an explicit, unconditional
+    instruction that the main character must not enter/speak/appear when
+    absent from the scene, and that a present main character keeps the
+    original focal-character framing unchanged."""
+    from backend.app.engine.prompt_builder import system_prompt
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "solitary_scene_system_prompt_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    main_name = state.main_character.name
+
+    # Absent case: no people-present marker for main.
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if "__people_present_marker__" not in getattr(e, "text", "")
+    ]
+    state.add_transient_entry(
+        id="present-marker-other-only",
+        namespace="test",
+        scope="conversation",
+        text="__people_present_marker__:yuki",
+        expires_after_turns=10,
+    )
+    absent_prompt = system_prompt(state, current_user_msg="I go to the rooftop alone.")
+    assert "do not have" in absent_prompt and "enter, speak, call out" in absent_prompt, (
+        f"{main_name} absent from scene, but system prompt lacks an explicit "
+        "instruction forbidding them from entering/speaking"
+    )
+    assert f"Keep {main_name} as the focal character" not in absent_prompt
+
+    # Present case: main character back in the scene keeps original framing.
+    state.add_transient_entry(
+        id="present-marker-main",
+        namespace="test",
+        scope="conversation",
+        text=f"__people_present_marker__:{state.main_character_id}",
+        expires_after_turns=10,
+    )
+    present_prompt = system_prompt(state, current_user_msg="hello")
+    assert f"Keep {main_name} as the focal character" in present_prompt
+
+
 def test_main_character_identity_unaffected_for_non_lifecycle_story(client):
     """Regression guard: non-lifecycle stories (cast_lifecycle absent/disabled)
     must keep the legacy always-inject-main behavior byte-for-byte, since

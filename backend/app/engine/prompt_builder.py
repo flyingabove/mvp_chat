@@ -1412,6 +1412,21 @@ def system_prompt(
 
     emotion = state.emotion or EMOTION_START
 
+    main_scene_eligible = _main_character_scene_eligible(state)
+    if main_scene_eligible:
+        focal_contract_line = (
+            f"Keep {char_name} as the focal character, but naturally include other relevant "
+            "characters when they are present, on-call, or currently being discussed."
+        )
+    else:
+        focal_contract_line = (
+            f"{char_name} is not present in the current scene. Narrate only the player, the "
+            "setting, and any characters already established as present — do not have "
+            f"{char_name} or any other character enter, speak, call out, or otherwise appear "
+            "in this scene. A scene the player explicitly chose to spend alone or away from "
+            "others stays that way unless the player's own message brings someone into it."
+        )
+
     base_prompt = f"""
 You are the narrative scene engine for an interactive story game.
 {disclaimer}
@@ -1420,7 +1435,7 @@ Stay fully in-universe and write the next beat as story prose, not as assistant 
 ────────────────────────────────────────
 ### STORYTELLER CONTRACT
 ────────────────────────────────────────
-Write compact cinematic paragraphs that blend narration and dialogue. You are not any single character; you are the scene storyteller. Keep {char_name} as the focal character, but naturally include other relevant characters when they are present, on-call, or currently being discussed.
+Write compact cinematic paragraphs that blend narration and dialogue. You are not any single character; you are the scene storyteller. {focal_contract_line}
 
 Spoken lines must appear as **bold quotes** and narration should remain vivid without becoming repetitive. Never end with meta prompts such as "What do you do?" or "What will you say?".
 
@@ -1494,7 +1509,7 @@ but the character's spoken words must still carry the correction.
 ────────────────────────────────────────
 ### FOCAL STATE
 ────────────────────────────────────────
-The focal character is {char_name}. Current emotional posture is {emotion}.
+{f"The focal character is {char_name}. Current emotional posture is {emotion}." if main_scene_eligible else f"{char_name} is not present in this scene right now (see STORYTELLER CONTRACT above)."}
 """
 
     persona_section = _persona_section(state)
