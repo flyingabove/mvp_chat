@@ -4,6 +4,7 @@ from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.state import GameState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
 from backend.app.engine.cast_lifecycle import CastStatus
+from backend.app.engine.scene_context import SceneContext
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -266,93 +267,25 @@ _TIER_HEADINGS = {
 }
 
 
-def _get_active_character_keys(state: GameState) -> set[str]:
+def _get_active_character_keys(state: GameState, scene: SceneContext | None = None) -> set[str]:
     """Extract the active character set from transient markers.
 
-    Scans ``state.transient_entries`` for marker texts in the form
-    ``__active_character_marker__:<character_key>`` and returns their keys.
-    Always includes ``main_character_id`` and ``"player"`` as fallback.
+    Delegates to `SceneContext.active_keys()` (see backend/app/engine/scene_context.py) -
+    always includes ``main_character_id`` and ``"player"`` as fallback.
     """
-    keys: set[str] = set()
-    main_id = getattr(state, "main_character_id", "") or ""
-    if main_id and _cast_scene_eligible(state, main_id):
-        keys.add(main_id)
-    keys.add("player")
-
-    for e in getattr(state, "transient_entries", []) or []:
-        txt = (getattr(e, "text", "") or "").strip()
-        if txt.startswith("__active_character_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                if _cast_scene_eligible(state, ch_key):
-                    keys.add(ch_key)
-        elif txt.startswith("__scene_speaker_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                if _cast_scene_eligible(state, ch_key):
-                    keys.add(ch_key)
-        elif txt.startswith("__on_call_character_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                if _cast_scene_eligible(state, ch_key):
-                    keys.add(ch_key)
-
-    return keys
+    return (scene or SceneContext.build(state)).active_keys()
 
 
-def _cast_scene_eligible(state: GameState, key: str) -> bool:
-    lifecycle = getattr(state, "cast_lifecycle", None)
-    if lifecycle is None or not getattr(lifecycle, "enabled", False):
-        return True
-    return key == "player" or lifecycle.is_scene_eligible(key)
+def _cast_scene_eligible(state: GameState, key: str, scene: SceneContext | None = None) -> bool:
+    return (scene or SceneContext.build(state)).is_eligible(key)
 
 
-def _get_people_present_keys(state: GameState) -> set[str]:
-    keys: set[str] = set()
-    for e in getattr(state, "transient_entries", []) or []:
-        txt = (getattr(e, "text", "") or "").strip()
-        if txt.startswith("__people_present_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                if _cast_scene_eligible(state, ch_key):
-                    keys.add(ch_key)
-    if keys:
-        return keys
-
-    latest_scene = getattr(state, "latest_scene_knowledge", None)
-    if callable(latest_scene):
-        item = latest_scene()
-        if item is not None:
-            return {
-                str(k or "").strip().lower()
-                for k in (getattr(item, "people_present", []) or [])
-                if str(k or "").strip() and _cast_scene_eligible(state, str(k or "").strip().lower())
-            }
-    return set()
+def _get_people_present_keys(state: GameState, scene: SceneContext | None = None) -> set[str]:
+    return (scene or SceneContext.build(state)).present_keys()
 
 
-def _get_scene_speaker_keys(state: GameState) -> set[str]:
-    keys: set[str] = set()
-    for e in getattr(state, "transient_entries", []) or []:
-        txt = (getattr(e, "text", "") or "").strip()
-        if txt.startswith("__scene_speaker_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                if _cast_scene_eligible(state, ch_key):
-                    keys.add(ch_key)
-    if keys:
-        return keys
-
-    latest_scene = getattr(state, "latest_scene_knowledge", None)
-    if callable(latest_scene):
-        item = latest_scene()
-        if item is not None:
-            return {
-                str(k or "").strip().lower()
-                for k in (getattr(item, "speakers", []) or [])
-                if str(k or "").strip() and _cast_scene_eligible(state, str(k or "").strip().lower())
-            }
-    return set()
+def _get_scene_speaker_keys(state: GameState, scene: SceneContext | None = None) -> set[str]:
+    return (scene or SceneContext.build(state)).speaker_keys()
 
 
 def _scene_presence_keys(state: GameState) -> set[str]:
@@ -627,23 +560,13 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
     return preface + "\n\n".join(sections) + "\n", debug_chunks
 
 
-def _fact_owner_only_upcoming(state: GameState, known_by: list[str]) -> bool:
+def _fact_owner_only_upcoming(state: GameState, known_by: list[str], scene: SceneContext | None = None) -> bool:
     """True when every named owner of a fact is an upcoming (never-yet-active)
     lifecycle character. Facts shared with "all"/"all_characters", or owned by
     at least one currently-eligible character, are never suppressed here —
     this only blocks a not-yet-arrived character's own private biography from
     leaking before they've actually joined the scene."""
-    lifecycle = getattr(state, "cast_lifecycle", None)
-    if lifecycle is None or not getattr(lifecycle, "enabled", False):
-        return False
-    named = [k for k in known_by if k not in ("all", "all_characters")]
-    if not named:
-        return False
-    return all(
-        not _cast_scene_eligible(state, key) and key in lifecycle.members
-        and lifecycle.members[key].status is CastStatus.UPCOMING
-        for key in named
-    )
+    return (scene or SceneContext.build(state)).fact_owner_only_upcoming(known_by)
 
 
 def _canonical_facts_for_speaker(state: GameState) -> list[str]:
@@ -1223,7 +1146,7 @@ def _identity_block(char_name: str, entries: list) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _main_character_scene_eligible(state) -> bool:
+def _main_character_scene_eligible(state, scene: SceneContext | None = None) -> bool:
     """Whether the main character's identity/focal framing should be injected
     this turn. Non-lifecycle stories (cast_lifecycle absent/disabled) always
     return True — preserves legacy ghost-NPC / non-spatial behavior byte-for-
@@ -1235,36 +1158,15 @@ def _main_character_scene_eligible(state) -> bool:
     yet" (e.g. the very first turn, before any scene knowledge exists) — the
     former means "no one is here," the latter means "no signal either way."
     Only the latter falls back to assuming main is present."""
-    lifecycle = getattr(state, "cast_lifecycle", None)
-    if lifecycle is None or not getattr(lifecycle, "enabled", False):
-        return True
-    main_char = getattr(state, "main_character", None)
-    main_key = (getattr(main_char, "key", "") or "").strip().lower()
-    if not _cast_scene_eligible(state, main_key):
-        return False
-    if not _scene_presence_has_been_computed(state):
-        return True
-    return main_key in _get_people_present_keys(state)
+    return (scene or SceneContext.build(state)).main_present()
 
 
-def _scene_presence_has_been_computed(state) -> bool:
+def _scene_presence_has_been_computed(state, scene: SceneContext | None = None) -> bool:
     """True once at least one turn has recorded scene knowledge (people
     present markers or a scene-knowledge entry) for the current location —
     at that point an empty presence set is authoritative, not a missing
     signal."""
-    for e in getattr(state, "transient_entries", []) or []:
-        txt = (getattr(e, "text", "") or "").strip()
-        if txt.startswith("__people_present_marker__:"):
-            return True
-    latest_scene = getattr(state, "latest_scene_knowledge", None)
-    if callable(latest_scene):
-        item = latest_scene()
-        if item is not None:
-            loc_id = str(getattr(state, "location_id", "") or "")
-            item_loc_id = str(getattr(item, "location_id", "") or "")
-            if not loc_id or item_loc_id == loc_id:
-                return True
-    return False
+    return (scene or SceneContext.build(state)).presence_computed()
 
 
 def _character_identity_section(state) -> str:

@@ -643,6 +643,168 @@ def test_main_character_identity_unaffected_for_non_lifecycle_story(client):
     assert "as the focal lens" in scene_brief
 
 
+# ============================================================================
+# SceneContext consolidation (remainder of Six Strangers audit Phase 1):
+# prompt_builder.py's scattered scene-membership helpers
+# (_cast_scene_eligible, _get_active_character_keys, _get_people_present_keys,
+# _get_scene_speaker_keys, _fact_owner_only_upcoming,
+# _main_character_scene_eligible, _scene_presence_has_been_computed) now
+# delegate to backend.app.engine.scene_context.SceneContext. These tests
+# assert byte-identical parity between the free functions and the
+# SceneContext methods across states representative of both already-fixed
+# bugs (future-resident leakage, solitude/focal-NPC override), so the
+# consolidation cannot silently regress either fix.
+# ============================================================================
+
+def test_scene_context_parity_with_free_functions_lifecycle_story(client):
+    """For a lifecycle-enabled story (Six Strangers) in a representative mix
+    of states (mid-scene with only some markers set), every free function in
+    prompt_builder.py must return exactly what the equivalent SceneContext
+    method returns - this is the actual regression guard proving the
+    consolidation changed nothing observable."""
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.scene_context import SceneContext
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "scene_context_parity_lifecycle"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    # Mid-scene: only "yuki" marked present, no marker for main - exercises
+    # the "main absent, presence computed" branch of main_present().
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if "__people_present_marker__" not in getattr(e, "text", "")
+    ]
+    state.add_transient_entry(
+        id="parity-present-marker-other",
+        namespace="test",
+        scope="conversation",
+        text="__people_present_marker__:yuki",
+        expires_after_turns=10,
+    )
+    state.add_transient_entry(
+        id="parity-speaker-marker-other",
+        namespace="test",
+        scope="conversation",
+        text="__scene_speaker_marker__:yuki",
+        expires_after_turns=10,
+    )
+
+    scene = SceneContext.build(state)
+    main_key = (state.main_character.key or "").strip().lower()
+
+    for key in ("player", main_key, "yuki", "arman", "makoto"):
+        assert pb._cast_scene_eligible(state, key) == scene.is_eligible(key), key
+
+    assert pb._get_active_character_keys(state) == scene.active_keys()
+    assert pb._get_people_present_keys(state) == scene.present_keys()
+    assert pb._get_scene_speaker_keys(state) == scene.speaker_keys()
+    assert pb._scene_presence_has_been_computed(state) == scene.presence_computed()
+    assert pb._main_character_scene_eligible(state) == scene.main_present()
+
+    for known_by in (["arman"], ["all"], ["yuki"], ["arman", "makoto"], []):
+        assert pb._fact_owner_only_upcoming(state, known_by) == scene.fact_owner_only_upcoming(known_by), known_by
+
+
+def test_scene_context_parity_solitary_and_never_computed_states(client):
+    """Exercise the two edge branches that distinguish the solitude fix from
+    a naive always-present-unless-marked-absent implementation: a genuinely
+    empty room (presence computed, nobody present) versus presence never
+    having been computed yet (very first turn)."""
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.scene_context import SceneContext
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "scene_context_parity_solitary"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    # Case A: presence never computed (strip every marker and scene-knowledge
+    # entry for the current location).
+    state.transient_entries = [
+        e for e in state.transient_entries
+        if "__people_present_marker__" not in getattr(e, "text", "")
+    ]
+    state.scene_knowledge_entries = []
+    scene_never_computed = SceneContext.build(state)
+    assert pb._scene_presence_has_been_computed(state) == scene_never_computed.presence_computed() is False
+    assert pb._main_character_scene_eligible(state) == scene_never_computed.main_present() is True
+
+    # Case B: presence computed, room genuinely empty (rooftop-solitude shape).
+    state.add_transient_entry(
+        id="parity-empty-room-marker",
+        namespace="test",
+        scope="conversation",
+        text="__people_present_marker__:__none__",
+        expires_after_turns=10,
+    )
+    scene_empty_room = SceneContext.build(state)
+    assert pb._scene_presence_has_been_computed(state) == scene_empty_room.presence_computed() is True
+    assert pb._main_character_scene_eligible(state) == scene_empty_room.main_present()
+
+
+def test_scene_context_parity_non_lifecycle_story(client):
+    """Non-lifecycle stories must keep legacy always-eligible/always-present
+    behavior through SceneContext exactly as through the free functions."""
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.scene_context import SceneContext
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "scene_context_parity_non_lifecycle"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert getattr(state, "cast_lifecycle", None) is None
+
+    scene = SceneContext.build(state)
+    main_key = (state.main_character.key or "").strip().lower()
+    assert pb._cast_scene_eligible(state, main_key) == scene.is_eligible(main_key) is True
+    assert pb._main_character_scene_eligible(state) == scene.main_present() is True
+    assert pb._fact_owner_only_upcoming(state, [main_key]) == scene.fact_owner_only_upcoming([main_key]) is False
+
+
+def test_turn_extractor_catalog_still_uses_scene_context_eligibility(client):
+    """Cross-module call site: prompt_engine.py's character_key_to_name
+    filter (line ~2238) calls the now-delegating _cast_scene_eligible - this
+    locks in that the consolidation didn't break the extractor-catalog fix
+    from the earlier Phase 1 pass."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "scene_context_extractor_catalog_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+
+    captured = {}
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    async def _capture_extract(*args, **kwargs):
+        captured["character_key_to_name"] = kwargs.get("character_key_to_name", {})
+        return TurnExtraction()
+
+    with __import__("unittest").mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _capture_extract):
+        r2 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r2.status_code == 200
+
+    keys = captured.get("character_key_to_name", {})
+    assert keys, "turn extractor was never invoked with a character catalog"
+    assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
+
+
 def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, monkeypatch):
     """BL-01: the session save must reflect `over` and `last_turn_*` for the
     turn just completed, not the prior turn - previously the save happened
