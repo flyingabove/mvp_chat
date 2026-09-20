@@ -1480,7 +1480,7 @@
       <div id="onboard-persona-row" class="persona-grid" role="radiogroup" aria-label="Character choice">
         <div class="persona-btn selected" data-mode="default" role="radio" aria-checked="true" tabindex="0">
           <span class="persona-check" aria-hidden="true">✓</span>
-          <div class="persona-avatar"><img src="/img/avatars/persona_default.svg" alt="Paul Dingus" /></div>
+          <div class="persona-avatar" id="onboard-default-avatar" aria-label="Paul Dingus portrait"></div>
           <div class="persona-card-label">Default character</div>
           <div class="persona-card-title">Paul Dingus</div>
           <div class="persona-facts">
@@ -1734,9 +1734,18 @@ function getCharacterAvatarSrc(characterId, characterName){
   return fallback;
 }
 
+function resolveAssetUrl(src){
+  var value = String(src || "");
+  if (value.indexOf("/img/") === 0) {
+    return BACKEND_ORIGIN.replace(/\/$/, "") + value;
+  }
+  return value;
+}
+
 function renderAvatarImage(target, src, label){
   if (!target) return null;
-  target.innerHTML = '<img src="' + escapeHTML(src || "/img/avatars/persona_default.svg") + '" alt="' + escapeHTML(label || "Avatar") + '" />';
+  var resolvedSrc = resolveAssetUrl(src || "/img/avatars/persona_default.svg");
+  target.innerHTML = '<img src="' + escapeHTML(resolvedSrc) + '" alt="' + escapeHTML(label || "Avatar") + '" />';
   return target.querySelector("img");
 }
 
@@ -2335,6 +2344,7 @@ function startGame(story, options){
 
   $("onboard-title").textContent = "Choose your character";
   $("onboard-sub").textContent = 'Pick Paul or create someone new for "' + story.title + '".';
+  renderAvatarImage($("onboard-default-avatar"), getCharacterAvatarSrc("persona", "Paul Dingus"), "Paul Dingus");
   $("onboard-name-input").value = "";
   $("onboard-persona-other").value = "";
   document.querySelectorAll(".gender-btn").forEach(function(b){ b.classList.remove("selected"); });

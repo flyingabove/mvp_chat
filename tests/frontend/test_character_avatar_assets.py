@@ -11,4 +11,6 @@ def test_frontend_uses_character_avatar_registry_and_fallbacks():
     assert '/img/characters/' in html
     assert '/img/avatars/persona_default.svg' in html
     assert "getCharacterAvatarSrc" in html
+    assert "function resolveAssetUrl(src)" in html
+    assert 'BACKEND_ORIGIN.replace(/\\/$/, "") + value' in html
     assert "renderCharacterAvatar" in html
