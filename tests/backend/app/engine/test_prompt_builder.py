@@ -181,7 +181,7 @@ def test_prompt_includes_default_persona():
     sysmsg = pb.system_prompt(st)
     assert "Your default persona is Paul Dingus" in sysmsg
     assert "Other attributes: " in sysmsg
-    assert "quietly observant" in sysmsg
+    assert "Devilishly handsome Black man who knows a little Japanese." in sysmsg
 
 
 def test_prompt_labels_canonical_truths_with_known_by_visibility():

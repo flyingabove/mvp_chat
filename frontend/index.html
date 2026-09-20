@@ -336,48 +336,143 @@
     .btn-play-large:active { background: var(--red-dark); }
 
     /* ══════════════════════════════════════════════
-       ONBOARDING MODAL (name + gender)
+       CHARACTER SELECT
     ══════════════════════════════════════════════ */
     #modal-onboard {
       position: fixed; inset: 0; z-index: 300;
-      background: rgba(0,0,0,0.9);
+      background:
+        radial-gradient(circle at 50% 0%, rgba(229,9,20,0.11), transparent 38%),
+        rgba(5,5,5,0.96);
       display: none; align-items: center; justify-content: center;
-      padding: 24px;
+      padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
     }
     #modal-onboard.open { display: flex; }
     .onboard-card {
-      background: var(--surface); border-radius: 20px;
-      padding: 28px 24px; width: 100%; max-width: 380px;
+      background: #181818; border: 1px solid rgba(255,255,255,0.08); border-radius: 24px;
+      padding: 26px; width: 100%; max-width: 760px;
+      max-height: calc(100dvh - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)));
+      overflow: hidden; display: flex; flex-direction: column;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
     }
-    .onboard-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
-    .onboard-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 24px; }
+    .onboard-scroll-content {
+      min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .onboard-scroll-content::-webkit-scrollbar { display: none; }
+    .onboard-heading { text-align: center; }
+    .onboard-kicker {
+      color: #ff5a62; font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+      text-transform: uppercase; margin-bottom: 5px;
+    }
+    .onboard-title { font-size: clamp(24px, 5vw, 32px); line-height: 1.15; font-weight: 850; letter-spacing: -0.7px; margin-bottom: 7px; }
+    .onboard-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 20px; }
+    .persona-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+      align-items: stretch;
+    }
+    .persona-btn {
+      position: relative; min-width: 0; padding: 16px;
+      color: var(--text); background: #202020; border: 2px solid #303030;
+      border-radius: 18px; cursor: pointer; text-align: left;
+      transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    }
+    .persona-btn:hover { background: #242424; }
+    .persona-btn:active { transform: scale(0.99); }
+    .persona-btn:focus-visible { outline: 3px solid rgba(255,255,255,0.8); outline-offset: 3px; }
+    .persona-btn.selected {
+      border-color: var(--red); background: linear-gradient(145deg, rgba(229,9,20,0.13), #202020 45%);
+      box-shadow: 0 0 0 1px rgba(229,9,20,0.2), 0 12px 30px rgba(0,0,0,0.22);
+    }
+    .persona-check {
+      position: absolute; top: 11px; right: 11px; z-index: 2;
+      width: 25px; height: 25px; border-radius: 50%;
+      border: 2px solid #555; background: #202020; color: transparent;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 900; transition: all 0.16s ease;
+    }
+    .persona-btn.selected .persona-check { border-color: var(--red); background: var(--red); color: white; }
+    .persona-avatar {
+      width: 82px; height: 82px; margin: 0 auto 12px; border-radius: 22px;
+      overflow: hidden; background: #111; border: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .persona-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .persona-avatar.blank { color: #777; border: 1px dashed #555; background: #191919; }
+    .persona-avatar.blank svg { width: 46px; height: 46px; }
+    .persona-card-label {
+      font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 3px;
+    }
+    .persona-btn.selected .persona-card-label { color: #ff767d; }
+    .persona-card-title { font-size: 19px; line-height: 1.2; font-weight: 800; margin-bottom: 12px; }
+    .persona-facts { display: grid; gap: 10px; }
+    .persona-fact { min-width: 0; }
+    .persona-fact-label, .persona-field-label {
+      display: block; color: #888; font-size: 10px; line-height: 1.2;
+      font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .persona-fact-value { font-size: 14px; line-height: 1.35; color: #f1f1f1; }
     .onboard-input {
       width: 100%; height: 48px;
-      background: var(--card); border: 1px solid var(--border);
+      background: #171717; border: 1px solid #3a3a3a;
       border-radius: 10px; color: var(--text);
-      font-size: 16px; padding: 0 14px;
-      outline: none; margin-bottom: 16px;
+      font-size: 16px; padding: 0 11px;
+      outline: none; margin: 0;
       font-family: var(--font);
     }
-    .onboard-input:focus { border-color: var(--red); }
-    .gender-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    textarea.onboard-input { height: 72px; padding-top: 10px; line-height: 1.3; resize: none; }
+    .onboard-input::placeholder { color: #6f6f6f; }
+    .onboard-input:focus { border-color: #e55; box-shadow: 0 0 0 3px rgba(229,9,20,0.1); }
+    .gender-row { display: flex; gap: 7px; margin: 0; }
     .gender-btn {
-      flex: 1; height: 48px; border-radius: 10px;
-      background: var(--card); border: 2px solid var(--border);
-      color: var(--text-sub); font-size: 14px; font-weight: 600;
+      flex: 1; min-width: 0; height: 40px; border-radius: 9px;
+      background: #171717; border: 1px solid #3a3a3a;
+      color: var(--text-sub); font-size: 13px; font-weight: 700;
       cursor: pointer; transition: all 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .gender-btn.selected { border-color: var(--red); color: var(--text); background: rgba(229,9,20,0.12); }
+    .gender-btn.selected { border-color: var(--red); color: var(--text); background: rgba(229,9,20,0.18); }
     .btn-continue {
-      width: 100%; height: 48px; border-radius: 10px;
+      width: 100%; height: 52px; border-radius: 12px; margin-top: 18px;
       background: var(--red); color: white;
       border: none; cursor: pointer;
       font-size: 16px; font-weight: 700;
       -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 8px 22px rgba(229,9,20,0.2);
+      flex-shrink: 0;
     }
     .btn-continue:disabled { opacity: 0.4; cursor: default; }
     .btn-continue:not(:disabled):active { background: var(--red-dark); }
+    .onboard-help { text-align: center; margin-top: 9px; color: #6f6f6f; font-size: 11px; }
+
+    @media (max-width: 520px) {
+      #modal-onboard { padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+      .onboard-card { padding: 19px 12px 16px; border-radius: 20px; }
+      .onboard-sub { margin-bottom: 15px; font-size: 13px; }
+      .persona-grid { gap: 8px; }
+      .persona-btn { padding: 12px 9px; border-radius: 15px; }
+      .persona-avatar { width: 66px; height: 66px; border-radius: 18px; margin-bottom: 9px; }
+      .persona-check { top: 8px; right: 8px; width: 22px; height: 22px; font-size: 12px; }
+      .persona-card-title { font-size: 16px; margin-bottom: 10px; }
+      .persona-facts { gap: 8px; }
+      .persona-fact-value { font-size: 12px; }
+      .onboard-input { height: 42px; padding: 0 9px; font-size: 16px; }
+      textarea.onboard-input { height: 64px; padding-top: 9px; }
+      .gender-btn { height: 38px; font-size: 12px; }
+      .btn-continue { height: 50px; margin-top: 12px; }
+    }
+
+    @media (max-height: 620px) and (orientation: landscape) {
+      #modal-onboard { align-items: flex-start; }
+      .onboard-card { max-width: 800px; padding-top: 14px; padding-bottom: 14px; }
+      .onboard-kicker, .onboard-help { display: none; }
+      .onboard-title { font-size: 22px; }
+      .onboard-sub { margin-bottom: 10px; }
+      .persona-avatar { width: 54px; height: 54px; margin: 0 10px 8px 0; float: left; border-radius: 14px; }
+      .persona-card-title { margin-bottom: 8px; }
+      .btn-continue { margin-top: 10px; height: 44px; }
+    }
 
     /* ── Login modal ── */
     #modal-login {
@@ -1374,24 +1469,56 @@
 
 <!-- Onboarding modal (persona + name + gender) -->
 <div id="modal-onboard">
-  <div class="onboard-card">
-    <div class="onboard-title" id="onboard-title">What's your name?</div>
-    <div class="onboard-sub" id="onboard-sub">You'll play as this character in the story.</div>
+  <div class="onboard-card" role="dialog" aria-modal="true" aria-labelledby="onboard-title" aria-describedby="onboard-sub">
+    <div class="onboard-scroll-content">
+      <div class="onboard-heading">
+        <div class="onboard-kicker">Your story, your character</div>
+        <div class="onboard-title" id="onboard-title">Choose your character</div>
+        <div class="onboard-sub" id="onboard-sub">Pick Paul or create someone new.</div>
+      </div>
 
-    <!-- Persona selector: choose default or create your own persona -->
-    <div id="onboard-persona-row" style="display:flex;gap:8px;margin-bottom:10px;">
-      <button class="persona-btn" data-mode="default">Use Default Persona</button>
-      <button class="persona-btn" data-mode="create">Create Persona</button>
-    </div>
-    <input id="onboard-persona-name" class="onboard-input" type="text" placeholder="Persona role (e.g. Detective)" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="words" style="display:none;margin-bottom:10px;" />
-    <textarea id="onboard-persona-other" class="onboard-input" placeholder="Extra persona attributes (optional)" maxlength="300" style="display:none;margin-bottom:10px;height:64px;resize:vertical;"></textarea>
+      <div id="onboard-persona-row" class="persona-grid" role="radiogroup" aria-label="Character choice">
+        <div class="persona-btn selected" data-mode="default" role="radio" aria-checked="true" tabindex="0">
+          <span class="persona-check" aria-hidden="true">✓</span>
+          <div class="persona-avatar"><img src="img/avatars/persona_default.svg" alt="Paul Dingus" /></div>
+          <div class="persona-card-label">Default character</div>
+          <div class="persona-card-title">Paul Dingus</div>
+          <div class="persona-facts">
+            <div class="persona-fact"><span class="persona-fact-label">Name</span><div class="persona-fact-value">Paul Dingus</div></div>
+            <div class="persona-fact"><span class="persona-fact-label">Gender</span><div class="persona-fact-value">Male</div></div>
+            <div class="persona-fact"><span class="persona-fact-label">Description</span><div class="persona-fact-value">Devilishly handsome Black man who knows a little Japanese.</div></div>
+          </div>
+        </div>
 
-    <input id="onboard-name-input" class="onboard-input" type="text" placeholder="Enter your name" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" />
-    <div id="onboard-gender-row" class="gender-row" style="display:none;">
-      <button class="gender-btn" data-gender="M">Male</button>
-      <button class="gender-btn" data-gender="F">Female</button>
+        <div class="persona-btn" data-mode="create" role="radio" aria-checked="false" tabindex="-1">
+          <span class="persona-check" aria-hidden="true">✓</span>
+          <div class="persona-avatar blank" aria-label="Blank character picture">
+            <svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="23" r="12" stroke="currentColor" stroke-width="3"/><path d="M12 56c2.6-12 10.8-18 20-18s17.4 6 20 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          </div>
+          <div class="persona-card-label">New character</div>
+          <div class="persona-card-title">Create your own</div>
+          <div class="persona-facts">
+            <label class="persona-fact" for="onboard-name-input">
+              <span class="persona-field-label">Name</span>
+              <input id="onboard-name-input" class="onboard-input" type="text" placeholder="Enter a name" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" />
+            </label>
+            <div class="persona-fact">
+              <span class="persona-field-label">Gender</span>
+              <div id="onboard-gender-row" class="gender-row" role="group" aria-label="Character gender">
+                <button type="button" class="gender-btn" data-gender="M">Male</button>
+                <button type="button" class="gender-btn" data-gender="F">Female</button>
+              </div>
+            </div>
+            <label class="persona-fact" for="onboard-persona-other">
+              <span class="persona-field-label">Description</span>
+              <textarea id="onboard-persona-other" class="onboard-input" placeholder="A few defining details (optional)" maxlength="300"></textarea>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
-    <button class="btn-continue" id="onboard-continue-btn" disabled>Continue</button>
+    <button class="btn-continue" id="onboard-continue-btn">Continue as Paul</button>
+    <div class="onboard-help">Tap a card to select it</div>
   </div>
 </div>
 
@@ -2142,6 +2269,45 @@ $("login-guest-btn").addEventListener("click", function(){
 })();
 
 /* ─── ONBOARDING FLOW ───────────────────────────── */
+function setPersonaMode(mode, options){
+  options = options || {};
+  appState.personaMode = mode === "create" ? "create" : "default";
+
+  document.querySelectorAll(".persona-btn").forEach(function(card){
+    var selected = card.dataset.mode === appState.personaMode;
+    card.classList.toggle("selected", selected);
+    card.setAttribute("aria-checked", selected ? "true" : "false");
+    card.tabIndex = selected ? 0 : -1;
+  });
+
+  if (appState.personaMode === "default") {
+    appState.onboardName = "Paul Dingus";
+    appState.onboardGender = "M";
+    $("onboard-continue-btn").textContent = "Continue as Paul";
+  } else {
+    appState.onboardName = ($("onboard-name-input").value || "").trim();
+    var selectedGender = document.querySelector(".gender-btn.selected");
+    appState.onboardGender = selectedGender ? selectedGender.dataset.gender : null;
+    $("onboard-continue-btn").textContent = appState.onboardName ? "Continue as " + appState.onboardName : "Continue";
+    if (options.focusName && !appState.onboardName) {
+      setTimeout(function(){ $("onboard-name-input").focus(); }, 0);
+    }
+  }
+  updateCharacterContinueState();
+}
+
+function updateCharacterContinueState(){
+  var button = $("onboard-continue-btn");
+  if (appState.personaMode === "default") {
+    button.disabled = false;
+    button.textContent = "Continue as Paul";
+    return;
+  }
+  var customName = ($("onboard-name-input").value || "").trim();
+  button.disabled = !customName || !appState.onboardGender;
+  button.textContent = customName ? "Continue as " + customName : "Continue";
+}
+
 function startGame(story, options){
   options = options || {};
   var guestMode = Boolean(options.guest);
@@ -2159,49 +2325,26 @@ function startGame(story, options){
 
   appState.guestMode = guestMode;
   appState.pendingStory = story;
-  appState.onboardStep = "name";
-  appState.onboardName = "";
-  appState.onboardGender = null;
-  appState.personaMode = "default";   // "default" or "create" (future: "select")
-  appState.personaName = "";
-  appState.personaLabel = "Default";
+  appState.onboardStep = "character";
+  appState.onboardName = "Paul Dingus";
+  appState.onboardGender = "M";
+  appState.personaMode = "default";
+  appState.personaName = "Paul Dingus";
+  appState.personaLabel = "Paul Dingus";
   appState.personaOther = "";
 
-  $("onboard-title").textContent = "What's your name?";
-  $("onboard-sub").textContent = 'You\'ll play as this persona in "' + story.title + '".';
+  $("onboard-title").textContent = "Choose your character";
+  $("onboard-sub").textContent = 'Pick Paul or create someone new for "' + story.title + '".';
   $("onboard-name-input").value = "";
-  $("onboard-persona-name").value = "";
-  $("onboard-gender-row").style.display = "none";
-  $("onboard-persona-name").style.display = "none";
-  // Reset persona button states and select default
-  document.querySelectorAll(".persona-btn").forEach(function(b){ b.classList.remove("selected"); });
-  var defBtn = document.querySelector('.persona-btn[data-mode="default"]'); if (defBtn) defBtn.classList.add('selected');
-
-  $("onboard-continue-btn").disabled = true;
-  $("onboard-continue-btn").textContent = "Continue";
+  $("onboard-persona-other").value = "";
   document.querySelectorAll(".gender-btn").forEach(function(b){ b.classList.remove("selected"); });
+  setPersonaMode("default");
 
   openModal("modal-onboard");
-  setTimeout(function(){ $("onboard-name-input").focus(); }, 100);
 }
 
 $("onboard-name-input").addEventListener("input", function(){
-  var val = this.value.trim();
-  if (appState.onboardStep === "name") {
-    var personaOk = true;
-    if (appState.personaMode === "create") {
-      var p = ($("onboard-persona-name") ? $("onboard-persona-name").value.trim() : "");
-      personaOk = p.length > 0;
-    }
-    $("onboard-continue-btn").disabled = val.length < 1 || !personaOk;
-  }
-});
-
-$("onboard-persona-name").addEventListener("input", function(){
-  if (appState.onboardStep === "name" && appState.personaMode === "create"){
-    var nameVal = ($("onboard-name-input").value || "").trim();
-    $("onboard-continue-btn").disabled = !(nameVal.length > 0 && this.value.trim().length > 0);
-  }
+  setPersonaMode("create");
 });
 
 $("onboard-name-input").addEventListener("keydown", function(e){
@@ -2210,73 +2353,48 @@ $("onboard-name-input").addEventListener("keydown", function(e){
   }
 });
 
-// Persona selector buttons
-document.querySelectorAll(".persona-btn").forEach(function(btn){
-  btn.addEventListener("click", function(){
-    document.querySelectorAll(".persona-btn").forEach(function(b){ b.classList.remove("selected"); });
-    this.classList.add("selected");
-    appState.personaMode = this.dataset.mode;
-    if (appState.personaMode === "create") {
-      $("onboard-persona-name").style.display = "";
-      $("onboard-persona-other").style.display = "";
-    } else {
-      $("onboard-persona-name").style.display = "none";
-      $("onboard-persona-other").style.display = "none";
-      appState.personaName = "";
-      $("onboard-persona-name").value = "";
-      $("onboard-persona-other").value = "";
-    }
-    var nameVal = ($("onboard-name-input").value || "").trim();
-    var personaOk = (appState.personaMode !== "create") || ($("onboard-persona-name").value || "").trim().length>0;
-    $("onboard-continue-btn").disabled = (nameVal.length < 1) || !personaOk;
+// The whole panel is selectable; form controls inside the custom panel keep working normally.
+document.querySelectorAll(".persona-btn").forEach(function(card){
+  card.addEventListener("click", function(){
+    setPersonaMode(this.dataset.mode, { focusName: this.dataset.mode === "create" && !this.contains(document.activeElement) });
+  });
+  card.addEventListener("keydown", function(e){
+    if (e.target !== this || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    setPersonaMode(this.dataset.mode, { focusName: this.dataset.mode === "create" });
   });
 });
 
+$("onboard-persona-other").addEventListener("input", function(){ setPersonaMode("create"); });
+
 document.querySelectorAll(".gender-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
+    setPersonaMode("create");
     document.querySelectorAll(".gender-btn").forEach(function(b){ b.classList.remove("selected"); });
     this.classList.add("selected");
     appState.onboardGender = this.dataset.gender;
-    $("onboard-continue-btn").disabled = false;
+    updateCharacterContinueState();
   });
 });
 
 $("onboard-continue-btn").addEventListener("click", function(){
-  if (appState.onboardStep === "name") {
-    var name = $("onboard-name-input").value.replace(/[^A-Za-z\s\-']/g,"").trim().slice(0, 40);
-    if (!name){ showToast("Please enter a valid name."); return; }
-    // Capture persona info
-    if (appState.personaMode === "create"){
-      var pName = ($("onboard-persona-name").value || "").trim().slice(0, 60);
-        var pOther = ($("onboard-persona-other").value || "").trim().slice(0, 300);
-        if (!pName){ showToast("Please enter a persona role/name."); return; }
-        appState.personaName = pName;
-        appState.personaLabel = pName;
-        appState.personaOther = pOther;
-      } else {
-        // Default persona selected: choose default label and clear custom fields
-        appState.personaName = "";
-        appState.personaLabel = "Default";
-        appState.personaOther = "";
-      }
-
-    appState.onboardName = name;
-    appState.onboardStep = "gender";
-
-    $("onboard-title").textContent = "Your persona";
-    $("onboard-sub").textContent = "How do they identify?";
-    $("onboard-name-input").style.display = "none";
-    $("onboard-persona-name").style.display = "none";
-    $("onboard-gender-row").style.display = "flex";
-    $("onboard-continue-btn").disabled = true;
-    $("onboard-continue-btn").textContent = "Start Game";
-
-  } else if (appState.onboardStep === "gender") {
+  if (appState.personaMode === "create") {
+    var customName = $("onboard-name-input").value.replace(/[^A-Za-z\s\-']/g, "").trim().slice(0, 40);
+    if (!customName){ showToast("Please enter a valid name."); return; }
     if (!appState.onboardGender){ showToast("Please select a gender."); return; }
-    closeModal("modal-onboard");
-    $("onboard-name-input").style.display = "";
-    launchChat(appState.pendingStory, appState.onboardName, appState.onboardGender, appState.guestMode);
+    appState.onboardName = customName;
+    appState.personaName = customName;
+    appState.personaLabel = customName;
+    appState.personaOther = ($("onboard-persona-other").value || "").trim().slice(0, 300);
+  } else {
+    appState.onboardName = "Paul Dingus";
+    appState.onboardGender = "M";
+    appState.personaName = "Paul Dingus";
+    appState.personaLabel = "Paul Dingus";
+    appState.personaOther = "";
   }
+  closeModal("modal-onboard");
+  launchChat(appState.pendingStory, appState.onboardName, appState.onboardGender, appState.guestMode);
 });
 
 /* ─── CHAT SCREEN ───────────────────────────────── */
