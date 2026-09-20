@@ -2375,6 +2375,57 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                         "user_msg": msg,
                         "destination_id": extraction.destination_id,
                     })
+
+            # Phase 2 cast-cycling: a resident's own stated DECISION to leave
+            # schedules a deferred replacement (never immediate - "a decision
+            # to leave next week is not immediate removal"). The hard guard
+            # against "a player cannot evict somebody merely by asserting
+            # they left" is here, not just in the extractor's prompt rules:
+            # only DECISION-certainty signals naming a character CURRENTLY
+            # in lifecycle.active_ids() are ever acted on.
+            _lifecycle = getattr(state, "cast_lifecycle", None)
+            _signal = extraction.departure_signal
+            if _lifecycle is not None and _lifecycle.enabled and _signal is not None:
+                _already_pending = any(
+                    ev.event_type == "cast_departure_replacement"
+                    and ev.status == "pending"
+                    and ev.payload.get("departing_id") == _signal.character_id
+                    for ev in (getattr(state, "pending_events", []) or [])
+                )
+                if (
+                    _signal.certainty == "DECISION"
+                    and _signal.character_id in _lifecycle.active_ids()
+                    and not _already_pending
+                ):
+                    _propose_event_id = f"departure_propose_{_signal.character_id}_{state.turns}"
+                    try:
+                        _lifecycle.propose_departure(
+                            _signal.character_id,
+                            minute=int(getattr(state, "minute", 0) or 0),
+                            reason=_signal.reason or "stated intention to leave",
+                            event_id=_propose_event_id,
+                        )
+                        _due_day = day_number(int(getattr(state, "minute", 0) or 0)) + (
+                            1 if _lifecycle.replacement_timing == "next_day" else 0
+                        )
+                        state.pending_events.append(PendingEvent(
+                            event_id=f"departure_replace_{_signal.character_id}_{state.turns}",
+                            event_type="cast_departure_replacement",
+                            scheduled_day=_due_day,
+                            payload={"departing_id": _signal.character_id, "reason": _signal.reason},
+                            created_minute=int(getattr(state, "minute", 0) or 0),
+                        ))
+                        _log({
+                            "kind": "cast_departure_proposed",
+                            "character_id": _signal.character_id,
+                            "scheduled_day": _due_day,
+                        })
+                    except ValueError as _dep_exc:
+                        _log({
+                            "kind": "cast_departure_proposal_rejected",
+                            "character_id": _signal.character_id,
+                            "error": str(_dep_exc),
+                        })
         except Exception as e:
             _log({
                 "kind": "turn_extraction_error",

@@ -294,6 +294,37 @@ class CastLifecycleState:
         member.status = CastStatus.INACTIVE
         return self._record("deactivate", minute, member.slot_group, departing_id=character_id, reason=reason)
 
+    def propose_departure(self, character_id: str, *, minute: int, reason: str, event_id: str) -> CastTransition:
+        """Record a DECLARED INTENTION to depart, without changing status.
+
+        This is the "decision to leave next week is not immediate removal"
+        state: the member stays ACTIVE (and scene-eligible) until the
+        scheduler later calls ``replace()`` at the authored availability
+        window. Idempotent by event_id (replaying returns the prior
+        transition unchanged), matching ``replace()``'s own idempotency
+        design so a retried turn cannot record the same proposal twice.
+        """
+        event_id = str(event_id or "").strip()
+        if not event_id:
+            raise ValueError("departure proposal event_id must be non-empty")
+        prior = next((item for item in self.history if item.event_id == event_id), None)
+        if prior is not None:
+            return prior
+        if not self.enabled:
+            raise ValueError("cast lifecycle is disabled")
+        minute = _non_negative_int(minute, "departure proposal minute")
+        member = self._require_member(character_id)
+        if member.status is not CastStatus.ACTIVE:
+            raise ValueError(f"only an active member can propose departure: {character_id!r}")
+        return self._record(
+            "departure_proposed",
+            minute,
+            member.slot_group,
+            departing_id=character_id,
+            reason=reason,
+            event_id=event_id,
+        )
+
     def depart(self, character_id: str, minute: int, reason: str = "") -> CastTransition:
         minute = _non_negative_int(minute, "departure minute")
         member = self._require_member(character_id)

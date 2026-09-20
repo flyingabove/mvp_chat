@@ -56,6 +56,27 @@ class RelationshipStateUpdate:
 
 
 @dataclass(frozen=True)
+class DepartureSignal:
+    """LLM-judged signal that a resident character's own dialogue concerns
+    them leaving the house. Categorical, not a numeric confidence: "is this
+    a joke or a real decision" is a discrete judgment call, matching how
+    movement.intent is MOVE|NONE rather than confidence-gated.
+
+    certainty:
+      NONE     - no departure topic present (default).
+      WISH     - a passing complaint, joke, or hypothetical ("I wish I
+                 could just leave this house").
+      DECISION - an explicit, serious, stated intention to actually leave,
+                 from the departing character's OWN words only - never
+                 inferred from another character's (including the player's)
+                 speech about them.
+    """
+    character_id: str = ""
+    certainty: str = "NONE"
+    reason: str = ""
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -66,6 +87,7 @@ class TurnExtraction:
     knowledge_updates: List[TurnKnowledgeResolution] = field(default_factory=list)
     relationship_history_updates: List[RelationshipHistoryUpdate] = field(default_factory=list)
     relationship_state_updates: List[RelationshipStateUpdate] = field(default_factory=list)
+    departure_signal: Optional[DepartureSignal] = None
 
 
 class TurnExtractor:
@@ -207,6 +229,22 @@ class TurnExtractor:
                     )
                 )
 
+        raw_departure = obj.get("departure_signal") if isinstance(obj.get("departure_signal"), dict) else {}
+        d_char = str(raw_departure.get("character_id") or "").strip().lower()
+        d_certainty = str(raw_departure.get("certainty") or "NONE").strip().upper()
+        if d_certainty not in {"NONE", "WISH", "DECISION"}:
+            d_certainty = "NONE"
+        departure_signal: Optional[DepartureSignal] = None
+        if d_char and d_certainty != "NONE":
+            if allowed_character_keys and d_char not in allowed_character_keys:
+                departure_signal = None
+            else:
+                departure_signal = DepartureSignal(
+                    character_id=d_char,
+                    certainty=d_certainty,
+                    reason=str(raw_departure.get("reason") or "").strip(),
+                )
+
         return TurnExtraction(
             movement_intent=intent,
             destination_id=destination_id,
@@ -217,6 +255,7 @@ class TurnExtractor:
             knowledge_updates=knowledge_updates,
             relationship_history_updates=relationship_history_updates,
             relationship_state_updates=relationship_state_updates,
+            departure_signal=departure_signal,
         )
 
     async def extract(
@@ -278,13 +317,24 @@ class TurnExtractor:
             "   jealousy_delta: +0.05..+0.10 when player expresses jealousy. Never negative.\n"
             "   Omit the entry if player's words are neutral or no attitude change is expressed.\n"
             "   Omit individual delta fields that are 0. Include 'reason' (1 short phrase).\n"
+            "8) departure_signal: only set when a resident character's OWN dialogue concerns\n"
+            "   THEM leaving the house.\n"
+            "   certainty=\"WISH\" for a passing complaint, joke, or hypothetical\n"
+            "   (\"I wish I could leave\", \"sometimes I want to just move out\").\n"
+            "   certainty=\"DECISION\" ONLY for an explicit, serious, stated intention to\n"
+            "   actually leave (\"I'm moving out next week\", \"I've decided to leave the house\").\n"
+            "   certainty=\"NONE\" (default) when no departure topic is present.\n"
+            "   character_id must be the character who is leaving, from allowed character keys.\n"
+            "   Never infer DECISION (or WISH) from the player's speech, or from another\n"
+            "   character's speech ABOUT someone else leaving - only from that character's own words.\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
             '  "previous_scene": {"location_id": "string|null", "speakers": ["character_key"]},\n'
             '  "knowledge_updates": [{"chunk_id": "string", "knows": true, "confidence": 0.0, "reason": "string"}],\n'
             '  "relationship_history_updates": [{"from_id": "character_key", "to_id": "character_key", "prior_relationship": true|false|null, "prior_intimacy": true|false|null, "in_relationship": true|false|null}],\n'
-            '  "relationship_state_updates": [{"from_id": "player", "to_id": "character_key", "trust_delta": 0.0, "fear_delta": 0.0, "affection_delta": 0.0, "suspicion_delta": 0.0, "jealousy_delta": 0.0, "reason": "string"}]\n'
+            '  "relationship_state_updates": [{"from_id": "player", "to_id": "character_key", "trust_delta": 0.0, "fear_delta": 0.0, "affection_delta": 0.0, "suspicion_delta": 0.0, "jealousy_delta": 0.0, "reason": "string"}],\n'
+            '  "departure_signal": {"character_id": "character_key|null", "certainty": "NONE|WISH|DECISION", "reason": "string"}\n'
             "}\n"
         )
 

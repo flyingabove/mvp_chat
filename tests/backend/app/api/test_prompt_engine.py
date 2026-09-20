@@ -1194,6 +1194,143 @@ def test_pending_events_round_trip_through_restore(client):
     assert restored_event.status == "pending"
 
 
+# ============================================================================
+# Phase 2 cast-cycling, Commit 2: departure-intent extraction + proposal.
+# Nothing executes yet (no scheduler in this commit) - a confirmed decision
+# only ever schedules a deferred PendingEvent; it never removes the
+# character immediately. "A wish or joke is not departure" / "a player
+# cannot evict somebody merely by asserting they left."
+# ============================================================================
+
+def test_departure_wish_does_not_schedule_replacement(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, DepartureSignal
+
+    sid = "departure_wish_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert "makoto" in state.cast_lifecycle.active_ids()
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(departure_signal=DepartureSignal(
+            character_id="makoto", certainty="WISH", reason="joked about leaving",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    assert state.pending_events == [], "a passing wish/joke must not schedule a replacement"
+    assert "makoto" in state.cast_lifecycle.active_ids(), "wish must not affect membership"
+
+
+def test_departure_decision_schedules_pending_replacement_not_immediate(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, DepartureSignal
+    from backend.app.engine.world_calendar import day_number
+
+    sid = "departure_decision_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert "makoto" in state.cast_lifecycle.active_ids()
+    minute_before = state.minute
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(departure_signal=DepartureSignal(
+            character_id="makoto", certainty="DECISION", reason="moving out next week",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    assert len(state.pending_events) == 1, "an explicit decision must schedule exactly one pending replacement"
+    event = state.pending_events[0]
+    assert event.event_type == "cast_departure_replacement"
+    assert event.status == "pending"
+    assert event.payload["departing_id"] == "makoto"
+    assert event.scheduled_day == day_number(minute_before) + 1, (
+        "six_strangers' replacement_timing is 'next_day' - the replacement must be deferred, not immediate"
+    )
+    # Deferred, not immediate: departing character is STILL active right now.
+    assert "makoto" in state.cast_lifecycle.active_ids(), (
+        "a player/character cannot evict somebody merely by a decision being stated - "
+        "removal only happens when the scheduler later executes the pending event"
+    )
+    assert state.cast_lifecycle.members["makoto"].status.value == "active"
+
+
+def test_departure_decision_for_inactive_character_is_ignored(client):
+    """Hard code-level guard (not just a prompt rule): a DECISION signal
+    naming a character NOT currently in lifecycle.active_ids() (e.g. an
+    upcoming or already-departed character, or a hallucinated name) must
+    never schedule anything - this is what actually prevents a player from
+    fabricating a departure for someone via the extractor."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, DepartureSignal
+
+    sid = "departure_inactive_character_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert "arman" not in state.cast_lifecycle.active_ids()
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(departure_signal=DepartureSignal(
+            character_id="arman", certainty="DECISION", reason="hallucinated departure",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    assert state.pending_events == [], "a DECISION for a non-active character must never schedule anything"
+
+
+def test_departure_decision_does_not_duplicate_pending_event_across_turns(client):
+    """If the same departure decision is reaffirmed over multiple turns
+    before the scheduler (Commit 3) ever fires, only one pending replacement
+    should exist - not one per turn."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, DepartureSignal
+
+    sid = "departure_dedup_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(departure_signal=DepartureSignal(
+            character_id="makoto", certainty="DECISION", reason="reaffirmed",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+        assert r1.status_code == 200
+        r2 = client.post("/api/chat", json={"session_id": sid, "message": "still thinking about it"})
+        assert r2.status_code == 200
+
+    assert len(state.pending_events) == 1, "reaffirming the same decision must not create a second pending event"
+
+
 def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(client):
     """Exercise actual initialization, including visibility seeding and prompt assembly."""
     from backend.app.api import prompt_engine as pe_mod

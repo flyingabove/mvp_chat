@@ -76,6 +76,52 @@ def test_replace_is_idempotent_by_event_id():
     assert len(state.history) == 1
 
 
+def test_propose_departure_does_not_change_status():
+    """The audit's 'a decision to leave next week is not immediate removal':
+    proposing a departure must leave the member ACTIVE and scene-eligible."""
+    state = _state()
+
+    transition = state.propose_departure("a", minute=100, reason="stated intent to leave", event_id="propose-a-1")
+
+    assert transition.event_type == "departure_proposed"
+    assert transition.departing_id == "a"
+    assert state.members["a"].status is CastStatus.ACTIVE
+    assert state.is_scene_eligible("a") is True
+    assert "a" in state.active_ids("men")
+
+
+def test_propose_departure_idempotent_by_event_id():
+    state = _state()
+    first = state.propose_departure("a", minute=100, reason="stated intent", event_id="propose-a-1")
+    snapshot = deepcopy(state.to_dict())
+
+    replay = state.propose_departure("b", minute=200, reason="different reason", event_id="propose-a-1")
+
+    assert replay is first
+    assert state.to_dict() == snapshot
+    assert len(state.history) == 1
+
+
+def test_propose_departure_rejects_non_active_member():
+    state = _state()
+    with pytest.raises(ValueError, match="only an active member can propose departure"):
+        state.propose_departure("c", minute=100, reason="not even active", event_id="propose-c-1")
+
+
+def test_propose_departure_requires_event_id():
+    state = _state()
+    with pytest.raises(ValueError, match="event_id must be non-empty"):
+        state.propose_departure("a", minute=100, reason="x", event_id="")
+
+
+def test_propose_departure_rejects_when_disabled():
+    config = _config()
+    config["enabled"] = False
+    state = CastLifecycleState.from_config(config, character_ids={"a", "b", "c", "d", "w", "w2"})
+    with pytest.raises(ValueError, match="cast lifecycle is disabled"):
+        state.propose_departure("a", minute=100, reason="x", event_id="propose-a-1")
+
+
 def test_wrong_slot_replacement_rejects_without_partial_mutation():
     state = _state()
     before = deepcopy(state.to_dict())
