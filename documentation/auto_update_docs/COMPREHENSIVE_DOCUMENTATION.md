@@ -1,5 +1,7 @@
 # MVP Chat - Comprehensive Code Documentation
 
+> **What this doc is for:** Auto-generated comprehensive code documentation. Edit this doc when regenerating documentation snapshots (this file is auto-generated, not manually edited).
+
 **Generated:** 2026-01-26
 **Project:** StoriesChat Backend (Python FastAPI) + Terminal Frontend
 

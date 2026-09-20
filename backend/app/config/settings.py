@@ -1,7 +1,12 @@
 # app/config.py
 from __future__ import annotations
 
-from backend.app.config.credentials import get_openai_api_key
+from backend.app.config.credentials import (
+    get_openai_api_key,
+    get_google_client_id,
+    get_google_client_secret,
+    get_jwt_secret,
+)
 
 # --- OpenAI / model config ---
 OPENAI_API_KEY: str = get_openai_api_key()
@@ -22,6 +27,16 @@ TEMPERATURE: float = 0.8
 MEMORY_TURNS: int = 8
 EXTRACTOR_TURNS: int = 8
 TRANSIENT_KNOWLEDGE_TURNS: int = 8
+
+# --- Phase 3 "Social life": behavior-tag accumulation window ---
+# How many recent behavior_tags per character pair before the engine
+# considers asking the extractor to judge whether a genuine shift occurred.
+BEHAVIOR_LOG_RIPE_THRESHOLD: int = 5
+# Cap on how many tags are retained per pair (oldest evicted first).
+BEHAVIOR_LOG_WINDOW_SIZE: int = 8
+# How many of the most recent tags count as the "recent" half when checking
+# for a majority swing vs. the tags before them.
+BEHAVIOR_LOG_RECENT_SPAN: int = 3
 
 # --- Game constants ---
 GAME_TITLE: str = "storieschat.ai (beta)"
@@ -48,11 +63,13 @@ DEFAULT_USER_ID: str = "default_user"
 DEFAULT_INSTANCE: int = 1
 
 # --- Auth ---
-GOOGLE_CLIENT_ID: str = _os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET: str = _os.getenv("GOOGLE_CLIENT_SECRET", "")
-JWT_SECRET: str = _os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+# Credentials route through `credentials.py`, which falls back to .env.test when
+# the env var is missing. Railway/CI env vars always take priority.
+GOOGLE_CLIENT_ID: str = get_google_client_id()
+GOOGLE_CLIENT_SECRET: str = get_google_client_secret()
+JWT_SECRET: str = get_jwt_secret()
 JWT_ALGORITHM: str = "HS256"
-JWT_EXPIRY_DAYS: int = 30
+JWT_EXPIRY_DAYS: int = 365
 
 # --- Integration test run counts (used by multi-run scenarios via _integ_run_count()) ---
 # X: number of runs per multi-run scenario when running locally (no RAILWAY_* env vars)

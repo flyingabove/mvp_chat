@@ -1,16 +1,20 @@
 """Per-user game session and conversation history endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
-from backend.app.auth.dependencies import get_current_user
+from backend.app.auth.dependencies import get_current_user_or_guest
 from backend.app.db.repos import SessionRepo, ConversationRepo
 
 router = APIRouter()
 
 
 @router.get("/api/user/sessions")
-async def list_sessions(user: dict = Depends(get_current_user)):
-    """List all game sessions for the authenticated user (newest first)."""
+async def list_sessions(user: dict = Depends(get_current_user_or_guest)):
+    """List all game sessions for the authenticated or guest user (newest first)."""
     user_id = user["sub"]
     sessions = await SessionRepo.list_user_sessions(user_id=user_id, limit=50)
+    # Expose session_id alongside id for frontend consistency
+    for s in sessions:
+        if "id" in s and "session_id" not in s:
+            s["session_id"] = s["id"]
     return {"sessions": sessions}
 
 
@@ -19,7 +23,7 @@ async def get_history(
     session_id: str,
     before_turn: int = 9999,
     limit: int = 20,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(get_current_user_or_guest),
 ):
     """
     Return paginated conversation history from the JSONL log.
@@ -50,7 +54,7 @@ async def get_history(
 
 
 @router.delete("/api/user/sessions/{session_id}")
-async def delete_session(session_id: str, user: dict = Depends(get_current_user)):
+async def delete_session(session_id: str, user: dict = Depends(get_current_user_or_guest)):
     """Delete a session and its conversation log."""
     user_id = user["sub"]
     deleted = await SessionRepo.delete_session(session_id=session_id, user_id=user_id)

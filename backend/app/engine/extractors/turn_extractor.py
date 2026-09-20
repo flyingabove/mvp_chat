@@ -56,6 +56,76 @@ class RelationshipStateUpdate:
 
 
 @dataclass(frozen=True)
+class DepartureSignal:
+    """LLM-judged signal that a resident character's own dialogue concerns
+    them leaving the house. Categorical, not a numeric confidence: "is this
+    a joke or a real decision" is a discrete judgment call, matching how
+    movement.intent is MOVE|NONE rather than confidence-gated.
+
+    certainty:
+      NONE     - no departure topic present (default).
+      WISH     - a passing complaint, joke, or hypothetical ("I wish I
+                 could just leave this house").
+      DECISION - an explicit, serious, stated intention to actually leave,
+                 from the departing character's OWN words only - never
+                 inferred from another character's (including the player's)
+                 speech about them.
+    """
+    character_id: str = ""
+    certainty: str = "NONE"
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class BehaviorTagUpdate:
+    """Cheap, per-turn observable-behavior tag between two characters
+    (Phase 3 "Social life"). Raw material accumulated into
+    GameState.recent_behavior_log; NOT itself a goal/disposition change -
+    just a short characterization of how from_id behaved toward to_id THIS
+    turn. Free-text, no enum (stays genre-agnostic: a mystery story's tags
+    read "evasive"/"defensive", an ensemble drama's read "warm"/"aggressive",
+    same field, no schema change needed either way). from_id/to_id must be
+    from allowed character keys (player included)."""
+    from_id: str
+    to_id: str
+    tag: str = ""
+
+
+@dataclass(frozen=True)
+class SocialShiftSignal:
+    """LLM judgment that an accumulated behavior pattern (not a single
+    message) shows a genuine shift in a character's goal or their
+    disposition toward a specific other character. Only ever evaluated when
+    the engine has flagged a pair's tag window as "ripe" (see
+    prompt_engine.py's ripe-window heuristic) - never a snap judgment from
+    one line of dialogue. Categorical, mirroring DepartureSignal's
+    precedent, not a numeric confidence: "has this settled into a real
+    change" is a discrete call.
+
+    certainty:
+      NONE  - default; also used when asked to judge but the pattern is
+              still noisy/mixed, not yet a genuine settled shift.
+      WISH  - a momentary flicker/one-off outlier, not a real change
+              (mirrors DepartureSignal's WISH - "a wish or joke is not
+              departure" / one warm moment doesn't undo a pattern).
+      SHIFT - the accumulated pattern shows a real, settled change.
+    scope: "goal" | "disposition" - which container this shift targets.
+    subject_id: character whose goal/disposition is shifting.
+    target_id: for scope="disposition" only, the other character; empty
+        for scope="goal" (a goal is not about anyone in particular).
+    new_value: free-text label for the new current state. Required when
+        certainty="SHIFT"; a SHIFT with no new_value is coerced to NONE.
+    reason: short phrase citing the pattern that justified the shift.
+    """
+    certainty: str = "NONE"
+    scope: str = ""
+    subject_id: str = ""
+    target_id: str = ""
+    new_value: str = ""
+    reason: str = ""
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -66,6 +136,9 @@ class TurnExtraction:
     knowledge_updates: List[TurnKnowledgeResolution] = field(default_factory=list)
     relationship_history_updates: List[RelationshipHistoryUpdate] = field(default_factory=list)
     relationship_state_updates: List[RelationshipStateUpdate] = field(default_factory=list)
+    departure_signal: Optional[DepartureSignal] = None
+    behavior_tags: List[BehaviorTagUpdate] = field(default_factory=list)
+    social_shift_signal: Optional[SocialShiftSignal] = None
 
 
 class TurnExtractor:
@@ -207,6 +280,73 @@ class TurnExtractor:
                     )
                 )
 
+        raw_departure = obj.get("departure_signal") if isinstance(obj.get("departure_signal"), dict) else {}
+        d_char = str(raw_departure.get("character_id") or "").strip().lower()
+        d_certainty = str(raw_departure.get("certainty") or "NONE").strip().upper()
+        if d_certainty not in {"NONE", "WISH", "DECISION"}:
+            d_certainty = "NONE"
+        departure_signal: Optional[DepartureSignal] = None
+        if d_char and d_certainty != "NONE":
+            if allowed_character_keys and d_char not in allowed_character_keys:
+                departure_signal = None
+            else:
+                departure_signal = DepartureSignal(
+                    character_id=d_char,
+                    certainty=d_certainty,
+                    reason=str(raw_departure.get("reason") or "").strip(),
+                )
+
+        raw_tags = obj.get("behavior_tags")
+        behavior_tags: List[BehaviorTagUpdate] = []
+        if isinstance(raw_tags, list):
+            for item in raw_tags:
+                if not isinstance(item, dict):
+                    continue
+                t_from = str(item.get("from_id") or "").strip().lower()
+                t_to = str(item.get("to_id") or "").strip().lower()
+                tag = str(item.get("tag") or "").strip()[:40]
+                if not t_from or not t_to or not tag:
+                    continue
+                if allowed_character_keys:
+                    if t_from not in allowed_character_keys and t_from != "player":
+                        continue
+                    if t_to not in allowed_character_keys and t_to != "player":
+                        continue
+                behavior_tags.append(BehaviorTagUpdate(from_id=t_from, to_id=t_to, tag=tag))
+
+        raw_shift = obj.get("social_shift_signal") if isinstance(obj.get("social_shift_signal"), dict) else {}
+        sh_certainty = str(raw_shift.get("certainty") or "NONE").strip().upper()
+        if sh_certainty not in {"NONE", "WISH", "SHIFT"}:
+            sh_certainty = "NONE"
+        sh_scope = str(raw_shift.get("scope") or "").strip().lower()
+        if sh_scope not in {"goal", "disposition"}:
+            sh_scope = ""
+        sh_subject = str(raw_shift.get("subject_id") or "").strip().lower()
+        sh_target = str(raw_shift.get("target_id") or "").strip().lower()
+        sh_new_value = str(raw_shift.get("new_value") or "").strip()[:200]
+        sh_reason = str(raw_shift.get("reason") or "").strip()[:200]
+
+        social_shift_signal: Optional[SocialShiftSignal] = None
+        if sh_certainty != "NONE" and sh_scope and sh_subject:
+            if allowed_character_keys and sh_subject not in allowed_character_keys:
+                social_shift_signal = None
+            elif sh_scope == "disposition" and allowed_character_keys and sh_target not in allowed_character_keys:
+                social_shift_signal = None
+            elif sh_scope == "disposition" and not sh_target:
+                social_shift_signal = None
+            else:
+                if sh_certainty == "SHIFT" and not sh_new_value:
+                    sh_certainty = "NONE"
+                if sh_certainty != "NONE":
+                    social_shift_signal = SocialShiftSignal(
+                        certainty=sh_certainty,
+                        scope=sh_scope,
+                        subject_id=sh_subject,
+                        target_id=sh_target if sh_scope == "disposition" else "",
+                        new_value=sh_new_value,
+                        reason=sh_reason,
+                    )
+
         return TurnExtraction(
             movement_intent=intent,
             destination_id=destination_id,
@@ -217,6 +357,9 @@ class TurnExtractor:
             knowledge_updates=knowledge_updates,
             relationship_history_updates=relationship_history_updates,
             relationship_state_updates=relationship_state_updates,
+            departure_signal=departure_signal,
+            behavior_tags=behavior_tags,
+            social_shift_signal=social_shift_signal,
         )
 
     async def extract(
@@ -229,6 +372,7 @@ class TurnExtractor:
         previous_turn_assistant_reply: str = "",
         previous_turn_candidate_chunks: List[Dict[str, str]] | None = None,
         conversation_log: List[Dict[str, str]] | None = None,
+        behavior_window: Dict[str, Any] | None = None,
     ) -> TurnExtraction:
         allowed_location_ids = set((world_locations or {}).keys())
         allowed_character_keys = {str(k).strip().lower() for k in (character_key_to_name or {}).keys() if str(k).strip()}
@@ -278,15 +422,52 @@ class TurnExtractor:
             "   jealousy_delta: +0.05..+0.10 when player expresses jealousy. Never negative.\n"
             "   Omit the entry if player's words are neutral or no attitude change is expressed.\n"
             "   Omit individual delta fields that are 0. Include 'reason' (1 short phrase).\n"
+            "8) departure_signal: only set when a resident character's OWN dialogue concerns\n"
+            "   THEM leaving the house.\n"
+            "   certainty=\"WISH\" for a passing complaint, joke, or hypothetical\n"
+            "   (\"I wish I could leave\", \"sometimes I want to just move out\").\n"
+            "   certainty=\"DECISION\" ONLY for an explicit, serious, stated intention to\n"
+            "   actually leave (\"I'm moving out next week\", \"I've decided to leave the house\").\n"
+            "   certainty=\"NONE\" (default) when no departure topic is present.\n"
+            "   character_id must be the character who is leaving, from allowed character keys.\n"
+            "   Never infer DECISION (or WISH) from the player's speech, or from another\n"
+            "   character's speech ABOUT someone else leaving - only from that character's own words.\n"
+            "9) behavior_tags: ALWAYS extract, cheaply, for any character (including player) whose\n"
+            "   words or actions THIS TURN showed an observable attitude/behavior toward another\n"
+            "   character present in the scene. tag is a short free-text phrase (1-3 words, e.g.\n"
+            "   \"aggressive\", \"warm\", \"evasive\", \"protective\", \"dismissive\") describing how\n"
+            "   from_id behaved toward to_id in this single turn only. Omit if no clear behavior\n"
+            "   toward a specific other character is shown. This is NOT a judgment about whether\n"
+            "   anything has changed - just a raw observation of this turn.\n"
+            "10) social_shift_signal: ONLY produce this when a \"BEHAVIOR PATTERN TO EVALUATE\"\n"
+            "    block is present below. If that block is absent, omit social_shift_signal entirely\n"
+            "    (or set certainty=\"NONE\"). When the block IS present, judge whether the pattern shown\n"
+            "    represents a genuine, settled shift (certainty=\"SHIFT\", with new_value describing the\n"
+            "    new state) or is still just a momentary/mixed pattern not yet a real change\n"
+            "    (certainty=\"WISH\"). scope is \"goal\" (subject_id's own persistent objective changed)\n"
+            "    or \"disposition\" (subject_id's stance toward target_id changed).\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
             '  "previous_scene": {"location_id": "string|null", "speakers": ["character_key"]},\n'
             '  "knowledge_updates": [{"chunk_id": "string", "knows": true, "confidence": 0.0, "reason": "string"}],\n'
             '  "relationship_history_updates": [{"from_id": "character_key", "to_id": "character_key", "prior_relationship": true|false|null, "prior_intimacy": true|false|null, "in_relationship": true|false|null}],\n'
-            '  "relationship_state_updates": [{"from_id": "player", "to_id": "character_key", "trust_delta": 0.0, "fear_delta": 0.0, "affection_delta": 0.0, "suspicion_delta": 0.0, "jealousy_delta": 0.0, "reason": "string"}]\n'
+            '  "relationship_state_updates": [{"from_id": "player", "to_id": "character_key", "trust_delta": 0.0, "fear_delta": 0.0, "affection_delta": 0.0, "suspicion_delta": 0.0, "jealousy_delta": 0.0, "reason": "string"}],\n'
+            '  "departure_signal": {"character_id": "character_key|null", "certainty": "NONE|WISH|DECISION", "reason": "string"},\n'
+            '  "behavior_tags": [{"from_id": "character_key", "to_id": "character_key", "tag": "string"}],\n'
+            '  "social_shift_signal": {"certainty": "NONE|WISH|SHIFT", "scope": "goal|disposition", "subject_id": "character_key", "target_id": "character_key|null", "new_value": "string", "reason": "string"}\n'
             "}\n"
         )
+
+        behavior_window_block = ""
+        if behavior_window:
+            pair = str(behavior_window.get("pair") or "")
+            tags = behavior_window.get("tags") or []
+            behavior_window_block = (
+                "\n\nBEHAVIOR PATTERN TO EVALUATE:\n"
+                f"{pair} has shown (oldest -> newest): {', '.join(str(t) for t in tags)}.\n"
+                "Has this character's goal or disposition genuinely shifted? See rule 10."
+            )
 
         user_content = (
             "CURRENT USER MESSAGE:\n"
@@ -301,6 +482,7 @@ class TurnExtractor:
             + "\n".join(character_lines)
             + "\n\nPREVIOUS TURN CANDIDATE KNOWLEDGE CHUNKS:\n"
             + ("\n".join(candidate_lines) if candidate_lines else "- none")
+            + behavior_window_block
         )
 
         messages: List[Dict[str, str]] = [{"role": "system", "content": system}]

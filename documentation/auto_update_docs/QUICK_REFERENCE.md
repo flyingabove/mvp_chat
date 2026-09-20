@@ -1,5 +1,7 @@
 # MVP Chat - Quick Reference Guide
 
+> **What this doc is for:** Auto-generated quick reference for the codebase. Edit this doc when regenerating documentation snapshots (this file is auto-generated, not manually edited).
+
 ## File Index
 
 ### Backend Core Files

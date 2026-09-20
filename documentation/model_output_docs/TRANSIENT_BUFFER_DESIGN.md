@@ -1,5 +1,7 @@
 # Transient Buffer Design (Scene Memory, Non-Authoritative)
 
+> **What this doc is for:** Design of scene memory / transient buffer (non-authoritative context). Edit this doc when the transient buffer eviction, injection, or scoring logic changes.
+
 ## Purpose
 Allow vivid scene-level detail without polluting canonical world state.
 

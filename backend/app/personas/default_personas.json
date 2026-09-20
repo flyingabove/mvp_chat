@@ -1,0 +1,11 @@
+{
+  "paul_dingus": {
+    "id": "paul_dingus",
+    "name": "Paul Dingus",
+    "gender": "M",
+    "free_text": "Devilishly handsome Black man who knows a little Japanese.",
+    "inject_to_llm": true,
+    "visible_attributes": ["name", "gender"],
+    "notes": "Default server-side persona used when the player selects the built-in persona path."
+  }
+}

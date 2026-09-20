@@ -38,3 +38,18 @@ class WorldClock:
         if minutes <= 0:
             raise ValueError("Time advance must be positive")
         self._minute += minutes
+
+    def set_minute(self, minute: int) -> None:
+        """Resync this clock to an authoritative minute value.
+
+        A07 fix: used when restoring a saved GameState so the freshly
+        (re)loaded world runtime's clock reflects the persisted game time
+        instead of the authored world's start_minute. Without this, a
+        restore followed by travel would advance from the fresh clock's
+        start value and silently roll the visible game clock backward.
+        """
+        if not isinstance(minute, int):
+            raise TypeError("minute must be an int")
+        if minute < 0:
+            raise ValueError("minute must be >= 0")
+        self._minute = minute

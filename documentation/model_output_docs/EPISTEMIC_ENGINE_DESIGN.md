@@ -1,5 +1,7 @@
 # Epistemic Engine Design (North-Star Aligned, Minimal)
 
+> **What this doc is for:** Design of the epistemic/knowledge system (canonical facts, beliefs, confidence). Edit this doc when knowledge retrieval, belief injection, or epistemic rules change.
+
 ## Purpose
 Keep the engine simple, scalable across stories, and faithful to one rule: **world truth lives in engine state, not in model prose**.
 

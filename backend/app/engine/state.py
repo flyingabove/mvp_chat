@@ -15,6 +15,9 @@ from backend.app.config.settings import (
 )
 
 from backend.app.engine.character_graph import CharacterGraph, CharacterType
+from backend.app.engine.cast_lifecycle import CastLifecycleState
+from backend.app.engine.world_calendar import PendingEvent
+from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.epistemic_state import BeliefState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk
 from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
@@ -30,6 +33,14 @@ from backend.app.config.epistemic_flags import (
 
 import json
 import re
+from enum import Enum
+
+
+class LanguageTheme(Enum):
+    ENGLISH_US = "English US"
+    ENGLISH_KOREAN = "English Korean"
+    ENGLISH_JAPANESE = "English Japanese"
+
 
 
 # ======================================================================
@@ -57,6 +68,12 @@ class UserState:
     formal_name: str = ""
     display_name: str = ""
     gender: Optional[str] = None
+    # Persona mode for human-controlled character: 'temp' (per-session temporary) or 'default'
+    persona_mode: str = ""
+    # Optional persona identifier or display name (e.g., 'first_time_user' or a custom label)
+    persona_name: str = ""
+    # Freeform extra attributes / notes for the persona (hidden vs visible handled elsewhere)
+    persona_other: str = ""
 
 
 # ======================================================================
@@ -98,6 +115,16 @@ class Character:
     self_knowledge: List[str] = field(default_factory=list)
     emotion: str = EMOTION_START
     relationship: int = REL_START
+    # Phase 3 "Social life": this character's own persistent goal/motive.
+    # None for a character with no authored motive/goal - always render
+    # gracefully as "nothing" downstream, never a stray empty line.
+    goal: Optional["EvolvingTrait"] = None
+    # Static, authored behavioral cues the turn extractor watches for (e.g.
+    # a murder-mystery suspect's interrogation "tells"). Not itself
+    # evolving state - the extractor's OUTPUT from watching these is a
+    # `disposition` shift on the relevant relationship edge, using the same
+    # EvolvingTrait primitive an ensemble drama uses for romance arcs.
+    tells: List[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Character":
@@ -110,6 +137,8 @@ class Character:
         knowledge_character_id = str(data.get("knowledge_character_id") or "").strip()
         uuid = str(data.get("uuid") or "").strip()
         tags = list(data.get("tags") or [])
+        self_knowledge = [str(x) for x in (data.get("self_knowledge") or []) if str(x).strip()]
+        tells = [str(x) for x in (data.get("tells") or []) if str(x).strip()]
         # Determine character_type: is_main → MAIN; else parse from JSON or default CANONICAL
         if is_main:
             character_type = CharacterType.MAIN
@@ -121,9 +150,38 @@ class Character:
                 character_type = CharacterType.CANONICAL
         known_keys = {
             "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
-            "knowledge_character_id", "uuid", "tags", "character_type",
+            "knowledge_character_id", "uuid", "tags", "character_type", "self_knowledge",
+            "motive", "goal", "tells",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
+
+        # Phase 3 "Social life": seed this character's persistent goal.
+        # Three shapes are possible for the "goal" key depending on the
+        # caller:
+        #   1. A full serialized EvolvingTrait dict (round-tripping through
+        #      Character.to_dict() -> from_dict(), e.g. session restore) -
+        #      restore the whole object, preserving its history.
+        #   2. A raw author-time string (a generic "goal" key as an
+        #      alternative to "motive") - seed a fresh trait from it.
+        #   3. Some other shape (e.g. the murder-mystery session-level
+        #      win-condition object, {"win_text_rule": ...}) - not a
+        #      character motive at all; ignored here.
+        # "motive" (the ensemble-drama vocabulary) is always a plain string
+        # seed, never a serialized trait - one code path, no per-genre
+        # branching for the common authoring case.
+        raw_motive = data.get("motive")
+        raw_goal = data.get("goal")
+        goal_trait: Optional[EvolvingTrait] = None
+        if isinstance(raw_goal, dict) and "history" in raw_goal:
+            goal_trait = EvolvingTrait.from_dict(raw_goal)
+        else:
+            motive_text = str(raw_motive).strip() if isinstance(raw_motive, str) else ""
+            if not motive_text and isinstance(raw_goal, str):
+                motive_text = raw_goal.strip()
+            if motive_text:
+                goal_trait = EvolvingTrait(kind="goal", subject_id=key)
+                goal_trait.set_initial(motive_text)
+
         return cls(
             key=key,
             name=name,
@@ -135,6 +193,9 @@ class Character:
             uuid=uuid,
             tags=tags,
             meta=meta,
+            self_knowledge=self_knowledge,
+            goal=goal_trait,
+            tells=tells,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -148,6 +209,9 @@ class Character:
             "knowledge_character_id": self.knowledge_character_id,
             "uuid": self.uuid,
             "tags": self.tags,
+            "self_knowledge": self.self_knowledge,
+            "tells": self.tells,
+            "goal": self.goal.to_dict() if self.goal is not None else None,
             **(self.meta or {}),
         }
 
@@ -191,6 +255,8 @@ class GameState:
     story: Optional[str] = None
     user_id: str = DEFAULT_USER_ID
     instance: int = DEFAULT_INSTANCE
+    # Language theme controls small localized mixing and honorific behavior.
+    language_theme: LanguageTheme = LanguageTheme.ENGLISH_US
     gender: Optional[str] = None
     turns: int = 0
     over: bool = False
@@ -245,6 +311,23 @@ class GameState:
     # Character relationship graph (multi-dimensional)
     # ==============================================================
     character_graph: Optional[CharacterGraph] = None
+
+    # Optional authored/runtime cast rotation state. Stories that do not opt in
+    # leave this as None and retain the legacy all-characters-active behavior.
+    cast_lifecycle: Optional[CastLifecycleState] = None
+
+    # Generic durable event queue (Phase 2 cast-cycling scheduler; reusable by
+    # future day-keyed features such as routines/commitments). One list
+    # filtered by event_type at consumption time, mirroring transient_entries.
+    pending_events: List[PendingEvent] = field(default_factory=list)
+
+    # Phase 3 "Social life": rolling per-pair window of cheap, per-turn
+    # observable-behavior tags (see BehaviorTagUpdate), keyed "from->to".
+    # Raw material for the ripe-window heuristic that decides when a pair's
+    # accumulated pattern is worth an expensive LLM shift judgment - not
+    # itself a goal/disposition change. Capped per pair at
+    # BEHAVIOR_LOG_WINDOW_SIZE entries (oldest evicted first).
+    recent_behavior_log: Dict[str, List[str]] = field(default_factory=dict)
 
     # ==============================================================
     # Transient scene buffer (non-authoritative, short-lived)

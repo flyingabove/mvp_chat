@@ -24,10 +24,12 @@ import uuid
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Request, WebSocket
 from fastapi.responses import JSONResponse
 
+from backend.app.auth.dependencies import require_operator, require_operator_ws, _operator_token_configured
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
+from backend.app.db.database import DATA_DIR
 from backend.app.engine.story_loader import load_story
 from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
@@ -47,9 +49,8 @@ _ONLINE_API_BASE = os.getenv("STORY_MASTER_BASE_URL", "https://api.openai.com/v1
 _ONLINE_API_KEY = os.getenv("STORY_MASTER_API_KEY", OPENAI_API_KEY)
 
 # ---------------------------------------------------------------------------
-# Storage (Railway /data volume online, ./data locally)
+# Storage (DATA_DIR imported from database.py — single source of truth)
 # ---------------------------------------------------------------------------
-DATA_DIR = Path("/data") if Path("/data").exists() else Path("./data")
 DEBUG_RUNS_DIR = DATA_DIR / "debug_runs"
 SCORES_CSV = DATA_DIR / "debug_scores.csv"
 TEST_CASES_FILE = DATA_DIR / "test_cases.json"
@@ -443,6 +444,15 @@ active_runs: dict[str, dict] = {}
 # WebSocket handler
 # ---------------------------------------------------------------------------
 async def ws_debug(websocket: WebSocket) -> None:
+    # A03: the debug WebSocket drives real (spend-incurring) model calls and
+    # can mutate/replay game state. Require an operator token before
+    # accepting the connection so unauthenticated callers cannot use it.
+    try:
+        await require_operator_ws(websocket)
+    except Exception:
+        await websocket.close(code=4401)
+        return
+
     await websocket.accept()
     run_id: str | None = None
     try:
@@ -525,7 +535,14 @@ async def ws_debug(websocket: WebSocket) -> None:
 
         await send("status", {"text": f"Starting {story_id}..."})
 
-        async with httpx.AsyncClient(timeout=60.0) as api:
+        # This handler only runs after require_operator_ws already verified an
+        # operator token on this WebSocket connection, so it's safe/expected
+        # to forward that same token on its own /api/chat calls: /api/chat now
+        # only includes `prompt_debug` (full system prompt, canonical facts)
+        # for an authenticated operator request, and this loop's grading
+        # depends on receiving it.
+        _op_headers = {"X-Operator-Token": _operator_token_configured()}
+        async with httpx.AsyncClient(timeout=60.0, headers=_op_headers) as api:
             # Reset session
             await api.post(f"{api_base}/api/chat", json={
                 "session_id": session_id,
@@ -707,7 +724,14 @@ async def ws_debug(websocket: WebSocket) -> None:
 
                 story_context_block = ""
                 try:
-                    async with httpx.AsyncClient(timeout=10.0) as ctx_client:
+                    # GET /api/stories/{id}/context is operator-gated (A03 -
+                    # it returns canonical_facts). Without this header, this
+                    # call 401s and silently falls through to the `except`
+                    # below, so the grader loads with no story context at all
+                    # (a real regression the A03 fix introduced here — this
+                    # code path already runs only after require_operator_ws
+                    # verified an operator token on this WS connection).
+                    async with httpx.AsyncClient(timeout=10.0, headers=_op_headers) as ctx_client:
                         ctx_r = await ctx_client.get(f"{api_base}/api/stories/{story_id}/context")
                         if ctx_r.status_code == 200:
                             story_context_block = _build_scorer_context(ctx_r.json())
@@ -835,7 +859,11 @@ async def ws_debug(websocket: WebSocket) -> None:
 # ---------------------------------------------------------------------------
 # REST router
 # ---------------------------------------------------------------------------
-router = APIRouter()
+# A03: every route on this router runs model-spending tools, mutates
+# debug/run state, or reads other sessions' run data — none of it should be
+# reachable without an operator token (see require_operator, disabled by
+# default in prod-like environments via DEBUG_TOOLS_ENABLED).
+router = APIRouter(dependencies=[Depends(require_operator)])
 
 
 @router.get("/status")

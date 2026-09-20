@@ -1,5 +1,7 @@
 # Character Graph Design
 
+> **What this doc is for:** Design of the character relationship graph (nodes, edges, 4D state, query API). Edit this doc when the character graph schema, edge types, or query API changes.
+
 Last updated: 2026-02-26
 
 ## What Is the Character Graph?

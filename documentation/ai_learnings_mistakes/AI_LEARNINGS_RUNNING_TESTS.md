@@ -1,6 +1,8 @@
 AI learnings: running tests on this repo
 =======================================
 
+> **What this doc is for:** How to run tests correctly in this repo (pytest flags, common pitfalls). Edit this doc when test runner behavior changes or new testing patterns are established.
+
 POLICY: NO TESTS MAY BE SKIPPED — EVER
 ---------------------------------------
 All tests in `tests/` must run and pass in every environment (local, CI, Railway).

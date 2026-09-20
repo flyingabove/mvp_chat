@@ -1,6 +1,4 @@
 import importlib
-import os
-from pathlib import Path
 
 
 def test_build_index_has_no_import_time_side_effects(tmp_path, monkeypatch):

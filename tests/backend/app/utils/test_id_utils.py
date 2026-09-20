@@ -1,4 +1,3 @@
-import pytest
 
 from backend.app.utils.id_utils import slug_token, build_deterministic_uuid, build_namespace_key
 

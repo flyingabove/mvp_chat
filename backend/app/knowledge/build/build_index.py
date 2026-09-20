@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from .embedder import embed_texts, embed_query, get_embedder_info
+from .embedder import embed_texts, get_embedder_info
 from .faiss_utils import build_faiss_index
 from .bm25_utils import build_bm25_index, load_chunks_jsonl
 from .fingerprint import FaissConfig, Bm25Config, compute_build_fingerprint
@@ -234,12 +234,12 @@ def main(character_dirname: str | None = None) -> None:
     _atomic_save_npy(paths["emb_path"], embeddings)
 
     faiss_tmp = paths["faiss_path"].with_suffix(".index.tmp")
-    faiss_index = build_faiss_index(embeddings, faiss_tmp)
+    _ = build_faiss_index(embeddings, faiss_tmp)
     faiss_tmp.replace(paths["faiss_path"])
 
     # --- BM25 ---
     bm25_tmp = paths["bm25_path"].with_suffix(".json.tmp")
-    bm25 = build_bm25_index(chunks, bm25_tmp)
+    _ = build_bm25_index(chunks, bm25_tmp)
     bm25_tmp.replace(paths["bm25_path"])
 
     # --- Verify BM25 payload schema (CRITICAL) ---

@@ -1,0 +1,344 @@
+{
+  "world_id": "six_strangers",
+  "version": 2,
+  "time": {
+    "start_minute": 0,
+    "minute_label": "minutes_since_start"
+  },
+  "defaults": {
+    "probabilities": {
+      "p_exit_A": 0.2,
+      "p_pass_C": 0.5,
+      "p_event_at_C": 0.25,
+      "p_enter_B": 0.2,
+      "p_describe_B": 0.6
+    }
+  },
+  "locations": {
+    "front_entry": {
+      "name": "Front Entry",
+      "tags": [
+        "indoor",
+        "transitional",
+        "shared"
+      ],
+      "description": "A glass-fronted genkan in a modern Higashi-Gotanda house. Shoes line the recessed rack; the doorway opens onto the shared living floor, with the kitchen and dining table in view. Stairs lead to the bedrooms and rooftop, and the garage opens beside the entry.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-front_entry"
+    },
+    "living_room": {
+      "name": "Living Room",
+      "tags": [
+        "indoor",
+        "shared",
+        "social"
+      ],
+      "description": "Floor-to-ceiling glass brings Tokyo daylight across a broad sofa and low coffee table. The open-plan room connects to the kitchen and dining area; stairs link the bedrooms and rooftop.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-living_room"
+    },
+    "kitchen": {
+      "name": "Open Kitchen",
+      "tags": [
+        "indoor",
+        "shared",
+        "social"
+      ],
+      "description": "An island counter, full-size refrigerator and rice cooker anchor the open kitchen. Grocery notes and a washing-up rota share a board beside the counter.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-kitchen"
+    },
+    "dining_room": {
+      "name": "Dining Room",
+      "tags": [
+        "indoor",
+        "shared",
+        "social"
+      ],
+      "description": "A long communal table sits between the kitchen and the glass wall. Seven chairs make room for the six original housemates and the new arrival.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-dining_room"
+    },
+    "boys_bedroom": {
+      "name": "Boys' Bedroom",
+      "tags": [
+        "indoor",
+        "shared",
+        "bedroom"
+      ],
+      "description": "The shared bedroom for Makoto, Yuki and Uchi has three beds, individual storage and a small common sitting area. Knock and wait for an invitation before entering.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-boys_bedroom"
+    },
+    "girls_bedroom": {
+      "name": "Girls' Bedroom",
+      "tags": [
+        "indoor",
+        "shared",
+        "bedroom"
+      ],
+      "description": "The shared bedroom for Minori, Mizuki and Yuriko has three beds, individual storage and a shared dressing area. Knock and wait for an invitation before entering.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-girls_bedroom"
+    },
+    "player_bedroom": {
+      "name": "Your Guest Room",
+      "tags": [
+        "indoor",
+        "private",
+        "home"
+      ],
+      "description": "A small furnished guest room reserved for you, the seventh resident, with a single bed, desk and suitcase space. This extra room belongs to the game adaptation of the house.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-player_bedroom"
+    },
+    "shared_bathroom": {
+      "name": "Shared Bathroom",
+      "tags": [
+        "indoor",
+        "shared",
+        "transitional"
+      ],
+      "description": "A shared washroom with separate bathing space, towels and labeled toiletry baskets. The occupied sign and a closed door mean wait outside.",
+      "allows_phone": false,
+      "uuid": "default_user-six_strangers-1-shared_bathroom"
+    },
+    "terrace": {
+      "name": "Rooftop Terrace",
+      "tags": [
+        "outdoor",
+        "shared",
+        "quiet"
+      ],
+      "description": "A furnished rooftop terrace above the glass-fronted house, with outdoor seating and a view across residential Higashi-Gotanda toward the Tokyo skyline.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-terrace"
+    },
+    "garage": {
+      "name": "Garage",
+      "tags": [
+        "indoor",
+        "shared",
+        "transitional"
+      ],
+      "description": "Two shared cars sit beneath the house. A key board and a simple booking notebook help residents coordinate commutes, shopping trips and days out.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-garage"
+    },
+    "neighborhood": {
+      "name": "Higashi-Gotanda Streets",
+      "tags": [
+        "outdoor",
+        "public",
+        "transitional"
+      ],
+      "description": "Quiet residential streets in Shinagawa Ward connect the house with small restaurants, shops and the busier streets around Gotanda Station.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-neighborhood"
+    },
+    "gotanda_station": {
+      "name": "Gotanda Station",
+      "tags": [
+        "public",
+        "transitional",
+        "city"
+      ],
+      "description": "The station connects the neighborhood to the JR Yamanote Line and the wider city. Ticket gates, platform signs and a meeting spot outside make it a useful starting point for a day out.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-gotanda_station"
+    },
+    "cafe": {
+      "name": "Neighborhood Cafe",
+      "tags": [
+        "indoor",
+        "public",
+        "social"
+      ],
+      "description": "A small neighborhood cafe with a coffee counter and window seats. It is a game-created local place for a drink, a work break or an unhurried conversation.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-cafe"
+    },
+    "dance_studio": {
+      "name": "Tap Dance Studio",
+      "tags": [
+        "indoor",
+        "workplace"
+      ],
+      "description": "A rented Tokyo rehearsal studio with a sprung wooden floor, mirrors and stacked folding chairs. This game-created workplace is reached by a short train ride and walk from Gotanda.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-dance_studio"
+    },
+    "salon": {
+      "name": "Hair Salon",
+      "tags": [
+        "indoor",
+        "workplace"
+      ],
+      "description": "A bright Tokyo salon with mirrored stations, appointment books and a waiting bench. This game-created workplace is reached by a short train ride and walk from Gotanda.",
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-salon"
+    }
+  },
+  "edges": [
+    {
+      "from": "front_entry",
+      "to": "living_room",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "front_entry",
+      "minutes": 1
+    },
+    {
+      "from": "front_entry",
+      "to": "garage",
+      "minutes": 1
+    },
+    {
+      "from": "garage",
+      "to": "front_entry",
+      "minutes": 1
+    },
+    {
+      "from": "front_entry",
+      "to": "neighborhood",
+      "minutes": 1
+    },
+    {
+      "from": "neighborhood",
+      "to": "front_entry",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "kitchen",
+      "minutes": 1
+    },
+    {
+      "from": "kitchen",
+      "to": "living_room",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "dining_room",
+      "minutes": 1
+    },
+    {
+      "from": "dining_room",
+      "to": "living_room",
+      "minutes": 1
+    },
+    {
+      "from": "kitchen",
+      "to": "dining_room",
+      "minutes": 1
+    },
+    {
+      "from": "dining_room",
+      "to": "kitchen",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "boys_bedroom",
+      "minutes": 1
+    },
+    {
+      "from": "boys_bedroom",
+      "to": "living_room",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "girls_bedroom",
+      "minutes": 1
+    },
+    {
+      "from": "girls_bedroom",
+      "to": "living_room",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "player_bedroom",
+      "minutes": 1
+    },
+    {
+      "from": "player_bedroom",
+      "to": "living_room",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "shared_bathroom",
+      "minutes": 1
+    },
+    {
+      "from": "shared_bathroom",
+      "to": "living_room",
+      "minutes": 1
+    },
+    {
+      "from": "living_room",
+      "to": "terrace",
+      "minutes": 2
+    },
+    {
+      "from": "terrace",
+      "to": "living_room",
+      "minutes": 2
+    },
+    {
+      "from": "garage",
+      "to": "neighborhood",
+      "minutes": 1
+    },
+    {
+      "from": "neighborhood",
+      "to": "garage",
+      "minutes": 1
+    },
+    {
+      "from": "neighborhood",
+      "to": "gotanda_station",
+      "minutes": 10
+    },
+    {
+      "from": "gotanda_station",
+      "to": "neighborhood",
+      "minutes": 10
+    },
+    {
+      "from": "neighborhood",
+      "to": "cafe",
+      "minutes": 5
+    },
+    {
+      "from": "cafe",
+      "to": "neighborhood",
+      "minutes": 5
+    },
+    {
+      "from": "gotanda_station",
+      "to": "dance_studio",
+      "minutes": 20
+    },
+    {
+      "from": "dance_studio",
+      "to": "gotanda_station",
+      "minutes": 20
+    },
+    {
+      "from": "gotanda_station",
+      "to": "salon",
+      "minutes": 25
+    },
+    {
+      "from": "salon",
+      "to": "gotanda_station",
+      "minutes": 25
+    }
+  ]
+}

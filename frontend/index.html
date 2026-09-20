@@ -41,9 +41,9 @@
       --text:         #ffffff;
       --text-sub:     #aaaaaa;
       --text-muted:   #666666;
-      --bubble-user:  #e50914;
-      --bubble-npc:   #1e1e1e;
-      --bubble-npc-border: #333;
+      --bubble-user:  #3a3c44;
+      --bubble-npc:   #1f222b;
+      --bubble-npc-border: #2f3340;
       --tab-h:        60px;
       --top-h:        56px;
       --radius:       12px;
@@ -68,11 +68,20 @@
     ══════════════════════════════════════════════ */
     .screen {
       position: fixed; inset: 0;
-      display: none;
+      display: flex;
       flex-direction: column;
       overflow: hidden;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.18s ease, visibility 0s 0.18s;
+      pointer-events: none;
     }
-    .screen.active { display: flex; }
+    .screen.active {
+      visibility: visible;
+      opacity: 1;
+      transition: opacity 0.18s ease, visibility 0s 0s;
+      pointer-events: auto;
+    }
 
     /* ══════════════════════════════════════════════
        TOP BAR
@@ -289,16 +298,17 @@
     #modal-game-detail {
       position: fixed; inset: 0; z-index: 200;
       background: rgba(0,0,0,0.85);
-      display: none; align-items: flex-end; justify-content: center;
-      padding: 0;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
     }
     #modal-game-detail.open { display: flex; }
     .modal-sheet {
       width: 100%; max-width: 520px;
       background: #1c1c1c;
-      border-radius: 20px 20px 0 0;
+      border-radius: 20px;
       padding: 0 0 env(safe-area-inset-bottom, 16px) 0;
-      max-height: 85vh; overflow-y: auto;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
     }
     .modal-handle {
       width: 36px; height: 4px; border-radius: 2px;
@@ -326,48 +336,143 @@
     .btn-play-large:active { background: var(--red-dark); }
 
     /* ══════════════════════════════════════════════
-       ONBOARDING MODAL (name + gender)
+       CHARACTER SELECT
     ══════════════════════════════════════════════ */
     #modal-onboard {
       position: fixed; inset: 0; z-index: 300;
-      background: rgba(0,0,0,0.9);
+      background:
+        radial-gradient(circle at 50% 0%, rgba(229,9,20,0.11), transparent 38%),
+        rgba(5,5,5,0.96);
       display: none; align-items: center; justify-content: center;
-      padding: 24px;
+      padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
     }
     #modal-onboard.open { display: flex; }
     .onboard-card {
-      background: var(--surface); border-radius: 20px;
-      padding: 28px 24px; width: 100%; max-width: 380px;
+      background: #181818; border: 1px solid rgba(255,255,255,0.08); border-radius: 24px;
+      padding: 26px; width: 100%; max-width: 760px;
+      max-height: calc(100dvh - max(24px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)));
+      overflow: hidden; display: flex; flex-direction: column;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
     }
-    .onboard-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
-    .onboard-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 24px; }
+    .onboard-scroll-content {
+      min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .onboard-scroll-content::-webkit-scrollbar { display: none; }
+    .onboard-heading { text-align: center; }
+    .onboard-kicker {
+      color: #ff5a62; font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+      text-transform: uppercase; margin-bottom: 5px;
+    }
+    .onboard-title { font-size: clamp(24px, 5vw, 32px); line-height: 1.15; font-weight: 850; letter-spacing: -0.7px; margin-bottom: 7px; }
+    .onboard-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 20px; }
+    .persona-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+      align-items: stretch;
+    }
+    .persona-btn {
+      position: relative; min-width: 0; padding: 16px;
+      color: var(--text); background: #202020; border: 2px solid #303030;
+      border-radius: 18px; cursor: pointer; text-align: left;
+      transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    }
+    .persona-btn:hover { background: #242424; }
+    .persona-btn:active { transform: scale(0.99); }
+    .persona-btn:focus-visible { outline: 3px solid rgba(255,255,255,0.8); outline-offset: 3px; }
+    .persona-btn.selected {
+      border-color: var(--red); background: linear-gradient(145deg, rgba(229,9,20,0.13), #202020 45%);
+      box-shadow: 0 0 0 1px rgba(229,9,20,0.2), 0 12px 30px rgba(0,0,0,0.22);
+    }
+    .persona-check {
+      position: absolute; top: 11px; right: 11px; z-index: 2;
+      width: 25px; height: 25px; border-radius: 50%;
+      border: 2px solid #555; background: #202020; color: transparent;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 900; transition: all 0.16s ease;
+    }
+    .persona-btn.selected .persona-check { border-color: var(--red); background: var(--red); color: white; }
+    .persona-avatar {
+      width: 82px; height: 82px; margin: 0 auto 12px; border-radius: 22px;
+      overflow: hidden; background: #111; border: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .persona-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .persona-avatar.blank { color: #777; border: 1px dashed #555; background: #191919; }
+    .persona-avatar.blank svg { width: 46px; height: 46px; }
+    .persona-card-label {
+      font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 3px;
+    }
+    .persona-btn.selected .persona-card-label { color: #ff767d; }
+    .persona-card-title { font-size: 19px; line-height: 1.2; font-weight: 800; margin-bottom: 12px; }
+    .persona-facts { display: grid; gap: 10px; }
+    .persona-fact { min-width: 0; }
+    .persona-fact-label, .persona-field-label {
+      display: block; color: #888; font-size: 10px; line-height: 1.2;
+      font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px;
+    }
+    .persona-fact-value { font-size: 14px; line-height: 1.35; color: #f1f1f1; }
     .onboard-input {
       width: 100%; height: 48px;
-      background: var(--card); border: 1px solid var(--border);
+      background: #171717; border: 1px solid #3a3a3a;
       border-radius: 10px; color: var(--text);
-      font-size: 16px; padding: 0 14px;
-      outline: none; margin-bottom: 16px;
+      font-size: 16px; padding: 0 11px;
+      outline: none; margin: 0;
       font-family: var(--font);
     }
-    .onboard-input:focus { border-color: var(--red); }
-    .gender-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    textarea.onboard-input { height: 72px; padding-top: 10px; line-height: 1.3; resize: none; }
+    .onboard-input::placeholder { color: #6f6f6f; }
+    .onboard-input:focus { border-color: #e55; box-shadow: 0 0 0 3px rgba(229,9,20,0.1); }
+    .gender-row { display: flex; gap: 7px; margin: 0; }
     .gender-btn {
-      flex: 1; height: 48px; border-radius: 10px;
-      background: var(--card); border: 2px solid var(--border);
-      color: var(--text-sub); font-size: 14px; font-weight: 600;
+      flex: 1; min-width: 0; height: 40px; border-radius: 9px;
+      background: #171717; border: 1px solid #3a3a3a;
+      color: var(--text-sub); font-size: 13px; font-weight: 700;
       cursor: pointer; transition: all 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
-    .gender-btn.selected { border-color: var(--red); color: var(--text); background: rgba(229,9,20,0.12); }
+    .gender-btn.selected { border-color: var(--red); color: var(--text); background: rgba(229,9,20,0.18); }
     .btn-continue {
-      width: 100%; height: 48px; border-radius: 10px;
+      width: 100%; height: 52px; border-radius: 12px; margin-top: 18px;
       background: var(--red); color: white;
       border: none; cursor: pointer;
       font-size: 16px; font-weight: 700;
       -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 8px 22px rgba(229,9,20,0.2);
+      flex-shrink: 0;
     }
     .btn-continue:disabled { opacity: 0.4; cursor: default; }
     .btn-continue:not(:disabled):active { background: var(--red-dark); }
+    .onboard-help { text-align: center; margin-top: 9px; color: #6f6f6f; font-size: 11px; }
+
+    @media (max-width: 520px) {
+      #modal-onboard { padding: max(8px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+      .onboard-card { padding: 19px 12px 16px; border-radius: 20px; }
+      .onboard-sub { margin-bottom: 15px; font-size: 13px; }
+      .persona-grid { gap: 8px; }
+      .persona-btn { padding: 12px 9px; border-radius: 15px; }
+      .persona-avatar { width: 66px; height: 66px; border-radius: 18px; margin-bottom: 9px; }
+      .persona-check { top: 8px; right: 8px; width: 22px; height: 22px; font-size: 12px; }
+      .persona-card-title { font-size: 16px; margin-bottom: 10px; }
+      .persona-facts { gap: 8px; }
+      .persona-fact-value { font-size: 12px; }
+      .onboard-input { height: 42px; padding: 0 9px; font-size: 16px; }
+      textarea.onboard-input { height: 64px; padding-top: 9px; }
+      .gender-btn { height: 38px; font-size: 12px; }
+      .btn-continue { height: 50px; margin-top: 12px; }
+    }
+
+    @media (max-height: 620px) and (orientation: landscape) {
+      #modal-onboard { align-items: flex-start; }
+      .onboard-card { max-width: 800px; padding-top: 14px; padding-bottom: 14px; }
+      .onboard-kicker, .onboard-help { display: none; }
+      .onboard-title { font-size: 22px; }
+      .onboard-sub { margin-bottom: 10px; }
+      .persona-avatar { width: 54px; height: 54px; margin: 0 10px 8px 0; float: left; border-radius: 14px; }
+      .persona-card-title { margin-bottom: 8px; }
+      .btn-continue { margin-top: 10px; height: 44px; }
+    }
 
     /* ── Login modal ── */
     #modal-login {
@@ -398,6 +503,94 @@
     .login-google-btn svg { flex-shrink: 0; }
     .login-dismiss {
       margin-top: 18px; font-size: 13px; color: var(--text-muted);
+      cursor: pointer; text-decoration: underline;
+    }
+    .login-guest-btn {
+      margin-top: 10px;
+      width: 100%; height: 46px; border-radius: 12px;
+      background: rgba(255,255,255,0.08); color: var(--text);
+      border: 1px solid var(--border); cursor: pointer;
+      font-size: 14px; font-weight: 600;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .login-guest-btn:active { background: rgba(255,255,255,0.14); }
+
+    /* ── Home "Play as Guest" pill ── */
+    .guest-pill-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 12px; border-radius: 999px;
+      background: rgba(229,9,20,0.12); color: var(--red);
+      border: 1px solid rgba(229,9,20,0.6);
+      font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .guest-pill-btn:active { background: rgba(229,9,20,0.22); }
+    .guest-pill-btn.on { background: var(--red); color: #fff; border-color: var(--red); }
+
+    /* ══════════════════════════════════════════════
+       iOS INSTALL PROMPT
+    ══════════════════════════════════════════════ */
+    #ios-install-prompt {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(0,0,0,0.85);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #ios-install-prompt.open { display: flex; }
+    .ios-install-card {
+      background: var(--surface); border-radius: 20px;
+      padding: 28px 24px 22px; width: 100%; max-width: 400px;
+      text-align: center; position: relative;
+    }
+    .ios-install-close {
+      position: absolute; top: 12px; right: 14px;
+      background: none; border: none; color: var(--text-muted);
+      font-size: 22px; cursor: pointer; padding: 4px 8px;
+      line-height: 1;
+    }
+    .ios-install-icon { font-size: 48px; margin-bottom: 12px; }
+    .ios-install-title {
+      font-size: 20px; font-weight: 800; margin-bottom: 6px;
+      color: var(--text);
+    }
+    .ios-install-sub {
+      font-size: 14px; color: var(--text-sub); margin-bottom: 22px;
+      line-height: 1.5;
+    }
+    .ios-install-steps {
+      text-align: left; padding: 0; margin: 0 0 18px;
+      list-style: none;
+    }
+    .ios-install-steps li {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 14px; color: var(--text); line-height: 1.5;
+    }
+    .ios-install-steps li:last-child { border-bottom: none; }
+    .ios-step-num {
+      flex-shrink: 0; width: 28px; height: 28px;
+      border-radius: 50%; background: var(--red);
+      color: #fff; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ios-step-text { flex: 1; }
+    .ios-step-text .ios-icon {
+      display: inline-block; vertical-align: middle;
+      background: #007AFF; color: #fff;
+      border-radius: 6px; padding: 2px 6px;
+      font-size: 16px; line-height: 1; margin: 0 3px;
+    }
+    .ios-install-arrow {
+      font-size: 28px; color: var(--text-muted);
+      margin-top: 4px; animation: ios-bounce 1.5s ease-in-out infinite;
+    }
+    @keyframes ios-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(6px); }
+    }
+    .ios-install-dismiss {
+      font-size: 13px; color: var(--text-muted);
       cursor: pointer; text-decoration: underline;
     }
 
@@ -446,26 +639,77 @@
     /* ══════════════════════════════════════════════
        CHAT SCREEN — Character.AI style
     ══════════════════════════════════════════════ */
-    #screen-chat { background: var(--bg); }
+    #screen-chat {
+      background: #0a0b10;
+      padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+    }
 
     /* Chat top bar */
     #chat-top-bar {
       height: var(--top-h);
       display: flex; align-items: center;
       padding: 0 12px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(10,11,16,0.98) 0%, rgba(10,11,16,0.92) 100%);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       flex-shrink: 0; position: relative; z-index: 10;
     }
-    #chat-char-name { flex: 1; text-align: center; font-size: 16px; font-weight: 700; }
-    #chat-char-sub { font-size: 11px; color: var(--text-sub); font-weight: 400; }
-    #chat-menu-btn {
+    #chat-top-bar .back-btn {
       width: 36px; height: 36px; border-radius: 50%;
       background: transparent; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      color: var(--text); font-size: 18px;
+      color: var(--text); margin-right: 4px;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+      font-size: 0; /* hide text content, use SVG */
+    }
+    #chat-top-bar .back-btn::before {
+      content: '';
+      display: block;
+      width: 10px; height: 10px;
+      border-left: 2.5px solid #fff;
+      border-bottom: 2.5px solid #fff;
+      transform: rotate(45deg);
+      margin-left: 3px;
+    }
+    #chat-top-bar .back-btn:active { background: rgba(255,255,255,0.1); }
+    #chat-char-name-wrap {
+      flex: 1; min-width: 0;
+      display: flex; align-items: center; gap: 10px;
+      margin-right: 8px;
+    }
+    #chat-char-avatar-mini {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, #232734 0%, #3a3f51 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0; overflow: hidden; position: relative;
+    }
+    #chat-char-avatar-mini img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    #chat-char-meta { min-width: 0; }
+    #chat-char-name {
+      font-size: 16px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #chat-char-sub {
+      font-size: 12px; color: var(--text-sub); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #chat-right-actions { display: flex; align-items: center; gap: 6px; }
+    .chat-icon-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer; color: #d6d6da; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
       -webkit-tap-highlight-color: transparent;
     }
+    .chat-icon-btn:active { background: rgba(255,255,255,0.14); }
+    #chat-menu-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: #d6d6da; font-size: 16px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #chat-menu-btn:active { background: rgba(255,255,255,0.14); }
 
     /* Chat header (character identity shown at top of new chat) */
     #chat-character-header {
@@ -495,7 +739,7 @@
     #chat-messages::-webkit-scrollbar { display: none; }
 
     .msg-row { display: flex; align-items: flex-end; gap: 8px; }
-    .msg-row.user { flex-direction: row-reverse; }
+    .msg-row.user { justify-content: flex-end; }
 
     .msg-avatar {
       width: 28px; height: 28px; border-radius: 50%;
@@ -507,7 +751,7 @@
     .msg-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
     .msg-bubble {
-      max-width: 72%; padding: 10px 14px;
+      max-width: 78%; padding: 11px 14px;
       border-radius: var(--radius-bubble);
       font-size: 15px; line-height: 1.5;
       word-break: break-word;
@@ -521,6 +765,15 @@
       background: var(--bubble-user); color: white;
       border-bottom-right-radius: 4px;
     }
+    .msg-avatar.user-avatar {
+      background: linear-gradient(135deg, #30466d 0%, #5f6b82 100%);
+    }
+    .cast-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, #30466d 0%, #5f6b82 100%);
+      overflow: hidden; position: relative; flex-shrink: 0;
+    }
+    .cast-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .msg-bubble.system-msg {
       background: transparent; color: var(--text-muted);
       font-size: 13px; text-align: center;
@@ -555,31 +808,64 @@
     /* Chat input area */
     #chat-input-area {
       flex-shrink: 0;
-      padding: 10px 12px;
-      padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-      background: var(--bg);
-      border-top: 1px solid var(--border);
-      display: flex; align-items: flex-end; gap: 8px;
+      padding: 10px 12px 4px;
+      background: #0a0b10;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      display: flex; align-items: center; gap: 10px;
     }
+    #chat-ai-disclaimer {
+      flex-shrink: 0;
+      text-align: center;
+      padding: 4px 12px 6px;
+      background: #0a0b10;
+      font-size: 11px; color: var(--text-muted);
+      cursor: default;
+    }
+    #chat-input-shell {
+      flex: 1;
+      min-height: 52px;
+      background: #32343b;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 28px;
+      padding: 6px 8px 6px 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    #chat-user-dock-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: linear-gradient(135deg, #30466d 0%, #5f6b82 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: #fff; flex-shrink: 0; overflow: hidden; position: relative;
+    }
+    #chat-user-dock-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     #chat-text-input {
-      flex: 1; min-height: 40px; max-height: 120px;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 20px; padding: 10px 16px;
+      flex: 1; min-height: 28px; max-height: 120px;
+      background: transparent; border: none;
+      border-radius: 0; padding: 8px 0;
       color: var(--text); font-size: 15px; font-family: var(--font);
       resize: none; outline: none; line-height: 1.4;
       -webkit-appearance: none;
     }
-    #chat-text-input:focus { border-color: rgba(229,9,20,0.5); }
+    #chat-text-input:focus { border-color: transparent; }
     #chat-text-input::placeholder { color: var(--text-muted); }
-    #chat-send-btn {
-      width: 40px; height: 40px; border-radius: 50%;
-      background: var(--red); border: none; cursor: pointer;
+    #chat-input-tools { display: flex; align-items: center; gap: 6px; }
+    .chat-tool-btn {
+      width: 34px; height: 34px; border-radius: 10px;
+      border: none; background: rgba(255,255,255,0.09);
+      color: #ddd; font-size: 16px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      color: white; font-size: 16px; flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chat-tool-btn:active { background: rgba(255,255,255,0.16); }
+    #chat-send-btn {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: #3c3d44; border: 1px solid rgba(255,255,255,0.08); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 22px; flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
       transition: background 0.15s;
     }
-    #chat-send-btn:disabled { background: var(--text-muted); cursor: default; }
+    #chat-send-btn:disabled { background: #2a2b30; color: #86878d; cursor: default; }
+    #chat-send-btn:not(:disabled) { background: var(--red); }
     #chat-send-btn:not(:disabled):active { background: var(--red-dark); }
 
     /* Chat 3-dot menu dropdown */
@@ -609,6 +895,12 @@
       font-size: 12px; color: var(--text-sub); line-height: 1.5;
     }
     .chat-system-box .box-title { font-weight: 700; color: var(--text-sub); margin-bottom: 4px; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .cast-roster-section + .cast-roster-section { margin-top: 10px; }
+    .cast-roster-heading { color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .cast-roster-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; }
+    .cast-roster-name { color: var(--text); font-size: 13px; flex: 1; }
+    .cast-roster-detail { color: var(--text-muted); font-size: 11px; text-align: right; }
+    .cast-roster-vacancy .cast-roster-name { color: var(--text-muted); font-style: italic; }
 
     /* ══════════════════════════════════════════════
        CREATE SCREEN
@@ -757,24 +1049,169 @@
       background: rgba(0,0,0,0.92);
       display: none; align-items: center; justify-content: center;
       padding: 16px;
+      cursor: pointer;
     }
     #map-modal.open { display: flex; flex-direction: column; gap: 12px; }
-    #map-modal img { max-width: 100%; max-height: 60vh; border-radius: 8px; object-fit: contain; }
-    #map-modal .map-locations { background: var(--surface); border-radius: 12px; padding: 12px 14px; max-height: 200px; overflow-y: auto; width: 100%; }
-    #map-modal .map-loc-item { font-size: 13px; color: var(--text-sub); padding: 4px 0; border-bottom: 1px solid var(--border); }
-    #map-modal .map-loc-item:last-child { border-bottom: none; }
+    #map-modal.fullscreen {
+      padding: 0;
+      background: #000;
+    }
+    #map-modal.fullscreen .map-container {
+      width: 100vw; height: 100vh;
+      max-width: none; max-height: none;
+    }
+    .map-container {
+      position: relative;
+      max-width: 90vw; max-height: 70vh;
+      overflow: hidden;
+      border-radius: 12px;
+      background: var(--surface);
+      cursor: default;
+    }
+    .map-image {
+      width: 100%; height: 100%;
+      object-fit: contain;
+      transition: transform 0.1s ease-out;
+      cursor: grab;
+    }
+    .map-image.dragging { cursor: grabbing; }
+    .map-image.pannable { cursor: grab; }
+    .map-locations {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: var(--surface);
+      border-radius: 0 0 12px 12px;
+      padding: 12px 14px; max-height: 200px; overflow-y: auto;
+      width: 100%;
+    }
+    .map-locations.hidden { display: none; }
+    .map-loc-item {
+      font-size: 13px; color: var(--text-sub);
+      padding: 4px 0; border-bottom: 1px solid var(--border);
+    }
+    .map-loc-item:last-child { border-bottom: none; }
     #map-modal-close {
       position: absolute; top: 16px; right: 16px;
       width: 36px; height: 36px; border-radius: 50%;
       background: rgba(255,255,255,0.15); border: none; cursor: pointer;
       color: white; font-size: 18px;
       display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+    }
+    #map-modal.fullscreen #map-modal-close {
+      top: 20px; right: 20px;
+      background: rgba(0,0,0,0.7);
     }
 
     /* Scrollable message area when chat header is shown */
     #chat-scroll-wrapper {
       flex: 1; display: flex; flex-direction: column; overflow: hidden;
     }
+
+    /* ══════════════════════════════════════════════
+       TYPEWRITER CURSOR
+    ══════════════════════════════════════════════ */
+    .msg-bubble.npc.typing-active::after {
+      content: '▎';
+      display: inline;
+      color: var(--text-sub);
+      animation: cursor-blink 0.7s steps(1) infinite;
+      margin-left: 1px;
+    }
+    @keyframes cursor-blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* ══════════════════════════════════════════════
+       SETTINGS — RANGE SLIDER
+    ══════════════════════════════════════════════ */
+    .settings-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 120px; height: 4px;
+      background: var(--text-muted); border-radius: 2px;
+      outline: none;
+    }
+    .settings-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--red); cursor: pointer;
+    }
+    .settings-slider::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--red); cursor: pointer; border: none;
+    }
+
+    /* ══════════════════════════════════════════════
+       MY GAMES — SWIPE-TO-DELETE
+    ══════════════════════════════════════════════ */
+    .game-list-item {
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease;
+    }
+    .game-list-item .delete-bg {
+      position: absolute; top: 0; right: 0; bottom: 0;
+      width: 80px; background: #d32f2f;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 13px; font-weight: 700;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .game-list-item.swiped .delete-bg { opacity: 1; }
+    .game-list-item .item-content {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px 16px; background: var(--bg);
+      position: relative; z-index: 1;
+      transition: transform 0.2s ease;
+    }
+    .game-list-item.swiped .item-content {
+      transform: translateX(-80px);
+    }
+
+    /* ══════════════════════════════════════════════
+       LOADING SKELETON
+    ══════════════════════════════════════════════ */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 50%, var(--card) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s infinite;
+      border-radius: var(--radius-sm);
+    }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ══════════════════════════════════════════════
+       CONFIRM DIALOG
+    ══════════════════════════════════════════════ */
+    #confirm-dialog {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.85);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #confirm-dialog.open { display: flex; }
+    .confirm-card {
+      background: var(--surface); border-radius: 20px;
+      padding: 28px 24px; width: 100%; max-width: 340px;
+      text-align: center;
+    }
+    .confirm-title { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+    .confirm-sub { font-size: 14px; color: var(--text-sub); margin-bottom: 24px; line-height: 1.5; }
+    .confirm-actions { display: flex; gap: 10px; }
+    .confirm-cancel {
+      flex: 1; height: 46px; border-radius: 12px;
+      background: rgba(255,255,255,0.08); color: var(--text);
+      border: 1px solid var(--border); cursor: pointer;
+      font-size: 15px; font-weight: 600;
+    }
+    .confirm-ok {
+      flex: 1; height: 46px; border-radius: 12px;
+      background: var(--red); color: white;
+      border: none; cursor: pointer;
+      font-size: 15px; font-weight: 700;
+    }
+    .confirm-ok:active { background: var(--red-dark); }
   </style>
 </head>
 
@@ -787,6 +1224,7 @@
   <div class="top-bar">
     <span class="logo">StoriesChat</span>
     <div class="top-actions">
+      <button class="guest-pill-btn" id="home-guest-pill" title="Play without signing in">✦ Play as Guest</button>
       <button class="icon-btn" id="home-search-btn" title="Search" aria-label="Search">🔍</button>
       <button class="icon-btn" id="home-profile-btn" title="Profile" aria-label="Profile">👤</button>
     </div>
@@ -833,15 +1271,23 @@
 <div id="screen-chat" class="screen">
   <!-- Top bar -->
   <div id="chat-top-bar" style="position:relative;">
-    <button class="back-btn" id="chat-back-btn">‹</button>
-    <div id="chat-char-name-wrap" style="flex:1;text-align:center;">
-      <div id="chat-char-name">Game</div>
-      <div id="chat-char-sub"></div>
+    <button class="back-btn" id="chat-back-btn" aria-label="Back"></button>
+    <div id="chat-char-name-wrap">
+      <div id="chat-char-avatar-mini">🎭</div>
+      <div id="chat-char-meta">
+        <div id="chat-char-name">Game</div>
+        <div id="chat-char-sub"></div>
+      </div>
     </div>
-    <button id="chat-menu-btn">⋯</button>
+    <div id="chat-right-actions">
+      <button class="chat-icon-btn" id="chat-mute-btn" title="Mute" aria-label="Mute">🔇</button>
+      <button class="chat-icon-btn" id="chat-call-btn" title="Voice" aria-label="Voice">📞</button>
+      <button id="chat-menu-btn">⋯</button>
+    </div>
     <!-- Dropdown menu -->
     <div id="chat-dropdown">
       <div class="dropdown-item" id="dd-map"><span class="di-icon">🗺</span> World Map</div>
+      <div class="dropdown-item" id="dd-cast"><span class="di-icon">👥</span> <span id="dd-cast-label">Cast</span></div>
       <div class="dropdown-item" id="dd-debug"><span class="di-icon">🔬</span> Debug Info</div>
       <div class="dropdown-item" id="dd-truth"><span class="di-icon">💡</span> Truth Mode</div>
       <div class="dropdown-item" id="dd-chinese"><span class="di-icon">🀄</span> Chinese Mode</div>
@@ -871,9 +1317,17 @@
 
   <!-- Input area -->
   <div id="chat-input-area">
-    <textarea id="chat-text-input" rows="1" placeholder="Message…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+    <div id="chat-input-shell">
+      <div id="chat-user-dock-avatar">🧑</div>
+      <textarea id="chat-text-input" rows="1" placeholder="Message..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+      <div id="chat-input-tools">
+        <button class="chat-tool-btn" id="chat-image-btn" aria-label="Image">🖼️</button>
+        <button class="chat-tool-btn" id="chat-persona-btn" aria-label="Persona">◌</button>
+      </div>
+    </div>
     <button id="chat-send-btn" disabled aria-label="Send">➤</button>
   </div>
+  <div id="chat-ai-disclaimer">This is A.I. and not a real person. Treat everything it says as fiction.</div>
 </div>
 
 <!-- ════════════════════════════════════════════════
@@ -931,11 +1385,20 @@
       </div>
       <div class="profile-btns">
         <button class="btn-profile-edit" id="profile-edit-btn">Edit Profile</button>
+        <button class="btn-profile-edit" id="profile-auth-btn" style="border-color:var(--red);color:var(--red);">Sign in</button>
       </div>
     </div>
 
     <div class="settings-section-header">Settings</div>
     <div class="settings-group">
+      <div class="settings-row">
+        <div class="settings-row-icon">⌨</div>
+        <div class="settings-row-label">Text Speed</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="range" class="settings-slider" id="typewriter-speed" min="0" max="3" step="1" value="1" />
+          <span id="typewriter-speed-label" style="font-size:13px;color:var(--text-sub);min-width:50px;">Normal</span>
+        </div>
+      </div>
       <div class="settings-row">
         <div class="settings-row-icon">🌙</div>
         <div class="settings-row-label">Dark Mode</div>
@@ -1004,17 +1467,58 @@
   </div>
 </div>
 
-<!-- Onboarding modal (name + gender) -->
+<!-- Onboarding modal (persona + name + gender) -->
 <div id="modal-onboard">
-  <div class="onboard-card">
-    <div class="onboard-title" id="onboard-title">What's your name?</div>
-    <div class="onboard-sub" id="onboard-sub">You'll play as this character in the story.</div>
-    <input id="onboard-name-input" class="onboard-input" type="text" placeholder="Enter your name" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" />
-    <div id="onboard-gender-row" class="gender-row" style="display:none;">
-      <button class="gender-btn" data-gender="M">Male</button>
-      <button class="gender-btn" data-gender="F">Female</button>
+  <div class="onboard-card" role="dialog" aria-modal="true" aria-labelledby="onboard-title" aria-describedby="onboard-sub">
+    <div class="onboard-scroll-content">
+      <div class="onboard-heading">
+        <div class="onboard-kicker">Your story, your character</div>
+        <div class="onboard-title" id="onboard-title">Choose your character</div>
+        <div class="onboard-sub" id="onboard-sub">Pick Paul or create someone new.</div>
+      </div>
+
+      <div id="onboard-persona-row" class="persona-grid" role="radiogroup" aria-label="Character choice">
+        <div class="persona-btn selected" data-mode="default" role="radio" aria-checked="true" tabindex="0">
+          <span class="persona-check" aria-hidden="true">✓</span>
+          <div class="persona-avatar" id="onboard-default-avatar" aria-label="Paul Dingus portrait"></div>
+          <div class="persona-card-label">Default character</div>
+          <div class="persona-card-title">Paul Dingus</div>
+          <div class="persona-facts">
+            <div class="persona-fact"><span class="persona-fact-label">Name</span><div class="persona-fact-value">Paul Dingus</div></div>
+            <div class="persona-fact"><span class="persona-fact-label">Gender</span><div class="persona-fact-value">Male</div></div>
+            <div class="persona-fact"><span class="persona-fact-label">Description</span><div class="persona-fact-value">Devilishly handsome Black man who knows a little Japanese.</div></div>
+          </div>
+        </div>
+
+        <div class="persona-btn" data-mode="create" role="radio" aria-checked="false" tabindex="-1">
+          <span class="persona-check" aria-hidden="true">✓</span>
+          <div class="persona-avatar blank" aria-label="Blank character picture">
+            <svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="23" r="12" stroke="currentColor" stroke-width="3"/><path d="M12 56c2.6-12 10.8-18 20-18s17.4 6 20 18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+          </div>
+          <div class="persona-card-label">New character</div>
+          <div class="persona-card-title">Create your own</div>
+          <div class="persona-facts">
+            <label class="persona-fact" for="onboard-name-input">
+              <span class="persona-field-label">Name</span>
+              <input id="onboard-name-input" class="onboard-input" type="text" placeholder="Enter a name" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="words" />
+            </label>
+            <div class="persona-fact">
+              <span class="persona-field-label">Gender</span>
+              <div id="onboard-gender-row" class="gender-row" role="group" aria-label="Character gender">
+                <button type="button" class="gender-btn" data-gender="M">Male</button>
+                <button type="button" class="gender-btn" data-gender="F">Female</button>
+              </div>
+            </div>
+            <label class="persona-fact" for="onboard-persona-other">
+              <span class="persona-field-label">Description</span>
+              <textarea id="onboard-persona-other" class="onboard-input" placeholder="A few defining details (optional)" maxlength="300"></textarea>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
-    <button class="btn-continue" id="onboard-continue-btn" disabled>Continue</button>
+    <button class="btn-continue" id="onboard-continue-btn">Continue as Paul</button>
+    <div class="onboard-help">Tap a card to select it</div>
   </div>
 </div>
 
@@ -1028,15 +1532,56 @@
       <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
       Continue with Google
     </button>
+    <button class="login-guest-btn" id="login-guest-btn">Continue as Guest</button>
     <div class="login-dismiss" id="login-dismiss-btn">Maybe later</div>
+  </div>
+</div>
+
+<!-- iOS install prompt -->
+<div id="ios-install-prompt">
+  <div class="ios-install-card">
+    <button class="ios-install-close" id="ios-install-close">&times;</button>
+    <div class="ios-install-icon">&#127918;</div>
+    <div class="ios-install-title">Install StoriesChat</div>
+    <div class="ios-install-sub">Add this app to your home screen for the best experience — full screen, faster loads, and offline access.</div>
+    <ol class="ios-install-steps">
+      <li>
+        <span class="ios-step-num">1</span>
+        <span class="ios-step-text">Tap the <span class="ios-icon">&#x2191;</span> <strong>Share</strong> button in Safari's toolbar</span>
+      </li>
+      <li>
+        <span class="ios-step-num">2</span>
+        <span class="ios-step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></span>
+      </li>
+      <li>
+        <span class="ios-step-num">3</span>
+        <span class="ios-step-text">Tap <strong>"Add"</strong> in the top right — done!</span>
+      </li>
+    </ol>
+    <div class="ios-install-arrow">&#x2193;</div>
+    <div class="ios-install-dismiss" id="ios-install-dismiss">Don't show again</div>
   </div>
 </div>
 
 <!-- World map modal -->
 <div id="map-modal">
   <button id="map-modal-close">✕</button>
-  <img id="map-modal-img" alt="World map" style="display:none;" />
-  <div id="map-modal-locations" class="map-locations"></div>
+  <div class="map-container">
+    <img id="map-modal-img" class="map-image" alt="World map" style="display:none;" />
+    <div id="map-modal-locations" class="map-locations"></div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div id="confirm-dialog">
+  <div class="confirm-card">
+    <div class="confirm-title" id="confirm-title">Exit Game?</div>
+    <div class="confirm-sub" id="confirm-sub">Your progress is saved. You can resume from My Games anytime.</div>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" id="confirm-cancel">Cancel</button>
+      <button class="confirm-ok" id="confirm-ok">Exit</button>
+    </div>
+  </div>
 </div>
 
 <!-- Toast -->
@@ -1054,33 +1599,220 @@ var host = window.location.hostname.toLowerCase();
 var path = window.location.pathname.toLowerCase();
 var IS_BETA = host.startsWith("beta.") || path.includes("/beta/") || path.endsWith("/beta");
 
-// API is served from the same origin as the frontend (single Docker container).
-// Using same-origin avoids any subdomain DNS/CORS issues.
-var API_BASE    = window.location.origin + "/api";
-var AUTH_BASE   = window.location.origin;
+// API is normally served from the same origin as the frontend (single Docker
+// container per environment), EXCEPT when this page is loaded from the path
+// router at storieschat.ai/beta/ — Cloudflare only routes /beta/* page
+// requests to the beta origin, not a same-origin /api call made from that
+// page, so same-origin would silently hit the PROD api (confirmed live bug,
+// see documentation/BACKLOG.md BL-03). Mirrors the BACKEND_ORIGIN detection
+// already used for OAuth below (LOGIN_AUTH_BASE) and in frontend/debug.html.
+var BACKEND_ORIGIN = window.location.origin;
+if (IS_BETA && (host === "storieschat.ai" || host === "www.storieschat.ai")) {
+  BACKEND_ORIGIN = "https://beta-api.storieschat.ai";
+}
+var API_BASE    = BACKEND_ORIGIN + "/api";
+var AUTH_BASE   = BACKEND_ORIGIN;
 var STORIES_URL = API_BASE + "/stories";
 var STORY_URL   = API_BASE + "/story";
 var CHAT_URL    = API_BASE + "/chat";
 var DRAFT_URL   = API_BASE + "/stories/draft";
 var USER_SESSIONS_URL = API_BASE + "/user/sessions";
 var AUTH_ME_URL = API_BASE + "/auth/me";
-var GOOGLE_LOGIN_URL = AUTH_BASE + "/auth/google/login";
+var LOGIN_AUTH_BASE = AUTH_BASE;
+var GOOGLE_LOGIN_URL = LOGIN_AUTH_BASE + "/api/auth/google/login";
+
+function getStoriesEndpointCandidates(){
+  var endpoints = [STORIES_URL];
+  var origin = window.location.origin.replace(/\/$/, "");
+  // Canonical fallback must match the same environment as BACKEND_ORIGIN —
+  // falling back to prod's URL from a beta page would silently re-introduce
+  // BL-03 whenever the primary candidate above failed.
+  var canonical = BACKEND_ORIGIN.replace(/\/$/, "") + "/api/stories";
+
+  if (origin.indexOf("www.") !== -1) {
+    endpoints.push(origin.replace("://www.", "://") + "/api/stories");
+  }
+  endpoints.push(canonical);
+
+  var seen = Object.create(null);
+  return endpoints.filter(function(url){
+    if (!url || seen[url]) return false;
+    seen[url] = true;
+    return true;
+  });
+}
+
+function normalizeStoriesPayload(data){
+  var raw = [];
+  if (Array.isArray(data)) {
+    raw = data;
+  } else if (data && Array.isArray(data.stories)) {
+    raw = data.stories;
+  } else if (data && Array.isArray(data.items)) {
+    raw = data.items;
+  }
+
+  return raw.map(function(item, idx){
+    var story = (item && typeof item === "object") ? item : { title: String(item || "Story") };
+    var id = String(story.id || story.story_id || story.slug || ("story_" + idx)).trim();
+    var title = String(story.title || story.name || id || ("Story " + (idx + 1))).trim();
+    var genre = String(story.genre || story.theme || "Story").trim();
+    var theme = String(story.theme || genre).trim();
+    var description = String(story.description || story.summary || "").trim();
+
+    return {
+      id: id,
+      title: title,
+      genre: genre,
+      theme: theme,
+      description: description,
+      thumbnail_url: story.thumbnail_url || story.thumbnail || null,
+      featured: Boolean(story.featured),
+    };
+  }).filter(function(story){ return !!story.id; });
+}
 
 /* ─── STORAGE KEYS ──────────────────────────────── */
 var SESSIONS_KEY = "storieschat_sessions";
 var PROFILE_KEY  = "storieschat_profile";
 var STATS_KEY    = "storieschat_stats";
 var JWT_KEY      = "storieschat_jwt";
+var GUEST_ID_KEY = "storieschat_guest_id";
+var SKIP_LOGIN_KEY = "storieschat_skip_login";
+var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
+
+// Typewriter speed: 0=Instant, 1=Normal(30ms), 2=Slow(55ms), 3=Very Slow(80ms)
+var TYPEWRITER_SPEEDS = [0, 30, 55, 80];
+var TYPEWRITER_LABELS = ["Instant", "Normal", "Slow", "V. Slow"];
+var CHARACTER_ASSET_MAP = {
+  makoto: "/img/characters/Makoto_Hasegawa.png",
+  minori: "/img/characters/Minori_Nakada.png",
+  yuki: "/img/characters/Yuki_Adachi.png",
+  mizuki: "/img/characters/Mizuki_Shida.png",
+  uchi: "/img/characters/Tatsuya_Uchihara.png",
+  yuriko: "/img/characters/Yuriko_Hayata.png",
+  arman: "/img/characters/Arman_Bitaraf.png",
+  arisa: "/img/characters/Arisa_Ohata.png",
+  hikaru: "/img/characters/Hikaru_Ota.png",
+  natsumi: "/img/characters/Natsumi_Saito.png",
+  misaki: "/img/characters/Misaki_Tamori.png",
+  yuto: "/img/characters/Yuto_Handa.png",
+  riko: "/img/characters/Riko_Nagai.png",
+  momoka: "/img/characters/Momoka_Mitsunaga.png",
+  hayato: "/img/characters/Hayato_Terashima.png",
+  yuuki_byrnes: "/img/characters/Yuuki_Byrnes.png",
+  masako: "/img/characters/Masako_Endo_Martha.png",
+  player: "/img/avatars/persona_default.svg",
+  persona: "/img/avatars/persona_default.svg",
+  default_persona: "/img/avatars/persona_default.svg",
+  six_strangers: "/img/characters/Mizuki_Shida.png"
+};
+
+function normalizeAssetKey(value){
+  var text = String(value || "").trim().toLowerCase();
+  text = text.replace(/[\"']/g, "");
+  text = text.replace(/[^a-z0-9]+/g, "_");
+  return text.replace(/^_+|_+$/g, "");
+}
+
+function getCharacterAvatarSrc(characterId, characterName){
+  var candidates = [];
+  if (characterId) candidates.push(characterId);
+  if (characterName) candidates.push(characterName);
+  var fallback = "/img/avatars/persona_default.svg";
+  for (var i = 0; i < candidates.length; i++) {
+    var key = normalizeAssetKey(candidates[i]);
+    if (CHARACTER_ASSET_MAP[key]) return CHARACTER_ASSET_MAP[key];
+    var parts = key.split("_").filter(Boolean);
+    for (var j = 0; j < parts.length; j++) {
+      if (CHARACTER_ASSET_MAP[parts[j]]) return CHARACTER_ASSET_MAP[parts[j]];
+    }
+    for (var k = parts.length - 1; k >= 0; k--) {
+      if (CHARACTER_ASSET_MAP[parts[k]]) return CHARACTER_ASSET_MAP[parts[k]];
+    }
+  }
+  return fallback;
+}
+
+function resolveAssetUrl(src){
+  var value = String(src || "");
+  if (value.indexOf("/img/") === 0) {
+    return BACKEND_ORIGIN.replace(/\/$/, "") + value;
+  }
+  return value;
+}
+
+function renderAvatarImage(target, src, label){
+  if (!target) return null;
+  var resolvedSrc = resolveAssetUrl(src || "/img/avatars/persona_default.svg");
+  target.innerHTML = '<img src="' + escapeHTML(resolvedSrc) + '" alt="' + escapeHTML(label || "Avatar") + '" />';
+  return target.querySelector("img");
+}
+
+function renderCharacterAvatar(target, characterId, characterName, fallbackText){
+  return renderAvatarImage(target, getCharacterAvatarSrc(characterId, characterName), fallbackText || characterName || "Character");
+}
+
+function getTypewriterDelay(){
+  var idx = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
+  if (idx < 0 || idx >= TYPEWRITER_SPEEDS.length) idx = 1;
+  return TYPEWRITER_SPEEDS[idx];
+}
 
 /* ─── JWT HELPERS ───────────────────────────────── */
 function getToken(){ return localStorage.getItem(JWT_KEY); }
 function setToken(t){ localStorage.setItem(JWT_KEY, t); }
 function clearToken(){ localStorage.removeItem(JWT_KEY); }
 
+/* ─── GUEST ID (persistent anonymous identity) ──── */
+function getGuestId(){
+  // Check localStorage first, then cookie
+  var id = localStorage.getItem(GUEST_ID_KEY);
+  if (id) return id;
+  var match = document.cookie.match(new RegExp("(?:^|; )" + GUEST_ID_KEY + "=([^;]+)"));
+  if (match) {
+    localStorage.setItem(GUEST_ID_KEY, match[1]);
+    return match[1];
+  }
+  return null;
+}
+function getOrCreateGuestId(){
+  var id = getGuestId();
+  if (id) return id;
+  id = genUUID();
+  localStorage.setItem(GUEST_ID_KEY, id);
+  // Set cookie with 1-year expiry so it survives localStorage clears
+  var expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = GUEST_ID_KEY + "=" + id + "; expires=" + expires + "; path=/; SameSite=Lax";
+  return id;
+}
+
+/* ─── SKIP LOGIN (guest bypass preference) ───────── */
+function isSkipLoginEnabled(){
+  return localStorage.getItem(SKIP_LOGIN_KEY) === "1";
+}
+function setSkipLogin(on){
+  if (on) localStorage.setItem(SKIP_LOGIN_KEY, "1");
+  else    localStorage.removeItem(SKIP_LOGIN_KEY);
+  updateGuestPillState();
+}
+function updateGuestPillState(){
+  var btn = $("home-guest-pill");
+  if (!btn) return;
+  var on = isSkipLoginEnabled() && !getToken();
+  if (on) btn.classList.add("on"); else btn.classList.remove("on");
+  btn.textContent = on ? "✓ Guest Mode" : "✦ Play as Guest";
+}
+
 function apiHeaders(){
   var h = { "Content-Type": "application/json" };
   var t = getToken();
-  if (t) h["Authorization"] = "Bearer " + t;
+  if (t) {
+    h["Authorization"] = "Bearer " + t;
+  } else {
+    var gid = getOrCreateGuestId();
+    if (gid) h["X-Guest-Id"] = gid;
+  }
   return h;
 }
 
@@ -1088,6 +1820,7 @@ function handleUnauthorized(){
   clearToken();
   showToast("Session expired — please sign in again.");
   refreshProfileScreen();
+  updateGuestPillState();
 }
 
 /* ─── APP STATE ─────────────────────────────────── */
@@ -1107,6 +1840,9 @@ var appState = {
   onboardName: "",
   onboardGender: null,
   pendingStory: null,      // story to start after onboarding
+  guestMode: false,
+  userAvatarLabel: "U",
+  serverSessionsCache: [],
 };
 
 /* ─── UTILITIES ─────────────────────────────────── */
@@ -1142,12 +1878,20 @@ function escapeHTML(s){
 }
 
 function formatMsgText(text){
-  // Bold, italic, convert newlines to <br>
+  // Normalize literal \n sequences, bold, italic, convert newlines to <br>
   return String(text||"")
+    .replace(/\\n/g,"\n")
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
     .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
     .replace(/(^|[^*])\*(.+?)\*(?!\*)/g, function(_,p,i){ return p+"<em>"+i+"</em>"; })
     .replace(/\n/g,"<br>");
+}
+
+function getPlayerAvatarLabel(playerName){
+  var name = String(playerName || "").trim();
+  if (!name) return "U";
+  var ch = name.charAt(0).toUpperCase();
+  return /^[A-Z0-9]$/.test(ch) ? ch : "U";
 }
 
 /* ─── SESSION STORAGE ───────────────────────────── */
@@ -1155,15 +1899,83 @@ function loadSessions(){
   try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || "[]"); } catch(e){ return []; }
 }
 
+function saveSessionsList(sessions){
+  var safe = Array.isArray(sessions) ? sessions.slice(0, 50) : [];
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(safe));
+}
+
+function normalizeSessionRecord(sess){
+  if (!sess || typeof sess !== "object") return null;
+  var sessionId = String(sess.session_id || sess.id || "").trim();
+  if (!sessionId) return null;
+  return {
+    story_id: sess.story_id || "",
+    story_title: sess.story_title || "",
+    session_id: sessionId,
+    player_name: sess.player_name || "",
+    gender: sess.gender || "M",
+    started_at: sess.started_at || 0,
+    last_played: sess.last_played || 0,
+    last_message: sess.last_message || "",
+    turns: sess.turns || 0,
+    auth_mode: sess.auth_mode || "user",
+    id: sessionId,
+  };
+}
+
+function mergeSessions(primary, secondary){
+  var mergedById = {};
+  (secondary || []).forEach(function(s){
+    var norm = normalizeSessionRecord(s);
+    if (norm) mergedById[norm.session_id] = norm;
+  });
+  (primary || []).forEach(function(s){
+    var norm = normalizeSessionRecord(s);
+    if (!norm) return;
+    mergedById[norm.session_id] = Object.assign({}, mergedById[norm.session_id] || {}, norm);
+  });
+  var out = Object.keys(mergedById).map(function(k){ return mergedById[k]; });
+  out.sort(function(a, b){ return (b.last_played || 0) - (a.last_played || 0); });
+  return out;
+}
+
+function getKnownSessions(){
+  return mergeSessions(appState.serverSessionsCache, loadSessions());
+}
+
+function refreshSessionCacheFromServer(){
+  var hasAuth = Boolean(getToken());
+  var hasGuest = Boolean(getGuestId());
+  if (!hasAuth && !hasGuest) {
+    appState.serverSessionsCache = [];
+    return Promise.resolve(getKnownSessions());
+  }
+
+  return fetch(USER_SESSIONS_URL, { headers: apiHeaders() })
+    .then(function(r){
+      if (r.status === 401) {
+        if (hasAuth) handleUnauthorized();
+        throw new Error("unauthorized");
+      }
+      return r.json();
+    })
+    .then(function(data){
+      var remote = ((data && data.sessions) || []).map(normalizeSessionRecord).filter(Boolean);
+      appState.serverSessionsCache = remote;
+      var merged = mergeSessions(remote, loadSessions());
+      saveSessionsList(merged);
+      return merged;
+    })
+    .catch(function(){
+      return getKnownSessions();
+    });
+}
+
 function saveSession(sess){
   var sessions = loadSessions().filter(function(s){ return s.session_id !== sess.session_id; });
   sessions.unshift(sess);
   if (sessions.length > 50) sessions = sessions.slice(0, 50);
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-}
-
-function loadProfile(){
-  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}"); } catch(e){ return {}; }
+  saveSessionsList(sessions);
 }
 
 function loadStats(){
@@ -1176,9 +1988,6 @@ function saveStats(stats){
 
 /* ─── SCREEN ROUTING ────────────────────────────── */
 function showScreen(name){
-  // Hide tab bar in chat
-  $("tab-bar").style.display = name === "chat" ? "none" : "";
-
   // Deactivate all
   document.querySelectorAll(".screen").forEach(function(el){ el.classList.remove("active"); });
   document.querySelectorAll(".tab-item").forEach(function(el){ el.classList.remove("active"); });
@@ -1195,6 +2004,7 @@ function showScreen(name){
   if (name === "home") refreshHomeScreen();
   if (name === "games") renderGamesList();
   if (name === "profile") refreshProfileScreen();
+  if (name === "chat") setTimeout(function(){ $("chat-text-input").focus(); }, 200);
 }
 
 /* ─── HOME SCREEN ───────────────────────────────── */
@@ -1202,22 +2012,49 @@ function refreshHomeScreen(){
   if (appState.stories.length === 0) {
     loadStories();
   } else {
-    renderHomeContent(appState.stories);
+    refreshSessionCacheFromServer().finally(function(){
+      renderHomeContent(appState.stories);
+    });
   }
 }
 
 function loadStories(){
-  fetch(STORIES_URL)
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      var list = (data && data.stories) ? data.stories : [];
-      appState.stories = list;
-      renderHomeContent(list);
-    })
-    .catch(function(){
+  var endpoints = getStoriesEndpointCandidates();
+  var ix = 0;
+
+  function tryNext(lastErr){
+    if (ix >= endpoints.length) {
+      console.error("Stories load failed", lastErr || "unknown");
+      appState.stories = [];
+      renderHomeContent([]);
       $("hero-title").textContent = "Could not load games";
-      $("hero-desc").textContent = "Check your connection and refresh.";
-    });
+      $("hero-desc").textContent = "We could not reach the game catalog. Please refresh in a few seconds.";
+      return;
+    }
+
+    var endpoint = endpoints[ix++];
+    fetch(endpoint, { cache: "no-store" })
+      .then(function(r){
+        if (!r.ok) throw new Error("HTTP " + r.status + " from " + endpoint);
+        return r.json();
+      })
+      .then(function(data){
+        var list = normalizeStoriesPayload(data);
+        if (!list.length && ix < endpoints.length) {
+          throw new Error("Empty story list from " + endpoint);
+        }
+        appState.stories = list;
+        refreshSessionCacheFromServer().finally(function(){
+          renderHomeContent(list);
+        });
+      })
+      .catch(function(err){
+        console.warn("Stories fetch failed", endpoint, err);
+        tryNext(err);
+      });
+  }
+
+  tryNext();
 }
 
 function getCardImageHTML(story, className){
@@ -1246,6 +2083,19 @@ function renderHomeContent(list){
 
   // Rows
   var rows = [];
+
+  // "Continue Playing" row if user has active sessions
+  var recentSessions = getKnownSessions().filter(function(s){ return s.turns > 0; }).slice(0, 5);
+  if (recentSessions.length) {
+    var continueStories = recentSessions.map(function(sess){
+      var story = list.find(function(s){ return s.id === sess.story_id; })
+        || { id: sess.story_id, title: sess.story_title, genre: "", description: "" };
+      // Attach session for resume
+      story = Object.assign({}, story, { _session: sess });
+      return story;
+    });
+    rows.push({ title: "Continue Playing", stories: continueStories, wide: true, isResume: true });
+  }
 
   // Featured row
   var featuredList = list.filter(function(s){ return s.featured; });
@@ -1287,7 +2137,7 @@ function renderHero(story){
     bg.style.background = "linear-gradient(135deg, #1a0515 0%, #0d0d2e 50%, #0a1a10 100%)";
   }
 
-  $("hero-play-btn").onclick = function(){ showGameDetail(story); startGame(story); };
+  $("hero-play-btn").onclick = function(){ startGame(story); };
   $("hero-info-btn").onclick = function(){ showGameDetail(story); };
 }
 
@@ -1324,7 +2174,11 @@ function buildGameRow(title, stories, wide){
 
     card.appendChild(imgDiv);
     card.appendChild(body);
-    card.onclick = function(){ showGameDetail(story); };
+    if (story._session) {
+      card.onclick = function(){ resumeGameFromSession(story._session); };
+    } else {
+      card.onclick = function(){ showGameDetail(story); };
+    }
 
     scroll.appendChild(card);
   });
@@ -1353,10 +2207,22 @@ function showGameDetail(story){
     heroImg.textContent = emoji;
   }
 
-  $("modal-play-btn").onclick = function(){
-    closeModal("modal-game-detail");
-    startGame(story);
-  };
+  // Check for existing session to show "Resume" instead of "Play Now"
+  var existingSession = getKnownSessions().find(function(s){ return s.story_id === story.id; });
+  var playBtn = $("modal-play-btn");
+  if (existingSession && existingSession.turns > 0) {
+    playBtn.innerHTML = "▶ Resume Game";
+    playBtn.onclick = function(){
+      closeModal("modal-game-detail");
+      resumeGameFromSession(existingSession);
+    };
+  } else {
+    playBtn.innerHTML = "▶ Play Now";
+    playBtn.onclick = function(){
+      closeModal("modal-game-detail");
+      startGame(story);
+    };
+  }
 
   openModal("modal-game-detail");
 }
@@ -1375,35 +2241,120 @@ $("login-dismiss-btn").addEventListener("click", function(){
   closeModal("modal-login");
 });
 
-/* ─── ONBOARDING FLOW ───────────────────────────── */
-function startGame(story){
-  // Auth gate: must be logged in to play
-  if (!getToken()) {
-    showLoginModal(story);
+$("login-guest-btn").addEventListener("click", function(){
+  // Remember the preference so future plays skip the login modal entirely.
+  setSkipLogin(true);
+  // Mint the guest ID now so the user sees the temp ID immediately.
+  getOrCreateGuestId();
+  if (!appState.pendingStory) {
+    closeModal("modal-login");
+    showToast("Guest mode on — pick a game to play.");
     return;
   }
-  appState.pendingStory = story;
-  appState.onboardStep = "name";
-  appState.onboardName = "";
-  appState.onboardGender = null;
+  closeModal("modal-login");
+  startGame(appState.pendingStory, { guest: true });
+});
 
-  $("onboard-title").textContent = "What's your name?";
-  $("onboard-sub").textContent = 'You\'ll play as this character in "' + story.title + '".';
+/* Home-screen pill: instant guest bypass for "play without signing in" */
+(function bindGuestPill(){
+  var pill = $("home-guest-pill");
+  if (!pill) return;
+  pill.addEventListener("click", function(){
+    if (getToken()) {
+      showToast("Already signed in.");
+      return;
+    }
+    if (isSkipLoginEnabled()) {
+      // Toggle off: opt back into the login gate, keep the existing guest ID.
+      setSkipLogin(false);
+      showToast("Login gate re-enabled.");
+      return;
+    }
+    setSkipLogin(true);
+    var gid = getOrCreateGuestId();
+    showToast("Guest mode on. Temp ID: " + (gid || "").slice(0, 8) + "…");
+  });
+  updateGuestPillState();
+})();
+
+/* ─── ONBOARDING FLOW ───────────────────────────── */
+function setPersonaMode(mode, options){
+  options = options || {};
+  appState.personaMode = mode === "create" ? "create" : "default";
+
+  document.querySelectorAll(".persona-btn").forEach(function(card){
+    var selected = card.dataset.mode === appState.personaMode;
+    card.classList.toggle("selected", selected);
+    card.setAttribute("aria-checked", selected ? "true" : "false");
+    card.tabIndex = selected ? 0 : -1;
+  });
+
+  if (appState.personaMode === "default") {
+    appState.onboardName = "Paul Dingus";
+    appState.onboardGender = "M";
+    $("onboard-continue-btn").textContent = "Continue as Paul";
+  } else {
+    appState.onboardName = ($("onboard-name-input").value || "").trim();
+    var selectedGender = document.querySelector(".gender-btn.selected");
+    appState.onboardGender = selectedGender ? selectedGender.dataset.gender : null;
+    $("onboard-continue-btn").textContent = appState.onboardName ? "Continue as " + appState.onboardName : "Continue";
+    if (options.focusName && !appState.onboardName) {
+      setTimeout(function(){ $("onboard-name-input").focus(); }, 0);
+    }
+  }
+  updateCharacterContinueState();
+}
+
+function updateCharacterContinueState(){
+  var button = $("onboard-continue-btn");
+  if (appState.personaMode === "default") {
+    button.disabled = false;
+    button.textContent = "Continue as Paul";
+    return;
+  }
+  var customName = ($("onboard-name-input").value || "").trim();
+  button.disabled = !customName || !appState.onboardGender;
+  button.textContent = customName ? "Continue as " + customName : "Continue";
+}
+
+function startGame(story, options){
+  options = options || {};
+  var guestMode = Boolean(options.guest);
+
+  // Auth gate: must be logged in to play, unless user opted into guest bypass.
+  if (!guestMode && !getToken()) {
+    if (isSkipLoginEnabled()) {
+      guestMode = true;
+      getOrCreateGuestId();
+    } else {
+      showLoginModal(story);
+      return;
+    }
+  }
+
+  appState.guestMode = guestMode;
+  appState.pendingStory = story;
+  appState.onboardStep = "character";
+  appState.onboardName = "Paul Dingus";
+  appState.onboardGender = "M";
+  appState.personaMode = "default";
+  appState.personaName = "Paul Dingus";
+  appState.personaLabel = "Paul Dingus";
+  appState.personaOther = "";
+
+  $("onboard-title").textContent = "Choose your character";
+  $("onboard-sub").textContent = 'Pick Paul or create someone new for "' + story.title + '".';
+  renderAvatarImage($("onboard-default-avatar"), getCharacterAvatarSrc("persona", "Paul Dingus"), "Paul Dingus");
   $("onboard-name-input").value = "";
-  $("onboard-gender-row").style.display = "none";
-  $("onboard-continue-btn").disabled = true;
-  $("onboard-continue-btn").textContent = "Continue";
+  $("onboard-persona-other").value = "";
   document.querySelectorAll(".gender-btn").forEach(function(b){ b.classList.remove("selected"); });
+  setPersonaMode("default");
 
   openModal("modal-onboard");
-  setTimeout(function(){ $("onboard-name-input").focus(); }, 100);
 }
 
 $("onboard-name-input").addEventListener("input", function(){
-  var val = this.value.trim();
-  if (appState.onboardStep === "name") {
-    $("onboard-continue-btn").disabled = val.length < 1;
-  }
+  setPersonaMode("create");
 });
 
 $("onboard-name-input").addEventListener("keydown", function(e){
@@ -1412,49 +2363,103 @@ $("onboard-name-input").addEventListener("keydown", function(e){
   }
 });
 
+// The whole panel is selectable; form controls inside the custom panel keep working normally.
+document.querySelectorAll(".persona-btn").forEach(function(card){
+  card.addEventListener("click", function(){
+    setPersonaMode(this.dataset.mode, { focusName: this.dataset.mode === "create" && !this.contains(document.activeElement) });
+  });
+  card.addEventListener("keydown", function(e){
+    if (e.target !== this || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    setPersonaMode(this.dataset.mode, { focusName: this.dataset.mode === "create" });
+  });
+});
+
+$("onboard-persona-other").addEventListener("input", function(){ setPersonaMode("create"); });
+
 document.querySelectorAll(".gender-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
+    setPersonaMode("create");
     document.querySelectorAll(".gender-btn").forEach(function(b){ b.classList.remove("selected"); });
     this.classList.add("selected");
     appState.onboardGender = this.dataset.gender;
-    $("onboard-continue-btn").disabled = false;
+    updateCharacterContinueState();
   });
 });
 
 $("onboard-continue-btn").addEventListener("click", function(){
-  if (appState.onboardStep === "name") {
-    var name = $("onboard-name-input").value.replace(/[^A-Za-z\s\-']/g,"").trim().slice(0, 40);
-    if (!name){ showToast("Please enter a valid name."); return; }
-    appState.onboardName = name;
-    appState.onboardStep = "gender";
-
-    $("onboard-title").textContent = "Your character";
-    $("onboard-sub").textContent = "How do they identify?";
-    $("onboard-name-input").style.display = "none";
-    $("onboard-gender-row").style.display = "flex";
-    $("onboard-continue-btn").disabled = true;
-    $("onboard-continue-btn").textContent = "Start Game";
-
-  } else if (appState.onboardStep === "gender") {
+  if (appState.personaMode === "create") {
+    var customName = $("onboard-name-input").value.replace(/[^A-Za-z\s\-']/g, "").trim().slice(0, 40);
+    if (!customName){ showToast("Please enter a valid name."); return; }
     if (!appState.onboardGender){ showToast("Please select a gender."); return; }
-    closeModal("modal-onboard");
-    $("onboard-name-input").style.display = "";
-    launchChat(appState.pendingStory, appState.onboardName, appState.onboardGender);
+    appState.onboardName = customName;
+    appState.personaName = customName;
+    appState.personaLabel = customName;
+    appState.personaOther = ($("onboard-persona-other").value || "").trim().slice(0, 300);
+  } else {
+    appState.onboardName = "Paul Dingus";
+    appState.onboardGender = "M";
+    appState.personaName = "Paul Dingus";
+    appState.personaLabel = "Paul Dingus";
+    appState.personaOther = "";
   }
+  closeModal("modal-onboard");
+  launchChat(appState.pendingStory, appState.onboardName, appState.onboardGender, appState.guestMode);
 });
 
 /* ─── CHAT SCREEN ───────────────────────────────── */
-function launchChat(story, playerName, gender){
+// A06 fix: launchChat and resumeGameFromSession each used to (1) write
+// directly to the static #chat-header-name node, then (2) wipe #chat-messages
+// via innerHTML="" (destroying that node), then (3) rebuild a new
+// #chat-character-header block that did NOT recreate #chat-header-name (or
+// #chat-avatar). Step (1)'s write was already a no-op in practice (erased a
+// moment later by step 2), but after the FIRST launch/resume call those ids
+// no longer existed in the DOM at all — so a SECOND launch/resume call
+// (e.g. launch -> home -> launch again, or resume -> launch) would
+// null-dereference $("chat-header-name") and throw. This single function is
+// now the only place that builds the header, and it always (re)creates
+// chat-avatar/chat-header-name/chat-header-badge together as one unit, so
+// the ids are never left dangling between calls.
+function renderChatCharacterHeader(story){
+  var msgs = $("chat-messages");
+  msgs.innerHTML = "";
+  var header = document.createElement("div");
+  header.id = "chat-character-header";
+var avatarEl = document.createElement("div");
+avatarEl.id = "chat-avatar";
+avatarEl.style.cssText = "width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;";
+renderAvatarImage(avatarEl, getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
+var nameEl = document.createElement("div");
+nameEl.id = "chat-header-name";
+nameEl.style.cssText = "font-size:17px;font-weight:700;margin-bottom:2px;";
+nameEl.textContent = story.title || "Story";
+var badgeEl = document.createElement("div");
+badgeEl.id = "chat-header-badge";
+badgeEl.style.cssText = "font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;";
+badgeEl.textContent = story.genre || "StoriesChat";
+header.appendChild(avatarEl);
+header.appendChild(nameEl);
+header.appendChild(badgeEl);
+msgs.appendChild(header);
+return header;
+}
+
+function launchChat(story, playerName, gender, guestMode){
+  guestMode = Boolean(guestMode);
   var session = {
     story_id: story.id,
     story_title: story.title,
     session_id: genUUID(),
     player_name: playerName,
     gender: gender,
+    persona_mode: appState.personaMode || "default",
+    persona_name: (appState.personaMode === "default" ? "Paul Dingus" : (appState.personaName || appState.personaLabel || "Default")),
+    persona_other: (appState.personaOther || ""),
     started_at: Date.now(),
     last_played: Date.now(),
     last_message: "",
     turns: 0,
+    auth_mode: guestMode ? "guest" : "user",
   };
 
   appState.session = session;
@@ -1465,33 +2470,32 @@ function launchChat(story, playerName, gender){
   appState.epistemicMode = false;
   appState.currentStory = story;
   appState.currentMeta = null;
+  appState.userAvatarLabel = getPlayerAvatarLabel(playerName);
 
   // Setup chat UI
   $("chat-char-name").textContent = story.title;
   $("chat-char-sub").textContent = story.genre || "Game";
-  $("chat-header-name").textContent = story.title;
-  $("chat-avatar").textContent = genreEmoji(story.genre || story.theme);
+  renderAvatarImage($("chat-char-avatar-mini"), getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
+  renderAvatarImage($("chat-user-dock-avatar"), getCharacterAvatarSrc("persona", appState.personaName || "Paul Dingus"), appState.userAvatarLabel || "U");
 
-  // Clear messages (keep only character header)
-  var msgs = $("chat-messages");
-  msgs.innerHTML = "";
-  var header = document.createElement("div");
-  header.id = "chat-character-header";
-  header.innerHTML = [
-    '<div id="chat-avatar" class="" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;">' + genreEmoji(story.genre || story.theme) + '</div>',
-    '<div style="font-size:17px;font-weight:700;margin-bottom:2px;">' + escapeHTML(story.title) + '</div>',
-    '<div style="font-size:11px;color:var(--text-sub);background:var(--surface);padding:2px 8px;border-radius:10px;">' + escapeHTML(story.genre || "StoriesChat") + '</div>'
-  ].join("");
-  msgs.appendChild(header);
+  // Clear messages and (re)build the character header as one unit (A06).
+  renderChatCharacterHeader(story);
 
-  addSystemMessage("Starting game as " + playerName + "…");
+  var personaDisplay = session.persona_name || "Default";
+  addSystemMessage("Starting game as " + playerName + " (persona: " + personaDisplay + ")…");
+  if (guestMode) {
+    addSystemMessage("Guest mode: your progress will be deleted after 24 hours unless you sign in with Google.");
+  }
 
   showScreen("chat");
 
-  // Load story meta in background for map
+  // Load story meta and show world map inline at game start
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
-    .then(function(meta){ appState.currentMeta = meta; })
+    .then(function(meta){
+      appState.currentMeta = meta;
+      renderInlineWorldMap(meta);
+    })
     .catch(function(){});
 
   // Send new game init command
@@ -1539,6 +2543,15 @@ function _renderLoadEarlierBtn(sessionId, oldestTurn){
             av.className = "msg-avatar";
             av.textContent = appState.currentStory ? genreEmoji(appState.currentStory.genre || "") : "🎭";
             row.appendChild(av);
+          } else {
+            var userAv = document.createElement("div");
+            userAv.className = "msg-avatar user-avatar";
+            userAv.textContent = appState.userAvatarLabel || "U";
+            row.appendChild(bubble);
+            row.appendChild(userAv);
+            if (firstMsg) msgs.insertBefore(row, firstMsg);
+            else msgs.appendChild(row);
+            return;
           }
           row.appendChild(bubble);
           if (firstMsg) msgs.insertBefore(row, firstMsg);
@@ -1561,19 +2574,36 @@ function resumeGameFromSession(sess){
   appState.chatHistory = [];
   appState.currentStory = story;
   appState.currentMeta = null;
+  appState.debugMode = false;
+  appState.truthMode = false;
+  appState.chineseMode = false;
+  appState.epistemicMode = false;
+  appState.userAvatarLabel = getPlayerAvatarLabel(sess.player_name || "Player");
 
   $("chat-char-name").textContent = story.title;
   $("chat-char-sub").textContent = story.genre || "Game";
+  $("chat-char-avatar-mini").textContent = genreEmoji(story.genre || story.theme);
+  $("chat-user-dock-avatar").textContent = appState.userAvatarLabel;
 
-  var msgs = $("chat-messages");
-  msgs.innerHTML = "";
+  // Clear messages and (re)build the character header as one unit (A06).
+  renderChatCharacterHeader(story);
+
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
 
   showScreen("chat");
 
-  // Load recent history from backend if logged in
+  // Load story meta and show world map inline
+  fetch(STORY_URL + "/" + encodeURIComponent(story.id))
+    .then(function(r){ return r.json(); })
+    .then(function(meta){
+      appState.currentMeta = meta;
+      renderInlineWorldMap(meta);
+    })
+    .catch(function(){});
+
+  // Load recent history from backend (JWT or guest)
   var sessionId = sess.session_id;
-  if (getToken() && sessionId) {
+  if ((getToken() || getGuestId()) && sessionId) {
     fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/history?limit=20", { headers: apiHeaders() })
       .then(function(r){
         if (r.status === 401){ handleUnauthorized(); return null; }
@@ -1583,7 +2613,7 @@ function resumeGameFromSession(sess){
         if (!data) return;
         var entries = data.entries || [];
         entries.forEach(function(e){
-          addMessage(e.role === "user" ? "user" : "npc", e.content);
+          addMessage(e.role === "user" ? "user" : "npc", e.content, { skipTypewriter: true });
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
         if (!entries.length) addSystemMessage("(Continue where you left off)");
@@ -1592,13 +2622,8 @@ function resumeGameFromSession(sess){
         addSystemMessage("(History unavailable — continue where you left off)");
       });
   } else {
-    addSystemMessage("(History not shown — continue where you left off)");
+    addSystemMessage("(Continue where you left off)");
   }
-
-  fetch(STORY_URL + "/" + encodeURIComponent(story.id))
-    .then(function(r){ return r.json(); })
-    .then(function(meta){ appState.currentMeta = meta; })
-    .catch(function(){});
 }
 
 /* ─── CHAT MESSAGES ─────────────────────────────── */
@@ -1607,40 +2632,151 @@ function scrollChatToBottom(){
   el.scrollTop = el.scrollHeight;
 }
 
-function addMessage(role, text){
+function addMessage(role, text, options){
+  options = options || {};
   var msgs = $("chat-messages");
   var row = document.createElement("div");
   row.className = "msg-row " + role;
+  var bubble;
 
   if (role === "system"){
     row.className = "msg-row system";
-    var bubble = document.createElement("div");
+    bubble = document.createElement("div");
     bubble.className = "msg-bubble system-msg";
     bubble.innerHTML = formatMsgText(text);
     row.appendChild(bubble);
   } else if (role === "user"){
-    var bubble = document.createElement("div");
+    bubble = document.createElement("div");
     bubble.className = "msg-bubble user";
     bubble.innerHTML = formatMsgText(text);
+    var userAv = document.createElement("div");
+    userAv.className = "msg-avatar user-avatar";
+    renderAvatarImage(userAv, getCharacterAvatarSrc("persona", appState.personaName || appState.userAvatarLabel || "Paul Dingus"), appState.onboardName || "You");
     row.appendChild(bubble);
+    row.appendChild(userAv);
   } else { // npc
     var av = document.createElement("div");
     av.className = "msg-avatar";
-    av.textContent = appState.currentStory ? genreEmoji(appState.currentStory.genre || "") : "🎭";
-    var bubble = document.createElement("div");
+    var npcName = appState.currentStory ? (appState.currentStory.title || "Character") : "Character";
+    renderAvatarImage(av, getCharacterAvatarSrc(appState.currentStory && appState.currentStory.id, npcName), npcName);
+    bubble = document.createElement("div");
     bubble.className = "msg-bubble npc";
-    bubble.innerHTML = formatMsgText(text);
     row.appendChild(av);
     row.appendChild(bubble);
   }
 
   msgs.appendChild(row);
   appState.chatHistory.push({ role: role, text: text });
+
+  // Typewriter effect for NPC messages (not history loads)
+  var delay = getTypewriterDelay();
+  if (role === "npc" && delay > 0 && !options.skipTypewriter) {
+    typewriteMessage(bubble, text, delay);
+  } else if (role === "npc") {
+    bubble.innerHTML = formatMsgText(text);
+  }
+
   scrollChatToBottom();
   return row;
 }
 
+var _typewriterAbort = null; // AbortController for current typewriter
+
+function typewriteMessage(bubble, text, charDelay){
+  // Cancel any prior typewriter
+  if (_typewriterAbort) _typewriterAbort.abort();
+  var controller = new AbortController();
+  _typewriterAbort = controller;
+
+  var formatted = formatMsgText(text);
+  // We type the raw text, then set full HTML at the end
+  var plainText = text.replace(/\\n/g, "\n");
+  bubble.textContent = "";
+  bubble.classList.add("typing-active");
+
+  var idx = 0;
+  var cancelled = false;
+  controller.signal.addEventListener("abort", function(){ cancelled = true; });
+
+  // Allow tap/click to skip to end
+  function skipHandler(){
+    cancelled = true;
+    bubble.removeEventListener("click", skipHandler);
+  }
+  bubble.addEventListener("click", skipHandler);
+  bubble.style.cursor = "pointer";
+
+  function typeNext(){
+    if (cancelled || idx >= plainText.length){
+      bubble.innerHTML = formatted;
+      bubble.classList.remove("typing-active");
+      bubble.style.cursor = "";
+      bubble.removeEventListener("click", skipHandler);
+      if (_typewriterAbort === controller) _typewriterAbort = null;
+      scrollChatToBottom();
+      return;
+    }
+    // Add next character
+    var ch = plainText[idx++];
+    if (ch === "\n") {
+      bubble.appendChild(document.createElement("br"));
+    } else {
+      bubble.appendChild(document.createTextNode(ch));
+    }
+    // Vary speed slightly for natural feel: pause longer on punctuation
+    var d = charDelay;
+    if (".!?".indexOf(ch) >= 0) d = charDelay * 4;
+    else if (",;:".indexOf(ch) >= 0) d = charDelay * 2;
+    scrollChatToBottom();
+    setTimeout(typeNext, d);
+  }
+
+  typeNext();
+}
+
 function addSystemMessage(text){ addMessage("system", text); }
+
+function renderInlineWorldMap(meta){
+  if (!meta) return;
+  var msgs = $("chat-messages");
+
+  // World map image
+  if (meta.world_map_image){
+    var imgRow = document.createElement("div");
+    imgRow.className = "msg-row system";
+    imgRow.style.cssText = "justify-content:center;";
+    var imgWrap = document.createElement("div");
+    imgWrap.style.cssText = "max-width:100%;border-radius:12px;overflow:hidden;margin:4px 0;";
+    var img = document.createElement("img");
+    img.src = API_BASE + "/story-image/" + meta.world_map_image;
+    img.alt = "World Map";
+    img.style.cssText = "width:100%;display:block;border-radius:12px;";
+    imgWrap.appendChild(img);
+    imgRow.appendChild(imgWrap);
+    msgs.appendChild(imgRow);
+  }
+
+  // Location list
+  var locs = meta.known_locations || [];
+  if (locs.length){
+    var locRow = document.createElement("div");
+    locRow.className = "msg-row system";
+    var locBubble = document.createElement("div");
+    locBubble.className = "msg-bubble system-msg";
+    locBubble.style.cssText = "text-align:left;font-size:13px;";
+    var html = "<strong>World Map</strong><br><br>";
+    locs.forEach(function(loc){
+      var name = escapeHTML(loc.name || loc.id);
+      var desc = loc.description ? " — " + escapeHTML(loc.description) : "";
+      html += "<em>" + name + "</em>" + desc + "<br>";
+    });
+    locBubble.innerHTML = html;
+    locRow.appendChild(locBubble);
+    msgs.appendChild(locRow);
+  }
+
+  scrollChatToBottom();
+}
 
 function addDebugBox(debugBox){
   if (!debugBox || !appState.debugMode) return;
@@ -1668,11 +2804,88 @@ function addDebugBox(debugBox){
   scrollChatToBottom();
 }
 
+function renderCastRoster(roster){
+  if (!roster || typeof roster !== "object") return;
+
+  var active = Array.isArray(roster.active) ? roster.active : [];
+  var departed = Array.isArray(roster.departed) ? roster.departed : [];
+  var vacancies = Array.isArray(roster.vacancies)
+    ? roster.vacancies
+    : Array.from({ length: Math.max(0, Number(roster.vacancies) || 0) }, function(){ return {}; });
+  var labels = roster.labels && typeof roster.labels === "object" ? roster.labels : {};
+  var title = String(roster.title || "Cast");
+
+  function memberName(member){
+    if (typeof member === "string") return member;
+    if (!member || typeof member !== "object") return "";
+    return String(member.name || member.label || "");
+  }
+
+  function memberDetail(member){
+    if (!member || typeof member !== "object") return "";
+    return String(member.role || member.detail || "");
+  }
+
+  function addSection(wrap, heading, members, vacancy){
+    if (!members.length) return;
+    var section = document.createElement("div");
+    section.className = "cast-roster-section";
+    var headingEl = document.createElement("div");
+    headingEl.className = "cast-roster-heading";
+    headingEl.textContent = heading;
+    section.appendChild(headingEl);
+    members.forEach(function(member){
+      var row = document.createElement("div");
+      row.className = "cast-roster-row" + (vacancy ? " cast-roster-vacancy" : "");
+      var avatarWrap = document.createElement("div");
+      avatarWrap.className = "cast-avatar";
+      var memberText = vacancy ? memberName(member) || "Room available" : memberName(member);
+      var memberKey = (member && typeof member === "object") ? (member.id || member.name || member.label || memberText) : memberText;
+      renderAvatarImage(avatarWrap, getCharacterAvatarSrc(memberKey, memberText), memberText || "Character");
+      row.appendChild(avatarWrap);
+      var name = document.createElement("span");
+      name.className = "cast-roster-name";
+      name.textContent = memberText;
+      row.appendChild(name);
+      var detail = memberDetail(member);
+      if (detail){
+        var detailEl = document.createElement("span");
+        detailEl.className = "cast-roster-detail";
+        detailEl.textContent = detail;
+        row.appendChild(detailEl);
+      }
+      section.appendChild(row);
+    });
+    wrap.appendChild(section);
+  }
+
+  var wrap = document.createElement("div");
+  wrap.className = "chat-system-box cast-roster-box";
+  var titleEl = document.createElement("div");
+  titleEl.className = "box-title";
+  titleEl.textContent = title;
+  wrap.appendChild(titleEl);
+  addSection(wrap, String(labels.active || "Present"), active, false);
+  addSection(wrap, String(labels.vacancy || "Room available"), vacancies, true);
+  addSection(wrap, String(labels.departed || "Moved out"), departed, false);
+
+  if (!active.length && !vacancies.length && !departed.length){
+    var empty = document.createElement("div");
+    empty.className = "cast-roster-detail";
+    empty.textContent = "No roster information is available yet.";
+    wrap.appendChild(empty);
+  }
+
+  $("chat-messages").appendChild(wrap);
+  scrollChatToBottom();
+}
+
 function showTypingIndicator(){ $("typing-indicator").classList.add("visible"); scrollChatToBottom(); }
 function hideTypingIndicator(){ $("typing-indicator").classList.remove("visible"); }
 
 /* ─── SEND / RECEIVE ────────────────────────────── */
-function sendMessage(text, isInit){
+function sendMessage(text, isInit, options){
+  options = options || {};
   if (appState.awaitingResponse && !isInit) return;
   appState.awaitingResponse = true;
 
@@ -1681,7 +2894,7 @@ function sendMessage(text, isInit){
   if (input){ input.value = ""; input.style.height = ""; }
   if (sendBtn) sendBtn.disabled = true;
 
-  if (!isInit) {
+  if (!isInit && !options.suppressUserMessage) {
     addMessage("user", text);
   }
 
@@ -1689,10 +2902,24 @@ function sendMessage(text, isInit){
 
   var session = appState.session;
 
+  // BL-02: a per-attempt request ID lets the server detect and replay a
+  // retried turn (network timeout, a resend of the same message) instead of
+  // reprocessing it and double-advancing time/relationships. Reuse the same
+  // ID when the caller passes one back in (a genuine retry of this exact
+  // send); otherwise mint a fresh one for a new logical message.
+  var requestId = options.requestId || genUUID();
+  var payload = { message: text, session_id: session ? session.session_id : genUUID(), request_id: requestId };
+  // If this is the initial new-game command, include persona metadata so backend can seed the session
+  if (isInit && session) {
+    payload.persona_mode = session.persona_mode || "default";
+    payload.persona_name = session.persona_name || (appState.personaLabel || "Default");
+    payload.persona_other = session.persona_other || "";
+  }
+
   fetch(CHAT_URL, {
     method: "POST",
     headers: apiHeaders(),
-    body: JSON.stringify({ message: text, session_id: session ? session.session_id : genUUID() })
+    body: JSON.stringify(payload)
   })
   .then(function(r){
     if (r.status === 401){ handleUnauthorized(); throw new Error("auth"); }
@@ -1704,17 +2931,19 @@ function sendMessage(text, isInit){
       addSystemMessage("Error: " + data.error);
     } else {
       var reply = (data && data.reply) ? data.reply : "";
-      addMessage("npc", reply);
+      if (reply) addMessage("npc", reply);
+      if (data && data.cast_roster) renderCastRoster(data.cast_roster);
       addDebugBox(data && data.debug_box);
 
       // Update session
       if (session){
         session.last_played = Date.now();
-        session.last_message = reply.slice(0, 80);
-        if (!isInit) session.turns = (session.turns || 0) + 1;
+        if (reply) session.last_message = reply.slice(0, 80);
+        var countsAsTurn = !isInit && options.countAsTurn !== false;
+        if (countsAsTurn) session.turns = (session.turns || 0) + 1;
         saveSession(session);
 
-        if (!isInit) {
+        if (countsAsTurn) {
           var stats = loadStats();
           stats.turns = (stats.turns || 0) + 1;
           saveStats(stats);
@@ -1758,6 +2987,11 @@ $("chat-send-btn").addEventListener("click", function(){
   if (!this.disabled) doSendChat();
 });
 
+$("chat-mute-btn").addEventListener("click", function(){ showToast("Voice controls coming soon."); });
+$("chat-call-btn").addEventListener("click", function(){ showToast("Voice mode coming soon."); });
+$("chat-image-btn").addEventListener("click", function(){ showToast("Image sharing coming soon."); });
+$("chat-persona-btn").addEventListener("click", function(){ showToast("Persona switch coming soon."); });
+
 function doSendChat(){
   var text = chatInput.value.trim();
   if (!text || appState.awaitingResponse) return;
@@ -1780,6 +3014,11 @@ document.addEventListener("click", function(){
 $("dd-map").addEventListener("click", function(){
   $("chat-dropdown").classList.remove("open");
   showMapModal();
+});
+
+$("dd-cast").addEventListener("click", function(){
+  $("chat-dropdown").classList.remove("open");
+  sendMessage("[CAST]", false, { suppressUserMessage: true, countAsTurn: false });
 });
 
 $("dd-debug").addEventListener("click", function(){
@@ -1812,20 +3051,31 @@ $("dd-epistemic").addEventListener("click", function(){
 
 $("dd-exit").addEventListener("click", function(){
   $("chat-dropdown").classList.remove("open");
-  if (confirm("Exit this game? Your session will be saved.")) {
-    showScreen("home");
-  }
+  showConfirm("Exit Game?", "Your progress is saved. You can resume from My Games anytime.", "Exit", function(){
+    showScreen("games");
+  });
 });
 
 $("chat-back-btn").addEventListener("click", function(){
-  showScreen("home");
+  showConfirm("Leave Game?", "Your progress is saved. You can resume from My Games anytime.", "Leave", function(){
+    showScreen("games");
+  });
 });
 
 /* ─── WORLD MAP MODAL ───────────────────────────── */
 function showMapModal(){
   var meta = appState.currentMeta;
-  $("map-modal-img").style.display = "none";
-  $("map-modal-locations").innerHTML = "";
+  var imgEl = $("map-modal-img");
+  var modal = $("map-modal");
+  var container = modal.querySelector(".map-container");
+  var locationsEl = $("map-modal-locations");
+
+  // Reset state
+  imgEl.style.display = "none";
+  imgEl.style.transform = "translate(0, 0) scale(1)";
+  imgEl.classList.remove("pannable", "dragging");
+  locationsEl.innerHTML = "";
+  modal.classList.remove("fullscreen");
 
   if (!meta){
     showToast("Map not available yet.");
@@ -1833,24 +3083,130 @@ function showMapModal(){
   }
 
   if (meta.world_map_image){
-    var imgEl = $("map-modal-img");
     imgEl.src = API_BASE + "/story-image/" + meta.world_map_image;
     imgEl.style.display = "block";
+    imgEl.onload = function(){
+      // Check if image is larger than container
+      var imgRect = imgEl.getBoundingClientRect();
+      var containerRect = container.getBoundingClientRect();
+      if (imgRect.width > containerRect.width || imgRect.height > containerRect.height) {
+        imgEl.classList.add("pannable");
+      }
+    };
   }
 
   var locs = meta.known_locations || [];
   if (locs.length){
-    var container = $("map-modal-locations");
-    container.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Locations</div>';
+    locationsEl.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Locations</div>';
     locs.forEach(function(loc){
       var d = document.createElement("div");
       d.className = "map-loc-item";
       d.textContent = (loc.name || loc.id) + (loc.description ? " — " + loc.description : "");
-      container.appendChild(d);
+      locationsEl.appendChild(d);
     });
   }
 
   openModal("map-modal");
+
+  // Set up pan/zoom functionality
+  setupMapInteraction();
+}
+
+function setupMapInteraction(){
+  var modal = $("map-modal");
+  var imgEl = $("map-modal-img");
+  var container = modal.querySelector(".map-container");
+  var locationsEl = $("map-modal-locations");
+
+  var isDragging = false;
+  var startX, startY, initialX, initialY;
+  var scale = 1;
+  var translateX = 0, translateY = 0;
+
+  function updateTransform(){
+    imgEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+  }
+
+  // Click to toggle fullscreen
+  container.addEventListener("click", function(e){
+    if (e.target === imgEl && !isDragging) {
+      modal.classList.toggle("fullscreen");
+      locationsEl.classList.toggle("hidden", modal.classList.contains("fullscreen"));
+      // Reset pan/zoom when toggling
+      scale = 1;
+      translateX = 0;
+      translateY = 0;
+      updateTransform();
+    }
+  });
+
+  // Pan functionality
+  imgEl.addEventListener("mousedown", function(e){
+    if (!imgEl.classList.contains("pannable")) return;
+    e.preventDefault();
+    isDragging = true;
+    imgEl.classList.add("dragging");
+    startX = e.clientX;
+    startY = e.clientY;
+    initialX = translateX;
+    initialY = translateY;
+  });
+
+  document.addEventListener("mousemove", function(e){
+    if (!isDragging) return;
+    e.preventDefault();
+    var dx = e.clientX - startX;
+    var dy = e.clientY - startY;
+    translateX = initialX + dx;
+    translateY = initialY + dy;
+    updateTransform();
+  });
+
+  document.addEventListener("mouseup", function(){
+    if (isDragging) {
+      isDragging = false;
+      imgEl.classList.remove("dragging");
+    }
+  });
+
+  // Touch events for mobile
+  imgEl.addEventListener("touchstart", function(e){
+    if (!imgEl.classList.contains("pannable") || e.touches.length !== 1) return;
+    e.preventDefault();
+    isDragging = true;
+    imgEl.classList.add("dragging");
+    var touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    initialX = translateX;
+    initialY = translateY;
+  });
+
+  imgEl.addEventListener("touchmove", function(e){
+    if (!isDragging || e.touches.length !== 1) return;
+    e.preventDefault();
+    var touch = e.touches[0];
+    var dx = touch.clientX - startX;
+    var dy = touch.clientY - startY;
+    translateX = initialX + dx;
+    translateY = initialY + dy;
+    updateTransform();
+  });
+
+  imgEl.addEventListener("touchend", function(){
+    isDragging = false;
+    imgEl.classList.remove("dragging");
+  });
+
+  // Zoom with mouse wheel
+  imgEl.addEventListener("wheel", function(e){
+    if (!imgEl.classList.contains("pannable")) return;
+    e.preventDefault();
+    var zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    scale *= zoomFactor;
+    scale = Math.max(0.5, Math.min(3, scale)); // Limit zoom
+    updateTransform();
+  });
 }
 
 $("map-modal-close").addEventListener("click", function(){ closeModal("map-modal"); });
@@ -1887,15 +3243,31 @@ function renderSessionsRows(sessions){
     var item = document.createElement("div");
     item.className = "game-list-item";
 
+    // Delete background (visible on swipe)
+    var deleteBg = document.createElement("div");
+    deleteBg.className = "delete-bg";
+    deleteBg.textContent = "Delete";
+    item.appendChild(deleteBg);
+
+    // Item content wrapper (slides on swipe)
+    var content = document.createElement("div");
+    content.className = "item-content";
+
     var thumb = document.createElement("div");
     thumb.className = "game-list-thumb";
     thumb.textContent = genreEmoji(story.genre || "");
 
     var body = document.createElement("div");
     body.className = "game-list-body";
+    var subText = sess.last_message || "Tap to continue";
+    var metaParts = [];
+    if (sess.player_name) metaParts.push(sess.player_name);
+    if (sess.turns) metaParts.push(sess.turns + " turns");
+    var metaLine = metaParts.length ? '<div class="game-list-sub" style="color:var(--text-muted);font-size:11px;margin-bottom:1px;">' + escapeHTML(metaParts.join(" · ")) + '</div>' : '';
     body.innerHTML = [
       '<div class="game-list-title">' + escapeHTML(sess.story_title || story.title || "Game") + '</div>',
-      '<div class="game-list-sub">' + escapeHTML(sess.last_message || "Tap to continue") + '</div>'
+      metaLine,
+      '<div class="game-list-sub">' + escapeHTML(subText) + '</div>'
     ].join("");
 
     var time = document.createElement("div");
@@ -1904,11 +3276,68 @@ function renderSessionsRows(sessions){
     var ts = sess.last_played ? (sess.last_played > 1e12 ? sess.last_played : sess.last_played * 1000) : 0;
     time.textContent = timeAgo(ts);
 
-    item.appendChild(thumb);
-    item.appendChild(body);
-    item.appendChild(time);
+    content.appendChild(thumb);
+    content.appendChild(body);
+    content.appendChild(time);
+    item.appendChild(content);
 
-    item.onclick = function(){
+    // Swipe-to-delete
+    var startX = 0, currentX = 0, swiping = false;
+    content.addEventListener("touchstart", function(e){
+      startX = e.touches[0].clientX;
+      swiping = true;
+    }, { passive: true });
+    content.addEventListener("touchmove", function(e){
+      if (!swiping) return;
+      currentX = e.touches[0].clientX;
+      var dx = startX - currentX;
+      if (dx > 10) {
+        content.style.transform = "translateX(" + Math.max(-80, -dx) + "px)";
+      }
+    }, { passive: true });
+    content.addEventListener("touchend", function(){
+      swiping = false;
+      var dx = startX - currentX;
+      if (dx > 50) {
+        item.classList.add("swiped");
+      } else {
+        item.classList.remove("swiped");
+        content.style.transform = "";
+      }
+    });
+
+    // Delete handler
+    deleteBg.addEventListener("click", function(e){
+      e.stopPropagation();
+      var sessionId = sess.session_id || sess.id;
+      showConfirm("Delete Game?", "This will permanently delete this game session and all conversation history.", "Delete", function(){
+        // Animate removal
+        item.style.transition = "opacity 0.3s, max-height 0.3s";
+        item.style.opacity = "0";
+        item.style.maxHeight = item.offsetHeight + "px";
+        setTimeout(function(){ item.style.maxHeight = "0"; item.style.padding = "0"; }, 50);
+        setTimeout(function(){ item.remove(); }, 350);
+
+        // Delete from backend
+        if (sessionId && (getToken() || getGuestId())) {
+          fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId), {
+            method: "DELETE",
+            headers: apiHeaders()
+          }).catch(function(){});
+        }
+        // Delete from localStorage
+        var local = loadSessions().filter(function(s){ return s.session_id !== sessionId; });
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(local));
+      });
+    });
+
+    // Tap to resume (only if not swiped)
+    content.addEventListener("click", function(){
+      if (item.classList.contains("swiped")) {
+        item.classList.remove("swiped");
+        content.style.transform = "";
+        return;
+      }
       if (appState.stories.length === 0) loadStories();
       // Normalize session shape for resumeGameFromSession
       var normalized = {
@@ -1922,7 +3351,7 @@ function renderSessionsRows(sessions){
         turns: sess.turns || 0,
       };
       resumeGameFromSession(normalized);
-    };
+    });
 
     list.appendChild(item);
   });
@@ -1930,10 +3359,12 @@ function renderSessionsRows(sessions){
 
 function renderGamesList(){
   var list = $("games-list");
+  var hasAuth = Boolean(getToken());
+  var hasGuestId = Boolean(getGuestId());
 
-  if (!getToken()){
-    // Not logged in — show localStorage sessions or empty + login prompt
-    var localSessions = loadSessions();
+  if (!hasAuth && !hasGuestId){
+    // No identity at all — show empty state with login prompt
+    var localSessions = getKnownSessions();
     if (!localSessions.length){
       list.innerHTML = [
         '<div class="empty-state">',
@@ -1951,19 +3382,19 @@ function renderGamesList(){
     return;
   }
 
-  // Logged in — load from backend
-  list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>';
-  fetch(USER_SESSIONS_URL, { headers: apiHeaders() })
-    .then(function(r){
-      if (r.status === 401){ handleUnauthorized(); return null; }
-      return r.json();
-    })
-    .then(function(data){
-      if (!data) return;
-      renderSessionsRows(data.sessions || []);
+  // Has identity (JWT or guest ID) — load from backend with skeleton
+  list.innerHTML = Array(3).fill(
+    '<div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+    '<div class="skeleton" style="width:56px;height:56px;border-radius:14px;flex-shrink:0;"></div>' +
+    '<div style="flex:1;"><div class="skeleton" style="width:60%;height:14px;margin-bottom:8px;"></div><div class="skeleton" style="width:40%;height:12px;"></div></div>' +
+    '<div class="skeleton" style="width:32px;height:12px;"></div></div>'
+  ).join("");
+  refreshSessionCacheFromServer()
+    .then(function(sessions){
+      renderSessionsRows(sessions || []);
     })
     .catch(function(){
-      renderGamesListEmpty();
+      renderSessionsRows(getKnownSessions());
     });
 }
 
@@ -2020,7 +3451,14 @@ function refreshProfileScreen(){
   $("stat-turns").textContent = stats.turns || 0;
 
   var token = getToken();
+  var authBtn = $("profile-auth-btn");
+
   if (token) {
+    if (authBtn) {
+      authBtn.textContent = "Sign out";
+      authBtn.style.borderColor = "var(--text-muted)";
+      authBtn.style.color = "var(--text-muted)";
+    }
     fetch(AUTH_ME_URL, { headers: apiHeaders() })
       .then(function(r){
         if (r.status === 401){ handleUnauthorized(); return null; }
@@ -2035,8 +3473,28 @@ function refreshProfileScreen(){
   } else {
     if ($("profile-name")) $("profile-name").textContent = "Guest";
     if ($("profile-handle")) $("profile-handle").textContent = "Sign in to save progress";
+    if (authBtn) {
+      authBtn.textContent = "Sign in";
+      authBtn.style.borderColor = "var(--red)";
+      authBtn.style.color = "var(--red)";
+    }
   }
 }
+
+$("profile-auth-btn").addEventListener("click", function(){
+  if (getToken()) {
+    showConfirm("Sign out?", "You'll need to sign in again to access your saved games.", "Sign out", function(){
+      clearToken();
+      refreshProfileScreen();
+      updateGuestPillState();
+      showToast("Signed out.");
+    });
+  } else {
+    // Explicit sign-in: turn off guest bypass so the OAuth flow can proceed.
+    localStorage.removeItem(SKIP_LOGIN_KEY);
+    window.location.href = GOOGLE_LOGIN_URL;
+  }
+});
 
 /* ─── TAB BAR ───────────────────────────────────── */
 document.querySelectorAll(".tab-item").forEach(function(tab){
@@ -2057,6 +3515,54 @@ $("modal-game-detail").addEventListener("click", function(e){
   if (e.target === this) closeModal("modal-game-detail");
 });
 
+/* ─── CONFIRM DIALOG ───────────────────────────── */
+var _confirmCallback = null;
+
+function showConfirm(title, message, okText, callback){
+  $("confirm-title").textContent = title;
+  $("confirm-sub").textContent = message;
+  $("confirm-ok").textContent = okText || "OK";
+  _confirmCallback = callback;
+  openModal("confirm-dialog");
+}
+
+$("confirm-cancel").addEventListener("click", function(){
+  closeModal("confirm-dialog");
+  _confirmCallback = null;
+});
+
+$("confirm-ok").addEventListener("click", function(){
+  closeModal("confirm-dialog");
+  if (_confirmCallback) _confirmCallback();
+  _confirmCallback = null;
+});
+
+$("confirm-dialog").addEventListener("click", function(e){
+  if (e.target === this) {
+    closeModal("confirm-dialog");
+    _confirmCallback = null;
+  }
+});
+
+/* ─── TYPEWRITER SPEED SETTING ─────────────────── */
+(function(){
+  var slider = $("typewriter-speed");
+  var label = $("typewriter-speed-label");
+  if (!slider || !label) return;
+
+  // Load saved value
+  var saved = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
+  if (saved < 0 || saved >= TYPEWRITER_LABELS.length) saved = 1;
+  slider.value = saved;
+  label.textContent = TYPEWRITER_LABELS[saved];
+
+  slider.addEventListener("input", function(){
+    var val = parseInt(this.value, 10);
+    label.textContent = TYPEWRITER_LABELS[val] || "Normal";
+    localStorage.setItem(TYPEWRITER_SPEED_KEY, String(val));
+  });
+})();
+
 /* ─── VERSION ───────────────────────────────────── */
 fetch("version.json", { cache: "no-store" })
   .then(function(r){ return r.json(); })
@@ -2068,16 +3574,61 @@ fetch("version.json", { cache: "no-store" })
 
 /* ─── PWA SERVICE WORKER ────────────────────────── */
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js").catch(function(){});
+  navigator.serviceWorker.register("sw.js")
+    .then(function(reg){
+      reg.update();
+      if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    })
+    .catch(function(){});
+
+  navigator.serviceWorker.addEventListener("controllerchange", function(){
+    if (window.__swRefreshed) return;
+    window.__swRefreshed = true;
+    window.location.reload();
+  });
 }
+
+/* ─── iOS INSTALL PROMPT ────────────────────────── */
+(function(){
+  // Detect iOS Safari (not already installed as PWA)
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  var isStandalone = window.navigator.standalone === true;
+  var dismissed = localStorage.getItem("storieschat_ios_install_dismissed");
+
+  if (isIOS && !isStandalone && !dismissed) {
+    // Show after a short delay so the page loads first
+    setTimeout(function(){
+      openModal("ios-install-prompt");
+    }, 1500);
+  }
+
+  $("ios-install-close").addEventListener("click", function(){
+    closeModal("ios-install-prompt");
+  });
+  $("ios-install-dismiss").addEventListener("click", function(){
+    localStorage.setItem("storieschat_ios_install_dismissed", "1");
+    closeModal("ios-install-prompt");
+  });
+})();
 
 /* ─── BOOT ──────────────────────────────────────── */
 // Extract JWT from callback redirect (?token=...)
 (function(){
   var urlParams = new URLSearchParams(window.location.search);
   var tokenParam = urlParams.get("token");
+
+  // If OAuth callback lands on beta-api, bounce token back to storieschat beta.
+  if (tokenParam && host === "beta-api.storieschat.ai") {
+    var targetBase = "https://storieschat.ai" + (IS_BETA ? "/beta/" : "/");
+    window.location.replace(targetBase + "?token=" + encodeURIComponent(tokenParam));
+    return;
+  }
+
   if (tokenParam) {
     setToken(tokenParam);
+    // Real account active — clear guest bypass so JWT is used going forward.
+    localStorage.removeItem(SKIP_LOGIN_KEY);
+    updateGuestPillState();
     // Remove token from URL without reloading
     history.replaceState({}, "", window.location.pathname);
     showToast("Welcome back!");

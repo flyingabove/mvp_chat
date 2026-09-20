@@ -1,5 +1,7 @@
 # Message → Prompt Flow Trace (Current Code Path)
 
+> **What this doc is for:** Step-by-step trace of how a user message becomes an LLM prompt. Edit this doc when the prompt assembly pipeline changes.
+
 ## Purpose
 Provide a deterministic, code-aligned trace from incoming user message to outgoing renderer prompt.
 
@@ -92,11 +94,19 @@ Returned chunks are candidate memory fragments for prompt construction and for t
    - previous-turn speakers,
    - previous-turn knowledge updates (`chunk_id/knows/confidence/reason`).
 3. If extractor yields a valid move destination:
-   - canonicalize message to `go to <destination_id>`.
+   - create a separate movement input, `go to <destination_id>`, for travel resolution only; preserve the complete player message.
 4. Apply extracted previous-turn scene knowledge into FIFO scene buffer.
 5. Apply extracted previous-turn knowledge updates into belief graph + transient mirror entries.
-6. Fallback heuristic can still convert message to movement command if extractor returns no move.
-7. `advance_time(state, msg)` executes travel/time updates and world graph movement.
+6. The fallback heuristic can populate the separate movement input if the extractor returns no move.
+7. `advance_time` executes travel/time updates using that movement input (or the original message for a non-movement turn).
+8. After a location change, refresh destination people-present and active-character markers and scene FIFO context before rendering. Clear prior-location speakers; an empty destination must not fall back to the previous room's occupants.
+
+Movement normalization must never replace the player message in the storyteller
+prompt, conversation echo, in-memory history, persisted transcript, fact
+extraction, or `last_turn_user_msg`. A request such as “I return to the living
+room and ask Makoto about baseball” must retain its question as well as move
+the player. Destination characters' identity sections must be available on
+that same turn, not one turn later.
 
 ---
 
@@ -119,7 +129,7 @@ After reply, scene speaker markers are updated:
 Create `PromptInput` with:
 - current `state`,
 - trimmed `log`,
-- canonicalized user message,
+- complete player message (after request-intake cleanup, without replacing it with the travel command),
 - retrieved chunks,
 - truth mode toggle,
 - retrieval debug payload.
@@ -131,16 +141,18 @@ Then call `build_messages(prompt_input, return_debug=True)`.
 ## 7) System Prompt Construction (`prompt_builder.py`)
 `system_prompt(...)` composes:
 1. Base behavior/style rules.
-2. Epistemic knowledge stack (`_format_labeled_knowledge_stack`):
+2. Optional mode-context layer (`_mode_context_section`, see `SOCIAL_MODE_DESIGN.md`) — tone/setting prose for stories that declare a top-level `mode` object (e.g. `social_sim` ensemble games). Empty string (no-op) for any story without `mode`.
+3. Epistemic knowledge stack (`_format_labeled_knowledge_stack`):
    - `CANONICAL_CORE`: character basics + canonical facts,
    - `CANONICAL_GRAPH`: current place info,
    - `SUBJECTIVE_BELIEF`: belief claims for active speaker,
    - `RETRIEVED_MEMORY`: FAISS/BM25 chunks.
-3. Relationship section (`character_graph.format_for_prompt`).
-4. Scene brief includes explicit per-turn scene context:
+4. Relationship section (`character_graph.format_for_prompt`).
+5. Scene brief includes explicit per-turn scene context:
    - `people_present` list and count,
    - `speakers` list.
-5. Optional truth-mode override.
+6. Character self-knowledge (`_character_identity_section` — per-character; main character's block is unconditional, other present characters' blocks are gated by scene presence, see `SOCIAL_MODE_DESIGN.md` §5).
+7. Optional truth-mode override.
 
 Important current rule in preface:
 - If chunk visibility is not explicit for speaker, model should make best reasonable determination; hedge when uncertain.

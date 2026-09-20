@@ -12,6 +12,17 @@ from .ids import LocationId
 logger = logging.getLogger(__name__)
 
 
+class TravelBlockedError(RuntimeError):
+    """Raised when the only path(s) between two locations are blocked.
+
+    A09 fix: this must be distinguished from a genuinely disconnected graph
+    (an authoring bug / "island"). A blocked edge is a deliberate runtime
+    constraint (a locked door, a private room) and must reject travel, not
+    silently reroute through a fabricated fallback edge that ignores the
+    block.
+    """
+
+
 @dataclass(frozen=True)
 class TravelSegment:
     """One hop in a route (edge-based)."""
@@ -93,25 +104,50 @@ class TravelRules:
                 segments=(TravelSegment(edge=chosen_pair[0]), TravelSegment(edge=chosen_pair[1])),
             )
 
-        # 3. Try multi-hop BFS pathfinding (A->X->Y->...->B)
-        path = self._find_path_bfs(graph, from_id, to_id)
+        # 3. Try multi-hop BFS pathfinding (A->X->Y->...->B), unblocked edges only
+        path = self._find_path_bfs(graph, from_id, to_id, ignore_blocked=False)
         if path:
             segments = tuple(TravelSegment(edge=edge) for edge in path)
             return TravelRoute(from_id=from_id, to_id=to_id, segments=segments)
 
-        # 4. No path found - ISLAND DETECTED!
+        # 4. No *unblocked* path found. Before treating this as a structural
+        # island, check whether a path exists at all if we ignore the
+        # `blocked` flag. If one does, the destination is reachable in the
+        # authored graph but currently locked/blocked — that is a
+        # deliberate runtime constraint (A09) and travel must be rejected,
+        # never silently rerouted through a fabricated edge that bypasses
+        # the block.
+        if self._find_path_bfs(graph, from_id, to_id, ignore_blocked=True) is not None:
+            raise TravelBlockedError(
+                f"No unblocked route from {from_id} to {to_id}: the only path(s) are blocked"
+            )
+
+        # 5. Truly disconnected (authoring bug) - ISLAND DETECTED!
         self._log_island_error(from_id, to_id, graph)
-        
-        # 5. CREATE FALLBACK DYNAMIC EDGE (in-memory only)
+
+        # 6. CREATE FALLBACK DYNAMIC EDGE (in-memory only). This only ever
+        # fires for a genuine authoring-time island, never for a blocked
+        # edge (handled above).
         dynamic_edge = self._create_dynamic_edge(from_id, to_id)
         self._inject_dynamic_edge(graph, dynamic_edge)
         logger.warning(f"Created temporary dynamic edge: {from_id} -> {to_id} ({dynamic_edge.minutes} min)")
-        
+
         return TravelRoute(from_id=from_id, to_id=to_id, segments=(TravelSegment(edge=dynamic_edge),))
 
-    def _find_path_bfs(self, graph: WorldGraph, from_id: LocationId, to_id: LocationId) -> Tuple[PathEdge, ...] | None:
+    def _find_path_bfs(
+        self,
+        graph: WorldGraph,
+        from_id: LocationId,
+        to_id: LocationId,
+        *,
+        ignore_blocked: bool = False,
+    ) -> Tuple[PathEdge, ...] | None:
         """BFS to find multi-hop path from from_id to to_id.
-        
+
+        When ignore_blocked=True, blocked edges are traversable — used only
+        to distinguish "reachable but blocked" (A09: must reject) from
+        "genuinely disconnected" (island: falls back to a dynamic edge).
+
         Returns tuple of edges forming the path, or None if no path exists.
         """
         if from_id == to_id:
@@ -130,7 +166,7 @@ class TravelRules:
 
             # Explore neighbors
             for edge in graph.get_outgoing(current_id).to_tuple():
-                if getattr(edge, "blocked", False):
+                if not ignore_blocked and getattr(edge, "blocked", False):
                     continue
 
                 next_id = edge.to_id

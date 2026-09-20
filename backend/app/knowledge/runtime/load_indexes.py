@@ -89,8 +89,8 @@ def _find_tmp_cache_dir(character_id: str) -> Path | None:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
-def _try_autobuild_into(persist_root: Path) -> str:
-    """Attempt to build indexes into persist_root. Returns a note for debugging."""
+def _try_autobuild_into(persist_root: Path, character_id: str) -> str:
+    """Attempt to build indexes for a specific character into persist_root."""
     # If user explicitly set a persist root, tests expect strict failure behavior elsewhere.
     if os.getenv("KNOWLEDGE_PERSIST_ROOT"):
         return "autobuild skipped: KNOWLEDGE_PERSIST_ROOT is set"
@@ -101,8 +101,8 @@ def _try_autobuild_into(persist_root: Path) -> str:
     os.environ["FORCE_REBUILD_INDEX"] = "1"
     try:
         from backend.app.knowledge.build import build_index
-        build_index.main()
-        return f"autobuild attempted into {persist_root}"
+        build_index.main(character_id)
+        return f"autobuild attempted into {persist_root} for {character_id}"
     except Exception as e:
         return f"autobuild failed: {repr(e)}"
     finally:
@@ -154,7 +154,7 @@ def load_character_indexes(character_id: str) -> CharacterIndexBundle:
     else:
         # Attempt an autobuild into the persistent cache when it looks like deployment layout
         if _can_autobuild(persist_root):
-            debug_notes.append(_try_autobuild_into(persist_root))
+            debug_notes.append(_try_autobuild_into(persist_root, character_id))
             if _has_required(persist_char_dir):
                 use_dir = persist_char_dir
                 debug_notes.append("autobuild produced persistent artifacts")

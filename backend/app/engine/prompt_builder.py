@@ -3,11 +3,14 @@ from dataclasses import dataclass, field
 from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.state import GameState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
+from backend.app.engine.cast_lifecycle import CastStatus
+from backend.app.engine.scene_context import SceneContext
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
     MEMORY_TURNS,
 )
+from backend.app.personas.persona_store import get_default_persona_prompt_text
 from backend.app.utils.logging_utils import jlog as _jlog, truncate as _truncate
 
 
@@ -35,6 +38,42 @@ def _extract_story_cfg(state: GameState):
     story_def = cfg_obj if hasattr(cfg_obj, "as_dict") else None
     cfg_dict = story_def.as_dict() if story_def else cfg_obj
     return cfg_dict, story_def
+
+
+def _persona_section(state: GameState) -> str:
+    """Inject the currently selected persona as a small, reusable prompt layer."""
+    user = getattr(state, "user", None)
+    if user is None:
+        return ""
+
+    mode = str(getattr(user, "persona_mode", "") or "").strip().lower()
+    name = str(getattr(user, "persona_name", "") or "").strip()
+    free_text = str(getattr(user, "persona_other", "") or "").strip()
+
+    if mode == "default":
+        persona_text = get_default_persona_prompt_text("paul_dingus")
+        if not persona_text:
+            return ""
+        return (
+            "\n────────────────────────────────────────\n"
+            "### PLAYER PERSONA\n"
+            "────────────────────────────────────────\n"
+            f"{persona_text}\n"
+        )
+
+    if mode == "create" and name:
+        lines = [f"Your player persona is {name}."]
+        if free_text:
+            lines.append(f"Other attributes: {free_text}")
+        return (
+            "\n────────────────────────────────────────\n"
+            "### PLAYER PERSONA\n"
+            "────────────────────────────────────────\n"
+            + "\n".join(lines)
+            + "\n"
+        )
+
+    return ""
 
 
 def _format_memory_block(retrieved_chunks: list, character_name: str = "") -> str:
@@ -228,81 +267,25 @@ _TIER_HEADINGS = {
 }
 
 
-def _get_active_character_keys(state: GameState) -> set[str]:
+def _get_active_character_keys(state: GameState, scene: SceneContext | None = None) -> set[str]:
     """Extract the active character set from transient markers.
 
-    Scans ``state.transient_entries`` for marker texts in the form
-    ``__active_character_marker__:<character_key>`` and returns their keys.
-    Always includes ``main_character_id`` and ``"player"`` as fallback.
+    Delegates to `SceneContext.active_keys()` (see backend/app/engine/scene_context.py) -
+    always includes ``main_character_id`` and ``"player"`` as fallback.
     """
-    keys: set[str] = set()
-    main_id = getattr(state, "main_character_id", "") or ""
-    if main_id:
-        keys.add(main_id)
-    keys.add("player")
-
-    for e in getattr(state, "transient_entries", []) or []:
-        txt = (getattr(e, "text", "") or "").strip()
-        if txt.startswith("__active_character_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                keys.add(ch_key)
-        elif txt.startswith("__scene_speaker_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                keys.add(ch_key)
-        elif txt.startswith("__on_call_character_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                keys.add(ch_key)
-
-    return keys
+    return (scene or SceneContext.build(state)).active_keys()
 
 
-def _get_people_present_keys(state: GameState) -> set[str]:
-    keys: set[str] = set()
-    for e in getattr(state, "transient_entries", []) or []:
-        txt = (getattr(e, "text", "") or "").strip()
-        if txt.startswith("__people_present_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                keys.add(ch_key)
-    if keys:
-        return keys
-
-    latest_scene = getattr(state, "latest_scene_knowledge", None)
-    if callable(latest_scene):
-        item = latest_scene()
-        if item is not None:
-            return {
-                str(k or "").strip().lower()
-                for k in (getattr(item, "people_present", []) or [])
-                if str(k or "").strip()
-            }
-    return set()
+def _cast_scene_eligible(state: GameState, key: str, scene: SceneContext | None = None) -> bool:
+    return (scene or SceneContext.build(state)).is_eligible(key)
 
 
-def _get_scene_speaker_keys(state: GameState) -> set[str]:
-    keys: set[str] = set()
-    for e in getattr(state, "transient_entries", []) or []:
-        txt = (getattr(e, "text", "") or "").strip()
-        if txt.startswith("__scene_speaker_marker__:"):
-            ch_key = txt.split(":", 1)[1].strip().lower()
-            if ch_key:
-                keys.add(ch_key)
-    if keys:
-        return keys
+def _get_people_present_keys(state: GameState, scene: SceneContext | None = None) -> set[str]:
+    return (scene or SceneContext.build(state)).present_keys()
 
-    latest_scene = getattr(state, "latest_scene_knowledge", None)
-    if callable(latest_scene):
-        item = latest_scene()
-        if item is not None:
-            return {
-                str(k or "").strip().lower()
-                for k in (getattr(item, "speakers", []) or [])
-                if str(k or "").strip()
-            }
-    return set()
+
+def _get_scene_speaker_keys(state: GameState, scene: SceneContext | None = None) -> set[str]:
+    return (scene or SceneContext.build(state)).speaker_keys()
 
 
 def _scene_presence_keys(state: GameState) -> set[str]:
@@ -365,13 +348,16 @@ def _knowledge_chunks_from_state(state: GameState, retrieved_chunks: list) -> li
             continue
         if _is_legacy_relationship_telemetry(text):
             continue
+        fact_known_by = normalize_parties(getattr(fact, "known_by", []) or [])
+        if _fact_owner_only_upcoming(state, [str(k).strip().lower() for k in fact_known_by]):
+            continue
         chunks.append(KnowledgeChunk(
             id=f"fact::{getattr(fact, 'id', '') or 'unknown'}",
             text=text,
             tier="CANONICAL_CORE",
             source="epistemic_seed.canonical_facts",
             certainty="certain",
-            known_by=normalize_parties(getattr(fact, "known_by", []) or []),
+            known_by=fact_known_by,
             not_known_by=normalize_parties(getattr(fact, "not_known_by", []) or []),
             maybe_known_by=normalize_parties(getattr(fact, "maybe_known_by", []) or []),
         ))
@@ -574,6 +560,15 @@ def _format_labeled_knowledge_stack(state: GameState, retrieved_chunks: list) ->
     return preface + "\n\n".join(sections) + "\n", debug_chunks
 
 
+def _fact_owner_only_upcoming(state: GameState, known_by: list[str], scene: SceneContext | None = None) -> bool:
+    """True when every named owner of a fact is an upcoming (never-yet-active)
+    lifecycle character. Facts shared with "all"/"all_characters", or owned by
+    at least one currently-eligible character, are never suppressed here —
+    this only blocks a not-yet-arrived character's own private biography from
+    leaking before they've actually joined the scene."""
+    return (scene or SceneContext.build(state)).fact_owner_only_upcoming(known_by)
+
+
 def _canonical_facts_for_speaker(state: GameState) -> list[str]:
     speaker_id = (getattr(state, "main_character_id", "") or "").strip().lower()
     out: list[str] = []
@@ -584,6 +579,8 @@ def _canonical_facts_for_speaker(state: GameState) -> list[str]:
             continue
         known_by = [str(x).strip().lower() for x in (getattr(fact, "known_by", []) or []) if str(x).strip()]
         if known_by and speaker_id and speaker_id not in known_by and "all" not in known_by and "all_characters" not in known_by:
+            continue
+        if _fact_owner_only_upcoming(state, known_by):
             continue
         out.append(text)
 
@@ -686,7 +683,7 @@ def _scene_cast_keys(state: GameState) -> list[str]:
         keys.append(key)
 
     main_id = str(getattr(state, "main_character_id", "") or "").strip().lower()
-    if main_id:
+    if main_id and _cast_scene_eligible(state, main_id):
         add_key(main_id)
 
     add_key("player")
@@ -711,7 +708,7 @@ def _scene_cast_keys(state: GameState) -> list[str]:
         for sp in raw_speakers:
             add_key(str(sp or ""))
 
-    return keys[:8]
+    return [key for key in keys if _cast_scene_eligible(state, key)][:8]
 
 
 def _humanize_rel_word(token: str) -> str:
@@ -1036,23 +1033,109 @@ def _room_relationship_section(state: GameState, room_character_ids: set) -> str
     )
 
 
-def _character_identity_section(state) -> str:
+def _mode_context_section(state) -> str:
     """
-    Directly injects character self_knowledge entries as a named system prompt
-    section with explicit first-person behavioral instructions. Always present
-    when the main character has self_knowledge; never FAISS-dependent.
+    Optional game-mode context layer.
+
+    Purely additive/backward-compatible: reads the OPTIONAL top-level `mode`
+    object from story_cfg (see documentation/model_output_docs/SOCIAL_MODE_DESIGN.md).
+    Stories that omit `mode` (all 5 pre-existing stories at the time this layer
+    was added) get an empty string here, so the assembled prompt is unchanged
+    for them. Intended for ensemble/slice-of-life "social_sim" style games
+    (e.g. a shared-house game) where there is no single mystery to solve.
     """
-    main_char = getattr(state, "main_character", None)
-    char_name = (getattr(main_char, "name", "") or "the focal character").strip() or "the focal character"
-    entries = list(getattr(main_char, "self_knowledge", None) or [])
-    # Fallback: legacy story_cfg path for tests that set story_cfg directly
-    if not entries:
-        cfg = getattr(state, "story_cfg", {}) or {}
-        if isinstance(cfg, dict):
-            entries = list(cfg.get("character_self_knowledge") or [])
-    if not entries:
+    cfg = getattr(state, "story_cfg", {}) or {}
+    mode_cfg = cfg.get("mode") if isinstance(cfg, dict) else None
+    if not isinstance(mode_cfg, dict) or not mode_cfg:
         return ""
 
+    mode_type = str(mode_cfg.get("type") or "").strip()
+    if not mode_type:
+        return ""
+
+    setting = str(mode_cfg.get("setting") or "").strip()
+    setting_prose = setting.replace("_", " ").strip()
+    cast_size = mode_cfg.get("cast_size")
+    open_ended = bool(mode_cfg.get("open_ended"))
+
+    desc_bits: list[str] = []
+    if mode_type == "social_sim":
+        tail = f" set in a {setting_prose}" if setting_prose else ""
+        desc_bits.append(f"This is an ensemble slice-of-life story{tail}.")
+        if cast_size:
+            desc_bits.append(
+                f"The cast includes {cast_size} recurring housemates/characters "
+                "living day-to-day life together — this is not a mystery to solve."
+            )
+        if open_ended:
+            desc_bits.append(
+                "There is no fixed win condition; play centers on daily life, "
+                "house dynamics, and relationships that can deepen (as friendship "
+                "or romance) depending on player choices."
+            )
+    else:
+        tail = f" ({setting_prose})" if setting_prose else ""
+        desc_bits.append(f"This story runs in '{mode_type}' mode{tail}.")
+
+    daily_rhythm = mode_cfg.get("daily_rhythm")
+    if isinstance(daily_rhythm, list) and daily_rhythm:
+        rhythm_text = " ".join(str(x).strip() for x in daily_rhythm if str(x).strip())
+        if rhythm_text:
+            desc_bits.append(f"Typical daily texture: {rhythm_text}")
+
+    lines = [
+        "\n────────────────────────────────────────",
+        "### GAME MODE CONTEXT",
+        "────────────────────────────────────────",
+        " ".join(desc_bits),
+    ]
+
+    confessional = mode_cfg.get("confessional")
+    if isinstance(confessional, dict) and confessional.get("enabled"):
+        convention = str(confessional.get("convention") or "").strip()
+        if not convention:
+            convention = (
+                "The player may address an unseen listener directly as a private "
+                "aside; other characters never hear or react to these asides."
+            )
+        lines.append("")
+        lines.append(f"Confessional convention: {convention}")
+        lines.append(
+            "Simply narrate through these asides as authored — never have an NPC "
+            "react to, acknowledge, or overhear them."
+        )
+
+    narrator_asides = mode_cfg.get("narrator_asides")
+    if isinstance(narrator_asides, dict) and narrator_asides.get("enabled"):
+        style = str(narrator_asides.get("style") or "").strip()
+        if not style:
+            style = (
+                "Occasionally step outside the scene for a brief, wry, warm aside "
+                "in an external observer's voice — as if an unseen documentary crew "
+                "is quietly commenting on what just happened — then return fully to "
+                "the scene."
+            )
+        lines.append("")
+        lines.append(f"Narrator aside device: {style}")
+        lines.append(
+            "Use this sparingly (roughly once every several turns, never every "
+            "turn) and keep it brief — one or two sentences, clearly set apart "
+            "(e.g. italicized or in parentheses) — before dropping back into the "
+            "scene. This is the storyteller's own voice stepping out, distinct "
+            "from the player's in-scene confessional asides."
+        )
+
+    return "\n".join(lines) + "\n"
+
+
+def _identity_block(char_name: str, entries: list, goal: str = "") -> str:
+    """Render one '### CHARACTER IDENTITY — <name>' block for the given entries.
+
+    `goal` (Phase 3 "Social life"): the character's current persistent
+    goal/motive, if any. Empty string (the common case for a character with
+    no authored motive) renders no extra line at all - byte-identical
+    output to before this parameter was added.
+    """
     lines = [
         "\n────────────────────────────────────────",
         f"### CHARACTER IDENTITY — {char_name}",
@@ -1066,7 +1149,92 @@ def _character_identity_section(state) -> str:
     ]
     for entry in entries:
         lines.append(f"- {entry}")
+    if goal:
+        lines.append(f"- [{char_name}'s current goal] {goal}")
     return "\n".join(lines) + "\n"
+
+
+def _main_character_scene_eligible(state, scene: SceneContext | None = None) -> bool:
+    """Whether the main character's identity/focal framing should be injected
+    this turn. Non-lifecycle stories (cast_lifecycle absent/disabled) always
+    return True — preserves legacy ghost-NPC / non-spatial behavior byte-for-
+    byte. Lifecycle-enabled stories (e.g. Six Strangers) require the main
+    character to actually be present in the current scene.
+
+    A location's presence set can legitimately be empty (an empty room), and
+    that must NOT be treated the same as "presence has never been computed
+    yet" (e.g. the very first turn, before any scene knowledge exists) — the
+    former means "no one is here," the latter means "no signal either way."
+    Only the latter falls back to assuming main is present."""
+    return (scene or SceneContext.build(state)).main_present()
+
+
+def _scene_presence_has_been_computed(state, scene: SceneContext | None = None) -> bool:
+    """True once at least one turn has recorded scene knowledge (people
+    present markers or a scene-knowledge entry) for the current location —
+    at that point an empty presence set is authoritative, not a missing
+    signal."""
+    return (scene or SceneContext.build(state)).presence_computed()
+
+
+def _character_identity_section(state) -> str:
+    """
+    Directly injects character self_knowledge entries as named system prompt
+    sections with explicit first-person behavioral instructions. Never
+    FAISS-dependent.
+
+    - The main character's block is included when they have self_knowledge
+      AND are scene-eligible (see `_main_character_scene_eligible`): always
+      true for non-lifecycle stories (unchanged legacy behavior — e.g. a
+      ghost NPC who isn't tied to a location); for lifecycle-enabled stories,
+      only when main is actually present in the current scene.
+    - Every OTHER character (not main, not "player") who is currently present
+      in the scene AND has their own non-empty self_knowledge also gets a
+      block, iterated in deterministic (sorted-by-key) order. This is additive:
+      stories where only the main character has self_knowledge produce
+      byte-identical output to before this function was extended.
+    """
+    main_char = getattr(state, "main_character", None)
+    main_key = (getattr(main_char, "key", "") or "").strip().lower()
+    char_name = (getattr(main_char, "name", "") or "the focal character").strip() or "the focal character"
+    entries = list(getattr(main_char, "self_knowledge", None) or [])
+    # Fallback: legacy story_cfg path for tests that set story_cfg directly
+    if not entries:
+        cfg = getattr(state, "story_cfg", {}) or {}
+        if isinstance(cfg, dict):
+            entries = list(cfg.get("character_self_knowledge") or [])
+
+    main_goal = ""
+    main_goal_obj = getattr(main_char, "goal", None)
+    if main_goal_obj is not None:
+        main_goal = (getattr(main_goal_obj, "current", "") or "").strip()
+
+    blocks: list[str] = []
+    if entries and _main_character_scene_eligible(state):
+        blocks.append(_identity_block(char_name, entries, goal=main_goal))
+
+    # Additional present, non-main characters with their own self_knowledge.
+    people_present_keys = _get_people_present_keys(state)
+    characters = getattr(state, "characters", {}) or {}
+    for key in sorted(people_present_keys):
+        if key == "player" or key == main_key:
+            continue
+        ch = characters.get(key)
+        if ch is None:
+            continue
+        other_entries = list(getattr(ch, "self_knowledge", None) or [])
+        if not other_entries:
+            continue
+        other_name = (getattr(ch, "name", "") or key).strip() or key
+        other_goal = ""
+        other_goal_obj = getattr(ch, "goal", None)
+        if other_goal_obj is not None:
+            other_goal = (getattr(other_goal_obj, "current", "") or "").strip()
+        blocks.append(_identity_block(other_name, other_entries, goal=other_goal))
+
+    if not blocks:
+        return ""
+    return "".join(blocks)
 
 
 def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
@@ -1111,15 +1279,76 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
     user_line = (current_user_msg or "").strip()
     user_line_text = f'Current player line: "{user_line}".' if user_line else "Current player line is available in the user message."
 
+    arrival_intro_line = ""
+    for entry in getattr(state, "transient_entries", []) or []:
+        txt = (getattr(entry, "text", "") or "").strip()
+        if txt.startswith("__cast_arrival_intro__:"):
+            arriving_key = txt.split(":", 1)[1].strip().lower()
+            if arriving_key:
+                arriving_name = (getattr(chars.get(arriving_key), "name", None) or arriving_key).strip()
+                arrival_intro_line = (
+                    f"{arriving_name} has just moved into the house — this is their first scene. "
+                    "Treat this as a fresh introduction: they are newly arrived and meeting the "
+                    "other residents for the first time.\n\n"
+                )
+                break
+
+    roster_closure_line = ""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is not None and getattr(lifecycle, "enabled", False):
+        active_names = []
+        for key in lifecycle.active_ids():
+            ch = chars.get(key)
+            active_names.append((getattr(ch, "name", None) or key).strip())
+        active_roster_text = ", ".join(active_names) if active_names else "no one"
+        roster_closure_line = (
+            f"The complete current cast is: {active_roster_text}. This is a closed list — "
+            "no other named individual currently lives in, works at, or is otherwise part of "
+            "this world. If the player asks about, or a character is asked about, anyone whose "
+            "name is not on this list, that person is unfamiliar and unknown to every character "
+            "here — do not have any character claim to know them, confirm they are a housemate, "
+            "describe them as away/busy/arriving soon, or otherwise invent a relationship to "
+            "them. A character who is asked about an unfamiliar name responds the way a real "
+            "person would to an unfamiliar name: with genuine unfamiliarity, not vague "
+            "recognition.\n\n"
+        )
+
+    main_present = _main_character_scene_eligible(state)
+    if main_present:
+        focal_line = (
+            f"The scene is currently in {location} at minute {minute} of the session, "
+            f"with {main_name} as the focal lens. "
+            f"{main_name} is a {main_role} and is currently emotionally {emotion}, "
+            f"with relationship baseline {rel}.\n\n"
+        )
+        cast_pressure_line = (
+            f"Relevant cast pressure around this moment includes: {cast_text}. "
+            f"Use this cast context to keep the world feeling populated and story-driven, "
+            f"while keeping {main_name} as the primary focus.\n\n"
+        )
+    else:
+        focal_line = (
+            f"The scene is currently in {location} at minute {minute} of the session. "
+            f"{main_name} is not present in this scene right now — do not have them appear, "
+            f"speak, or join unless a validated arrival event adds them to the people present.\n\n"
+        )
+        cast_pressure_line = (
+            f"Relevant cast pressure around this moment includes: {cast_text}. "
+            f"Use this only as background context, not as characters who may appear uninvited.\n\n"
+        )
+
     return (
         "\n────────────────────────────────────────\n"
         "### SCENE BRIEF\n"
         "────────────────────────────────────────\n"
-        f"The scene is currently in {location} at minute {minute} of the session, with {main_name} as the focal lens. "
-        f"{main_name} is a {main_role} and is currently emotionally {emotion}, with relationship baseline {rel}.\n\n"
+        f"{focal_line}"
         f"People present in this location right now ({people_present_count}): {people_present_text}.\n"
         f"Current-turn speakers: {speakers_text}.\n\n"
-        f"Relevant cast pressure around this moment includes: {cast_text}. Use this cast context to keep the world feeling populated and story-driven, while keeping {main_name} as the primary focus.\n\n"
+        f"{cast_pressure_line}"
+        f"{roster_closure_line}"
+        f"{arrival_intro_line}"
+        "Narrate only what the player's message actually states or implies. "
+        "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote.\n\n"
         f"{user_line_text}\n"
     )
 
@@ -1141,6 +1370,62 @@ def system_prompt(
 
     emotion = state.emotion or EMOTION_START
 
+    story_cfg = getattr(state, "story_cfg", {}) or {}
+    language_theme = getattr(state, "language_theme", "English US")
+    language_theme_value = getattr(language_theme, "value", language_theme)
+    language_cfg = story_cfg.get("language", {}) if isinstance(story_cfg, dict) else {}
+    honorifics = language_cfg.get("honorifics", {}) if isinstance(language_cfg, dict) else {}
+    player_gender = getattr(state, "gender", None)
+    player_honorific = (
+        honorifics.get(player_gender)
+        or honorifics.get("default")
+        or ""
+    ) if isinstance(honorifics, dict) else ""
+
+    language_style_contract = ""
+    if language_theme_value == "English Korean":
+        language_style_contract = """
+────────────────────────────────────────
+### LANGUAGE STYLE — ENGLISH KOREAN
+────────────────────────────────────────
+Write primarily natural English in a Korean setting. In character speech, use
+the story's Korean terms and relationship-appropriate honorifics naturally and
+sparingly; never turn every sentence into a glossary or fake Korean grammar.
+Keep narration in fluent English. Use the player's name and an honorific only
+when a character would actually address them, not as a narrator label.
+"""
+    elif language_theme_value == "English Japanese":
+        suffix_note = f" The current player-address suffix is `{player_honorific}`." if player_honorific else ""
+        language_style_contract = f"""
+────────────────────────────────────────
+### LANGUAGE STYLE — ENGLISH JAPANESE
+────────────────────────────────────────
+This story is set in Japan. Write primarily idiomatic English, with light,
+contextual Japanese-English code-switching in character speech.{suffix_note}
+When a character directly addresses the player by name, use the Japanese
+honorific as a suffix — for example, **\"Paul-kun\"** — rather than a space or
+a title before the name. Use common words such as `ne`, `daijoubu`, `sugoi`,
+`kawaii`, `onegai`, and `yoroshiku` only where their meaning and the speaker's
+tone make sense. Honorifics signal ordinary politeness/familiarity, not instant
+romance; do not overuse them or write faux Japanese grammar. Keep narration in
+clear English and never force Japanese terms into it.
+"""
+
+    main_scene_eligible = _main_character_scene_eligible(state)
+    if main_scene_eligible:
+        focal_contract_line = (
+            f"Keep {char_name} as the focal character, but naturally include other relevant "
+            "characters when they are present, on-call, or currently being discussed."
+        )
+    else:
+        focal_contract_line = (
+            f"{char_name} is not present in the current scene. Narrate only the player, the "
+            "setting, and any characters already established as present — do not have "
+            f"{char_name} or any other character enter, speak, call out, or otherwise appear "
+            "in this scene. A scene the player explicitly chose to spend alone or away from "
+            "others stays that way unless the player's own message brings someone into it."
+        )
+
     base_prompt = f"""
 You are the narrative scene engine for an interactive story game.
 {disclaimer}
@@ -1149,7 +1434,7 @@ Stay fully in-universe and write the next beat as story prose, not as assistant 
 ────────────────────────────────────────
 ### STORYTELLER CONTRACT
 ────────────────────────────────────────
-Write compact cinematic paragraphs that blend narration and dialogue. You are not any single character; you are the scene storyteller. Keep {char_name} as the focal character, but naturally include other relevant characters when they are present, on-call, or currently being discussed.
+Write compact cinematic paragraphs that blend narration and dialogue. You are not any single character; you are the scene storyteller. {focal_contract_line}
 
 Spoken lines must appear as **bold quotes** and narration should remain vivid without becoming repetitive. Never end with meta prompts such as "What do you do?" or "What will you say?".
 
@@ -1223,8 +1508,11 @@ but the character's spoken words must still carry the correction.
 ────────────────────────────────────────
 ### FOCAL STATE
 ────────────────────────────────────────
-The focal character is {char_name}. Current emotional posture is {emotion}.
+{f"The focal character is {char_name}. Current emotional posture is {emotion}." if main_scene_eligible else f"{char_name} is not present in this scene right now (see STORYTELLER CONTRACT above)."}
 """
+
+    persona_section = _persona_section(state)
+    mode_context = _mode_context_section(state)
 
     character_identity = _character_identity_section(state)
 
@@ -1280,6 +1568,9 @@ EXAMPLE (WRONG — do NOT do this):
     # most recent instruction the LLM sees before processing the user's message.
     full_prompt = (
         base_prompt
+        + language_style_contract
+        + persona_section
+        + mode_context
         + scene_brief
         + knowledge_stack_section
         + relationship_section
@@ -1290,6 +1581,8 @@ EXAMPLE (WRONG — do NOT do this):
     if return_layers:
         layers = {
             "base_prompt": base_prompt,
+            "persona_section": persona_section,
+            "mode_context": mode_context,
             "character_identity": character_identity,
             "scene_brief": scene_brief,
             "knowledge_stack": knowledge_stack_section,

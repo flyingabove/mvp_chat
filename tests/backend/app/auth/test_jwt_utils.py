@@ -1,7 +1,6 @@
 """Unit tests for JWT encode/decode utilities."""
 import time
 import pytest
-import jwt as _jwt
 from unittest.mock import patch
 
 from backend.app.auth.jwt_utils import create_token, decode_token

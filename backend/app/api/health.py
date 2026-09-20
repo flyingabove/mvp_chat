@@ -3,6 +3,8 @@ import os
 import sys
 import time
 
+from backend.app.config.build_info import get_build_info
+
 router = APIRouter()
 
 @router.get("/health")
@@ -15,7 +17,10 @@ async def health():
         "ok": true,
         "php": "<version string>",   # here: Python version, as a stand-in
         "time": <unix timestamp int>,
-        "cwd": "<current working directory>"
+        "cwd": "<current working directory>",
+        "commit": "<deployed git commit sha>",
+        "environment": "<railway environment name, or 'local'>",
+        "content_schema_version": <int>
       }
     """
     return {
@@ -24,4 +29,5 @@ async def health():
         "php": sys.version.split(" ")[0],
         "time": int(time.time()),
         "cwd": os.getcwd(),
+        **get_build_info(),
     }

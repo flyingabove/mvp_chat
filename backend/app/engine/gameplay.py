@@ -147,12 +147,9 @@ def advance_time(state, player_text: str):
                     # Fall through to legacy location update behavior below
                     pass
 
-        # If a world graph is active but we can't resolve the destination,
-        # do NOT change location from arbitrary free-text.
-        if runtime is not None:
-            pass
-        else:
-            # Fallback: legacy free-text location
+        # Only allow free-text location updates when no world graph exists.
+        # If a world graph is active, location must be resolved via travel above.
+        if runtime is None:
             setattr(state, "location", place)
             delta += travel
             try:
@@ -200,3 +197,42 @@ def win_condition_detected(text: str, state) -> bool:
         return False
 
     return any(re.search(p, text, re.I) for p in patterns)
+
+
+def process_pending_events(state, *, apply_cast_replacement) -> list:
+    """Phase 2 cast-cycling scheduler: consume elapsed world time by
+    executing any pending event whose scheduled day has arrived.
+
+    `apply_cast_replacement` is dependency-injected (a callable matching
+    `_apply_cast_replacement`'s signature in prompt_engine.py) so this
+    module - a lower-level layer than prompt_engine.py - never imports it
+    directly, avoiding a circular import.
+
+    Returns the list of (PendingEvent, CastTransition) pairs that fired this
+    call, so the caller can react to arrivals (introduction framing,
+    relationship seeding) without re-scanning state.pending_events itself.
+    """
+    from backend.app.engine.world_calendar import day_number
+
+    current_day = day_number(int(getattr(state, "minute", 0) or 0))
+    fired: list = []
+    for ev in getattr(state, "pending_events", []) or []:
+        if ev.status != "pending" or ev.scheduled_day > current_day:
+            continue
+        if ev.event_type == "cast_departure_replacement":
+            try:
+                transition = apply_cast_replacement(
+                    state,
+                    ev.payload["departing_id"],
+                    reason=ev.payload.get("reason", ""),
+                    event_id=ev.event_id,
+                )
+                ev.status = "applied"
+                ev.applied_minute = int(getattr(state, "minute", 0) or 0)
+                fired.append((ev, transition))
+            except (ValueError, KeyError):
+                # Departing member already inactive/departed by some other
+                # path, or a malformed payload - cancel rather than retry
+                # forever every subsequent turn.
+                ev.status = "cancelled"
+    return fired

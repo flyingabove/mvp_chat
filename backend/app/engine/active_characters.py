@@ -11,6 +11,13 @@ from typing import Dict, Set
 from backend.app.engine.state import GameState, Character
 
 
+def _scene_eligible(state: GameState, key: str) -> bool:
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not getattr(lifecycle, "enabled", False):
+        return True
+    return key == "player" or lifecycle.is_scene_eligible(key)
+
+
 def detect_mentioned_characters(
     text: str,
     characters: Dict[str, Character],
@@ -213,7 +220,10 @@ def get_people_present_keys(state: GameState) -> Set[str]:
             return set()
 
     location_index = get_character_location_index(state)
-    return {key for key, loc in location_index.items() if str(loc or "").strip() == current_loc}
+    return {
+        key for key, loc in location_index.items()
+        if str(loc or "").strip() == current_loc and _scene_eligible(state, key)
+    }
 
 
 def compute_active_character_set(
@@ -240,9 +250,14 @@ def compute_active_character_set(
 
     combined_text = "\n".join(text_parts)
 
-    mentioned = detect_mentioned_characters(combined_text, characters, main_id)
+    eligible_characters = {
+        key: char for key, char in characters.items() if _scene_eligible(state, key)
+    }
+    eligible_main = main_id if _scene_eligible(state, main_id) else ""
+    mentioned = detect_mentioned_characters(combined_text, eligible_characters, eligible_main)
     location = get_people_present_keys(state)
     on_call = get_on_call_character_keys(state)
     carryover = set(carryover_speakers or set())
 
-    return mentioned | location | on_call | carryover
+    combined = mentioned | location | on_call | carryover
+    return {key for key in combined if _scene_eligible(state, key)}

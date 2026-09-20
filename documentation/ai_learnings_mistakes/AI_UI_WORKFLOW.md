@@ -1,6 +1,8 @@
 UI WORKFLOW & FRONTEND ARCHITECTURE
 ====================================
 
+> **What this doc is for:** Frontend development workflow and architecture patterns. Edit this doc when frontend architecture, build process, or UI patterns change.
+
 ⚠️ UPDATED 2026-03-07: The frontend was FULLY REDESIGNED.
 See `documentation/model_output_docs/UI_REDESIGN_2026.md` for the complete
 new design spec (screens, CSS system, localStorage schema, PWA setup).

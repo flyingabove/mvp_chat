@@ -1,7 +1,6 @@
 """Tests for backend/app/api/debug_engine.py"""
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,8 +14,6 @@ from backend.app.api.debug_engine import (
     _load_player_visible_chunks,
     _retrieve_player_context,
     generate,
-    ollama_generate,
-    cloud_generate,
 )
 
 
@@ -220,7 +217,6 @@ async def test_verify_game_ended_trusts_literal_on_llm_error():
 
 def test_debug_ui_route_200(tmp_path):
     """GET /beta/debug should return 200 with the debug.html content."""
-    from pathlib import Path
     import backend.app.main as main_module
 
     # Point _DEBUG_HTML_PATH at a temp file so the test doesn't depend on file system
@@ -237,6 +233,98 @@ def test_debug_ui_route_200(tmp_path):
         assert "Debug" in resp.text
     finally:
         main_module._DEBUG_HTML_PATH = original
+
+
+# ---------------------------------------------------------------------------
+# A03: operator authorization on debug REST routes
+# ---------------------------------------------------------------------------
+
+def test_debug_rest_routes_403_without_operator_token(monkeypatch):
+    """Debug REST endpoints must reject callers with no operator credential
+    even when DEBUG_TOOLS_ENABLED is unset (the safe default)."""
+    import backend.app.main as main_module
+
+    monkeypatch.delenv("DEBUG_TOOLS_ENABLED", raising=False)
+    monkeypatch.delenv("OPERATOR_TOKEN", raising=False)
+
+    client = TestClient(main_module.app)
+    resp = client.get("/beta/debug/status")
+    assert resp.status_code == 403
+
+
+def test_debug_rest_routes_401_with_wrong_token(monkeypatch):
+    """Even with tools enabled, a missing/incorrect token must be rejected."""
+    import backend.app.main as main_module
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "correct-secret")
+
+    client = TestClient(main_module.app)
+    resp = client.get("/beta/debug/scores")
+    assert resp.status_code == 401
+
+    resp = client.get("/beta/debug/scores", headers={"X-Operator-Token": "wrong-secret"})
+    assert resp.status_code == 401
+
+
+def test_debug_rest_routes_200_with_correct_operator_token(monkeypatch):
+    """An authorized operator with the correct token must still be able to
+    use the debug tools once DEBUG_TOOLS_ENABLED + OPERATOR_TOKEN are set."""
+    import backend.app.main as main_module
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "correct-secret")
+
+    client = TestClient(main_module.app)
+    resp = client.get("/beta/debug/scores", headers={"X-Operator-Token": "correct-secret"})
+    assert resp.status_code == 200
+
+
+def test_integration_playback_routes_require_operator(monkeypatch):
+    """A03: playback endpoints must be gated the same way as debug ones."""
+    import backend.app.main as main_module
+
+    monkeypatch.delenv("DEBUG_TOOLS_ENABLED", raising=False)
+    monkeypatch.delenv("OPERATOR_TOKEN", raising=False)
+
+    client = TestClient(main_module.app)
+    resp = client.get("/api/integration_playback/scenarios")
+    assert resp.status_code == 403
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "s3cret")
+    resp = client.get(
+        "/api/integration_playback/scenarios",
+        headers={"X-Operator-Token": "s3cret"},
+    )
+    assert resp.status_code == 200
+
+
+def test_story_context_requires_operator(monkeypatch):
+    """A03: canonical story facts must never be reachable unauthenticated."""
+    import backend.app.main as main_module
+
+    monkeypatch.delenv("DEBUG_TOOLS_ENABLED", raising=False)
+    monkeypatch.delenv("OPERATOR_TOKEN", raising=False)
+
+    client = TestClient(main_module.app)
+    resp = client.get("/api/stories/some_story/context")
+    assert resp.status_code == 403
+
+
+def test_story_draft_requires_operator(monkeypatch):
+    """A03: story authoring mutation must never be reachable unauthenticated."""
+    import backend.app.main as main_module
+
+    monkeypatch.delenv("DEBUG_TOOLS_ENABLED", raising=False)
+    monkeypatch.delenv("OPERATOR_TOKEN", raising=False)
+
+    client = TestClient(main_module.app)
+    resp = client.post(
+        "/api/stories/draft",
+        json={"title": "X", "genre": "drama", "description": "d"},
+    )
+    assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +451,6 @@ def test_verify_game_ended_scripted_phase_flag_logic():
     WebSocket integration test.
     """
     tc_len = 5
-    num_turns = 100
     test_case_continue = True
 
     # Scenario: game-end fires on the last scripted turn (turn 5)

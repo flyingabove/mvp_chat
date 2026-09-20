@@ -1,5 +1,7 @@
 # Data Model Inventory
 
+> **What this doc is for:** Complete inventory of all data models and their fields. Edit this doc when any data model, schema, or field is added or changed.
+
 Complete list of every data model / class in the engine. Reference this when deciding where new data belongs or whether a new class is needed.
 
 Last updated: 2026-02-26
@@ -29,6 +31,8 @@ Last updated: 2026-02-26
 **Backward-compat aliases (do not use in new code):**
 - `CharacterState = Character` (in `state.py`)
 - `StoryCharacter = Character` (in `story_loader.py`)
+
+**`self_knowledge` (BL-07):** each `characters[]` entry in story JSON may declare its own `self_knowledge: [<first-person identity facts>]` array, parsed by `Character.from_dict()` and preserved by `Character.to_dict()` (so it survives `StoryDefinition.from_dict()`'s normalization round-trip). In `prompt_engine.py`, a character's own `self_knowledge` always wins when present; the legacy top-level story JSON `character_self_knowledge` array remains a fallback used only for whichever character is `is_main` and has no per-character `self_knowledge` of its own. See `SOCIAL_MODE_DESIGN.md` §5 for the full injection/gating rule.
 
 ---
 

@@ -3,7 +3,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+import asyncio
+import logging
 import os
+import time
 import threading
 from pathlib import Path
 
@@ -17,9 +20,11 @@ from backend.app.api.debug_engine import router as debug_router, ws_debug
 from backend.app.api.auth import router as auth_router
 from backend.app.api.user_sessions import router as user_sessions_router
 from backend.app.db.database import init_db
+from backend.app.db.repos import SessionRepo, FactExtractionOutboxRepo
 
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
+from backend.app.config.build_info import get_build_info
 
 _DEBUG_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
 _INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.html"
@@ -72,11 +77,95 @@ def _startup_checks():
 # --------------------------------------------------
 
 
+_log = logging.getLogger(__name__)
+
+GUEST_TTL_SECONDS = 24 * 60 * 60  # 1 day
+FACT_EXTRACTION_OUTBOX_RETENTION_SECONDS = 7 * 24 * 60 * 60  # 7 days
+
+
+async def _guest_cleanup_loop():
+    """Background task: delete guest sessions older than 24 hours. Runs every hour."""
+    while True:
+        await asyncio.sleep(3600)  # 1 hour
+        try:
+            cutoff = int(time.time()) - GUEST_TTL_SECONDS
+            count = await SessionRepo.delete_expired_guest_sessions(cutoff)
+            if count:
+                _log.info("Guest cleanup: deleted %d expired guest sessions", count)
+                # Also evict from in-memory SESSIONS cache
+                from backend.app.api.prompt_engine import SESSIONS
+                expired = [
+                    sid for sid, sess in SESSIONS.items()
+                    if sess.get("user_id", "").startswith("guest:")
+                ]
+                for sid in expired:
+                    SESSIONS.pop(sid, None)
+        except Exception:
+            _log.exception("Guest cleanup task failed")
+
+
+async def _fact_extraction_recovery_sweep():
+    """BL-01b: one-shot startup sweep that reprocesses any fact-extraction
+    outbox rows left 'pending' by a crash between enqueue and completion on
+    a prior run (the failure mode this durable outbox exists to close). Also
+    prunes 'done' rows older than the retention window so the table doesn't
+    grow unbounded on a long-running deploy; 'failed' rows are kept
+    indefinitely for diagnosis since volume is low (one row per failure).
+
+    Recovered chunks are attached to the in-memory SESSIONS cache when that
+    session happens to still be loaded; right after a fresh process start
+    the cache is typically empty (rebuilt lazily on next request), so the
+    practical guarantee here is durability - the extraction ran and is
+    marked done, so the facts are not silently lost - not necessarily
+    immediate re-attachment to a currently-open session."""
+    try:
+        pending = await FactExtractionOutboxRepo.fetch_pending()
+    except Exception:
+        _log.exception("Fact-extraction recovery sweep: failed to fetch pending rows")
+        return
+
+    if pending:
+        _log.info("Fact-extraction recovery: reprocessing %d pending rows", len(pending))
+        from backend.app.api.prompt_engine import SESSIONS, extract_facts_from_message
+
+        for row in pending:
+            try:
+                usr_chunks = await extract_facts_from_message(
+                    row["user_msg"], "user", row["user_msg_id"], row["character_id"],
+                )
+                ai_chunks = await extract_facts_from_message(
+                    row["ai_reply"], "assistant", row["ai_msg_id"], row["character_id"],
+                )
+                sess = SESSIONS.get(row["session_id"])
+                if sess is not None and sess.get("state") is not None:
+                    store = sess["state"].session_chunk_store
+                    if store is not None:
+                        store.add_chunks(usr_chunks + ai_chunks)
+                await FactExtractionOutboxRepo.mark_done(row["id"])
+            except Exception as exc:
+                try:
+                    await FactExtractionOutboxRepo.mark_failed(row["id"], str(exc))
+                except Exception:
+                    _log.exception("Fact-extraction recovery: failed to mark row %s failed", row["id"])
+
+    try:
+        cutoff = int(time.time()) - FACT_EXTRACTION_OUTBOX_RETENTION_SECONDS
+        pruned = await FactExtractionOutboxRepo.prune_done_older_than(cutoff)
+        if pruned:
+            _log.info("Fact-extraction outbox: pruned %d completed rows older than 7 days", pruned)
+    except Exception:
+        _log.exception("Fact-extraction outbox: prune step failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     _startup_checks()
+    await _fact_extraction_recovery_sweep()
+    # Start guest cleanup background task
+    cleanup_task = asyncio.create_task(_guest_cleanup_loop())
     yield
+    cleanup_task.cancel()
 
 
 # --------------------------------------------------
@@ -183,7 +272,8 @@ async def version():
     return {
         "status": "ok",
         "backend": "python",
-        "message": "StoriesChat FastAPI backend running"
+        "message": "StoriesChat FastAPI backend running",
+        **get_build_info(),
     }
 
 
@@ -191,4 +281,4 @@ async def version():
 @app.get("/version.json")
 @app.get("/beta/version.json")
 async def version_json():
-    return {"version": "1.0.0"}
+    return get_build_info()

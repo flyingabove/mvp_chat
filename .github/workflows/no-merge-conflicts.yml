@@ -15,9 +15,18 @@ jobs:
       - name: Scan for Git merge conflict markers
         run: |
           echo "Scanning for merge conflict markers..."
-          if grep -R "<<<<<<< HEAD" -n . || grep -R "=======" -n . || grep -R ">>>>>>>" -n .; then
-            echo "❌ Merge conflict markers found! Resolve conflicts before merging."
+          # Only match real conflict markers (git always emits these at the
+          # start of a line, followed by a space and a ref/commit name):
+          #   <<<<<<< HEAD
+          #   >>>>>>> feature-branch
+          # A bare "=======" line is NOT checked on its own — that pattern
+          # also matches ordinary Markdown "=======" heading underlines and
+          # produced false positives on every doc using that style. Using
+          # `git grep` (not `grep -R`) also keeps this scoped to tracked
+          # files, skipping .git/ and any untracked/ignored content.
+          if git grep -nE "^(<<<<<<<|>>>>>>>) " -- .; then
+            echo "Merge conflict markers found! Resolve conflicts before merging."
             exit 1
           else
-            echo "✅ No merge conflicts detected."
+            echo "No merge conflict markers detected."
           fi

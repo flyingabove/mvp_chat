@@ -1,2 +1,6 @@
 [build]
 builder = "docker"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30

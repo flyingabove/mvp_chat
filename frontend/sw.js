@@ -1,8 +1,8 @@
 // StoriesChat Service Worker
-// Cache-first for shell files, network-first for API calls.
+// Network-first for HTML/API, cache-first for static assets.
 
-const CACHE_NAME = 'storieschat-v1';
-const SHELL_URLS = ['/', '/beta/', '/beta', '/manifest.json', '/sw.js'];
+const CACHE_NAME = 'storieschat-v3';
+const SHELL_URLS = ['/manifest.json', '/beta/manifest.json', '/sw.js', '/beta/sw.js'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -20,16 +20,34 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+self.addEventListener('message', event => {
+  if (event && event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Network-first for API calls — always want fresh data
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/beta/debug')) {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  // Network-first for API calls and HTML pages — always want fresh data.
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/beta/debug')
+      || event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // Cache successful HTML navigations for offline fallback.
+          if (response && response.status === 200 && event.request.mode === 'navigate') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then(cached => cached || caches.match('/beta/') || caches.match('/')))
+    );
     return;
   }
 
-  // Cache-first for shell (HTML, manifest, sw.js)
+  // Cache-first for static assets (images, SVGs, manifest)
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;

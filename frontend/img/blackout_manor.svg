@@ -1,38 +1,129 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#134e4a"/>
-      <stop offset="100%" stop-color="#0f766e"/>
+      <stop offset="0%" stop-color="#051510"/>
+      <stop offset="40%" stop-color="#0a2520"/>
+      <stop offset="100%" stop-color="#020a08"/>
     </linearGradient>
-    <radialGradient id="moon" cx="62%" cy="16%" r="16%">
-      <stop offset="0%" stop-color="#f0fdf4" stop-opacity="1.0"/>
-      <stop offset="100%" stop-color="#134e4a" stop-opacity="0"/>
+    <radialGradient id="moon" cx="72%" cy="14%" r="12%">
+      <stop offset="0%" stop-color="#ecfdf5" stop-opacity="0.95"/>
+      <stop offset="40%" stop-color="#a7f3d0" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#051510" stop-opacity="0"/>
     </radialGradient>
-    <filter id="gf"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="softglow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="blur"><feGaussianBlur stdDeviation="5"/></filter>
   </defs>
+
+  <!-- Sky -->
   <rect width="800" height="450" fill="url(#bg)"/>
   <rect width="800" height="450" fill="url(#moon)"/>
-  <circle cx="498" cy="72" r="48" fill="#ecfdf5" opacity="0.92" filter="url(#gf)"/>
-  <circle cx="514" cy="60" r="42" fill="#0d3b38" opacity="0.6"/>
-  <ellipse cx="180" cy="62" rx="155" ry="42" fill="#0f5954" opacity="0.75"/>
-  <ellipse cx="660" cy="42" rx="170" ry="36" fill="#0f5954" opacity="0.65"/>
-  <rect x="185" y="165" width="430" height="260" fill="#052420"/>
-  <polygon points="185,165 400,68 615,165" fill="#052420"/>
-  <rect x="168" y="142" width="85" height="118" fill="#052420"/>
-  <polygon points="168,142 210,104 252,142" fill="#052420"/>
-  <rect x="547" y="142" width="85" height="118" fill="#052420"/>
-  <polygon points="547,142 589,104 631,142" fill="#052420"/>
-  <rect x="376" y="44" width="48" height="90" fill="#052420"/>
-  <polygon points="376,44 400,12 424,44" fill="#052420"/>
-  <rect x="282" y="192" width="54" height="70" fill="#f59e0b" opacity="0.78"/>
-  <rect x="364" y="186" width="64" height="76" fill="#fbbf24" opacity="0.68"/>
-  <rect x="458" y="192" width="54" height="70" fill="#f59e0b" opacity="0.58"/>
-  <rect x="376" y="56" width="48" height="58" fill="#fcd34d" opacity="0.48"/>
-  <rect x="0" y="392" width="800" height="58" fill="#052420"/>
-  <polyline points="510,8 486,96 520,96 490,185" stroke="#bbf7d0" stroke-width="4" fill="none" opacity="0.9" filter="url(#gf)"/>
-  <rect x="0" y="0" width="6" height="450" fill="#2dd4bf" opacity="0.55"/>
-  <rect x="794" y="0" width="6" height="450" fill="#2dd4bf" opacity="0.4"/>
-  <rect x="0" y="368" width="800" height="82" fill="#052420" opacity="0.85"/>
-  <text x="400" y="408" font-family="Georgia,serif" font-size="30" fill="#ccfbf1" text-anchor="middle" font-weight="bold">Blackout Manor</text>
-  <text x="400" y="433" font-family="Arial,sans-serif" font-size="13" fill="#5eead4" text-anchor="middle" letter-spacing="4">GOTHIC MYSTERY</text>
+
+  <!-- Moon -->
+  <circle cx="576" cy="62" r="34" fill="#ecfdf5" opacity="0.9" filter="url(#softglow)"/>
+  <circle cx="590" cy="54" r="30" fill="#071a14" opacity="0.7"/>
+
+  <!-- Storm clouds -->
+  <ellipse cx="120" cy="50" rx="140" ry="40" fill="#0a1f1a" opacity="0.8"/>
+  <ellipse cx="300" cy="35" rx="120" ry="35" fill="#0a1f1a" opacity="0.7"/>
+  <ellipse cx="650" cy="45" rx="130" ry="38" fill="#0a1f1a" opacity="0.75"/>
+  <ellipse cx="200" cy="70" rx="100" ry="28" fill="#071a14" opacity="0.6"/>
+
+  <!-- Lightning bolt -->
+  <polyline points="480,15 465,75 478,75 458,140" stroke="#a7f3d0" stroke-width="2.5" fill="none" opacity="0.7" filter="url(#glow)"/>
+  <polyline points="480,15 465,75 478,75 458,140" stroke="#ffffff" stroke-width="1" fill="none" opacity="0.5"/>
+
+  <!-- Trees silhouette (foreground atmosphere) -->
+  <polygon points="40,340 55,180 60,200 70,160 78,210 85,190 95,340" fill="#020a08"/>
+  <polygon points="700,340 712,200 718,220 725,170 732,215 738,195 748,340" fill="#020a08"/>
+  <polygon points="730,340 740,210 746,230 752,185 758,225 764,205 775,340" fill="#020a08"/>
+
+  <!-- Manor — detailed Gothic estate -->
+  <!-- Main building -->
+  <rect x="200" y="175" width="400" height="195" fill="#071a14"/>
+  <!-- Pointed roof -->
+  <polygon points="180,175 400,65 620,175" fill="#050f0c"/>
+  <!-- Roof ridge details -->
+  <line x1="400" y1="65" x2="400" y2="175" stroke="#0a1f1a" stroke-width="3"/>
+
+  <!-- Left tower -->
+  <rect x="155" y="130" width="75" height="240" fill="#071a14"/>
+  <polygon points="155,130 192,80 230,130" fill="#050f0c"/>
+  <!-- Tower spire -->
+  <rect x="188" y="55" width="8" height="28" fill="#050f0c"/>
+  <polygon points="184,58 192,35 200,58" fill="#050f0c"/>
+
+  <!-- Right tower -->
+  <rect x="570" y="130" width="75" height="240" fill="#071a14"/>
+  <polygon points="570,130 607,80 645,130" fill="#050f0c"/>
+  <rect x="603" y="55" width="8" height="28" fill="#050f0c"/>
+  <polygon points="599,58 607,35 615,58" fill="#050f0c"/>
+
+  <!-- Windows — some lit (warm amber), most dark -->
+  <!-- Left tower windows -->
+  <rect x="175" y="150" width="18" height="28" fill="#fbbf24" opacity="0.5" rx="1"/>
+  <rect x="200" y="150" width="18" height="28" fill="#0a1f1a" rx="1"/>
+  <rect x="175" y="195" width="18" height="28" fill="#0a1f1a" rx="1"/>
+  <rect x="200" y="195" width="18" height="28" fill="#fbbf24" opacity="0.3" rx="1"/>
+
+  <!-- Main building windows row 1 -->
+  <rect x="240" y="195" width="28" height="36" fill="#fbbf24" opacity="0.55" rx="1"/>
+  <rect x="240" y="195" width="28" height="36" fill="none" stroke="#050f0c" stroke-width="2"/>
+  <line x1="254" y1="195" x2="254" y2="231" stroke="#050f0c" stroke-width="2"/>
+  <rect x="290" y="195" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="340" y="195" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="390" y="195" width="28" height="36" fill="#fbbf24" opacity="0.4" rx="1"/>
+  <line x1="404" y1="195" x2="404" y2="231" stroke="#050f0c" stroke-width="2"/>
+  <rect x="440" y="195" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="490" y="195" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="540" y="195" width="28" height="36" fill="#fbbf24" opacity="0.35" rx="1"/>
+
+  <!-- Main building windows row 2 -->
+  <rect x="240" y="250" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="290" y="250" width="28" height="36" fill="#fbbf24" opacity="0.45" rx="1"/>
+  <rect x="340" y="250" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="390" y="250" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="440" y="250" width="28" height="36" fill="#fbbf24" opacity="0.3" rx="1"/>
+  <rect x="490" y="250" width="28" height="36" fill="#0a1f1a" rx="1"/>
+  <rect x="540" y="250" width="28" height="36" fill="#0a1f1a" rx="1"/>
+
+  <!-- Grand entrance door -->
+  <rect x="378" y="300" width="44" height="70" fill="#050f0c" rx="2"/>
+  <path d="M378,300 Q400,282 422,300" fill="#050f0c"/>
+  <!-- Door light spilling out -->
+  <polygon points="378,370 350,370 400,310 422,370 450,370" fill="#fbbf24" opacity="0.08"/>
+  <!-- Figure in doorway (butler silhouette) -->
+  <ellipse cx="400" cy="325" rx="8" ry="10" fill="#030a08"/>
+  <rect x="393" y="335" width="14" height="30" fill="#030a08" rx="2"/>
+
+  <!-- Right tower windows -->
+  <rect x="590" y="150" width="18" height="28" fill="#0a1f1a" rx="1"/>
+  <rect x="615" y="150" width="18" height="28" fill="#fbbf24" opacity="0.25" rx="1"/>
+  <rect x="590" y="195" width="18" height="28" fill="#fbbf24" opacity="0.4" rx="1"/>
+  <rect x="615" y="195" width="18" height="28" fill="#0a1f1a" rx="1"/>
+
+  <!-- Silhouette in one lit window (sinister) -->
+  <ellipse cx="252" cy="204" rx="5" ry="7" fill="#050f0c" opacity="0.7"/>
+  <rect x="249" y="211" width="6" height="14" fill="#050f0c" opacity="0.7"/>
+
+  <!-- Ground / approach -->
+  <rect x="0" y="340" width="800" height="110" fill="#020a08"/>
+  <!-- Gravel path -->
+  <polygon points="370,370 350,450 450,450 430,370" fill="#071a14" opacity="0.5"/>
+
+  <!-- Rain streaks -->
+  <line x1="100" y1="0" x2="90" y2="60" stroke="#a7f3d0" stroke-width="0.5" opacity="0.15"/>
+  <line x1="250" y1="10" x2="240" y2="70" stroke="#a7f3d0" stroke-width="0.5" opacity="0.12"/>
+  <line x1="500" y1="5" x2="490" y2="65" stroke="#a7f3d0" stroke-width="0.5" opacity="0.15"/>
+  <line x1="350" y1="15" x2="340" y2="75" stroke="#a7f3d0" stroke-width="0.5" opacity="0.1"/>
+  <line x1="660" y1="8" x2="650" y2="68" stroke="#a7f3d0" stroke-width="0.5" opacity="0.12"/>
+
+  <!-- Accent edges -->
+  <rect x="0" y="0" width="4" height="450" fill="#2dd4bf" opacity="0.45"/>
+  <rect x="796" y="0" width="4" height="450" fill="#2dd4bf" opacity="0.3"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="370" width="800" height="80" fill="#020a08" opacity="0.92"/>
+  <text x="400" y="405" font-family="Georgia,serif" font-size="28" fill="#ccfbf1" text-anchor="middle" font-weight="bold">Blackout Manor</text>
+  <text x="400" y="430" font-family="Arial,sans-serif" font-size="12" fill="#5eead4" text-anchor="middle" letter-spacing="5">GOTHIC MYSTERY</text>
 </svg>

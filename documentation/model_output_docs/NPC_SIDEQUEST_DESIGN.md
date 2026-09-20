@@ -1,5 +1,7 @@
 # NPC Workflow + Sidequest Design
 
+> **What this doc is for:** Design of NPC lifecycle and sidequest trigger system. Edit this doc when NPC behavior, sidequest triggers, or quest logic changes.
+
 Last updated: 2026-02-27
 
 ---

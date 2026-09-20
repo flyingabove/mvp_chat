@@ -1,6 +1,4 @@
-import re
 
-import pytest
 
 from backend.app.engine.state import init_state, Character
 
@@ -167,6 +165,23 @@ def test_prompt_layers_dict_has_new_keys():
     assert "relationship_context" in layers
     assert "knowledge_stack" in layers
     assert "knowledge_chunks" in layers
+
+
+def test_prompt_includes_default_persona():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+    st.user.persona_mode = "default"
+    st.user.persona_name = "Paul Dingus"
+    st.user.persona_other = "quietly observant"
+
+    sysmsg = pb.system_prompt(st)
+    assert "Your default persona is Paul Dingus" in sysmsg
+    assert "Other attributes: " in sysmsg
+    assert "Devilishly handsome Black man who knows a little Japanese." in sysmsg
 
 
 def test_prompt_labels_canonical_truths_with_known_by_visibility():
@@ -732,3 +747,300 @@ def test_character_identity_section_absent_when_not_defined():
 
     sysmsg = pb.system_prompt(st)
     assert "### CHARACTER IDENTITY" not in sysmsg
+
+
+# ─── Phase 3 "Social life": goal line in the character identity block ───────
+
+def test_character_identity_section_renders_goal_when_present():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.social_traits import EvolvingTrait
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    ghost = Character(key="ghost", name="Ghost", role="ghost")
+    ghost.goal = EvolvingTrait(kind="goal", subject_id="ghost")
+    ghost.goal.set_initial("Find out who killed you.")
+    st.characters["ghost"] = ghost
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "[Ghost's current goal] Find out who killed you." in sysmsg
+
+
+def test_character_identity_section_no_goal_line_when_absent():
+    """Graceful degradation: a character with goal=None must render
+    byte-identical output to the pre-Phase-3 baseline - no stray goal text."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    ghost = Character(key="ghost", name="Ghost", role="ghost")
+    assert ghost.goal is None
+    st.characters["ghost"] = ghost
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "current goal" not in sysmsg
+
+
+# ─── BL-07: per-character self_knowledge for present non-main characters ─────
+
+def test_character_identity_section_includes_present_non_main_character():
+    """A non-main character with their own self_knowledge who is present in
+    the scene gets their own CHARACTER IDENTITY block, alongside the main
+    character's block."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["mina"] = Character(
+        key="mina", name="Mina", role="housemate", is_main=True,
+        self_knowledge=["You are the first to notice when someone's upset."],
+    )
+    st.characters["daeho"] = Character(
+        key="daeho", name="Dae-ho", role="housemate",
+        self_knowledge=["You hate asking anyone for help.", "You keep score of every favor."],
+    )
+    st.characters["priya"] = Character(
+        key="priya", name="Priya", role="housemate",
+        self_knowledge=["You left home to prove you could stand alone."],
+    )
+    st.main_character_id = "mina"
+
+    # Only Mina and Dae-ho are present; Priya is not.
+    st.add_transient_entry(
+        id="pp::mina", namespace="test", scope="scene",
+        text="__people_present_marker__:mina", expires_after_turns=4,
+    )
+    st.add_transient_entry(
+        id="pp::daeho", namespace="test", scope="scene",
+        text="__people_present_marker__:daeho", expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "### CHARACTER IDENTITY — Mina" in sysmsg
+    assert "You are the first to notice when someone's upset." in sysmsg
+    assert "### CHARACTER IDENTITY — Dae-ho" in sysmsg
+    assert "You hate asking anyone for help." in sysmsg
+    assert "You keep score of every favor." in sysmsg
+    assert "### CHARACTER IDENTITY — Priya" not in sysmsg
+    assert "You left home to prove you could stand alone." not in sysmsg
+
+
+def test_character_identity_section_absent_non_main_character_not_present():
+    """A non-main character with self_knowledge who is NOT currently present
+    contributes no block (scoping to scene presence keeps prompt length
+    bounded)."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate", is_main=True)
+    st.characters["priya"] = Character(
+        key="priya", name="Priya", role="housemate",
+        self_knowledge=["You left home to prove you could stand alone."],
+    )
+    st.main_character_id = "mina"
+
+    st.add_transient_entry(
+        id="pp::mina", namespace="test", scope="scene",
+        text="__people_present_marker__:mina", expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "### CHARACTER IDENTITY" not in sysmsg
+
+
+def test_character_identity_section_main_character_unconditional_regardless_of_presence():
+    """The main character's identity block is unconditional (a ghost NPC not
+    tied to a location still gets their block) — unchanged legacy behavior."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["iu"] = Character(
+        key="iu", name="IU", role="ghost", is_main=True,
+        self_knowledge=["You are a ghost."],
+    )
+    st.main_character_id = "iu"
+    # No people-present markers at all.
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "### CHARACTER IDENTITY — IU" in sysmsg
+    assert "You are a ghost." in sysmsg
+
+
+# ─── Optional `mode` layer (social_sim / ensemble slice-of-life games) ───────
+# See documentation/model_output_docs/SOCIAL_MODE_DESIGN.md for the schema.
+
+def test_mode_context_section_absent_when_no_mode_key():
+    """Backward compatibility: a story without `mode` gets zero extra content."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["npc"] = Character(key="npc", name="NPC", role="guard")
+    st.main_character_id = "npc"
+
+    sysmsg = pb.system_prompt(st)
+    assert "GAME MODE CONTEXT" not in sysmsg
+    assert pb._mode_context_section(st) == ""
+
+
+def test_mode_context_section_byte_identical_prompt_for_existing_story():
+    """A05-style regression guard: adding the mode layer must not change the
+    assembled prompt for any story that predates it (e.g. the IU mystery),
+    byte for byte."""
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.story_loader import load_story
+
+    story = load_story("iu_murder_mystery")
+    assert story is not None
+    story_dict = story.as_dict()
+    assert "mode" not in story_dict, "fixture assumption: iu_murder_mystery has no mode key"
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": story_dict.get("meta", {}),
+        "character_self_knowledge": story_dict.get("character_self_knowledge", []),
+    }
+    st.characters["iu"] = Character(key="iu", name="IU", role="ghost")
+    st.main_character_id = "iu"
+
+    before = pb.system_prompt(st, current_user_msg="hello")
+    # Sanity: the mode layer genuinely contributes nothing for this story_cfg.
+    assert pb._mode_context_section(st) == ""
+    after = pb.system_prompt(st, current_user_msg="hello")
+    assert before == after
+
+
+def test_mode_context_section_injected_for_social_sim_story():
+    """A story with a `mode` block gets the GAME MODE CONTEXT section, including
+    the confessional convention text when confessional.enabled is true."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {"disclaimer": "fiction"},
+        "mode": {
+            "type": "social_sim",
+            "setting": "shared_house",
+            "open_ended": True,
+            "cast_size": 3,
+            "confessional": {
+                "enabled": True,
+                "convention": "Player may address an unseen listener directly as a private aside.",
+            },
+            "daily_rhythm": ["Mornings are rushed."],
+        },
+    }
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate")
+    st.main_character_id = "mina"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### GAME MODE CONTEXT" in sysmsg
+    assert "ensemble slice-of-life story" in sysmsg
+    assert "shared house" in sysmsg
+    assert "no fixed win condition" in sysmsg
+    assert "Confessional convention" in sysmsg
+    assert "Player may address an unseen listener directly as a private aside." in sysmsg
+    assert "Mornings are rushed." in sysmsg
+    # Never react to confessional asides as an NPC.
+    assert "never have an NPC" in sysmsg or "react to" in sysmsg
+
+
+def test_mode_context_section_omitted_confessional_block():
+    """confessional.enabled False (or absent) means no confessional text."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {"type": "social_sim", "setting": "shared_house", "open_ended": True, "cast_size": 3},
+    }
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate")
+    st.main_character_id = "mina"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### GAME MODE CONTEXT" in sysmsg
+    assert "Confessional convention" not in sysmsg
+
+
+def test_mode_context_section_narrator_asides_absent_by_default():
+    """Backward compatibility: a `mode` block without `narrator_asides` (e.g.
+    The Common Room's mode config) renders no narrator-aside text — this is
+    the byte-identical guarantee for stories that predate the field."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {
+            "type": "social_sim",
+            "setting": "shared_house",
+            "open_ended": True,
+            "cast_size": 3,
+            "confessional": {"enabled": True, "convention": "Aside convention."},
+            "daily_rhythm": ["Mornings are rushed."],
+        },
+    }
+    st.characters["mina"] = Character(key="mina", name="Mina", role="housemate")
+    st.main_character_id = "mina"
+
+    before = pb.system_prompt(st)
+    sysmsg = pb.system_prompt(st)
+    assert "Narrator aside device" not in sysmsg
+    assert before == sysmsg
+
+
+def test_mode_context_section_narrator_asides_rendered_when_enabled():
+    """A story that opts into `mode.narrator_asides` gets the documentary-aside
+    instruction rendered, distinct from the player's confessional convention."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {
+            "type": "social_sim",
+            "setting": "shared_house_city",
+            "open_ended": True,
+            "cast_size": 4,
+            "confessional": {"enabled": True, "convention": "Aside convention."},
+            "narrator_asides": {
+                "enabled": True,
+                "style": "Step outside the scene for a wry documentary-crew aside.",
+            },
+        },
+    }
+    st.characters["kenji"] = Character(key="kenji", name="Kenji", role="housemate")
+    st.main_character_id = "kenji"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### GAME MODE CONTEXT" in sysmsg
+    assert "Narrator aside device" in sysmsg
+    assert "Step outside the scene for a wry documentary-crew aside." in sysmsg
+    assert "distinct" in sysmsg or "storyteller's own voice" in sysmsg
+    # Still renders the confessional convention alongside it, unaffected.
+    assert "Confessional convention" in sysmsg
+
+
+def test_mode_context_section_narrator_asides_default_style_when_blank():
+    """narrator_asides.enabled=True with no custom `style` falls back to a
+    sensible default sentence rather than rendering nothing."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {},
+        "mode": {
+            "type": "social_sim",
+            "narrator_asides": {"enabled": True},
+        },
+    }
+    st.characters["kenji"] = Character(key="kenji", name="Kenji", role="housemate")
+    st.main_character_id = "kenji"
+
+    sysmsg = pb.system_prompt(st)
+    assert "Narrator aside device:" in sysmsg
+    assert "documentary crew" in sysmsg

@@ -26,7 +26,6 @@ For CI/CD (Railway, GitHub Actions):
 - All tests run unconditionally — no skips allowed
 """
 
-import os
 from pathlib import Path
 
 import pytest

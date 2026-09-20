@@ -3,7 +3,6 @@
 LLM calls are mocked — no network required.
 """
 import pytest
-import json
 from unittest.mock import AsyncMock, patch, MagicMock
 
 
@@ -25,8 +24,6 @@ async def test_extract_facts_returns_empty_for_whitespace_only():
 async def test_extract_facts_usr_prefix_for_user_role():
     """Chunks from user messages must have chunk_ids starting with 'usr-'."""
     from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_from_message
-
-    fake_response = {"choices": [{"message": {"content": '["IU lived in the apartment.", "She is a ghost."]'}}]}
 
     with patch("backend.app.knowledge.runtime.dialogue_extractor._call_extractor_llm",
                new=AsyncMock(return_value=["IU lived in the apartment.", "She is a ghost."])):

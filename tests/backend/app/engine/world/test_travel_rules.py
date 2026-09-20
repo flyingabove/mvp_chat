@@ -5,7 +5,7 @@ from backend.app.engine.world.edge import PathEdge
 from backend.app.engine.world.graph import WorldGraph
 from backend.app.engine.world.location import Location
 from backend.app.engine.world.ids import LocationId
-from backend.app.engine.world.travel_rules import TravelRules
+from backend.app.engine.world.travel_rules import TravelRules, TravelBlockedError
 
 
 def test_choose_edge_filters_blocked_and_is_deterministic():
@@ -39,6 +39,35 @@ def test_resolve_route_uses_bfs_for_multihop_path():
     assert route.segments[1].edge.from_id == LocationId("C")
 
 
+def test_resolve_route_rejects_travel_when_only_edge_is_blocked():
+    """A09 regression: a two-room fixture whose only edge is blocked must
+    reject travel, not silently reroute through a fabricated fallback edge
+    that ignores the block (the audit reproduced an unblocked 11-minute
+    fallback route in exactly this scenario)."""
+    graph = WorldGraph()
+    graph.add_location(Location(id="A", name="A", description="", tags=[]))
+    graph.add_location(Location(id="B", name="B", description="", tags=[]))
+    graph.add_edge(PathEdge(from_id="A", to_id="B", minutes=11, blocked=True))
+
+    rules = TravelRules(seed=42)
+    with pytest.raises(TravelBlockedError):
+        rules.resolve_route(graph, LocationId("A"), LocationId("B"))
+
+
+def test_resolve_route_rejects_travel_when_only_multihop_edge_is_blocked():
+    """Same as above but the block is on the only edge of a multi-hop path."""
+    graph = WorldGraph()
+    graph.add_location(Location(id="A", name="A", description="", tags=[]))
+    graph.add_location(Location(id="B", name="B", description="", tags=[]))
+    graph.add_location(Location(id="C", name="C", description="", tags=[]))
+    graph.add_edge(PathEdge(from_id="A", to_id="C", minutes=5))
+    graph.add_edge(PathEdge(from_id="C", to_id="B", minutes=7, blocked=True))
+
+    rules = TravelRules(seed=42)
+    with pytest.raises(TravelBlockedError):
+        rules.resolve_route(graph, LocationId("A"), LocationId("B"))
+
+
 def test_resolve_route_creates_dynamic_edge_for_island(caplog):
     """Test that island detection logs error and creates dynamic edge."""
     graph = WorldGraph()
@@ -58,5 +87,5 @@ def test_resolve_route_creates_dynamic_edge_for_island(caplog):
     assert len(route.segments) == 1
     assert route.segments[0].edge.from_id == LocationId("A")
     assert route.segments[0].edge.to_id == LocationId("B")
-    assert route.segments[0].edge.is_transit == True
+    assert route.segments[0].edge.is_transit
     assert 8 <= route.segments[0].edge.minutes <= 25

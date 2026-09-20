@@ -1,353 +1,55 @@
-```markdown
-# StoriesChat — A Scalable Narrative Game Engine (MVP Spec)
+# StoriesChat — North Star
 
-This north start doc is specific to describe log term vision of the app, it should not contain todo lists and details. I should describe the point of the app and how the app feels to the user and the user experience. While not mentioning any technical stuff. 
-
-## Vision / North Star
-
-**StoriesChat is a narrative-first open-world game engine powered by LLMs, designed to create real games—not chatbots.**  
-It blends **Zelda-style exploration and discovery** with **Dark Souls–style consequence and integrity**.
-
-Players can wander, investigate, flirt, joke, waste time, or speedrun—but the world continues to evolve independently. The “main boss” is a milestone, not the point. The point is the world, the discoveries within it, and the stories that emerge over time.
-
-StoriesChat is **not one story**.  
-It is a **story engine** capable of running many different games, genres, and tones using the same core rules.
+**What this doc is for:** The long-term vision of StoriesChat — what the app *is*, how it *feels* to use, and what experience it creates. No technical details, no implementation, no code. If you need to understand the soul of the product, read this. If you need to build something, read the technical docs.
 
 ---
 
-## UI Vision (PWA-First, Curated, App-Ready)
+## What Is StoriesChat?
 
-- **PWA first:** ship the new interface as a web app first for speed and iteration.
-- **Web-in-app later:** publish mobile using a lightweight WebView wrapper that reuses the exact same web UI.
-- **Discovery should feel like Netflix:** game selection is row-based, visual, recommendation-driven, and easy to browse. Dark background (#141414), horizontal scroll card rows, hero banner for the featured game, genre-based grouping.
-- **Chat should feel like Character.AI:** rounded chat bubbles (red for player, dark grey for NPC), character avatar and name at the top, 3-dot menu for game settings, smooth typing indicator, no terminal aesthetic.
-- **Curated over chaotic:** show fewer, higher-quality game options and recommendations rather than exposing everything.
-- **MVP interaction loop:** pick a recommended game, tap Play, enter name + gender in a modal, enter chat immediately — zero friction.
-- **Bottom tab bar navigation (mobile-first):** Home (discover) | My Games (active sessions) | Create (+) | Profile — exactly like Character.AI's mobile nav.
-- **My Games screen:** shows recently played sessions in Character.AI Chats style — game thumbnail, title, last message snippet, time ago.
-- **Create Game:** a simple form (title, genre, description) lets players draft new games without any code. Drafts appear in the game discovery row.
-- **Profile screen:** Character.AI-style profile with game stats (games played, wins, turns), settings, and app version.
-- **No terminal, no monospace, no green text:** the new UI uses system sans-serif fonts, white text on dark backgrounds, and visual hierarchy via card design.
+StoriesChat is a game where you talk to characters who feel like real people.
 
-### Visual Design Reference (2026 Implementation)
-The 2026 redesign was driven by these direct inspirations:
-- Netflix: hero banner with Play + More Info buttons, horizontal scroll rows, genre grouping, card thumbnails with badge overlays
-- Character.AI: chat bubbles (iMessage-style), character identity header at chat start, bottom sheet modals, create flow, chats list with time stamps, profile page with stats
+You pick a story — maybe a murder mystery, maybe a sci-fi adventure, maybe a romance — and you step into it. You talk to the characters. You explore. You make choices. And the world reacts to what you do.
 
-Technical spec: `documentation/model_output_docs/UI_REDESIGN_2026.md`
+There are no menus of dialogue options. No branching paths someone wrote in advance. You just... talk. And the characters talk back, with their own personalities, secrets, and agendas.
 
 ---
 
-## Core Philosophy
+## How It Feels
 
-StoriesChat rejects:
-- scripted plot trees
-- hardcoded story directors
-- checklist-driven quests
-- roleplay-by-reroll cheating
+**Discovering games feels like browsing Netflix.** You open the app and see a big featured story at the top, rows of games organized by genre below it. Dark background, colorful thumbnails, easy to browse. You tap one that looks interesting and you're in.
 
-Instead, it treats narrative as a **system**:
+**Playing feels like texting a real person.** Chat bubbles, smooth and modern. Your messages in red, the character's in dark grey. No terminal. No green text on black. Just a clean conversation that happens to be inside a living story.
 
-> *Define the world, define what characters want, enforce time and constraints — the story will happen.*
+**The characters feel alive.** They have their own goals, fears, and secrets. They don't wait for you to ask the right question — they have their own problems to deal with. If you waste time, things happen without you. If you push too hard, they push back. If you're kind, they might open up — or they might take advantage of you.
 
 ---
 
-## Minimal, Scalable MVP (No WorldDirector)
+## What Makes It Different
 
-There is **no central WorldDirector** and no hand-authored plot logic.
+Most story games give you a script with choices. StoriesChat gives you a world with rules.
 
-The MVP is built on **four universal primitives** that scale to any game and genre:
-
-1. **State** — the single ground truth  
-2. **Time** — the only automatic driver of change  
-3. **Incentives** — why characters act  
-4. **Constraints** — what prevents nonsense  
-
-Everything else emerges.
+- **No scripted plots.** The story emerges from what characters want, what they're afraid of, and what you do.
+- **No fake mystery.** If a character knows something and you ask them directly, they answer honestly (or lie for their own reasons — not because the game needs to stretch things out).
+- **Consequences are real.** Miss a clue? It's gone. Make someone angry? They remember. Time passes whether you're ready or not.
+- **Every game is different.** The same engine runs murder mysteries, horror, romance, comedy, sci-fi — anything. Each story just defines its world and characters. The engine does the rest.
 
 ---
 
-## 1. World State (Single Ground Truth)
+## The Experience Loop
 
-Each game defines:
-- characters
-- locations
-- relationships
-- resources
-- evidence / artifacts
-- flags
-
-There is **one canonical world state**.
-
-The player never sees the full state. They only see:
-- observations
-- dialogue
-- evidence
-- inference
-
-The LLM may *interpret* and *describe* state, but may never invent or overwrite it.
+1. **Browse** — Scroll through stories like Netflix. Pick one that grabs you.
+2. **Start** — Enter your name, choose your role, and drop into the world.
+3. **Explore** — Talk to characters, investigate, wander, flirt, argue, whatever you want.
+4. **Discover** — Find secrets, uncover hidden quests, piece together what's really going on.
+5. **Face consequences** — Your actions matter. The world moves forward with or without you.
+6. **Keep going** — Solving the main mystery doesn't end the game. The world continues. New stories emerge.
 
 ---
 
-## 2. Time Is the Only Engine
+## Who It's For
 
-- Every player action costs time:
-  - dialogue
-  - movement
-  - investigation
-- Time passing enables:
-  - NPC decisions
-  - opportunity loss
-  - decay (evidence, memory, access)
-
-There is no scripted event loop.  
-Time advances → incentives resolve → state updates.
+People who love stories and want to *live inside them* — not just read them or pick from a menu. People who want characters that feel real, worlds that feel alive, and the freedom to do whatever they want inside them.
 
 ---
 
-## 3. Characters Are Defined by Incentives
-
-Each character has:
-- **Goals** (what they want)
-- **Fears** (what they avoid)
-- **Constraints** (what they cannot do)
-- **Resources** (what they can use)
-- **Knowledge** (what they believe to be true)
-
-At decision points, characters act probabilistically based on incentives and constraints.  
-No character has:
-- a fixed arc
-- a required outcome
-- prewritten future dialogue
-
----
-
-## Characters Are Real People, Not NPCs
-
-Every character — ghost or living, ally or antagonist — behaves like a real person, not a game NPC performing a genre. This is the most important behavioral constraint in StoriesChat.
-
-**What this means in practice:**
-- A character who knows something answers honestly when asked directly. They may be reluctant, emotional, or guarded — but they do not stall, hint, or perform mystery.
-- Characters do not "edge" the player toward plot beats. They do not volunteer information theatrically or withhold it artificially to maintain suspense.
-- If the player states something factually wrong, the character corrects it the way any real person would — naturally, not as a plot device.
-- If the player's question implies a false assumption about who the character is or what they've experienced, the character corrects that frame from their own first-person perspective.
-
-**The test:** Would this response feel jarring if spoken by a real person in the real world? If yes, rewrite it.
-
-The immersion goal is "walking around in the real world." Characters are driven by their own goals, fears, and constraints — not by the player's need for hints or the game's need for pacing.
-
----
-
-## 4. Constraints Enforce Reality
-
-Constraints replace story scripting:
-- time cost
-- access control
-- information asymmetry
-- risk
-- irreversibility
-
-Examples:
-- Evidence decays because time passes
-- NPCs act because pressure accumulates
-- Secrets remain hidden unless conditions reveal them
-
----
-
-## Two-Call Turn Architecture (Critical MVP Detail)
-
-Every player turn uses **two distinct LLM calls**, in a fixed order.
-
-### Call 1 — Extractor (State Mutation Only)
-
-**Purpose:**  
-Detect *what happened* structurally in this turn.
-
-**Runs:**  
-- **Every turn** (for now, even if expensive)
-
-**Input:**
-- current user message
-- recent conversation window (last ~6–8 messages)
-- bounded world-state summary
-- quest trigger definitions (natural language conditions)
-- extraction schema
-
-**Output (structured JSON only):**
-- location / movement intent
-- quest triggers fired
-- quest progress updates
-- quest completions
-- any other structured signals (future-expandable)
-
-**Rules:**
-- Extractor may **only propose** state changes.
-- Engine validates all proposals.
-- No extractor output may overwrite ground truth improperly.
-
----
-
-### Call 2 — Main Narrative LLM (Presentation Only)
-
-**Purpose:**  
-Render dialogue, description, emotion, and story.
-
-**Runs:**  
-- After extractor updates the state
-
-**Input:**
-- updated world state
-- player-observable knowledge only
-- difficulty / mode constraints
-
-**Rules:**
-- May describe, emote, speculate, or mislead (in-character)
-- May not invent new state
-- May not bypass extractor logic
-
-This separation guarantees **epistemic integrity** and scalability.
-
----
-
-## Quest System (Trigger-Based, Extractor-Driven)
-
-Quests are **not scripted scenes**.  
-They are **latent possibilities** defined by triggers.
-
-### Quest Triggers
-- Each quest defines:
-  - natural-language trigger conditions
-  - allowed state changes
-  - tier (1–5)
-- Triggers are evaluated **every turn** by the extractor.
-
-### Quest Tiers
-
-**Tier 1 — Main Quest**
-- Always detectable from initial state.
-- Represents the dominant conflict.
-
-**Tier 2 — Standard Side Quests**
-- Easy to discover.
-- Quest start + name announced.
-
-**Tier 3 — Conditional Side Quests**
-- Triggered only when rare conditions are met.
-- Quest start + name announced.
-
-**Tier 4 — Ultra-Secret Quests**
-- Trigger silently.
-- Player only learns of them upon completion.
-- Award secret achievement badge (name + rarity only).
-
-**Tier 5 — Unknown Quests (?????)**
-- Exist as latent possibilities.
-- No one has unlocked them yet.
-- Represent the frontier of the system.
-
----
-
-## Difficulty & Modes (Narrative Resistance)
-
-Difficulty controls **forgiveness**, not content.
-
-### Game Mode (Canon Enabled)
-
-**Hard**
-- No rerolls
-- Non-deterministic outcomes
-- Missed info stays missed
-
-**Normal**
-- Limited rerolls
-- Rerolls affect tone/minor branches only
-- Ground truth immutable
-
-**Easy / Casual**
-- More rerolls
-- Slower decay
-- Larger grace windows
-- Truth still enforced
-
-### Roleplay Mode (God Mode)
-- One-way downgrade
-- Unlimited flexibility
-- Achievements and canon disabled
-
----
-
-## “100% Cleared” (Current Phase)
-
-A run is **100% cleared** if:
-1. You complete all quests discovered at least once in this world history, and
-2. You discover and complete at least one new quest
-
-If no undiscovered quests remain:
-- 100% cleared = complete all quests
-
-(Currently single-player, no login or global DB.)
-
----
-
-## Main Milestone (“Ganon”) Is Not the End
-
-Solving the main conflict:
-- flips world state
-- unlocks harder, stranger content
-- does not end the game
-
-The world continues.
-
----
-
-## Post-Milestone Forever Loop
-
-1. Use curated follow-up arcs if they exist
-2. Otherwise generate provisional arcs from state + incentives
-3. Early clearers co-author future directions (guided by LLM prompts)
-4. Multiple arcs compete
-5. Best arcs consolidate into canon
-6. Repeat forever
-
----
-
-## Many Games, Many Genres
-
-StoriesChat supports:
-- murder mystery
-- horror
-- romance
-- comedy
-- sci-fi
-- fantasy
-- slice-of-life
-- experimental genres
-
-Each game supplies only:
-- initial world state
-- character incentives
-- constraints
-
-No engine code assumes:
-- a genre
-- a plot
-- a character
-- an ending
-
----
-
-## MVP Scope (Now)
-
-- Single-player
-- In-memory state
-- No login, credits, or leaderboards
-- Extractor runs every turn
-- Two-call architecture enforced
-- No prewritten future story text
-- Scales to many games with minimal hardcoding
-
----
-
-**StoriesChat builds worlds that produce stories on their own —  
-and dares players to live with the consequences.**
-```
+**StoriesChat builds worlds that produce stories on their own — and dares players to live with the consequences.**

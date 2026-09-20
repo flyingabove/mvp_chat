@@ -1,6 +1,8 @@
 AI learnings: pushing code & adding command flags
 ==================================================
 
+> **What this doc is for:** Rules for pushing code (commit conventions, CI checks, deploy flow). Edit this doc when push/deploy workflow rules change.
+
 
 PART 1 — HOW AI PUSHES CODE (GIT PERMISSIONS)
 ----------------------------------------------
@@ -64,35 +66,186 @@ Option C — Use the gh CLI for auth (cleanest long-term solution):
   3. This stores a single OAuth token via GCM and avoids conflicts.
   4. Verify:  gh auth status
 
-### Step-by-step: what the AI does to push
+### Step-by-step: what the AI does to push (MULTI-AGENT AWARE)
 
-1. Stage specific files (never `git add -A` — avoids secrets / binaries):
-     git add frontend/index.html
+Multiple AI agents may be working on the `beta` branch simultaneously.
+Every push must account for other agents' changes that may have landed
+since you last pulled. Follow these steps exactly:
 
-2. Commit with a HEREDOC message (preserves multi-line formatting):
-     git commit -m "$(cat <<'EOF'
-     fix: short summary of what changed
+```
+┌─────────────────────────────────────────────────────┐
+│  1. PULL latest           ← before you start coding │
+│  2. Make code changes                               │
+│  3. Run tests             ← verify YOUR changes     │
+│  4. PULL + MERGE again    ← catch parallel pushes   │
+│  5. Run tests AGAIN       ← only if step 4 merged   │
+│  6. Push                                            │
+│  7. Verify                                          │
+└─────────────────────────────────────────────────────┘
+```
 
-     Longer explanation if needed.
+#### Step 1 — Pull latest before starting work
 
-     Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
-     EOF
-     )"
+```bash
+git pull --rebase origin beta
+```
+This ensures you start from the latest code. Other agents may have
+pushed since your conversation began.
 
-3. Push to the current branch:
-     git push
+#### Step 2 — Make your code changes
 
-4. Verify:
-     git status
+Write code, edit files, do your thing.
+
+#### Step 3 — Run tests (verify your changes)
+
+```bash
+python -m pytest tests/ -x -q
+```
+All tests must pass before proceeding. Fix any failures.
+
+#### Step 4 — Pull + merge again (catch parallel pushes)
+
+```bash
+git pull --rebase origin beta
+```
+
+**If new commits were pulled in:**
+- This means another agent pushed while you were working.
+- If there are **merge conflicts**, read the conflicting commit messages
+  (`git log --oneline -5`) to understand the other agent's intent.
+  Resolve conflicts by preserving both agents' intentions.
+- Proceed to Step 5 (re-test).
+
+**If already up to date:**
+- No new commits landed. Skip Step 5, go straight to Step 6.
+
+#### Step 5 — Re-test after merge (ONLY if Step 4 pulled new code)
+
+```bash
+python -m pytest tests/ -x -q
+```
+This catches integration issues between your changes and the other
+agent's changes. If tests fail, diagnose whether it's your code or
+theirs and fix accordingly.
+
+#### Step 6 — Stage and commit
+
+Stage specific files (never `git add -A` — avoids secrets / binaries):
+```bash
+git add frontend/index.html backend/app/api/prompt_engine.py
+```
+
+Commit with a HEREDOC message (preserves multi-line formatting):
+```bash
+git commit -m "$(cat <<'EOF'
+fix(scope): short summary of what changed
+
+WHY: Explain the motivation — what problem this solves or what feature
+this adds. Another agent reading this message should understand the
+intent well enough to resolve a merge conflict involving these files.
+
+WHAT CHANGED:
+- file1.py: description of change
+- file2.html: description of change
+
+SIDE EFFECTS: Any non-obvious consequences (e.g., "changes the session
+restore flow — other code that calls get_session() is unaffected").
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+EOF
+)"
+```
+
+#### Step 7 — Push and verify
+
+```bash
+git push
+git status
+```
+
+If push fails with "non-fast-forward" (another agent pushed between
+your Step 4 pull and now), repeat from Step 4.
+
+### Commit message format for multi-agent collaboration
+
+Commit messages are **the primary way agents communicate** about what
+changed and why. Other agents will read your commit messages to resolve
+merge conflicts, so they must be detailed and intent-clear.
+
+**Required structure:**
+```
+<type>(<scope>): short imperative summary (≤72 chars)
+
+WHY: One sentence explaining the motivation / problem being solved.
+
+WHAT CHANGED:
+- <file>: what was changed and why
+- <file>: what was changed and why
+
+SIDE EFFECTS: (if any) Non-obvious consequences for other code.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+**Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `style`
+
+**Rules:**
+- The WHY line is mandatory. "Fixed bug" is not enough — say what the
+  bug was and how users experienced it.
+- WHAT CHANGED should list every file modified with a brief reason.
+  This helps other agents resolve conflicts without reading the full diff.
+- SIDE EFFECTS helps other agents know if their in-progress work might
+  be affected.
+
+**Bad example:**
+```
+fix: update prompt engine
+```
+
+**Good example:**
+```
+fix(resume): auto-reinit game state when session cache is empty
+
+WHY: After server restart, resuming a game showed "Session expired"
+because _try_load_session_from_db only restored primitive fields,
+not the full GameState (world, characters, graph, knowledge).
+
+WHAT CHANGED:
+- prompt_engine.py: Added auto-reinit fallback in chat_handler — if
+  state.story is missing at regular turn time, queries DB and rebuilds
+  full GameState mirroring __cmd_newgame__ setup.
+- prompt_engine.py: _try_load_session_from_db now falls back to
+  row["story_id"] if state_json is missing the "story" key.
+
+SIDE EFFECTS: None — get_session() callers are unaffected; the reinit
+is transparent.
+```
+
+### Resolving merge conflicts (multi-agent)
+
+When `git pull --rebase` produces conflicts:
+
+1. **Read the conflicting commit messages first:**
+   ```bash
+   git log --oneline -10
+   ```
+2. **Understand the other agent's intent** from their WHY and WHAT
+   CHANGED sections. Don't just pick "ours" or "theirs" blindly.
+3. **Preserve both intents** wherever possible. If both agents changed
+   the same function for different reasons, merge the logic.
+4. **If intents truly conflict** (e.g., one agent removed a function
+   the other modified), prefer the more recent commit's intent and
+   note what you dropped in your commit message.
+5. **Run tests after resolving** to verify the merge is sound.
 
 ### Branch conventions in this repo
 
   prod  — production (auto-deploys to api.storieschat.ai / mvpchat-prod on Railway)
   beta  — staging   (auto-deploys to beta-api.storieschat.ai / mvpchat-beta on Railway)
-  main  — NOT the deploy branch. Do NOT push prod changes here.
 
-⚠️  CRITICAL: "push to prod" means `git checkout prod`, NOT `git checkout main`.
-    Pushing to main does NOT deploy to production. Always use the `prod` branch.
+⚠️  CRITICAL: There is NO `main` branch. It has been DELETED.
+    Do NOT create, reference, or push to `main`. Only `beta` and `prod` exist.
+    Production deploys from `prod` only.
 
 ⚠️  CRITICAL: ALL code changes MUST be made on the `beta` branch first.
     Flow is always: beta (make changes) → prod (squash-merge FROM beta) → push prod.
@@ -132,11 +285,11 @@ git checkout beta
 ```
 
 **Rules:**
-- ALWAYS use `prod` branch — NEVER push to `main` thinking it deploys to production
+- ALWAYS use `prod` branch — there is NO `main` branch (it was deleted)
 - Always use `--squash` — keeps prod history clean (one commit per promotion)
 - `-X theirs` — beta always wins on merge conflicts
 - Write a real commit message summarising the features/fixes being promoted
-- Always end by switching back to beta (never leave the user on prod or main)
+- Always end by switching back to beta (never leave the user on prod)
 - Never skip the `git checkout beta` at the end
 
 ### If push fails

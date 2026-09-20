@@ -1,5 +1,7 @@
 # StoriesChat UI Redesign — Design Spec (2026)
 
+> **What this doc is for:** Full design spec for the 2026 Netflix+Character.AI UI redesign. Edit this doc when UI screens, components, CSS system, or navigation changes.
+
 ## Context
 
 The original terminal-style `frontend/index.html` was replaced with a modern

@@ -5,7 +5,6 @@ from backend.app.engine.invariant_validator import (
     AnchorFact,
     InvariantCheck,
     InvariantContract,
-    Violation,
     validate_response,
 )
 

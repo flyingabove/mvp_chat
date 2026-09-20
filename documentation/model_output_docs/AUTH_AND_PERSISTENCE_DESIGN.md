@@ -1,10 +1,15 @@
 # Auth + Per-User Persistence Design
 
+> **What this doc is for:** Design of authentication (Google OAuth) and per-user data persistence. Edit this doc when auth flow, session storage, or user data persistence changes.
+
 ## Overview
 
 StoriesChat uses Google OAuth 2.0 for authentication and Railway's `/data` persistent volume for
 per-user game state storage. The architecture supports **browse freely, login to play**: the home
 screen and game catalog are public; clicking "Play" triggers the login flow.
+
+Localhost is **debugger-only** in this project. App login and OAuth callbacks are expected on hosted
+domains (prod/beta), not localhost.
 
 ---
 
@@ -14,17 +19,15 @@ screen and game catalog are public; clicking "Play" triggers the login flow.
 Browser
   ├── Home screen (no auth needed)        → GET /api/stories (public)
   ├── Click Play → JWT missing?
-  │     └── Shows login modal
-  │           → Click "Continue with Google"
-  │           → GET /auth/google/login (backend)
-  │           → Google OAuth consent screen
-  │           → GET /auth/google/callback (backend)
-  │           → Redirect to /?token=<jwt>
-  │           → Frontend stores JWT in localStorage
-  └── Chat (authenticated)               → POST /api/chat + Authorization: Bearer <jwt>
+  │     ├── Shows login modal
+  │     │     → "Continue with Google" → OAuth flow → JWT in localStorage
+  │     └── "Continue as Guest" → generates guest device UUID
+  │           → Stored in localStorage + cookie (1-year expiry)
+  ├── Chat (authenticated)               → POST /api/chat + Authorization: Bearer <jwt>
+  └── Chat (guest)                       → POST /api/chat + X-Guest-Id: <uuid>
 
 Backend
-  ├── JWT validation (FastAPI dependency) → extracts real user_id from sub claim
+  ├── Identity resolution: JWT sub > "guest:<X-Guest-Id>" > "anon"
   ├── SQLite (/data/storieschat.db)       → users + game_sessions tables
   ├── JSONL files (/data/users/{uid}/sessions/{sid}.jsonl) → raw conversation log
   └── In-memory SESSIONS cache           → fast per-turn access, loaded from SQLite on cache miss
@@ -51,10 +54,40 @@ Backend
 - `get_current_user` dependency verifies JWT signature and returns payload
 - `get_optional_user` dependency returns `None` if no JWT (used in `/api/chat`)
 
-### Anonymous users
-- No JWT → `user_id = "anon"` in `chat_handler`
-- Anonymous users can play (in-memory only, no persistence, state lost on server restart)
-- Same experience as before auth was added
+### Guest users (persistent anonymous)
+- No JWT → frontend generates a **guest device ID** (UUID), stored in localStorage + cookie (1-year expiry)
+- Sent as `X-Guest-Id` header on all API requests when no JWT is present
+- Backend maps to `user_id = "guest:<uuid>"` — full DB persistence (same as authenticated users)
+- Guest sessions survive server restarts and appear in "My Games"
+- `get_current_user_or_guest` dependency: accepts JWT OR X-Guest-Id header (validates UUID format)
+- Guest ID validated by regex: must be valid UUID hex (32-36 chars), lowercased. Invalid IDs → 401.
+- Privacy: each guest device ID is unique, data isolated by `WHERE user_id = ?`
+
+### Guest session lifecycle
+
+**TTL & cleanup:**
+- Guest sessions expire after **24 hours** of inactivity (`GUEST_TTL_SECONDS = 86400`)
+- Background async task `_guest_cleanup_loop()` runs hourly in `main.py` lifespan
+- Deletes DB rows WHERE `user_id LIKE 'guest:%' AND last_played < cutoff`
+- Also deletes JSONL conversation log files and evicts from in-memory SESSIONS cache
+- Frontend warns at game start: *"Guest mode: your progress will be deleted after 24 hours unless you sign in with Google."*
+
+**Guest → Google transfer:**
+- On OAuth callback (`/auth/google/callback`), backend reads `storieschat_guest_id` cookie
+- If valid UUID, calls `SessionRepo.transfer_sessions(from_guest, to_google_user)`
+- Transfer updates `user_id` in all `game_sessions` DB rows and moves JSONL files
+- In-memory SESSIONS cache updated to reflect new ownership
+- Guest cookie deleted after successful transfer (`resp.delete_cookie(...)`)
+- Idempotent: if guest has no sessions, transfer is a no-op (returns 0)
+
+**Filesystem safety:**
+- `_safe_dir_name(user_id)` replaces `:` with `_` for Windows compatibility
+- All JSONL paths use sanitized user_id: `/data/users/guest_<uuid>/sessions/{sid}.jsonl`
+
+### Fully anonymous users
+- No JWT AND no X-Guest-Id → `user_id = "anon"` in `chat_handler`
+- In-memory only, no persistence, state lost on server restart
+- This path is only hit if cookies + localStorage are both cleared
 
 ---
 
@@ -133,12 +166,19 @@ Each line is a single JSON object:
 }
 ```
 
-**Complex objects NOT serialized** (always rebuilt from story config on resume):
-- `world_runtime` — rebuilt by `WorldLoader`
-- `character_graph` — rebuilt from `StoryDefinition.relationships`
-- `story_cfg` — rebuilt by `_canonicalize_story_cfg()`
-- `epistemic_state` entries — re-seeded by `_seed_epistemic_from_story()`
-- `transient_entries` — re-seeded by `_seed_noncanonical_story_details_to_transient()`
+**Complex objects with persisted runtime snapshots:**
+- `character_graph` — authored base graph is loaded from `StoryDefinition.relationships`, then runtime edge state (trust/fear/affection/suspicion/jealousy, narrative/history fields, and dynamically created edges) is restored from `state_json.character_graph`.
+- `session_chunk_store` — dialogue-extracted session facts are persisted in `state_json.session_chunks` and restored into `SessionChunkStore` so BM25 session-memory retrieval survives restart/resume.
+- `character_locations` — runtime character-to-location assignments are restored from `state_json.character_locations` (overrides story start defaults).
+- `last_turn_*` extractor context — `last_turn_user_msg`, `last_turn_assistant_reply`, and `last_turn_retrieved_chunks` are restored for continuity of single-call extraction behavior.
+
+**Objects still rebuilt from story config on resume:**
+- `world_runtime` — rebuilt by `WorldLoader`.
+- `story_cfg` — rebuilt by `_canonicalize_story_cfg()`.
+- `epistemic_state` seed structures — re-seeded by `_seed_epistemic_from_story()`.
+- `transient_entries` — re-seeded by `_seed_noncanonical_story_details_to_transient()`.
+
+**Session restore** (`_try_load_session_from_db`): Uses `SessionRepo._get()` (synchronous) to load from SQLite on in-memory cache miss. Safe to call from async handlers — SQLite indexed lookups are sub-millisecond. Failures are logged via `logger.exception()`, never silently swallowed.
 
 ---
 
@@ -155,19 +195,25 @@ Each line is a single JSON object:
 ### User Sessions
 | Method | Path | Auth required | Description |
 |--------|------|---------------|-------------|
-| GET | `/api/user/sessions` | Yes | List user's game sessions (newest first) |
-| GET | `/api/user/sessions/{id}/history` | Yes | Paginated conversation history |
-| DELETE | `/api/user/sessions/{id}` | Yes | Delete session + JSONL file |
+| GET | `/api/user/sessions` | JWT or X-Guest-Id | List user's game sessions (newest first) |
+| GET | `/api/user/sessions/{id}/history` | JWT or X-Guest-Id | Paginated conversation history |
+| DELETE | `/api/user/sessions/{id}` | JWT or X-Guest-Id | Delete session + JSONL file |
+
+### Resume behavior across entry points
+- `My Games` always reads from `GET /api/user/sessions` (JWT or guest ID).
+- Home page "Continue Playing" and game-detail "Resume Game" now use a merged local+server session cache; server sessions are fetched from `/api/user/sessions`, merged into local storage, and used by both entry points.
+- Result: users can resume the same in-progress game from either Home or My Games after re-login or server restart.
 
 ---
 
 ## Security Guarantees
 
 1. **No data bleed**: Every DB query uses `WHERE user_id = ?` with JWT's `sub` claim
-2. **Session ownership**: `get_session()` returns `None` if `user_id` doesn't match
-3. **JSONL isolation**: Path uses `user_id` from JWT, never from request body
-4. **Anonymous fallback**: `user_id = "anon"` → in-memory only, no DB writes
-5. **JWT signed**: HS256, `JWT_SECRET` from Railway env var, 30-day expiry
+2. **Session ownership (DB)**: `SessionRepo._get()` returns `None` if `user_id` doesn't match
+3. **Session ownership (cache)**: `get_session()` verifies `user_id` on in-memory cache hits — on mismatch, creates a fresh session (defense-in-depth, prevents cross-user data leaks even if session UUIDs collide)
+4. **JSONL isolation**: Path uses `user_id` from JWT, never from request body
+5. **Anonymous fallback**: `user_id = "anon"` → in-memory only, no DB writes
+6. **JWT signed**: HS256, `JWT_SECRET` from Railway env var, 30-day expiry
 
 ---
 
@@ -190,7 +236,7 @@ Each line is a single JSON object:
 6. Authorized redirect URIs — add ALL:
    - `https://storieschat.ai/auth/google/callback`
    - `https://beta-api.storieschat.ai/auth/google/callback`
-   - `http://localhost:8899/auth/google/callback`
+  - Do not add localhost app callback URIs for normal operation.
 7. Copy **Client ID** and **Client Secret**
 8. In Railway dashboard for **both prod and beta** services, add env vars:
    ```
@@ -199,6 +245,27 @@ Each line is a single JSON object:
    JWT_SECRET=<run: python -c "import secrets; print(secrets.token_hex(32))">
    ```
 9. Optionally: **APIs & Services → OAuth consent screen** → set app name "StoriesChat"
+
+### Localhost policy (important)
+
+- `localhost:8899` is for the debug/scorer developer UI (`/beta/debug`) only.
+- The player-facing app and Google sign-in should run on hosted domains.
+- If a localhost OAuth callback is temporarily added for isolated troubleshooting, treat it as temporary and remove it afterward.
+
+### Local credential loading (.env.test)
+
+- Google + JWT secrets live in `.env.test` at project root (gitignored).
+- `backend/app/config/credentials.py` exposes `get_google_client_id()`, `get_google_client_secret()`, `get_jwt_secret()` (alongside `get_openai_api_key()`).
+- Each helper triggers `_load_env_test_once()` only if the live env var is missing — so Railway/CI env vars always take priority.
+- `settings.py` consumes those helpers at import time; `google_oauth.py` and `jwt_utils.py` see fully resolved values.
+- If `GOOGLE_CLIENT_ID` is empty on boot, the OAuth URL Google receives is missing `client_id`, and login silently fails with a 400 from Google. Always confirm via `GET /api/auth/debug-config`.
+
+### Guest bypass UI ("Play as Guest" pill)
+
+- Frontend exposes `✦ Play as Guest` on the home top-bar (`#home-guest-pill`).
+- Storage flag: `localStorage.storieschat_skip_login = "1"` (set by the pill or the modal's "Continue as Guest").
+- When set, `startGame()` skips the login modal entirely, mints a guest UUID, and runs the chat call with `X-Guest-Id`.
+- Cleared on explicit sign-in (profile button or `?token=` callback) so JWT takes over.
 
 ---
 

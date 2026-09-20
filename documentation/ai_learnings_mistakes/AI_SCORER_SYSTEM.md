@@ -1,6 +1,8 @@
 Debug System — AI Learnings & Reference
 ==========================================
 
+> **What this doc is for:** How the debug/scorer/grader system works (player agent, grader, WebSocket protocol). Edit this doc when the debug system, scoring, or player-agent loop changes.
+
 > **Terminology**:
 > - **Story master** = NPC-generating AI (always /api/chat pipeline).
 > - **Player** (or "player agent") = LLM AI that simulates a human in automated test runs. NOT a real human.
