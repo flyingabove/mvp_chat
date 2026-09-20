@@ -10,7 +10,7 @@ from backend.app.engine.extractors.turn_extractor import (
 
 from fastapi import APIRouter, Depends, Request
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
-from backend.app.db.repos import SessionRepo, ConversationRepo
+from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo
 
 import asyncio
 import dataclasses
@@ -2587,28 +2587,54 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # Extracted facts are stored in state.session_chunk_store with IDs:
     #   usr-{user_msg_id}-{n}  (from user message)
     #   ai-{ai_msg_id}-{n}     (from AI reply)
+    # BL-01b: for non-anon sessions, durably enqueue this extraction attempt
+    # BEFORE firing the in-process task, so a crash between enqueue and
+    # completion leaves a 'pending' row a startup recovery sweep
+    # (backend/app/main.py) can find and reprocess, instead of the facts
+    # being silently lost with no record they were ever attempted. Anon
+    # sessions have no durable identity (they never persist to SQLite at
+    # all - see the `user_id != "anon"` guard above), so they keep the
+    # legacy best-effort fire-and-forget path unchanged.
     character_id = str(getattr(state, "knowledge_character_id", "") or state.story or "unknown")
     if state.session_chunk_store is not None:
         import asyncio as _asyncio
 
         async def _extract_and_store(
             _user_msg: str, _user_id: str, _ai_reply: str, _ai_id: str,
-            _char_id: str, _store: "SessionChunkStore",
+            _char_id: str, _store: "SessionChunkStore", _outbox_row_id: int | None,
         ) -> None:
             try:
                 usr_chunks = await extract_facts_from_message(_user_msg, "user", _user_id, _char_id)
                 ai_chunks = await extract_facts_from_message(_ai_reply, "assistant", _ai_id, _char_id)
                 _store.add_chunks(usr_chunks + ai_chunks)
+                if _outbox_row_id is not None:
+                    await FactExtractionOutboxRepo.mark_done(_outbox_row_id)
+            except Exception as exc:
+                if _outbox_row_id is not None:
+                    try:
+                        await FactExtractionOutboxRepo.mark_failed(_outbox_row_id, str(exc))
+                    except Exception:
+                        pass
+
+        if user_id != "anon":
+            try:
+                outbox_row_id = await FactExtractionOutboxRepo.enqueue(
+                    session_id, user_id, msg, user_msg_id, clean, ai_msg_id, character_id,
+                )
+                _asyncio.ensure_future(_extract_and_store(
+                    msg, user_msg_id, clean, ai_msg_id,
+                    character_id, state.session_chunk_store, outbox_row_id,
+                ))
+            except Exception:
+                logger.exception("Failed to enqueue fact-extraction outbox row for session %s", session_id)
+        else:
+            try:
+                _asyncio.ensure_future(_extract_and_store(
+                    msg, user_msg_id, clean, ai_msg_id,
+                    character_id, state.session_chunk_store, None,
+                ))
             except Exception:
                 pass
-
-        try:
-            _asyncio.ensure_future(_extract_and_store(
-                msg, user_msg_id, clean, ai_msg_id,
-                character_id, state.session_chunk_store,
-            ))
-        except Exception:
-            pass
 
     _log({
         "kind": "chat_response",

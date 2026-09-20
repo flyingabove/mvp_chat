@@ -7,59 +7,23 @@ from unittest.mock import patch
 # ---------------------------------------------------------------------------
 # In-memory DB fixture
 # ---------------------------------------------------------------------------
-
-_SCHEMA = """
-PRAGMA journal_mode=WAL;
-
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    name TEXT,
-    avatar_url TEXT,
-    created_at INTEGER NOT NULL,
-    last_login INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS game_sessions (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id),
-    story_id TEXT NOT NULL,
-    story_title TEXT,
-    player_name TEXT,
-    gender TEXT,
-    status TEXT DEFAULT 'active',
-    created_at INTEGER NOT NULL,
-    last_played INTEGER NOT NULL,
-    turns INTEGER DEFAULT 0,
-    last_message TEXT,
-    state_json TEXT,
-    flags_json TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_sessions_user ON game_sessions(user_id, last_played DESC);
-"""
+# Schema is created via the real init_db() against a patched DB_PATH, rather
+# than a hand-copied schema string, so this fixture can never silently drift
+# from database.py's actual schema (it drifted twice - BL-02's dedup columns,
+# then BL-01b's fact_extraction_outbox table - before being fixed this way).
 
 
 @pytest.fixture()
 def tmp_data_dir(tmp_path):
     """Patch DATA_DIR and DB_PATH to use a temp directory."""
-    from backend.app.db.database import _ensure_column
-
     db_path = tmp_path / "storieschat.db"
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
-    # BL-02: mirror database.py's init_db() additive-column guard so this
-    # fixture's hand-copied schema doesn't silently drift from the real one
-    # (game_sessions gains last_request_id/last_reply_json there).
-    _ensure_column(conn, "game_sessions", "last_request_id", "TEXT")
-    _ensure_column(conn, "game_sessions", "last_reply_json", "TEXT")
-    conn.commit()
-    conn.close()
 
     with patch("backend.app.db.database.DATA_DIR", tmp_path), \
          patch("backend.app.db.database.DB_PATH", db_path), \
          patch("backend.app.db.repos.DATA_DIR", tmp_path):
+        from backend.app.db.database import init_db
+        init_db()
+
         # Also patch get_connection to use our db_path
         def patched_conn():
             c = sqlite3.connect(str(db_path), check_same_thread=False)
@@ -457,6 +421,34 @@ async def test_delete_expired_guest_sessions(tmp_data_dir):
 # BL-02: turn-retry idempotency dedup token (last_request_id/last_reply_json)
 # ---------------------------------------------------------------------------
 
+_OLD_SCHEMA_BEFORE_DEDUP_COLUMNS = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    avatar_url TEXT,
+    created_at INTEGER NOT NULL,
+    last_login INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS game_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    story_id TEXT NOT NULL,
+    story_title TEXT,
+    player_name TEXT,
+    gender TEXT,
+    status TEXT DEFAULT 'active',
+    created_at INTEGER NOT NULL,
+    last_played INTEGER NOT NULL,
+    turns INTEGER DEFAULT 0,
+    last_message TEXT,
+    state_json TEXT,
+    flags_json TEXT
+);
+"""
+
+
 def test_init_db_adds_dedup_columns_to_existing_database(tmp_path):
     """init_db() must be safe to run against an existing on-disk DB that
     predates the last_request_id/last_reply_json columns (e.g. the Railway
@@ -470,7 +462,7 @@ def test_init_db_adds_dedup_columns_to_existing_database(tmp_path):
         # Simulate the pre-existing schema (no dedup columns) as it would
         # have existed on disk before this change.
         conn = sqlite3.connect(str(db_path))
-        conn.executescript(_SCHEMA)
+        conn.executescript(_OLD_SCHEMA_BEFORE_DEDUP_COLUMNS)
         conn.commit()
         conn.close()
 
@@ -550,3 +542,127 @@ async def test_create_or_update_session_without_request_id_preserves_prior_dedup
     req_id, reply_json = await SessionRepo.get_last_request("sess_dedup3", "uid_dedup3")
     assert req_id == "req-xyz"
     assert reply_json == '{"reply":"y"}'
+
+
+# ---------------------------------------------------------------------------
+# BL-01b: durable fact-extraction outbox (remainder of Six Strangers Phase 1)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_enqueue_creates_pending_row(tmp_data_dir):
+    from backend.app.db.repos import FactExtractionOutboxRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="sess1", user_id="uid1", user_msg="hello",
+        user_msg_id="umsg1", ai_reply="hi there", ai_msg_id="aimsg1",
+        character_id="mizuki",
+    )
+    assert isinstance(row_id, int)
+
+    pending = await FactExtractionOutboxRepo.fetch_pending()
+    assert len(pending) == 1
+    assert pending[0]["id"] == row_id
+    assert pending[0]["status"] == "pending"
+    assert pending[0]["session_id"] == "sess1"
+    assert pending[0]["user_msg"] == "hello"
+    assert pending[0]["ai_reply"] == "hi there"
+    assert pending[0]["completed_at"] is None
+    assert pending[0]["attempts"] == 0
+
+
+@pytest.mark.asyncio
+async def test_mark_done_removes_row_from_pending(tmp_data_dir):
+    from backend.app.db.repos import FactExtractionOutboxRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="sess1", user_id="uid1", user_msg="hello",
+        user_msg_id="umsg1", ai_reply="hi", ai_msg_id="aimsg1",
+        character_id="mizuki",
+    )
+    await FactExtractionOutboxRepo.mark_done(row_id)
+
+    pending = await FactExtractionOutboxRepo.fetch_pending()
+    assert pending == []
+
+
+@pytest.mark.asyncio
+async def test_mark_failed_increments_attempts_and_stores_error(tmp_data_dir):
+    from backend.app.db.repos import FactExtractionOutboxRepo, get_connection
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="sess1", user_id="uid1", user_msg="hello",
+        user_msg_id="umsg1", ai_reply="hi", ai_msg_id="aimsg1",
+        character_id="mizuki",
+    )
+    await FactExtractionOutboxRepo.mark_failed(row_id, "boom: connection refused")
+
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM fact_extraction_outbox WHERE id = ?", (row_id,)).fetchone()
+    conn.close()
+    assert row["status"] == "failed"
+    assert row["attempts"] == 1
+    assert "boom" in row["last_error"]
+    # A failed row is not "pending" - it must not be picked up by the same
+    # fetch_pending() the recovery sweep uses (failed rows are surfaced for
+    # manual diagnosis via last_error, not silently auto-retried forever).
+    pending = await FactExtractionOutboxRepo.fetch_pending()
+    assert pending == []
+
+
+@pytest.mark.asyncio
+async def test_prune_done_older_than_removes_only_old_done_rows(tmp_data_dir):
+    """Pruning must only remove 'done' rows older than the cutoff - never
+    'pending' rows (still awaiting recovery) or 'failed' rows (kept for
+    diagnosis)."""
+    import time as _time
+    from backend.app.db.repos import FactExtractionOutboxRepo, get_connection
+
+    old_done_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="s1", user_id="u1", user_msg="a", user_msg_id="m1",
+        ai_reply="b", ai_msg_id="a1", character_id="c1",
+    )
+    await FactExtractionOutboxRepo.mark_done(old_done_id)
+    old_cutoff_ts = int(_time.time()) - 1000
+    conn = get_connection()
+    conn.execute(
+        "UPDATE fact_extraction_outbox SET completed_at = ? WHERE id = ?",
+        (old_cutoff_ts, old_done_id),
+    )
+    conn.commit()
+    conn.close()
+
+    recent_done_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="s1", user_id="u1", user_msg="c", user_msg_id="m2",
+        ai_reply="d", ai_msg_id="a2", character_id="c1",
+    )
+    await FactExtractionOutboxRepo.mark_done(recent_done_id)
+
+    still_pending_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="s1", user_id="u1", user_msg="e", user_msg_id="m3",
+        ai_reply="f", ai_msg_id="a3", character_id="c1",
+    )
+
+    still_failed_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="s1", user_id="u1", user_msg="g", user_msg_id="m4",
+        ai_reply="h", ai_msg_id="a4", character_id="c1",
+    )
+    await FactExtractionOutboxRepo.mark_failed(still_failed_id, "err")
+    conn = get_connection()
+    conn.execute(
+        "UPDATE fact_extraction_outbox SET created_at = ? WHERE id IN (?, ?)",
+        (int(_time.time()) - 2000, still_failed_id, still_failed_id),
+    )
+    conn.commit()
+    conn.close()
+
+    cutoff = int(_time.time()) - 500
+    pruned = await FactExtractionOutboxRepo.prune_done_older_than(cutoff)
+    assert pruned == 1
+
+    conn = get_connection()
+    remaining_ids = {r["id"] for r in conn.execute("SELECT id FROM fact_extraction_outbox").fetchall()}
+    conn.close()
+    assert old_done_id not in remaining_ids
+    assert recent_done_id in remaining_ids
+    assert still_pending_id in remaining_ids
+    assert still_failed_id in remaining_ids

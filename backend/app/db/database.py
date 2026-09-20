@@ -36,6 +36,24 @@ CREATE TABLE IF NOT EXISTS game_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON game_sessions(user_id, last_played DESC);
+
+CREATE TABLE IF NOT EXISTS fact_extraction_outbox (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id   TEXT NOT NULL,
+    user_id      TEXT NOT NULL,
+    user_msg     TEXT NOT NULL,
+    user_msg_id  TEXT NOT NULL,
+    ai_reply     TEXT NOT NULL,
+    ai_msg_id    TEXT NOT NULL,
+    character_id TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    created_at   INTEGER NOT NULL,
+    completed_at INTEGER,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    last_error   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_status ON fact_extraction_outbox(status, created_at);
 """
 
 

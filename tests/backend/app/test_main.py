@@ -212,3 +212,117 @@ def test_story_endpoint_existing(client):
     assert data["title"]
 
 
+# ---------------------------------------------------------------------------
+# BL-01b: startup recovery sweep for the fact-extraction outbox (final
+# remaining piece of Six Strangers audit Phase 1).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_fact_extraction_recovery_sweep_reprocesses_pending_row(monkeypatch):
+    """Simulates the exact failure mode BL-01b closes: a row left 'pending'
+    by a prior process crash (enqueued, but the in-process extraction task
+    never got to run/complete). The startup sweep must reprocess it and mark
+    it done."""
+    from backend.app import main
+    from backend.app.db.database import init_db
+    from backend.app.db.repos import FactExtractionOutboxRepo
+
+    init_db()
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="crash_recovery_sess", user_id="guest:recovery-uuid",
+        user_msg="what happened here?", user_msg_id="umsg-r1",
+        ai_reply="A story unfolds...", ai_msg_id="aimsg-r1",
+        character_id="mizuki",
+    )
+
+    extract_calls = []
+
+    async def _fake_extract(text, role, msg_id, char_id):
+        extract_calls.append((text, role, msg_id, char_id))
+        return []
+
+    monkeypatch.setattr(
+        "backend.app.api.prompt_engine.extract_facts_from_message", _fake_extract, raising=False,
+    )
+
+    await main._fact_extraction_recovery_sweep()
+
+    assert len(extract_calls) == 2, "recovery sweep must extract from both the stored user_msg and ai_reply"
+    assert extract_calls[0] == ("what happened here?", "user", "umsg-r1", "mizuki")
+    assert extract_calls[1] == ("A story unfolds...", "assistant", "aimsg-r1", "mizuki")
+
+    pending_after = await FactExtractionOutboxRepo.fetch_pending()
+    assert not any(row["id"] == row_id for row in pending_after), (
+        "recovered row must no longer be 'pending' after the sweep"
+    )
+
+
+@pytest.mark.asyncio
+async def test_fact_extraction_recovery_sweep_marks_row_failed_on_error(monkeypatch):
+    from backend.app import main
+    from backend.app.db.database import init_db
+    from backend.app.db.repos import FactExtractionOutboxRepo, get_connection
+
+    init_db()
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="crash_recovery_fail_sess", user_id="guest:recovery-uuid-2",
+        user_msg="a message", user_msg_id="umsg-r2",
+        ai_reply="a reply", ai_msg_id="aimsg-r2",
+        character_id="mizuki",
+    )
+
+    async def _raising_extract(*args, **kwargs):
+        raise RuntimeError("recovery extraction failed")
+
+    monkeypatch.setattr(
+        "backend.app.api.prompt_engine.extract_facts_from_message", _raising_extract, raising=False,
+    )
+
+    await main._fact_extraction_recovery_sweep()
+
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM fact_extraction_outbox WHERE id = ?", (row_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row["status"] == "failed"
+    assert "recovery extraction failed" in row["last_error"]
+
+
+@pytest.mark.asyncio
+async def test_fact_extraction_recovery_sweep_prunes_old_done_rows(monkeypatch):
+    import time as _time
+    from backend.app import main
+    from backend.app.db.database import init_db
+    from backend.app.db.repos import FactExtractionOutboxRepo, get_connection
+
+    init_db()
+    old_row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="prune_sess", user_id="guest:prune-uuid",
+        user_msg="m", user_msg_id="u1", ai_reply="r", ai_msg_id="a1",
+        character_id="c1",
+    )
+    await FactExtractionOutboxRepo.mark_done(old_row_id)
+    old_cutoff = int(_time.time()) - main.FACT_EXTRACTION_OUTBOX_RETENTION_SECONDS - 1000
+    conn = get_connection()
+    conn.execute(
+        "UPDATE fact_extraction_outbox SET completed_at = ? WHERE id = ?",
+        (old_cutoff, old_row_id),
+    )
+    conn.commit()
+    conn.close()
+
+    await main._fact_extraction_recovery_sweep()
+
+    conn = get_connection()
+    try:
+        remaining = conn.execute(
+            "SELECT id FROM fact_extraction_outbox WHERE id = ?", (old_row_id,)
+        ).fetchall()
+    finally:
+        conn.close()
+    assert remaining == [], "a 'done' row older than the retention window must be pruned by the sweep"
+
+

@@ -379,6 +379,122 @@ def _jsonl_path(user_id: str, session_id: str) -> Path:
     return candidate
 
 
+class FactExtractionOutboxRepo:
+    """BL-01b: durable queue for background dialogue fact-extraction.
+
+    `_extract_and_store` (backend/app/api/prompt_engine.py) used to fire via
+    a bare `asyncio.ensure_future(...)`, fully unawaited, with no record it
+    had even been attempted. A crash between the turn's session save and that
+    background task completing silently dropped the turn's extracted facts
+    forever. This repo gives each extraction attempt a durable row: enqueued
+    (status='pending') before the in-process task starts, marked done/failed
+    after — so a startup recovery sweep (backend/app/main.py) can find and
+    reprocess anything left pending from a prior crash."""
+
+    @staticmethod
+    def _enqueue(
+        session_id: str, user_id: str, user_msg: str, user_msg_id: str,
+        ai_reply: str, ai_msg_id: str, character_id: str,
+    ) -> int:
+        now = int(time.time())
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                """
+                INSERT INTO fact_extraction_outbox
+                    (session_id, user_id, user_msg, user_msg_id, ai_reply, ai_msg_id,
+                     character_id, status, created_at, attempts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, 0)
+                """,
+                (session_id, user_id, user_msg, user_msg_id, ai_reply, ai_msg_id, character_id, now),
+            )
+            conn.commit()
+            return cur.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _mark_done(row_id: int) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE fact_extraction_outbox SET status = 'done', completed_at = ? WHERE id = ?",
+                (int(time.time()), row_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _mark_failed(row_id: int, error: str) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                """UPDATE fact_extraction_outbox
+                   SET status = 'failed', attempts = attempts + 1, last_error = ?
+                   WHERE id = ?""",
+                (error[:500], row_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _fetch_pending(limit: int = 200) -> list[dict]:
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM fact_extraction_outbox WHERE status = 'pending' "
+                "ORDER BY created_at ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _prune_done_older_than(cutoff_ts: int) -> int:
+        """Delete 'done' rows completed before cutoff_ts. 'failed' rows are
+        kept indefinitely for diagnosis (low volume, one row per failed
+        extraction) - only successfully completed rows accumulate unbounded
+        over a long-running deploy."""
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                "DELETE FROM fact_extraction_outbox WHERE status = 'done' AND completed_at < ?",
+                (cutoff_ts,),
+            )
+            conn.commit()
+            return cur.rowcount
+        finally:
+            conn.close()
+
+    @classmethod
+    async def enqueue(
+        cls, session_id: str, user_id: str, user_msg: str, user_msg_id: str,
+        ai_reply: str, ai_msg_id: str, character_id: str,
+    ) -> int:
+        return await asyncio.to_thread(
+            cls._enqueue, session_id, user_id, user_msg, user_msg_id, ai_reply, ai_msg_id, character_id,
+        )
+
+    @classmethod
+    async def mark_done(cls, row_id: int) -> None:
+        await asyncio.to_thread(cls._mark_done, row_id)
+
+    @classmethod
+    async def mark_failed(cls, row_id: int, error: str) -> None:
+        await asyncio.to_thread(cls._mark_failed, row_id, error)
+
+    @classmethod
+    async def fetch_pending(cls, limit: int = 200) -> list[dict]:
+        return await asyncio.to_thread(cls._fetch_pending, limit)
+
+    @classmethod
+    async def prune_done_older_than(cls, cutoff_ts: int) -> int:
+        return await asyncio.to_thread(cls._prune_done_older_than, cutoff_ts)
+
+
 class ConversationRepo:
     @staticmethod
     def _append(

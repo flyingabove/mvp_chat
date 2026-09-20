@@ -920,6 +920,136 @@ def test_anon_session_skips_dedup_check(client):
     assert state.turns == turns_before + 2, "anon sessions have no dedup identity and must reprocess"
 
 
+# ============================================================================
+# BL-01b: durable outbox for background fact-extraction (final remaining
+# piece of Six Strangers audit Phase 1). `_extract_and_store` used to fire
+# via a bare asyncio.ensure_future(...) with no durable record it had even
+# been attempted; a crash between the turn save and that task completing
+# silently lost the turn's extracted facts. Now a durable outbox row is
+# enqueued BEFORE the in-process task starts, for any non-anon session.
+# ============================================================================
+
+def test_extraction_outbox_row_enqueued_for_guest_session(client, monkeypatch):
+    """The actual regression: a durable fact_extraction_outbox row must
+    exist for a guest (non-anon) turn, capturing the exact user_msg/ai_reply
+    that would otherwise only live in-memory until the extraction task
+    (which might never complete, e.g. on a crash) finishes. Extraction is
+    patched to raise so the row is left in a state we can inspect (marked
+    'failed' with the row's fields intact) rather than racing the
+    fire-and-forget task's completion."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import get_connection
+    import asyncio
+
+    async def _raising_extract(*args, **kwargs):
+        raise RuntimeError("simulated extraction failure")
+    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _raising_extract, raising=False)
+
+    guest_headers = {"X-Guest-Id": "44444444-5555-6666-7777-888888888888"}
+    sid = "outbox_enqueue_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+        headers=guest_headers,
+    )
+    assert r0.status_code == 200
+
+    r1 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello there"},
+        headers=guest_headers,
+    )
+    assert r1.status_code == 200
+
+    async def _check_outbox():
+        for _ in range(20):
+            await asyncio.sleep(0.05)
+            conn = get_connection()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM fact_extraction_outbox WHERE session_id = ?", (sid,)
+                ).fetchall()
+            finally:
+                conn.close()
+            if rows:
+                return dict(rows[0])
+        return None
+
+    row = asyncio.run(_check_outbox())
+    assert row is not None, "no fact_extraction_outbox row was enqueued for this guest turn"
+    assert row["user_msg"] == "hello there"
+    assert row["status"] == "failed"
+    assert "simulated extraction failure" in (row["last_error"] or "")
+
+
+def test_extraction_outbox_row_marked_done_after_successful_extraction(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import FactExtractionOutboxRepo
+    import asyncio
+
+    async def _fast_extract(*args, **kwargs):
+        return []
+    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _fast_extract, raising=False)
+
+    guest_headers = {"X-Guest-Id": "55555555-6666-7777-8888-999999999999"}
+    sid = "outbox_mark_done_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+        headers=guest_headers,
+    )
+    assert r0.status_code == 200
+    r1 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello there"},
+        headers=guest_headers,
+    )
+    assert r1.status_code == 200
+
+    async def _wait_and_check():
+        for _ in range(20):
+            await asyncio.sleep(0.05)
+            pending = await FactExtractionOutboxRepo.fetch_pending()
+            if not any(row["session_id"] == sid for row in pending):
+                return True
+        return False
+
+    completed = asyncio.run(_wait_and_check())
+    assert completed, "outbox row for this session never left 'pending' status"
+
+
+def test_anon_session_skips_outbox_enqueue(client, monkeypatch):
+    """Anon sessions have no durable identity to key an outbox row on (they
+    never persist to SQLite at all), so they keep the legacy best-effort
+    fire-and-forget path with no outbox row created."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import FactExtractionOutboxRepo
+    import asyncio
+
+    async def _fast_extract(*args, **kwargs):
+        return []
+    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _fast_extract, raising=False)
+
+    sid = "outbox_anon_skip_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r0.status_code == 200
+    r1 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello there"},
+    )
+    assert r1.status_code == 200
+
+    async def _check():
+        pending = await FactExtractionOutboxRepo.fetch_pending()
+        return [row for row in pending if row["session_id"] == sid]
+
+    matching = asyncio.run(_check())
+    assert matching == [], "anon sessions must not create a durable outbox row"
+
+
 def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, monkeypatch):
     """BL-01: the session save must reflect `over` and `last_turn_*` for the
     turn just completed, not the prior turn - previously the save happened
