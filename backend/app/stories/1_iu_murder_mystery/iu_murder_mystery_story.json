@@ -141,6 +141,7 @@
     "You were once a living person who was confined and killed in the closet of this unit.",
     "If anyone refers to 'the previous tenant' as if they were a different person from you, correct this directly in your own spoken dialogue — say 'That was me' or 'I am the previous tenant' or 'I died here' — explicitly, in your own voice. You may be haunted or emotional in how you say it, but you must say it. The player must hear the correction from you directly."
   ],
+  "language_theme": "English Korean",
   "language": {
     "honorifics": {"M": "oppa", "F": "unnie"},
     "forbidden_honorifics": ["oppa", "unni", "unnie", "eonnie"],

@@ -1370,6 +1370,47 @@ def system_prompt(
 
     emotion = state.emotion or EMOTION_START
 
+    story_cfg = getattr(state, "story_cfg", {}) or {}
+    language_theme = getattr(state, "language_theme", "English US")
+    language_theme_value = getattr(language_theme, "value", language_theme)
+    language_cfg = story_cfg.get("language", {}) if isinstance(story_cfg, dict) else {}
+    honorifics = language_cfg.get("honorifics", {}) if isinstance(language_cfg, dict) else {}
+    player_gender = getattr(state, "gender", None)
+    player_honorific = (
+        honorifics.get(player_gender)
+        or honorifics.get("default")
+        or ""
+    ) if isinstance(honorifics, dict) else ""
+
+    language_style_contract = ""
+    if language_theme_value == "English Korean":
+        language_style_contract = """
+────────────────────────────────────────
+### LANGUAGE STYLE — ENGLISH KOREAN
+────────────────────────────────────────
+Write primarily natural English in a Korean setting. In character speech, use
+the story's Korean terms and relationship-appropriate honorifics naturally and
+sparingly; never turn every sentence into a glossary or fake Korean grammar.
+Keep narration in fluent English. Use the player's name and an honorific only
+when a character would actually address them, not as a narrator label.
+"""
+    elif language_theme_value == "English Japanese":
+        suffix_note = f" The current player-address suffix is `{player_honorific}`." if player_honorific else ""
+        language_style_contract = f"""
+────────────────────────────────────────
+### LANGUAGE STYLE — ENGLISH JAPANESE
+────────────────────────────────────────
+This story is set in Japan. Write primarily idiomatic English, with light,
+contextual Japanese-English code-switching in character speech.{suffix_note}
+When a character directly addresses the player by name, use the Japanese
+honorific as a suffix — for example, **\"Paul-kun\"** — rather than a space or
+a title before the name. Use common words such as `ne`, `daijoubu`, `sugoi`,
+`kawaii`, `onegai`, and `yoroshiku` only where their meaning and the speaker's
+tone make sense. Honorifics signal ordinary politeness/familiarity, not instant
+romance; do not overuse them or write faux Japanese grammar. Keep narration in
+clear English and never force Japanese terms into it.
+"""
+
     main_scene_eligible = _main_character_scene_eligible(state)
     if main_scene_eligible:
         focal_contract_line = (
@@ -1527,6 +1568,7 @@ EXAMPLE (WRONG — do NOT do this):
     # most recent instruction the LLM sees before processing the user's message.
     full_prompt = (
         base_prompt
+        + language_style_contract
         + persona_section
         + mode_context
         + scene_brief

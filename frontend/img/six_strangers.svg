@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-labelledby="title desc">
-  <title id="title">Six Strangers</title>
+  <title id="title">Terrace in the City</title>
   <desc id="desc">Six housemate silhouettes in a glass-fronted modern Tokyo house at dusk.</desc>
   <defs>
     <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#111b35"/><stop offset="1" stop-color="#5c637b"/></linearGradient>
@@ -33,6 +33,6 @@
   <path d="M93 316H710L754 366H48Z" fill="#18283b"/>
   <rect y="301" width="800" height="149" fill="url(#shade)"/>
   <text x="400" y="359" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" letter-spacing="4" fill="#cbd8e4">TOKYO / 2015</text>
-  <text x="400" y="404" text-anchor="middle" font-family="Georgia,serif" font-size="37" fill="#fff4df">Six Strangers</text>
+  <text x="400" y="404" text-anchor="middle" font-family="Georgia,serif" font-size="37" fill="#fff4df">Terrace in the City</text>
   <text x="400" y="433" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" letter-spacing="3" fill="#abc8d8">SIX HOUSEMATES. YOUR NEXT CHAPTER.</text>
 </svg>

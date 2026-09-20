@@ -166,6 +166,20 @@ class SessionRepo:
             conn.close()
 
     @staticmethod
+    def _clear_last_request(session_id: str, user_id: str) -> None:
+        """Forget a completed-turn retry token when a session starts over."""
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE game_sessions SET last_request_id = NULL, last_reply_json = NULL "
+                "WHERE id = ? AND user_id = ?",
+                (session_id, user_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
     def _get(session_id: str, user_id: str) -> dict | None:
         def _query_once() -> dict | None:
             conn = get_connection()
@@ -251,6 +265,11 @@ class SessionRepo:
         main create_or_update_session save) so the existing atomic-turn-save
         ordering discipline at that call site is untouched."""
         await asyncio.to_thread(cls._update_last_request, session_id, user_id, request_id, reply_json)
+
+    @classmethod
+    async def clear_last_request(cls, session_id: str, user_id: str) -> None:
+        """Clear dedup state after ``__cmd_newgame__`` replaces a session."""
+        await asyncio.to_thread(cls._clear_last_request, session_id, user_id)
 
     @classmethod
     async def get_session(cls, session_id: str, user_id: str) -> dict | None:

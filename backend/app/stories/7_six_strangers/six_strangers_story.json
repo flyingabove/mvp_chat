@@ -1,6 +1,6 @@
 {
   "id": "six_strangers",
-  "title": "Six Strangers",
+  "title": "Terrace in the City",
   "theme": "shared_house_city",
   "description": "Tokyo, 2015. A fictional shared-house story with the original six members of Boys & Girls in the City. Work, dreams, awkward dinners, and rooftop conversations — with you as a seventh arrival, life takes a new direction.",
   "genre": "Slice of Life / Ensemble Drama",
@@ -320,7 +320,12 @@
   "emotion": {
     "start": "curious, a little travel-worn"
   },
-  "language": {},
+  "language_theme": "English Japanese",
+  "language": {
+    "honorifics": {"M": "-kun", "F": "-chan", "default": "-san"},
+    "forbidden_honorifics": [],
+    "casual_terms": ["sugoi","kawaii","onegai","daijoubu","yoroshiku","ne"]
+  },
   "epistemic_seed": {
     "canonical_facts": [
       {
