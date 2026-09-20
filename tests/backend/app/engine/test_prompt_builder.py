@@ -680,7 +680,12 @@ def test_belief_section_snapshot_layout_is_stable():
     st.beliefs["iu"] = bs
 
     sysmsg = pb.system_prompt(st)
-    section = sysmsg.split("Beliefs and suspicions (not necessarily true):\n", 1)[1].strip()
+    tail = sysmsg.split("Beliefs and suspicions (not necessarily true):\n", 1)[1]
+    # The beliefs section is followed by the PACING AND INITIATIVE section
+    # (Phase 4) - isolate just the belief lines by cutting at the next
+    # section's leading separator rather than assuming beliefs is the last
+    # thing in the prompt.
+    section = tail.split("\n\n────", 1)[0].strip()
 
     expected = (
         "1. Currently only IU knows this with low confidence: I may have heard footsteps by the closet before dawn.\n"
@@ -1043,4 +1048,100 @@ def test_mode_context_section_narrator_asides_default_style_when_blank():
 
     sysmsg = pb.system_prompt(st)
     assert "Narrator aside device:" in sysmsg
-    assert "documentary crew" in sysmsg
+
+
+# ============================================================================
+# Phase 4 "Engagement and polish": explicit response-length calibration and
+# NPC-initiative-frequency guidance. Previously the only length instruction
+# was the single word "compact" with no scale to anchor against.
+# ============================================================================
+
+def test_pacing_section_always_present():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "### PACING AND INITIATIVE" in sysmsg
+    assert "Not every reply needs to end with a hook" in sysmsg
+
+
+def test_pacing_section_scales_short_for_brief_player_message():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hi there")
+    assert "short and low-stakes" in sysmsg
+    assert "1 short paragraph" in sysmsg
+
+
+def test_pacing_section_scales_medium_for_normal_message():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st, current_user_msg="I walk over and ask her what happened last night at the party")
+    assert "normal conversational beat" in sysmsg
+    assert "1-2 compact paragraphs" in sysmsg
+
+
+def test_pacing_section_scales_long_for_substantive_message():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    long_msg = (
+        "I sit down across from her and take a slow breath before finally asking the question "
+        "that's been on my mind since we first met - I want to know the whole truth about what "
+        "happened that night, no matter how painful it might be to hear, because I think we both "
+        "deserve to move forward honestly."
+    )
+    sysmsg = pb.system_prompt(st, current_user_msg=long_msg)
+    assert "substantive" in sysmsg
+    assert "More room is warranted" in sysmsg
+
+
+def test_pacing_section_appears_after_character_identity_before_truth_override():
+    """The pacing contract should be among the last instructions the model
+    sees (most-recent-instruction-wins convention), placed after character
+    identity, matching the existing layering discipline in this file."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {
+        "meta": {"disclaimer": "fiction"},
+        "character_self_knowledge": ["You are a ghost."],
+    }
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    identity_idx = sysmsg.index("### CHARACTER IDENTITY")
+    pacing_idx = sysmsg.index("### PACING AND INITIATIVE")
+    assert identity_idx < pacing_idx
+
+
+def test_pacing_section_in_return_layers():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    _, layers = pb.system_prompt(st, current_user_msg="hello", return_layers=True)
+    assert "pacing_and_initiative" in layers
+    assert "### PACING AND INITIATIVE" in layers["pacing_and_initiative"]

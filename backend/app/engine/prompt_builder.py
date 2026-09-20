@@ -1426,6 +1426,52 @@ clear English and never force Japanese terms into it.
             "others stays that way unless the player's own message brings someone into it."
         )
 
+    # Phase 4 "Engagement and polish": explicit response-length calibration
+    # and NPC-initiative-frequency guidance. Previously the only length
+    # instruction was the single word "compact" with no scale to anchor
+    # against, which in practice let ordinary short exchanges ("hello",
+    # a one-line action) balloon into multi-paragraph responses just as
+    # readily as a genuine decision point. Scale the target length to the
+    # player's own message weight (a short message earns a short reply; a
+    # substantive question, decision, or emotionally loaded beat earns more
+    # room), and make "not every reply needs a hook" an explicit rule rather
+    # than leaving initiative frequency unaddressed - matching the audit's
+    # "not every reply need end in a question" recommendation.
+    _player_msg_word_count = len((current_user_msg or "").split())
+    if _player_msg_word_count <= 6:
+        pacing_line = (
+            "The player's message is short and low-stakes (a greeting, a brief action, a "
+            "one-line question). Match that scale: 1 short paragraph, a few sentences at "
+            "most. Do not pad a small beat with extended scenery description or an internal "
+            "monologue that wasn't asked for."
+        )
+    elif _player_msg_word_count <= 20:
+        pacing_line = (
+            "The player's message is a normal conversational beat. 1-2 compact paragraphs is "
+            "usually enough - only go longer if the moment genuinely earns it (new "
+            "information, a meaningful choice, an emotional turn)."
+        )
+    else:
+        pacing_line = (
+            "The player's message is substantive (a detailed question, a plan, or an "
+            "emotionally loaded beat). More room is warranted here, but stay purposeful - "
+            "every sentence should carry new information, character, or consequence, not "
+            "restate what was just said."
+        )
+    pacing_and_initiative_contract = f"""
+────────────────────────────────────────
+### PACING AND INITIATIVE
+────────────────────────────────────────
+{pacing_line}
+
+Not every reply needs to end with a hook, an invitation, or a question back to the
+player. Real conversations have quiet moments and plain answers. Let some replies
+simply land and stop. When an NPC does take initiative (inviting the player
+somewhere, asking something, proposing a plan), it should read as that specific
+character choosing to, in that moment - not a reflex the narrator adds to every
+single turn to keep things moving.
+"""
+
     base_prompt = f"""
 You are the narrative scene engine for an interactive story game.
 {disclaimer}
@@ -1575,6 +1621,7 @@ EXAMPLE (WRONG — do NOT do this):
         + knowledge_stack_section
         + relationship_section
         + character_identity
+        + pacing_and_initiative_contract
         + truth_override
     )
 
@@ -1588,6 +1635,7 @@ EXAMPLE (WRONG — do NOT do this):
             "knowledge_stack": knowledge_stack_section,
             "knowledge_chunks": knowledge_stack_debug,
             "relationship_context": relationship_section,
+            "pacing_and_initiative": pacing_and_initiative_contract,
             "truth_override": truth_override,
         }
         return full_prompt, layers
