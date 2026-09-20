@@ -1128,8 +1128,14 @@ def _mode_context_section(state) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _identity_block(char_name: str, entries: list) -> str:
-    """Render one '### CHARACTER IDENTITY — <name>' block for the given entries."""
+def _identity_block(char_name: str, entries: list, goal: str = "") -> str:
+    """Render one '### CHARACTER IDENTITY — <name>' block for the given entries.
+
+    `goal` (Phase 3 "Social life"): the character's current persistent
+    goal/motive, if any. Empty string (the common case for a character with
+    no authored motive) renders no extra line at all - byte-identical
+    output to before this parameter was added.
+    """
     lines = [
         "\n────────────────────────────────────────",
         f"### CHARACTER IDENTITY — {char_name}",
@@ -1143,6 +1149,8 @@ def _identity_block(char_name: str, entries: list) -> str:
     ]
     for entry in entries:
         lines.append(f"- {entry}")
+    if goal:
+        lines.append(f"- [{char_name}'s current goal] {goal}")
     return "\n".join(lines) + "\n"
 
 
@@ -1196,9 +1204,14 @@ def _character_identity_section(state) -> str:
         if isinstance(cfg, dict):
             entries = list(cfg.get("character_self_knowledge") or [])
 
+    main_goal = ""
+    main_goal_obj = getattr(main_char, "goal", None)
+    if main_goal_obj is not None:
+        main_goal = (getattr(main_goal_obj, "current", "") or "").strip()
+
     blocks: list[str] = []
     if entries and _main_character_scene_eligible(state):
-        blocks.append(_identity_block(char_name, entries))
+        blocks.append(_identity_block(char_name, entries, goal=main_goal))
 
     # Additional present, non-main characters with their own self_knowledge.
     people_present_keys = _get_people_present_keys(state)
@@ -1213,7 +1226,11 @@ def _character_identity_section(state) -> str:
         if not other_entries:
             continue
         other_name = (getattr(ch, "name", "") or key).strip() or key
-        blocks.append(_identity_block(other_name, other_entries))
+        other_goal = ""
+        other_goal_obj = getattr(ch, "goal", None)
+        if other_goal_obj is not None:
+            other_goal = (getattr(other_goal_obj, "current", "") or "").strip()
+        blocks.append(_identity_block(other_name, other_entries, goal=other_goal))
 
     if not blocks:
         return ""

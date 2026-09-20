@@ -96,6 +96,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
+from backend.app.engine.social_traits import EvolvingTrait
+
 if TYPE_CHECKING:
     from backend.app.engine.state import Character, GameState
 
@@ -373,6 +375,14 @@ class RelationshipEdge:
     prior_relationship: bool = False    # ever been in a romantic relationship (LLM-extracted)
     prior_intimacy: bool = False        # ever been sexually intimate (LLM-extracted)
     in_relationship: bool = False       # currently in a relationship (LLM-extracted)
+    # Phase 3 "Social life": from_id's evolving disposition toward to_id
+    # specifically (e.g. "in love with", "growing suspicious of",
+    # "aggressive toward"), distinct from the numeric RelationshipState axes
+    # above - a disposition is a qualitative narrative label with a full
+    # auditable change history, not a point on a fixed numeric scale. None
+    # until the extractor (or story authoring) establishes one; always
+    # renders as nothing when absent (see format_for_prompt).
+    disposition: Optional[EvolvingTrait] = None
 
     @classmethod
     def from_dict(cls, edge_id: str, d: Dict[str, Any] | None) -> "RelationshipEdge":
@@ -386,9 +396,20 @@ class RelationshipEdge:
         met_at: Optional[int] = 0 if d.get("met_before_game") else None
         last_met_at_raw = d.get("last_met_at")
         last_met_at: Optional[int] = int(last_met_at_raw) if last_met_at_raw is not None else None
+        from_id = str(d.get("from_id") or d.get("from", ""))
+        # Optional authoring surface: a story may seed a starting disposition
+        # as a plain string (e.g. "already smitten with her roommate").
+        # Serialized EvolvingTrait dicts (session restore) are handled by
+        # _restore_character_graph in prompt_engine.py, not here - from_dict
+        # is the author-time story-JSON parsing path only.
+        raw_disposition = d.get("disposition")
+        disposition: Optional[EvolvingTrait] = None
+        if isinstance(raw_disposition, str) and raw_disposition.strip():
+            disposition = EvolvingTrait(kind="disposition", subject_id=from_id, target_id=str(d.get("to_id") or d.get("to", "")))
+            disposition.set_initial(raw_disposition.strip())
         return cls(
             id=edge_id,
-            from_id=str(d.get("from_id") or d.get("from", "")),
+            from_id=from_id,
             to_id=str(d.get("to_id") or d.get("to", "")),
             type=rel_type,
             state=RelationshipState.from_dict(d.get("state")),
@@ -400,6 +421,7 @@ class RelationshipEdge:
             prior_relationship=bool(d.get("prior_relationship", False)),
             prior_intimacy=bool(d.get("prior_intimacy", False)),
             in_relationship=bool(d.get("in_relationship", False)),
+            disposition=disposition,
         )
 
 
@@ -710,6 +732,8 @@ class CharacterGraph:
                 line += f"\n  [Context] {e.label}"
             if e.narrative:
                 line += f"\n  [Now] {e.narrative}"
+            if e.disposition is not None and e.disposition.current:
+                line += f"\n  [Disposition] {e.disposition.current}"
             lines.append(line)
 
         return "\n".join(lines)

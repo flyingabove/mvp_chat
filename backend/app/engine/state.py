@@ -17,6 +17,7 @@ from backend.app.config.settings import (
 from backend.app.engine.character_graph import CharacterGraph, CharacterType
 from backend.app.engine.cast_lifecycle import CastLifecycleState
 from backend.app.engine.world_calendar import PendingEvent
+from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.epistemic_state import BeliefState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk
 from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
@@ -32,6 +33,14 @@ from backend.app.config.epistemic_flags import (
 
 import json
 import re
+from enum import Enum
+
+
+class LanguageTheme(Enum):
+    ENGLISH_US = "English US"
+    ENGLISH_KOREAN = "English Korean"
+    ENGLISH_JAPANESE = "English Japanese"
+
 
 
 # ======================================================================
@@ -106,6 +115,16 @@ class Character:
     self_knowledge: List[str] = field(default_factory=list)
     emotion: str = EMOTION_START
     relationship: int = REL_START
+    # Phase 3 "Social life": this character's own persistent goal/motive.
+    # None for a character with no authored motive/goal - always render
+    # gracefully as "nothing" downstream, never a stray empty line.
+    goal: Optional["EvolvingTrait"] = None
+    # Static, authored behavioral cues the turn extractor watches for (e.g.
+    # a murder-mystery suspect's interrogation "tells"). Not itself
+    # evolving state - the extractor's OUTPUT from watching these is a
+    # `disposition` shift on the relevant relationship edge, using the same
+    # EvolvingTrait primitive an ensemble drama uses for romance arcs.
+    tells: List[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Character":
@@ -119,6 +138,7 @@ class Character:
         uuid = str(data.get("uuid") or "").strip()
         tags = list(data.get("tags") or [])
         self_knowledge = [str(x) for x in (data.get("self_knowledge") or []) if str(x).strip()]
+        tells = [str(x) for x in (data.get("tells") or []) if str(x).strip()]
         # Determine character_type: is_main → MAIN; else parse from JSON or default CANONICAL
         if is_main:
             character_type = CharacterType.MAIN
@@ -131,8 +151,37 @@ class Character:
         known_keys = {
             "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
             "knowledge_character_id", "uuid", "tags", "character_type", "self_knowledge",
+            "motive", "goal", "tells",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
+
+        # Phase 3 "Social life": seed this character's persistent goal.
+        # Three shapes are possible for the "goal" key depending on the
+        # caller:
+        #   1. A full serialized EvolvingTrait dict (round-tripping through
+        #      Character.to_dict() -> from_dict(), e.g. session restore) -
+        #      restore the whole object, preserving its history.
+        #   2. A raw author-time string (a generic "goal" key as an
+        #      alternative to "motive") - seed a fresh trait from it.
+        #   3. Some other shape (e.g. the murder-mystery session-level
+        #      win-condition object, {"win_text_rule": ...}) - not a
+        #      character motive at all; ignored here.
+        # "motive" (the ensemble-drama vocabulary) is always a plain string
+        # seed, never a serialized trait - one code path, no per-genre
+        # branching for the common authoring case.
+        raw_motive = data.get("motive")
+        raw_goal = data.get("goal")
+        goal_trait: Optional[EvolvingTrait] = None
+        if isinstance(raw_goal, dict) and "history" in raw_goal:
+            goal_trait = EvolvingTrait.from_dict(raw_goal)
+        else:
+            motive_text = str(raw_motive).strip() if isinstance(raw_motive, str) else ""
+            if not motive_text and isinstance(raw_goal, str):
+                motive_text = raw_goal.strip()
+            if motive_text:
+                goal_trait = EvolvingTrait(kind="goal", subject_id=key)
+                goal_trait.set_initial(motive_text)
+
         return cls(
             key=key,
             name=name,
@@ -145,6 +194,8 @@ class Character:
             tags=tags,
             meta=meta,
             self_knowledge=self_knowledge,
+            goal=goal_trait,
+            tells=tells,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -159,6 +210,8 @@ class Character:
             "uuid": self.uuid,
             "tags": self.tags,
             "self_knowledge": self.self_knowledge,
+            "tells": self.tells,
+            "goal": self.goal.to_dict() if self.goal is not None else None,
             **(self.meta or {}),
         }
 
@@ -202,6 +255,8 @@ class GameState:
     story: Optional[str] = None
     user_id: str = DEFAULT_USER_ID
     instance: int = DEFAULT_INSTANCE
+    # Language theme controls small localized mixing and honorific behavior.
+    language_theme: LanguageTheme = LanguageTheme.ENGLISH_US
     gender: Optional[str] = None
     turns: int = 0
     over: bool = False

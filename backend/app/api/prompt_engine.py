@@ -63,8 +63,11 @@ from backend.app.engine.state import (
 
     Character,
 
+    LanguageTheme,
+
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
+from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
 from backend.app.engine.world_calendar import PendingEvent, day_number
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
@@ -344,6 +347,12 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
             "knowledge_character_id": ch.get("knowledge_character_id") or "",
             "uuid": ch.get("uuid") or "",
             "tags": list(ch.get("tags") or []),
+            # Phase 3 "Social life": preserve author-time goal content for
+            # any consumer of story_cfg["characters"] - previously silently
+            # dropped here even though Character.from_dict (the primary
+            # newgame character-construction path) already preserves them.
+            "motive": ch.get("motive") or "",
+            "tells": list(ch.get("tells") or []),
         })
 
     return {
@@ -1045,6 +1054,10 @@ def _serialize_character_graph(graph) -> dict:
                 "prior_relationship": bool(getattr(edge, "prior_relationship", False)),
                 "prior_intimacy": bool(getattr(edge, "prior_intimacy", False)),
                 "in_relationship": bool(getattr(edge, "in_relationship", False)),
+                "disposition": (
+                    getattr(edge, "disposition").to_dict()
+                    if getattr(edge, "disposition", None) is not None else None
+                ),
             }
         except Exception:
             continue
@@ -1091,6 +1104,30 @@ def _restore_beliefs(saved: dict | None) -> Dict[str, BeliefState]:
         ]
         beliefs[str(char_id)] = bs
     return beliefs
+
+
+def _serialize_character_goals(characters: dict) -> dict:
+    """Phase 3 'Social life': state.characters is otherwise always rebuilt
+    fresh from story data on every restore (nothing else about a Character
+    persists across a restart today), which would silently discard any
+    runtime goal evolution from propose_change(). Persist just the `goal`
+    field per character key - everything else about a Character is safe to
+    re-derive from the story definition every time."""
+    out: dict[str, dict] = {}
+    for key, ch in (characters or {}).items():
+        goal = getattr(ch, "goal", None)
+        if goal is not None:
+            out[str(key)] = goal.to_dict()
+    return out
+
+
+def _restore_character_goals(state: GameState, saved: dict | None) -> None:
+    if not isinstance(saved, dict):
+        return
+    for key, data in saved.items():
+        ch = state.characters.get(str(key))
+        if ch is not None and isinstance(data, dict):
+            ch.goal = EvolvingTrait.from_dict(data)
 
 
 def _serialize_pending_events(events: list) -> list:
@@ -1143,6 +1180,8 @@ def _restore_character_graph(state: GameState, graph_snapshot: dict | None) -> N
 
         rel_state = RelationshipState.from_dict(data.get("state") or {})
         narrative_log = [str(x) for x in (data.get("narrative_log") or [])]
+        raw_disposition = data.get("disposition")
+        disposition = EvolvingTrait.from_dict(raw_disposition) if isinstance(raw_disposition, dict) else None
 
         existing = graph.get_edge(from_id, to_id)
         if existing is not None:
@@ -1157,6 +1196,7 @@ def _restore_character_graph(state: GameState, graph_snapshot: dict | None) -> N
             existing.prior_relationship = bool(data.get("prior_relationship", False))
             existing.prior_intimacy = bool(data.get("prior_intimacy", False))
             existing.in_relationship = bool(data.get("in_relationship", False))
+            existing.disposition = disposition
             continue
 
         new_edge = RelationshipEdge(
@@ -1174,6 +1214,7 @@ def _restore_character_graph(state: GameState, graph_snapshot: dict | None) -> N
             prior_relationship=bool(data.get("prior_relationship", False)),
             prior_intimacy=bool(data.get("prior_intimacy", False)),
             in_relationship=bool(data.get("in_relationship", False)),
+            disposition=disposition,
         )
         graph.edges[graph._edge_key(from_id, to_id)] = new_edge
 
@@ -1230,6 +1271,7 @@ def _serialize_state(state: GameState, log: list) -> str:
             if getattr(state, "cast_lifecycle", None) is not None else None
         ),
         "pending_events": _serialize_pending_events(getattr(state, "pending_events", []) or []),
+        "character_goals": _serialize_character_goals(getattr(state, "characters", {}) or {}),
         "world_start_datetime": str(getattr(state, "world_start_datetime", "") or ""),
         "last_travel_from_id": str(getattr(state, "last_travel_from_id", "") or ""),
         "last_travel_to_id": str(getattr(state, "last_travel_to_id", "") or ""),
@@ -1311,6 +1353,11 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             dict(c) for c in (saved.get("last_turn_retrieved_chunks") or []) if isinstance(c, dict)
         ]
         restored.story_cfg = _canonicalize_story_cfg(story_def)
+        # Restore/derive language theme
+        try:
+            restored.language_theme = _derive_language_theme_from_story_cfg(restored.story_cfg)
+        except Exception:
+            restored.language_theme = LanguageTheme.ENGLISH_US
         restored.user_id = user_id
         if restored.user:
             restored.user.formal_name = saved.get("user_formal_name", restored.player_name)
@@ -1424,6 +1471,8 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 ),
                 emotion=restored.emotion,
                 relationship=restored.relationship,
+                goal=ch.goal,
+                tells=list(ch.tells),
             )
             restored.characters[ch.key] = game_char
             if ch.is_main:
@@ -1493,6 +1542,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         saved_pending_events = saved.get("pending_events")
         if saved_pending_events:
             restored.pending_events = _restore_pending_events(saved_pending_events)
+        _restore_character_goals(restored, saved.get("character_goals"))
         restored.clear_all_transient_entries()
         _seed_noncanonical_story_details_to_transient(story_def, restored)
 
@@ -1603,6 +1653,108 @@ def sanitize_honorific_terms(text: str, state: GameState) -> str:
             text = re.sub(pattern, repl, text)
 
     return text
+
+
+# ---------------------------------------------------------------------------
+# LANGUAGE THEME DERIVATION & MIXING
+# ---------------------------------------------------------------------------
+
+def _derive_language_theme_from_story_cfg(cfg: dict) -> LanguageTheme:
+    """Infer the session LanguageTheme from a story config dict.
+
+    Priority:
+      - If the story explicitly requests Korean mixing (legacy flag), pick English Korean
+      - If the story language block contains obvious Japanese honorifics or phrases, pick English Japanese
+      - Otherwise default to English US
+    """
+    try:
+        if not cfg or not isinstance(cfg, dict):
+            return LanguageTheme.ENGLISH_US
+        rules = (cfg.get("rules") or {}).get("dialogue") or {}
+        if rules.get("mix_korean_phrases"):
+            return LanguageTheme.ENGLISH_KOREAN
+        lang = cfg.get("language") or {}
+        # Heuristic: if honorifics include common Japanese suffixes or casual_terms include Japanese words
+        honorifics = lang.get("honorifics") or {}
+        casual = lang.get("casual_terms") or []
+        # Look for 'san' or 'kun' in honorifics or casual terms
+        if any("san" in str(v).lower() or "kun" in str(v).lower() for v in list(honorifics.values()) + list(casual)):
+            return LanguageTheme.ENGLISH_JAPANESE
+    except Exception:
+        pass
+    return LanguageTheme.ENGLISH_US
+
+
+import random
+
+def apply_language_theme_mixing(text: str, state: GameState) -> str:
+    """Post-process an assistant reply to introduce light honorifics / casual local flavor
+
+    Behavior:
+      - For English Korean / English Japanese themes, replace occurrences of the player's
+        display name with a name + honorific based on story language.honorifics map.
+      - Optionally append a small casual interjection from story_cfg.language.casual_terms
+        with modest frequency so output doesn't feel mechanical.
+
+    This is intentionally conservative: only shallow textual transforms are applied.
+    """
+    try:
+        if not text or not state:
+            return text
+        cfg = getattr(state, "story_cfg", {}) or {}
+        lang = cfg.get("language", {}) or {}
+        honorific_map = lang.get("honorifics") or {}
+        casual_terms = list(lang.get("casual_terms") or [])
+
+        # Determine theme preference (explicit state field preferred)
+        theme = getattr(state, "language_theme", None)
+        if theme is None or (isinstance(theme, str) and not theme):
+            theme = _derive_language_theme_from_story_cfg(cfg)
+
+        # Normalize player's display name
+        display_name = (state.user.display_name or state.player_name or "Player").strip()
+        if not display_name:
+            return text
+
+        # Honorific substitution
+        honorific = ""
+        if isinstance(honorific_map, dict):
+            honorific = honorific_map.get(state.gender) or honorific_map.get("default") or honorific_map.get("M") or honorific_map.get("F") or ""
+        # If honorific found and theme indicates mixing, replace bare name occurrences
+        if honorific and (theme == LanguageTheme.ENGLISH_KOREAN or theme == LanguageTheme.ENGLISH_JAPANESE):
+            # If honorific looks like a suffix (e.g., 'san' or '-kun') determine joiner
+            honor_l = str(honorific).strip()
+            if honor_l.startswith("-") or honor_l.startswith("-"):
+                # keep as-is (e.g., '-kun')
+                replacement = f"{display_name}{honor_l}"
+            elif honor_l.endswith("-"):
+                replacement = f"{honor_l}{display_name}"
+            else:
+                # Default: append with a space or hyphen for readability
+                if len(honor_l) <= 4 and honor_l.isalpha():
+                    # short suffix (san, kun, chan) — append with no space
+                    replacement = f"{display_name}{honor_l if honor_l.startswith('-') else ('-' + honor_l)}"
+                else:
+                    replacement = f"{display_name} {honor_l}"
+
+            # Replace case-insensitively but preserve basic case of display_name
+            pattern = rf"(?<![A-Za-z0-9]){re.escape(display_name)}(?![A-Za-z0-9])"
+            text = re.sub(pattern, replacement, text)
+
+        # Occasionally append a casual interjection to the end of the reply
+        if casual_terms and (theme == LanguageTheme.ENGLISH_KOREAN or theme == LanguageTheme.ENGLISH_JAPANESE):
+            # modest probability to avoid heavy-handed mixing
+            if random.random() < 0.18:
+                term = random.choice(casual_terms)
+                # append separated by a space; don't duplicate punctuation
+                if not text.endswith((".", "?", "!")):
+                    text = text.rstrip()
+                    text += "."
+                text += f" {term}"
+
+        return text
+    except Exception:
+        return text
 
 
 # ---------------------------------------------------------------------------
@@ -1942,6 +2094,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         new_state.gender = "F" if gender == "F" else "M"
         new_state.player_name = player_name
         new_state.story_cfg = _canonicalize_story_cfg(story_def)
+        # Derive language theme from authored story config (English US default)
+        try:
+            new_state.language_theme = _derive_language_theme_from_story_cfg(new_state.story_cfg)
+        except Exception:
+            new_state.language_theme = LanguageTheme.ENGLISH_US
         new_state.user_id = user_id if user_id != "anon" else DEFAULT_USER_ID
         try:
             new_state.instance = int(getattr(story_def, "instance", DEFAULT_INSTANCE))
@@ -2092,6 +2249,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 ),
                 emotion=new_state.emotion,
                 relationship=new_state.relationship,
+                goal=ch.goal,
+                tells=list(ch.tells),
             )
             new_state.characters[ch.key] = game_char
             if ch.is_main:
@@ -2592,6 +2751,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
+    # Apply language-theme mixing (honorifics, casual interjections) conservatively
+    try:
+        clean = apply_language_theme_mixing(clean, state)
+    except Exception:
+        pass
 
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]

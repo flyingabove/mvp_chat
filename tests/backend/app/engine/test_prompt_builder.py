@@ -749,6 +749,40 @@ def test_character_identity_section_absent_when_not_defined():
     assert "### CHARACTER IDENTITY" not in sysmsg
 
 
+# ─── Phase 3 "Social life": goal line in the character identity block ───────
+
+def test_character_identity_section_renders_goal_when_present():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.social_traits import EvolvingTrait
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    ghost = Character(key="ghost", name="Ghost", role="ghost")
+    ghost.goal = EvolvingTrait(kind="goal", subject_id="ghost")
+    ghost.goal.set_initial("Find out who killed you.")
+    st.characters["ghost"] = ghost
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "[Ghost's current goal] Find out who killed you." in sysmsg
+
+
+def test_character_identity_section_no_goal_line_when_absent():
+    """Graceful degradation: a character with goal=None must render
+    byte-identical output to the pre-Phase-3 baseline - no stray goal text."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    ghost = Character(key="ghost", name="Ghost", role="ghost")
+    assert ghost.goal is None
+    st.characters["ghost"] = ghost
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "current goal" not in sysmsg
+
+
 # ─── BL-07: per-character self_knowledge for present non-main characters ─────
 
 def test_character_identity_section_includes_present_non_main_character():

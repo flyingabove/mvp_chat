@@ -24,9 +24,9 @@ If instructions every conflict with what is designed in the doc, always update t
 - Explicit sign-in (`profile-auth-btn` or `?token=` callback) clears the bypass flag so JWT is used going forward.
 
 ### 1. Plan Mode Default
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- **NEVER switch into actual plan-mode tool state. ALWAYS remain in bypass-permissions mode, even when doing planning work.** Do planning as a normal response/design step (write the plan, share it, proceed) rather than invoking the plan-mode tool — the user has explicitly opted out of the tool-enforced plan mode workflow.
+- For non-trivial tasks (3+ steps or architectural decisions), still write a detailed design/plan up front and share it before implementing, just without switching modes.
 - If something goes sideways, STOP and re-plan immediately — don't keep pushing
-- Use plan mode for verification steps, not just building
 - Write detailed specs upfront to reduce ambiguity
 
 ### 2. Subagent Strategy

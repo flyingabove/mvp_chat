@@ -282,3 +282,97 @@ def test_character_self_knowledge_round_trips_from_dict_to_dict():
     ch = Character.from_dict(original)
     round_tripped = Character.from_dict(ch.to_dict())
     assert round_tripped.self_knowledge == ["You are fiercely independent."]
+
+
+# ============================================================================
+# Phase 3 "Social life": Character.goal seeded from authored motive/goal,
+# and Character.tells preserved. This is the regression test proving the
+# real drop-bug is fixed - `motive`/`tells` previously fell silently into
+# the unused `meta` bucket with zero readers anywhere in the codebase.
+# ============================================================================
+
+def test_character_from_dict_seeds_goal_from_motive():
+    ch = Character.from_dict({
+        "key": "makoto", "name": "Makoto",
+        "motive": "Make real friends and find room for romance.",
+    })
+    assert ch.goal is not None
+    assert ch.goal.current == "Make real friends and find room for romance."
+    assert ch.goal.subject_id == "makoto"
+    assert len(ch.goal.history) == 1
+    assert ch.goal.history[0].source == "author"
+    # Must not leak into the meta forward-compat bucket.
+    assert "motive" not in ch.meta
+
+
+def test_character_from_dict_seeds_goal_from_generic_goal_string():
+    ch = Character.from_dict({"key": "npc", "name": "NPC", "goal": "Escape the house unnoticed."})
+    assert ch.goal is not None
+    assert ch.goal.current == "Escape the house unnoticed."
+
+
+def test_character_from_dict_motive_takes_priority_over_goal_string():
+    ch = Character.from_dict({"key": "npc", "name": "NPC", "motive": "M", "goal": "G"})
+    assert ch.goal.current == "M"
+
+
+def test_character_from_dict_no_motive_or_goal_leaves_goal_none():
+    ch = Character.from_dict({"key": "npc", "name": "NPC"})
+    assert ch.goal is None
+
+
+def test_character_from_dict_ignores_non_character_goal_dict():
+    """A raw {'goal': {'win_text_rule': ...}} shape (the murder-mystery
+    session-level win-condition object, not a serialized EvolvingTrait and
+    not a character motive) must not be mistaken for a character goal."""
+    ch = Character.from_dict({"key": "npc", "name": "NPC", "goal": {"win_text_rule": "..."}})
+    assert ch.goal is None
+
+
+def test_character_from_dict_restores_serialized_goal_trait():
+    """A full serialized EvolvingTrait dict (the shape produced by
+    Character.to_dict(), e.g. session restore) must restore the whole
+    object including history, not just seed a fresh single-entry trait."""
+    ch = Character.from_dict({
+        "key": "makoto", "name": "Makoto",
+        "goal": {
+            "kind": "goal", "subject_id": "makoto", "target_id": "", "current": "new goal",
+            "confidence": 0.8,
+            "history": [
+                {"id": "goal:makoto::0", "content": "old goal", "source": "author", "confidence": 1.0, "timestamp_minute": 0, "provenance": "author"},
+                {"id": "shift_1", "content": "new goal", "source": "extractor", "confidence": 0.8, "timestamp_minute": 500, "provenance": "changed behavior"},
+            ],
+        },
+    })
+    assert ch.goal.current == "new goal"
+    assert len(ch.goal.history) == 2
+    assert ch.goal.history[0].content == "old goal"
+
+
+def test_character_from_dict_seeds_tells():
+    ch = Character.from_dict({
+        "key": "yoo_min_ho", "name": "Yoo Min-ho", "is_suspect": True,
+        "tells": ["voice tremor on logistics questions", "avoids eye contact"],
+    })
+    assert ch.tells == ["voice tremor on logistics questions", "avoids eye contact"]
+    assert "tells" not in ch.meta
+
+
+def test_character_to_dict_serializes_goal_and_tells():
+    ch = Character.from_dict({
+        "key": "iu", "name": "IU", "motive": "Find the truth.", "tells": ["fidgets when lying"],
+    })
+    d = ch.to_dict()
+    assert d["goal"]["current"] == "Find the truth."
+    assert d["tells"] == ["fidgets when lying"]
+
+
+def test_character_goal_round_trips_from_dict_to_dict_with_full_history():
+    ch = Character.from_dict({"key": "makoto", "name": "Makoto", "motive": "Original motive."})
+    ch.goal.propose_change(
+        "Changed motive.", minute=500, reason="behavior shift", confidence=0.7, entry_id="shift_1",
+    )
+    round_tripped = Character.from_dict(ch.to_dict())
+    assert round_tripped.goal.current == "Changed motive."
+    assert len(round_tripped.goal.history) == 2
+    assert round_tripped.goal.history[0].content == "Original motive."

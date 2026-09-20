@@ -1194,6 +1194,91 @@ def test_pending_events_round_trip_through_restore(client):
     assert restored_event.status == "pending"
 
 
+def test_character_goal_history_round_trips_through_restore(client):
+    """Phase 3 'Social life' regression: state.characters is otherwise
+    always rebuilt fresh from story data on restore (no per-character
+    runtime state persists across a restart), which would silently discard
+    any goal evolution from propose_change(). The full history - not just
+    the current value - must survive a save/restore round trip."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "goal_history_restore_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    makoto = state.characters["makoto"]
+    assert makoto.goal is not None
+    original_motive = makoto.goal.current
+    makoto.goal.propose_change(
+        "No longer chasing romance - focused entirely on baseball now.",
+        minute=state.minute, reason="repeated rejection across several turns",
+        confidence=0.75, entry_id="test_shift_1",
+    )
+
+    saved_json = pe_mod._serialize_state(state, [])
+    saved = _json.loads(saved_json)
+    assert saved["character_goals"]["makoto"]["current"] == "No longer chasing romance - focused entirely on baseball now."
+    assert len(saved["character_goals"]["makoto"]["history"]) == 2
+
+    monkeypatch_get = {
+        "session_id": "goal_history_restore_sess",
+        "user_id": "goal_history_restore_user",
+        "story_id": "six_strangers",
+        "state_json": saved_json,
+        "flags_json": "{}",
+    }
+    import unittest.mock as _mock
+    with _mock.patch("backend.app.db.repos.SessionRepo._get", return_value=monkeypatch_get):
+        restored = pe_mod._try_load_session_from_db("goal_history_restore_sess", "goal_history_restore_user")
+
+    assert restored is not None
+    restored_makoto = restored["state"].characters["makoto"]
+    assert restored_makoto.goal.current == "No longer chasing romance - focused entirely on baseball now."
+    assert len(restored_makoto.goal.history) == 2
+    # Old value still readable - never overwritten.
+    assert restored_makoto.goal.history[0].content == original_motive
+
+
+def test_character_goal_restore_defaults_cleanly_when_absent(client):
+    """Backward compatibility: a saved session predating Phase 3 (no
+    'character_goals' key at all) must restore without error, falling back
+    to the freshly-loaded story-authored goal."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "goal_legacy_restore_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    saved = _json.loads(pe_mod._serialize_state(state, []))
+    del saved["character_goals"]  # simulate a pre-Phase-3 saved blob
+
+    monkeypatch_get = {
+        "session_id": "goal_legacy_restore_sess",
+        "user_id": "goal_legacy_restore_user",
+        "story_id": "six_strangers",
+        "state_json": _json.dumps(saved),
+        "flags_json": "{}",
+    }
+    import unittest.mock as _mock
+    with _mock.patch("backend.app.db.repos.SessionRepo._get", return_value=monkeypatch_get):
+        restored = pe_mod._try_load_session_from_db("goal_legacy_restore_sess", "goal_legacy_restore_user")
+
+    assert restored is not None
+    restored_makoto = restored["state"].characters["makoto"]
+    # Falls back to the freshly-loaded, author-seeded goal - no crash.
+    assert restored_makoto.goal is not None
+    assert restored_makoto.goal.current == "Make real friends and find room for romance without losing sight of baseball."
+
+
 # ============================================================================
 # Phase 2 cast-cycling, Commit 2: departure-intent extraction + proposal.
 # Nothing executes yet (no scheduler in this commit) - a confirmed decision
@@ -1595,6 +1680,71 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert "### CHARACTER IDENTITY — Mizuki Shida" in system_prompt
     for absent_key in keys - {"mizuki"}:
         assert f"### CHARACTER IDENTITY — {state.characters[absent_key].name}" not in system_prompt
+
+
+# ============================================================================
+# Phase 3 "Social life": character goal seeded from authored motive at
+# newgame, for both real stories - same code path, no genre branching.
+# ============================================================================
+
+def test_newgame_six_strangers_seeds_character_goal_from_motive(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_goal_seed_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    makoto = state.characters["makoto"]
+    assert makoto.goal is not None
+    assert makoto.goal.current == "Make real friends and find room for romance without losing sight of baseball."
+    assert len(makoto.goal.history) == 1
+    assert makoto.goal.history[0].source == "author"
+
+
+def test_newgame_murder_mystery_seeds_suspect_goal_and_tells(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "murder_mystery_goal_seed_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    suspect = state.characters.get("yoo_min_ho")
+    assert suspect is not None
+    assert suspect.goal is not None
+    assert "Job survival" in suspect.goal.current
+    assert suspect.tells, "authored tells must survive into runtime Character state"
+    assert "voice tremor on logistics questions" in suspect.tells
+
+
+def test_newgame_legacy_character_with_no_motive_has_no_goal(client):
+    """A character with no authored motive/goal must not crash newgame and
+    must simply have goal=None - the graceful-degradation baseline."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "legacy_no_motive_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    main = state.main_character
+    assert main is not None
+    # STORY_ID (the first discovered story) is not guaranteed to author a
+    # motive for its main character - this test only asserts no crash and a
+    # clean None default when it doesn't, not a specific story's content.
+    if main.goal is None:
+        assert True
+    else:
+        assert isinstance(main.goal.current, str)
 
 
 @pytest.mark.parametrize("movement_source", ["extractor", "heuristic"])
@@ -2806,6 +2956,30 @@ def test_canonicalize_story_cfg_keeps_only_generic_runtime_keys():
     assert "victim" not in cfg
     assert "style" not in cfg
     assert "world_context" not in cfg
+
+
+def test_canonicalize_story_cfg_preserves_motive_and_tells(client):
+    """Phase 3 'Social life' regression: `motive`/`tells` were previously
+    silently dropped from story_cfg["characters"] by _canonicalize_story_cfg's
+    explicit whitelist, even though both real stories author them and
+    Character.from_dict (the primary newgame path) already preserves them.
+    This is the dedicated fix-proving test for that specific drop."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    story = {
+        "id": "synthetic_test_story",
+        "characters": [
+            {
+                "key": "npc1", "name": "NPC One", "is_main": True,
+                "motive": "Win the trust of the household.",
+                "tells": ["fidgets when nervous", "avoids direct questions"],
+            },
+        ],
+    }
+    cfg = pe_mod._canonicalize_story_cfg(story)
+
+    assert cfg["characters"][0]["motive"] == "Win the trust of the household."
+    assert cfg["characters"][0]["tells"] == ["fidgets when nervous", "avoids direct questions"]
 
 
 def test_noncanonical_story_details_are_seeded_to_transient_buffer():

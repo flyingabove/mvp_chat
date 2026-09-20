@@ -11,6 +11,7 @@ from backend.app.engine.character_graph import (
     _compute_prejudice_state,
     describe_relationship_state,
 )
+from backend.app.engine.social_traits import EvolvingTrait
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +184,40 @@ def test_format_for_prompt_empty_graph():
     cg = CharacterGraph.from_dict(None)
     output = cg.format_for_prompt("iu", {})
     assert output == ""
+
+
+def test_format_for_prompt_no_disposition_renders_no_disposition_line():
+    """Phase 3 'Social life' graceful degradation: an edge with no
+    disposition established yet must render byte-identical output to the
+    pre-Phase-3 baseline - no stray '[Disposition]' text."""
+    cg = CharacterGraph.from_dict({
+        "edges": [
+            {"id": "e1", "from": "iu", "to": "player", "type": "OTHER", "label": "The detective interrogating you."},
+        ],
+    })
+
+    class FakeChar:
+        name = "Steve"
+
+    output = cg.format_for_prompt("iu", {"player": FakeChar()})
+    assert "[Disposition]" not in output
+
+
+def test_format_for_prompt_renders_disposition_when_present():
+    cg = CharacterGraph.from_dict({
+        "edges": [
+            {"id": "e1", "from": "makoto", "to": "mizuki", "type": "OTHER"},
+        ],
+    })
+    edge = cg.get_edge("makoto", "mizuki")
+    edge.disposition = EvolvingTrait(kind="disposition", subject_id="makoto", target_id="mizuki")
+    edge.disposition.set_initial("aggressive toward Mizuki", minute=0)
+
+    class FakeChar:
+        name = "Mizuki"
+
+    output = cg.format_for_prompt("makoto", {"mizuki": FakeChar()})
+    assert "[Disposition] aggressive toward Mizuki" in output
 
 
 def test_format_for_prompt_filters_by_active_characters():
