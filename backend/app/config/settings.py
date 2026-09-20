@@ -28,6 +28,16 @@ MEMORY_TURNS: int = 8
 EXTRACTOR_TURNS: int = 8
 TRANSIENT_KNOWLEDGE_TURNS: int = 8
 
+# --- Phase 3 "Social life": behavior-tag accumulation window ---
+# How many recent behavior_tags per character pair before the engine
+# considers asking the extractor to judge whether a genuine shift occurred.
+BEHAVIOR_LOG_RIPE_THRESHOLD: int = 5
+# Cap on how many tags are retained per pair (oldest evicted first).
+BEHAVIOR_LOG_WINDOW_SIZE: int = 8
+# How many of the most recent tags count as the "recent" half when checking
+# for a majority swing vs. the tags before them.
+BEHAVIOR_LOG_RECENT_SPAN: int = 3
+
 # --- Game constants ---
 GAME_TITLE: str = "storieschat.ai (beta)"
 START_LOCATION: str = "unknown"

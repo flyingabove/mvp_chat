@@ -321,6 +321,14 @@ class GameState:
     # filtered by event_type at consumption time, mirroring transient_entries.
     pending_events: List[PendingEvent] = field(default_factory=list)
 
+    # Phase 3 "Social life": rolling per-pair window of cheap, per-turn
+    # observable-behavior tags (see BehaviorTagUpdate), keyed "from->to".
+    # Raw material for the ripe-window heuristic that decides when a pair's
+    # accumulated pattern is worth an expensive LLM shift judgment - not
+    # itself a goal/disposition change. Capped per pair at
+    # BEHAVIOR_LOG_WINDOW_SIZE entries (oldest evicted first).
+    recent_behavior_log: Dict[str, List[str]] = field(default_factory=dict)
+
     # ==============================================================
     # Transient scene buffer (non-authoritative, short-lived)
     # ==============================================================

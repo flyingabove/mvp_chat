@@ -1280,6 +1280,128 @@ def test_character_goal_restore_defaults_cleanly_when_absent(client):
 
 
 # ============================================================================
+# Phase 3 "Social life", Commit 2: cheap behavior tagging + ripe-window
+# heuristic. Pure function, no LLM - the accumulation-not-one-message guard
+# at the heuristic layer.
+# ============================================================================
+
+def test_ripe_behavior_pairs_empty_when_window_too_short():
+    from backend.app.api.prompt_engine import _ripe_behavior_pairs
+    from backend.app.engine.state import init_state
+
+    state = init_state()
+    state.recent_behavior_log = {"makoto->mizuki": ["aggressive", "aggressive", "warm", "warm"]}
+    assert _ripe_behavior_pairs(state) == {}
+
+
+def test_ripe_behavior_pairs_detects_majority_swing():
+    from backend.app.api.prompt_engine import _ripe_behavior_pairs
+    from backend.app.engine.state import init_state
+
+    state = init_state()
+    state.recent_behavior_log = {
+        "makoto->mizuki": ["aggressive", "aggressive", "aggressive", "warm", "warm", "warm"],
+    }
+    ripe = _ripe_behavior_pairs(state)
+    assert "makoto->mizuki" in ripe
+    assert ripe["makoto->mizuki"] == ["aggressive", "aggressive", "aggressive", "warm", "warm", "warm"]
+
+
+def test_ripe_behavior_pairs_ignores_single_outlier_tag():
+    """The accumulation-not-one-message guard: a single differing tag among
+    an otherwise consistent pattern must not flag the pair as ripe - the
+    majority of the recent span must genuinely differ from before."""
+    from backend.app.api.prompt_engine import _ripe_behavior_pairs
+    from backend.app.engine.state import init_state
+
+    state = init_state()
+    state.recent_behavior_log = {
+        "makoto->mizuki": ["aggressive", "aggressive", "aggressive", "aggressive", "warm"],
+    }
+    assert _ripe_behavior_pairs(state) == {}
+
+
+def test_ripe_behavior_pairs_ignores_pair_with_consistent_behavior():
+    from backend.app.api.prompt_engine import _ripe_behavior_pairs
+    from backend.app.engine.state import init_state
+
+    state = init_state()
+    state.recent_behavior_log = {"makoto->mizuki": ["warm"] * 8}
+    assert _ripe_behavior_pairs(state) == {}
+
+
+def test_ripe_behavior_pairs_evaluates_multiple_pairs_independently():
+    from backend.app.api.prompt_engine import _ripe_behavior_pairs
+    from backend.app.engine.state import init_state
+
+    state = init_state()
+    state.recent_behavior_log = {
+        "makoto->mizuki": ["aggressive", "aggressive", "aggressive", "warm", "warm", "warm"],
+        "yuki->minori": ["warm"] * 6,
+    }
+    ripe = _ripe_behavior_pairs(state)
+    assert "makoto->mizuki" in ripe
+    assert "yuki->minori" not in ripe
+
+
+def test_behavior_tags_accumulate_in_recent_behavior_log(client):
+    """The real regression: mocked extractor output with behavior_tags must
+    accumulate into state.recent_behavior_log (raw material only - no
+    social_shift_signal means zero mutation to any goal/disposition)."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, BehaviorTagUpdate
+
+    sid = "behavior_tag_accumulation_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(behavior_tags=[
+            BehaviorTagUpdate(from_id="makoto", to_id="mizuki", tag="aggressive"),
+        ])
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    assert state.recent_behavior_log.get("makoto->mizuki") == ["aggressive"]
+    # No shift signal was mocked - no goal/disposition mutation.
+    makoto = state.characters["makoto"]
+    assert makoto.goal.current == "Make real friends and find room for romance without losing sight of baseball."
+
+
+def test_behavior_log_caps_at_window_size(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, BehaviorTagUpdate
+
+    sid = "behavior_log_cap_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    import unittest.mock as _mock
+    for i in range(10):
+        async def _mock_extract(*args, _i=i, **kwargs):
+            return TurnExtraction(behavior_tags=[
+                BehaviorTagUpdate(from_id="makoto", to_id="mizuki", tag=f"tag{_i}"),
+            ])
+        with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+            r = client.post("/api/chat", json={"session_id": sid, "message": f"turn {i}"})
+        assert r.status_code == 200
+
+    assert len(state.recent_behavior_log["makoto->mizuki"]) == 8
+    assert state.recent_behavior_log["makoto->mizuki"] == [f"tag{i}" for i in range(2, 10)]
+
+
+# ============================================================================
 # Phase 2 cast-cycling, Commit 2: departure-intent extraction + proposal.
 # Nothing executes yet (no scheduler in this commit) - a confirmed decision
 # only ever schedules a deferred PendingEvent; it never removes the
@@ -2107,6 +2229,38 @@ def test_apply_placeholders_and_sanitize_honorific_terms():
     out2 = pe_mod.apply_placeholders("Hi {{PLAYER_NAME}} {{HONORIFIC}}", st2)
     assert "Chris" in out2
     assert "{{HONORIFIC}}" not in out2  # placeholder replaced even if empty
+
+
+def test_japanese_language_theme_survives_canonicalization_and_styles_pauls_name():
+    from backend.app.engine.state import LanguageTheme, init_state
+    from backend.app.engine.prompt_builder import system_prompt
+    import backend.app.api.prompt_engine as pe_mod
+
+    cfg = pe_mod._canonicalize_story_cfg({
+        "id": "tokyo_test",
+        "title": "Tokyo Test",
+        "language_theme": "English Japanese",
+        "language": {
+            "honorifics": {"M": "-kun", "F": "-chan", "default": "-san"},
+            "casual_terms": ["daijoubu", "ne"],
+        },
+    })
+    assert cfg["language_theme"] == "English Japanese"
+    assert cfg["language"]["honorifics"]["M"] == "-kun"
+    assert pe_mod._derive_language_theme_from_story_cfg(cfg) is LanguageTheme.ENGLISH_JAPANESE
+
+    state = init_state()
+    state.player_name = "Paul"
+    state.user.display_name = "Paul"
+    state.gender = "M"
+    state.story_cfg = cfg
+    state.language_theme = LanguageTheme.ENGLISH_JAPANESE
+
+    assert pe_mod.apply_language_theme_mixing('**"Paul, are you okay?"**', state).startswith('**"Paul-kun')
+    assert "Paul-kun-kun" not in pe_mod.apply_language_theme_mixing('**"Paul-kun, hi."**', state)
+    prompt = system_prompt(state)
+    assert "LANGUAGE STYLE — ENGLISH JAPANESE" in prompt
+    assert 'Paul-kun' in prompt
 
 
 def test_name_extraction_and_confirmation():

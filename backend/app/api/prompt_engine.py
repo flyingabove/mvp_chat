@@ -46,6 +46,7 @@ from backend.app.config.settings import (
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
     DEFAULT_USER_ID, DEFAULT_INSTANCE,
     TRANSIENT_KNOWLEDGE_TURNS,
+    BEHAVIOR_LOG_RIPE_THRESHOLD, BEHAVIOR_LOG_WINDOW_SIZE, BEHAVIOR_LOG_RECENT_SPAN,
 
 )
 from backend.app.config.epistemic_flags import set_master
@@ -359,6 +360,11 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "id": src.get("id") or "",
         "title": src.get("title") or "",
         "theme": src.get("theme") or "",
+        # This is an authored setting, not an inference from a handful of
+        # vocabulary words.  It survives the deliberately narrow runtime
+        # story config used by sessions and prompts.
+        "language_theme": src.get("language_theme") or LanguageTheme.ENGLISH_US.value,
+        "language": src.get("language") or {},
         "instance": src.get("instance", DEFAULT_INSTANCE),
         "opening": src.get("opening") or {},
         "world": src.get("world") or {},
@@ -1148,6 +1154,43 @@ def _restore_pending_events(saved: list | None) -> list:
     return restored
 
 
+def _serialize_behavior_log(log: dict) -> dict:
+    return {str(k): [str(t) for t in (v or [])] for k, v in (log or {}).items()}
+
+
+def _restore_behavior_log(saved: dict | None) -> dict:
+    if not isinstance(saved, dict):
+        return {}
+    return {str(k): [str(t) for t in (v or []) if isinstance(v, list)] for k, v in saved.items() if isinstance(v, list)}
+
+
+def _ripe_behavior_pairs(state: GameState) -> dict[str, list[str]]:
+    """Phase 3 'Social life': pure function, no LLM. Decides which pairs in
+    state.recent_behavior_log have accumulated enough tags to be worth an
+    expensive LLM shift judgment on the NEXT extractor call - most turns,
+    this returns {} and zero extra prompt tokens are spent. A pair is
+    "ripe" when it has at least BEHAVIOR_LOG_RIPE_THRESHOLD tags AND the
+    majority tag in the most recent BEHAVIOR_LOG_RECENT_SPAN entries
+    differs from the majority tag in the entries before that recent span -
+    i.e. a genuine swing, not just noise or a single outlier tag.
+    """
+    from collections import Counter
+
+    ripe: dict[str, list[str]] = {}
+    for pair_key, tags in (getattr(state, "recent_behavior_log", {}) or {}).items():
+        if len(tags) < BEHAVIOR_LOG_RIPE_THRESHOLD:
+            continue
+        recent = tags[-BEHAVIOR_LOG_RECENT_SPAN:]
+        earlier = tags[:-BEHAVIOR_LOG_RECENT_SPAN]
+        if not earlier:
+            continue
+        recent_majority = Counter(recent).most_common(1)[0][0]
+        earlier_majority = Counter(earlier).most_common(1)[0][0]
+        if recent_majority != earlier_majority:
+            ripe[pair_key] = list(tags)
+    return ripe
+
+
 def _restore_character_graph(state: GameState, graph_snapshot: dict | None) -> None:
     if not isinstance(graph_snapshot, dict):
         return
@@ -1265,6 +1308,11 @@ def _serialize_state(state: GameState, log: list) -> str:
         "turns": state.turns,
         "over": state.over,
         "instance": state.instance,
+        "language_theme": (
+            state.language_theme.value
+            if isinstance(getattr(state, "language_theme", None), LanguageTheme)
+            else str(getattr(state, "language_theme", LanguageTheme.ENGLISH_US.value))
+        ),
         "character_locations": dict(getattr(state, "character_locations", {}) or {}),
         "cast_lifecycle": (
             state.cast_lifecycle.to_dict()
@@ -1272,6 +1320,7 @@ def _serialize_state(state: GameState, log: list) -> str:
         ),
         "pending_events": _serialize_pending_events(getattr(state, "pending_events", []) or []),
         "character_goals": _serialize_character_goals(getattr(state, "characters", {}) or {}),
+        "recent_behavior_log": _serialize_behavior_log(getattr(state, "recent_behavior_log", {}) or {}),
         "world_start_datetime": str(getattr(state, "world_start_datetime", "") or ""),
         "last_travel_from_id": str(getattr(state, "last_travel_from_id", "") or ""),
         "last_travel_to_id": str(getattr(state, "last_travel_to_id", "") or ""),
@@ -1353,11 +1402,12 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             dict(c) for c in (saved.get("last_turn_retrieved_chunks") or []) if isinstance(c, dict)
         ]
         restored.story_cfg = _canonicalize_story_cfg(story_def)
-        # Restore/derive language theme
+        # Restore the persisted choice when possible; older sessions derive it
+        # from the authored story definition.
         try:
-            restored.language_theme = _derive_language_theme_from_story_cfg(restored.story_cfg)
+            restored.language_theme = LanguageTheme(saved.get("language_theme"))
         except Exception:
-            restored.language_theme = LanguageTheme.ENGLISH_US
+            restored.language_theme = _derive_language_theme_from_story_cfg(restored.story_cfg)
         restored.user_id = user_id
         if restored.user:
             restored.user.formal_name = saved.get("user_formal_name", restored.player_name)
@@ -1543,6 +1593,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         if saved_pending_events:
             restored.pending_events = _restore_pending_events(saved_pending_events)
         _restore_character_goals(restored, saved.get("character_goals"))
+        restored.recent_behavior_log = _restore_behavior_log(saved.get("recent_behavior_log"))
         restored.clear_all_transient_entries()
         _seed_noncanonical_story_details_to_transient(story_def, restored)
 
@@ -1662,14 +1713,19 @@ def sanitize_honorific_terms(text: str, state: GameState) -> str:
 def _derive_language_theme_from_story_cfg(cfg: dict) -> LanguageTheme:
     """Infer the session LanguageTheme from a story config dict.
 
-    Priority:
-      - If the story explicitly requests Korean mixing (legacy flag), pick English Korean
-      - If the story language block contains obvious Japanese honorifics or phrases, pick English Japanese
-      - Otherwise default to English US
+    The explicit ``language_theme`` field is authoritative.  The legacy
+    Korean flag and Japanese vocabulary heuristic remain only for old story
+    files that have not yet been migrated.
     """
     try:
         if not cfg or not isinstance(cfg, dict):
             return LanguageTheme.ENGLISH_US
+        explicit = cfg.get("language_theme")
+        if explicit:
+            try:
+                return LanguageTheme(str(explicit))
+            except ValueError:
+                pass
         rules = (cfg.get("rules") or {}).get("dialogue") or {}
         if rules.get("mix_korean_phrases"):
             return LanguageTheme.ENGLISH_KOREAN
@@ -1710,6 +1766,13 @@ def apply_language_theme_mixing(text: str, state: GameState) -> str:
         theme = getattr(state, "language_theme", None)
         if theme is None or (isinstance(theme, str) and not theme):
             theme = _derive_language_theme_from_story_cfg(cfg)
+        elif isinstance(theme, str):
+            # Tolerate session objects produced by older code paths that held
+            # the enum value as a plain string.
+            try:
+                theme = LanguageTheme(theme)
+            except ValueError:
+                theme = _derive_language_theme_from_story_cfg(cfg)
 
         # Normalize player's display name
         display_name = (state.user.display_name or state.player_name or "Player").strip()
@@ -1720,7 +1783,9 @@ def apply_language_theme_mixing(text: str, state: GameState) -> str:
         honorific = ""
         if isinstance(honorific_map, dict):
             honorific = honorific_map.get(state.gender) or honorific_map.get("default") or honorific_map.get("M") or honorific_map.get("F") or ""
-        # If honorific found and theme indicates mixing, replace bare name occurrences
+        # If honorific found and theme indicates mixing, replace bare name
+        # occurrences.  Do not add it a second time when the model already
+        # followed the language prompt.
         if honorific and (theme == LanguageTheme.ENGLISH_KOREAN or theme == LanguageTheme.ENGLISH_JAPANESE):
             # If honorific looks like a suffix (e.g., 'san' or '-kun') determine joiner
             honor_l = str(honorific).strip()
@@ -1738,7 +1803,10 @@ def apply_language_theme_mixing(text: str, state: GameState) -> str:
                     replacement = f"{display_name} {honor_l}"
 
             # Replace case-insensitively but preserve basic case of display_name
-            pattern = rf"(?<![A-Za-z0-9]){re.escape(display_name)}(?![A-Za-z0-9])"
+            pattern = (
+                rf"(?<![A-Za-z0-9]){re.escape(display_name)}"
+                rf"(?![A-Za-z0-9-]|\s*{re.escape(honor_l.lstrip('-'))}\b)"
+            )
             text = re.sub(pattern, replacement, text)
 
         # Occasionally append a casual interjection to the end of the reply
@@ -2315,6 +2383,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     last_message=opening[:120],
                     turns=0,
                 )
+                # A new-game command replaces the prior playthrough.  Its
+                # next turn must not be mistaken for a network retry of the
+                # old playthrough's final request.
+                await SessionRepo.clear_last_request(session_id, new_state.user_id)
             except Exception:
                 logger.exception("Failed to persist new session %s for user %s", session_id, user_id)
 
@@ -2587,6 +2659,16 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                             "character_id": _signal.character_id,
                             "error": str(_dep_exc),
                         })
+
+            # Phase 3 "Social life": accumulate cheap per-turn behavior tags
+            # unconditionally (raw material only - never itself a change).
+            # The rare, expensive social_shift_signal judgment/apply is
+            # handled separately (see the scheduler block after advance_time).
+            for _tag in (extraction.behavior_tags or []):
+                _pair_key = f"{_tag.from_id}->{_tag.to_id}"
+                _log_list = state.recent_behavior_log.setdefault(_pair_key, [])
+                _log_list.append(_tag.tag)
+                del _log_list[:-BEHAVIOR_LOG_WINDOW_SIZE]
         except Exception as e:
             _log({
                 "kind": "turn_extraction_error",
