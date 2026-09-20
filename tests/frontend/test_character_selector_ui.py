@@ -32,4 +32,5 @@ def test_default_persona_copy_matches_server_profile():
 
     assert "Paul Dingus" in html
     assert "Devilishly handsome Black man who knows a little Japanese." in html
-
+    assert 'src="/img/avatars/persona_default.svg"' in html
+    assert 'src="img/avatars/persona_default.svg"' not in html
