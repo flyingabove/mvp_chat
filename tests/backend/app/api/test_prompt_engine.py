@@ -1402,6 +1402,270 @@ def test_behavior_log_caps_at_window_size(client):
 
 
 # ============================================================================
+# Phase 3 "Social life", Commit 3: SocialShiftSignal judgment + apply
+# pipeline - the final piece that lets a goal/disposition actually change.
+# Extractor mocked throughout, following Phase 2's established precedent for
+# signals that can't be reliably triggered deterministically via the real
+# LLM in CI.
+# ============================================================================
+
+def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_goal_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    makoto = state.characters["makoto"]
+    original_goal = makoto.goal.current
+    assert len(makoto.goal.history) == 1
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="goal", subject_id="makoto",
+            new_value="No longer chasing romance - focused entirely on baseball now.",
+            reason="repeated rejection across several turns",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    assert makoto.goal.current == "No longer chasing romance - focused entirely on baseball now."
+    assert len(makoto.goal.history) == 2
+    # Old value still readable - never overwritten.
+    assert makoto.goal.history[0].content == original_goal
+    assert makoto.goal.history[1].provenance == "repeated rejection across several turns"
+
+
+def test_social_shift_disposition_creates_new_history_entry(client):
+    """Uses the player->mizuki pair since six_strangers only authors
+    player-facing edges (no NPC-NPC edges exist in the current story JSON -
+    a pre-existing authoring gap, not something this feature needs to fix).
+    The apply logic itself is genre/pair-agnostic; it correctly no-ops when
+    no edge exists at all, exercised separately below."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_disposition_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.character_graph.get_edge("player", "mizuki") is not None
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="disposition", subject_id="player", target_id="mizuki",
+            new_value="growing genuinely fond of Mizuki", reason="repeated warmth over several turns",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    edge = state.character_graph.get_edge("player", "mizuki")
+    assert edge is not None
+    assert edge.disposition is not None
+    assert edge.disposition.current == "growing genuinely fond of Mizuki"
+    assert len(edge.disposition.history) == 1
+
+
+def test_social_shift_disposition_no_edge_is_safe_noop(client):
+    """A shift naming a pair with NO existing relationship edge at all must
+    not crash and must not fabricate a new edge out of thin air - only an
+    already-established edge can gain a disposition this way."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_no_edge_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.character_graph.get_edge("makoto", "mizuki") is None
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="disposition", subject_id="makoto", target_id="mizuki",
+            new_value="warming up to Mizuki", reason="softened",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+    assert state.character_graph.get_edge("makoto", "mizuki") is None
+
+
+def test_social_shift_goal_reflected_in_next_turn_prompt(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_prompt_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="goal", subject_id="makoto",
+            new_value="No longer chasing romance - focused entirely on baseball now.",
+            reason="repeated rejection",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    # Force makoto present so the identity block (and any goal line for him)
+    # would render if the game surfaces non-main present characters.
+    state.add_transient_entry(
+        id="social_shift_makoto_present", namespace="test", scope="conversation",
+        text="__people_present_marker__:makoto", expires_after_turns=5,
+    )
+    prompt = pb.system_prompt(state)
+    assert "No longer chasing romance - focused entirely on baseball now." in prompt
+    assert "Make real friends and find room for romance without losing sight of baseball." not in prompt
+
+
+def test_social_shift_idempotent_on_retried_turn(client):
+    """Simulates the exact retried-turn scenario: calling the apply logic
+    twice with the same state.turns value must not double-apply."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.social_traits import EvolvingTrait
+
+    sid = "social_shift_idempotency_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    makoto = state.characters["makoto"]
+
+    entry_id = f"social_shift_goal_makoto__{state.turns}"
+    first = makoto.goal.propose_change(
+        "new goal", minute=state.minute, reason="r", confidence=0.7, entry_id=entry_id,
+    )
+    history_len_after_first = len(makoto.goal.history)
+    second = makoto.goal.propose_change(
+        "different value entirely", minute=state.minute, reason="r2", confidence=0.9, entry_id=entry_id,
+    )
+
+    assert first is True
+    assert second is False
+    assert len(makoto.goal.history) == history_len_after_first
+    assert makoto.goal.current == "new goal"
+
+
+def test_social_shift_wish_certainty_does_not_mutate_state(client):
+    """The explicit false-positive guard: a momentary outlier (WISH) must
+    never mutate a goal or disposition, mirroring Phase 2's departure_signal
+    WISH guard exactly."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_wish_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    makoto = state.characters["makoto"]
+    original_goal = makoto.goal.current
+    original_history_len = len(makoto.goal.history)
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="WISH", scope="goal", subject_id="makoto",
+            new_value="briefly considered giving up on friendships",
+            reason="one bad moment",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    assert makoto.goal.current == original_goal
+    assert len(makoto.goal.history) == original_history_len
+
+
+def test_social_shift_requires_ripe_pair_for_behavior_window(client):
+    """Confirm the extractor call only receives a behavior_window kwarg when
+    a pair is actually ripe - the common-case no-op path."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    sid = "ripe_window_wiring_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+
+    captured = {}
+
+    async def _capture_extract(*args, **kwargs):
+        captured["behavior_window"] = kwargs.get("behavior_window")
+        return TurnExtraction()
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _capture_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+    assert captured.get("behavior_window") is None
+
+
+def test_social_shift_passes_ripe_pair_as_behavior_window(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    sid = "ripe_window_pair_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    state.recent_behavior_log["makoto->mizuki"] = [
+        "aggressive", "aggressive", "aggressive", "warm", "warm", "warm",
+    ]
+
+    captured = {}
+
+    async def _capture_extract(*args, **kwargs):
+        captured["behavior_window"] = kwargs.get("behavior_window")
+        return TurnExtraction()
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _capture_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+    assert captured.get("behavior_window") == {
+        "pair": "makoto->mizuki",
+        "tags": ["aggressive", "aggressive", "aggressive", "warm", "warm", "warm"],
+    }
+
+
+# ============================================================================
 # Phase 2 cast-cycling, Commit 2: departure-intent extraction + proposal.
 # Nothing executes yet (no scheduler in this commit) - a confirmed decision
 # only ever schedules a deferred PendingEvent; it never removes the

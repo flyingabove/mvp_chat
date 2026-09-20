@@ -2516,6 +2516,18 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         }
 
         try:
+            # Phase 3 "Social life": only ever ask the extractor to judge a
+            # social shift when the cheap, no-LLM heuristic has flagged a
+            # pair's accumulated behavior as ripe - most turns this is
+            # empty and the extractor prompt is byte-identical to before
+            # this feature existed. Evaluate at most one pair per turn to
+            # keep the added prompt small and the judgment focused.
+            _ripe_pairs = _ripe_behavior_pairs(state)
+            _behavior_window = None
+            if _ripe_pairs:
+                _ripe_pair_key = next(iter(_ripe_pairs))
+                _behavior_window = {"pair": _ripe_pair_key, "tags": _ripe_pairs[_ripe_pair_key]}
+
             _log({
                 "kind": "turn_extraction_attempting",
                 "user_msg": msg,
@@ -2530,6 +2542,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 previous_turn_assistant_reply=str(getattr(state, "last_turn_assistant_reply", "") or ""),
                 previous_turn_candidate_chunks=previous_candidate_chunks,
                 conversation_log=log,
+                behavior_window=_behavior_window,
             )
             
             _log({
@@ -2662,13 +2675,64 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
             # Phase 3 "Social life": accumulate cheap per-turn behavior tags
             # unconditionally (raw material only - never itself a change).
-            # The rare, expensive social_shift_signal judgment/apply is
-            # handled separately (see the scheduler block after advance_time).
             for _tag in (extraction.behavior_tags or []):
                 _pair_key = f"{_tag.from_id}->{_tag.to_id}"
                 _log_list = state.recent_behavior_log.setdefault(_pair_key, [])
                 _log_list.append(_tag.tag)
                 del _log_list[:-BEHAVIOR_LOG_WINDOW_SIZE]
+
+            # Apply a genuine SHIFT (never a WISH - "a wish or joke is not
+            # departure" applies here too: a momentary flicker must not
+            # rewrite a character's goal/disposition). Re-validate
+            # subject_id/target_id against current live state - never trust
+            # the extractor's earlier allowed_character_keys check alone,
+            # same double-validation discipline as the destination_id path.
+            _shift = extraction.social_shift_signal
+            if _shift is not None and _shift.certainty == "SHIFT" and _shift.new_value:
+                _shift_entry_id = f"social_shift_{_shift.scope}_{_shift.subject_id}_{_shift.target_id}_{state.turns}"
+                if _shift.scope == "goal":
+                    _shift_char = (getattr(state, "characters", {}) or {}).get(_shift.subject_id)
+                    if _shift_char is not None:
+                        if _shift_char.goal is None:
+                            _shift_char.goal = EvolvingTrait(kind="goal", subject_id=_shift.subject_id)
+                        _shift_applied = _shift_char.goal.propose_change(
+                            _shift.new_value,
+                            minute=int(getattr(state, "minute", 0) or 0),
+                            reason=_shift.reason or "behavior shift observed over several turns",
+                            confidence=0.7,
+                            entry_id=_shift_entry_id,
+                        )
+                        if _shift_applied:
+                            state.recent_behavior_log.pop(f"{_shift.subject_id}->{_shift.target_id}", None)
+                            _log({
+                                "kind": "social_goal_shift_applied",
+                                "character_id": _shift.subject_id,
+                                "new_value": _shift.new_value,
+                            })
+                elif _shift.scope == "disposition" and _rel_graph is not None and _shift.target_id:
+                    _shift_edge = _rel_graph.get_edge(_shift.subject_id, _shift.target_id)
+                    if _shift_edge is not None:
+                        if _shift_edge.disposition is None:
+                            _shift_edge.disposition = EvolvingTrait(
+                                kind="disposition", subject_id=_shift.subject_id, target_id=_shift.target_id,
+                            )
+                        _shift_applied = _shift_edge.disposition.propose_change(
+                            _shift.new_value,
+                            minute=int(getattr(state, "minute", 0) or 0),
+                            reason=_shift.reason or "behavior shift observed over several turns",
+                            confidence=0.7,
+                            entry_id=_shift_entry_id,
+                        )
+                        if _shift_applied:
+                            # Reset this pair's window so the next shift
+                            # needs fresh evidence, not the same window twice.
+                            state.recent_behavior_log.pop(f"{_shift.subject_id}->{_shift.target_id}", None)
+                            _log({
+                                "kind": "social_disposition_shift_applied",
+                                "from_id": _shift.subject_id,
+                                "to_id": _shift.target_id,
+                                "new_value": _shift.new_value,
+                            })
         except Exception as e:
             _log({
                 "kind": "turn_extraction_error",
