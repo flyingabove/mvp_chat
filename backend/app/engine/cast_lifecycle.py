@@ -18,6 +18,10 @@ class CastStatus(str, Enum):
     DEPARTED = "departed"
 
 
+_ALLOWED_DEPARTURE_POLICIES = {"committed_intent"}
+_ALLOWED_REPLACEMENT_TIMINGS = {"immediate", "next_day"}
+
+
 @dataclass
 class CastMemberState:
     status: CastStatus
@@ -110,6 +114,11 @@ class CastLifecycleState:
     slot_labels: dict[str, str]
     members: dict[str, CastMemberState]
     history: list[CastTransition] = field(default_factory=list)
+    # How long after a confirmed departure the replacement actually arrives.
+    # "immediate" preserves pre-Phase-2 behavior (default for any story/test
+    # that omits this field); "next_day" defers execution to a day boundary
+    # via the pending-events scheduler (see world_calendar.py).
+    replacement_timing: str = "immediate"
 
     @classmethod
     def from_config(
@@ -125,10 +134,15 @@ class CastLifecycleState:
         arrival_location_id = str(config.get("arrival_location_id") or "").strip()
         replacement_policy = str(config.get("replacement_policy") or "same_slot_next").strip()
         departure_policy = str(config.get("departure_policy") or "committed_intent").strip()
+        replacement_timing = str(config.get("replacement_timing") or "immediate").strip()
         if enabled and not arrival_location_id:
             raise ValueError("enabled cast_lifecycle requires arrival_location_id")
         if replacement_policy != "same_slot_next":
             raise ValueError(f"unsupported replacement_policy: {replacement_policy!r}")
+        if departure_policy not in _ALLOWED_DEPARTURE_POLICIES:
+            raise ValueError(f"unsupported departure_policy: {departure_policy!r}")
+        if replacement_timing not in _ALLOWED_REPLACEMENT_TIMINGS:
+            raise ValueError(f"unsupported replacement_timing: {replacement_timing!r}")
 
         raw_groups = config.get("slot_groups") or {}
         if not isinstance(raw_groups, Mapping) or (enabled and not raw_groups):
@@ -185,6 +199,7 @@ class CastLifecycleState:
             slot_capacities=capacities,
             slot_labels=labels,
             members=members,
+            replacement_timing=replacement_timing,
         )
         state._validate(location_ids=location_ids)
         return state
@@ -204,6 +219,7 @@ class CastLifecycleState:
             slot_labels={str(k): str(v) for k, v in (data.get("slot_labels") or {}).items()},
             members={str(k): CastMemberState.from_dict(v) for k, v in raw_members.items()},
             history=[CastTransition.from_dict(item) for item in raw_history],
+            replacement_timing=str(data.get("replacement_timing") or "immediate"),
         )
         state._validate()
         return state
@@ -218,6 +234,7 @@ class CastLifecycleState:
             "slot_labels": dict(self.slot_labels),
             "members": {key: member.to_dict() for key, member in self.members.items()},
             "history": [transition.to_dict() for transition in self.history],
+            "replacement_timing": self.replacement_timing,
         }
 
     def active_ids(self, slot_group: Optional[str] = None) -> list[str]:

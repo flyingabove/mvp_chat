@@ -1143,6 +1143,57 @@ def test_beliefs_and_observation_log_round_trip_through_restore(client):
     ), "observation_log did not survive restore"
 
 
+def test_pending_events_round_trip_through_restore(client):
+    """Phase 2 foundation: GameState.pending_events (the durable queue the
+    cast-cycling scheduler will consume) must survive a save/restore round
+    trip, the same way beliefs/observation_log do."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_calendar import PendingEvent
+
+    sid = "pending_events_restore_check"
+    r = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    state.pending_events.append(PendingEvent(
+        event_id="departure_replace_makoto_1",
+        event_type="cast_departure_replacement",
+        scheduled_day=1,
+        payload={"departing_id": "makoto", "reason": "moving out"},
+        created_minute=state.minute,
+    ))
+
+    saved_json = pe_mod._serialize_state(state, [])
+    saved = _json.loads(saved_json)
+    assert saved["pending_events"], "pending_events was not serialized"
+    assert saved["pending_events"][0]["event_id"] == "departure_replace_makoto_1"
+
+    monkeypatch_get = {
+        "session_id": "pending_events_restore_sess",
+        "user_id": "pending_events_restore_user",
+        "story_id": "six_strangers",
+        "state_json": saved_json,
+        "flags_json": "{}",
+    }
+    import unittest.mock as _mock
+    with _mock.patch("backend.app.db.repos.SessionRepo._get", return_value=monkeypatch_get):
+        restored = pe_mod._try_load_session_from_db("pending_events_restore_sess", "pending_events_restore_user")
+
+    assert restored is not None
+    restored_state = restored["state"]
+    assert len(restored_state.pending_events) == 1
+    restored_event = restored_state.pending_events[0]
+    assert restored_event.event_id == "departure_replace_makoto_1"
+    assert restored_event.event_type == "cast_departure_replacement"
+    assert restored_event.scheduled_day == 1
+    assert restored_event.payload == {"departing_id": "makoto", "reason": "moving out"}
+    assert restored_event.status == "pending"
+
+
 def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(client):
     """Exercise actual initialization, including visibility seeding and prompt assembly."""
     from backend.app.api import prompt_engine as pe_mod

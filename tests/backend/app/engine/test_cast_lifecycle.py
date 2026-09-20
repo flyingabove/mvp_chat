@@ -149,6 +149,8 @@ def test_snapshot_round_trip_preserves_statuses_history_and_queue():
         (lambda cfg: cfg["members"]["c"].update(initial_status="waiting"), "unknown initial_status"),
         (lambda cfg: cfg.update(arrival_location_id="nowhere"), "does not exist"),
         (lambda cfg: cfg["members"].update(ghost={"slot_group": "men", "initial_status": "upcoming", "sequence": 9}), "not an authored character"),
+        (lambda cfg: cfg.update(departure_policy="just_leave"), "unsupported departure_policy"),
+        (lambda cfg: cfg.update(replacement_timing="next_week"), "unsupported replacement_timing"),
     ],
 )
 def test_invalid_authoring_is_rejected_with_meaningful_errors(change, error):
@@ -175,3 +177,31 @@ def test_game_state_lifecycle_is_optional_for_legacy_stories():
     game_state = GameState()
 
     assert game_state.cast_lifecycle is None
+
+
+def test_replacement_timing_defaults_to_immediate_when_omitted():
+    config = _config()
+    assert "replacement_timing" not in config
+    state = CastLifecycleState.from_config(
+        config, character_ids={"a", "b", "c", "d", "w", "w2"}, location_ids={"front_entry"},
+    )
+    assert state.replacement_timing == "immediate"
+
+
+def test_replacement_timing_next_day_parsed_from_config():
+    config = _config()
+    config["replacement_timing"] = "next_day"
+    state = CastLifecycleState.from_config(
+        config, character_ids={"a", "b", "c", "d", "w", "w2"}, location_ids={"front_entry"},
+    )
+    assert state.replacement_timing == "next_day"
+
+
+def test_replacement_timing_round_trips_through_snapshot():
+    config = _config()
+    config["replacement_timing"] = "next_day"
+    state = CastLifecycleState.from_config(
+        config, character_ids={"a", "b", "c", "d", "w", "w2"}, location_ids={"front_entry"},
+    )
+    restored = CastLifecycleState.from_dict(state.to_dict())
+    assert restored.replacement_timing == "next_day"

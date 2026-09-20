@@ -66,6 +66,7 @@ from backend.app.engine.state import (
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
+from backend.app.engine.world_calendar import PendingEvent, day_number
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
 from backend.app.engine.knowledge_chunks import normalize_parties, KnowledgeChunk
 from backend.app.engine.story_loader import load_story, StoryDefinition
@@ -1090,6 +1091,24 @@ def _restore_beliefs(saved: dict | None) -> Dict[str, BeliefState]:
     return beliefs
 
 
+def _serialize_pending_events(events: list) -> list:
+    return [e.to_dict() for e in (events or [])]
+
+
+def _restore_pending_events(saved: list | None) -> list:
+    if not isinstance(saved, list):
+        return []
+    restored = []
+    for item in saved:
+        if not isinstance(item, dict):
+            continue
+        try:
+            restored.append(PendingEvent.from_dict(item))
+        except ValueError:
+            continue
+    return restored
+
+
 def _restore_character_graph(state: GameState, graph_snapshot: dict | None) -> None:
     if not isinstance(graph_snapshot, dict):
         return
@@ -1208,6 +1227,7 @@ def _serialize_state(state: GameState, log: list) -> str:
             state.cast_lifecycle.to_dict()
             if getattr(state, "cast_lifecycle", None) is not None else None
         ),
+        "pending_events": _serialize_pending_events(getattr(state, "pending_events", []) or []),
         "world_start_datetime": str(getattr(state, "world_start_datetime", "") or ""),
         "last_travel_from_id": str(getattr(state, "last_travel_from_id", "") or ""),
         "last_travel_to_id": str(getattr(state, "last_travel_to_id", "") or ""),
@@ -1468,6 +1488,9 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             restored.observation_log = [
                 c for c in (_restore_knowledge_chunk(x) for x in saved_observations) if c is not None
             ]
+        saved_pending_events = saved.get("pending_events")
+        if saved_pending_events:
+            restored.pending_events = _restore_pending_events(saved_pending_events)
         restored.clear_all_transient_entries()
         _seed_noncanonical_story_details_to_transient(story_def, restored)
 

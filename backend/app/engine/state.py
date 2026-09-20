@@ -16,6 +16,7 @@ from backend.app.config.settings import (
 
 from backend.app.engine.character_graph import CharacterGraph, CharacterType
 from backend.app.engine.cast_lifecycle import CastLifecycleState
+from backend.app.engine.world_calendar import PendingEvent
 from backend.app.engine.epistemic_state import BeliefState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk
 from backend.app.engine.transient_buffer import TransientKnowledge, prune_expired
@@ -259,6 +260,11 @@ class GameState:
     # Optional authored/runtime cast rotation state. Stories that do not opt in
     # leave this as None and retain the legacy all-characters-active behavior.
     cast_lifecycle: Optional[CastLifecycleState] = None
+
+    # Generic durable event queue (Phase 2 cast-cycling scheduler; reusable by
+    # future day-keyed features such as routines/commitments). One list
+    # filtered by event_type at consumption time, mirroring transient_entries.
+    pending_events: List[PendingEvent] = field(default_factory=list)
 
     # ==============================================================
     # Transient scene buffer (non-authoritative, short-lived)
