@@ -1102,6 +1102,48 @@
       background: rgba(0,0,0,0.7);
     }
 
+    /* ══════════════════════════════════════════════
+       JOURNAL MODAL
+    ══════════════════════════════════════════════ */
+    #journal-modal {
+      position: fixed; inset: 0; z-index: 400;
+      background: rgba(0,0,0,0.92);
+      display: none; flex-direction: column;
+    }
+    #journal-modal.open { display: flex; }
+    #journal-modal-close {
+      position: absolute; top: 20px; right: 20px;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(0,0,0,0.7); border: none; cursor: pointer;
+      color: white; font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+    }
+    #journal-modal-title {
+      padding: 20px 60px 12px 20px;
+      font-size: 18px; font-weight: 600; color: var(--text);
+      flex-shrink: 0;
+    }
+    #journal-modal-body {
+      flex: 1; overflow-y: auto; padding: 0 16px 24px;
+    }
+    .journal-empty {
+      color: var(--text-sub); font-size: 14px; text-align: center;
+      padding: 40px 20px;
+    }
+    .journal-entry {
+      background: var(--surface); border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 10px;
+    }
+    .journal-entry-meta {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--text-muted); margin-bottom: 4px;
+    }
+    .journal-entry-meta .who { color: var(--red); }
+    .journal-entry-text {
+      font-size: 14px; color: var(--text); line-height: 1.4;
+    }
+
     /* Scrollable message area when chat header is shown */
     #chat-scroll-wrapper {
       flex: 1; display: flex; flex-direction: column; overflow: hidden;
@@ -1288,6 +1330,7 @@
     <div id="chat-dropdown">
       <div class="dropdown-item" id="dd-map"><span class="di-icon">🗺</span> World Map</div>
       <div class="dropdown-item" id="dd-cast"><span class="di-icon">👥</span> <span id="dd-cast-label">Cast</span></div>
+      <div class="dropdown-item" id="dd-journal"><span class="di-icon">📓</span> Journal</div>
       <div class="dropdown-item" id="dd-debug"><span class="di-icon">🔬</span> Debug Info</div>
       <div class="dropdown-item" id="dd-truth"><span class="di-icon">💡</span> Truth Mode</div>
       <div class="dropdown-item" id="dd-chinese"><span class="di-icon">🀄</span> Chinese Mode</div>
@@ -1570,6 +1613,13 @@
     <img id="map-modal-img" class="map-image" alt="World map" style="display:none;" />
     <div id="map-modal-locations" class="map-locations"></div>
   </div>
+</div>
+
+<!-- Journal / recap modal -->
+<div id="journal-modal">
+  <button id="journal-modal-close">✕</button>
+  <div id="journal-modal-title">Journal</div>
+  <div id="journal-modal-body"></div>
 </div>
 
 <!-- Confirm dialog -->
@@ -3021,6 +3071,11 @@ $("dd-cast").addEventListener("click", function(){
   sendMessage("[CAST]", false, { suppressUserMessage: true, countAsTurn: false });
 });
 
+$("dd-journal").addEventListener("click", function(){
+  $("chat-dropdown").classList.remove("open");
+  showJournalModal();
+});
+
 $("dd-debug").addEventListener("click", function(){
   appState.debugMode = !appState.debugMode;
   this.classList.toggle("active", appState.debugMode);
@@ -3211,6 +3266,70 @@ function setupMapInteraction(){
 
 $("map-modal-close").addEventListener("click", function(){ closeModal("map-modal"); });
 $("map-modal").addEventListener("click", function(e){ if(e.target === this) closeModal("map-modal"); });
+
+/* ─── JOURNAL / RECAP MODAL ─────────────────────── */
+function showJournalModal(){
+  var body = $("journal-modal-body");
+  body.innerHTML = '<div class="journal-empty">Loading journal…</div>';
+  openModal("journal-modal");
+
+  var session = appState.session;
+  var sessionId = session ? (session.session_id || session.id) : null;
+  if (!sessionId){
+    body.innerHTML = '<div class="journal-empty">No active session.</div>';
+    return;
+  }
+
+  fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/journal", { headers: apiHeaders() })
+    .then(function(r){
+      if (r.status === 401) { handleUnauthorized(); return null; }
+      if (!r.ok) throw new Error("journal fetch failed");
+      return r.json();
+    })
+    .then(function(data){
+      if (!data) return;
+      renderJournalEntries(data.entries || []);
+    })
+    .catch(function(){
+      body.innerHTML = '<div class="journal-empty">Couldn\'t load the journal. Try again later.</div>';
+    });
+}
+
+function renderJournalEntries(entries){
+  var body = $("journal-modal-body");
+  body.innerHTML = "";
+
+  if (!entries.length){
+    body.innerHTML = '<div class="journal-empty">Nothing to recap yet — keep playing and this will fill in.</div>';
+    return;
+  }
+
+  var kindLabel = { goal: "Goal", disposition: "Feels toward", note: "Moment" };
+
+  entries.forEach(function(e){
+    var card = document.createElement("div");
+    card.className = "journal-entry";
+
+    var meta = document.createElement("div");
+    meta.className = "journal-entry-meta";
+    var who = document.createElement("span");
+    who.className = "who";
+    who.textContent = e.target_name ? (e.character_name + " → " + e.target_name) : e.character_name;
+    meta.appendChild(who);
+    meta.appendChild(document.createTextNode("  ·  " + (kindLabel[e.kind] || e.kind)));
+    card.appendChild(meta);
+
+    var text = document.createElement("div");
+    text.className = "journal-entry-text";
+    text.textContent = e.text;
+    card.appendChild(text);
+
+    body.appendChild(card);
+  });
+}
+
+$("journal-modal-close").addEventListener("click", function(){ closeModal("journal-modal"); });
+$("journal-modal").addEventListener("click", function(e){ if(e.target === this) closeModal("journal-modal"); });
 
 /* ─── MY GAMES SCREEN ───────────────────────────── */
 function renderGamesListEmpty(){

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from backend.app.auth.dependencies import get_current_user_or_guest
 from backend.app.db.repos import SessionRepo, ConversationRepo
+from backend.app.api.prompt_engine import get_session
 
 router = APIRouter()
 
@@ -51,6 +52,79 @@ async def get_history(
         "has_more": oldest_turn > 1,
         "oldest_turn": oldest_turn,
     }
+
+
+@router.get("/api/user/sessions/{session_id}/journal")
+async def get_journal(session_id: str, user: dict = Depends(get_current_user_or_guest)):
+    """
+    Player-facing recap: NPC goal/disposition shifts over the playthrough,
+    derived entirely from existing engine state (EvolvingTrait history on
+    Character.goal / RelationshipEdge.disposition, plus relationship
+    narrative_log). No new extraction signal — this is a read-only view
+    over data Phase 3 already tracks.
+    """
+    user_id = user["sub"]
+
+    # Validate session ownership the same way /history does.
+    sess = await SessionRepo.get_session(session_id=session_id, user_id=user_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    loaded = get_session(session_id, user_id=user_id)
+    state = loaded["state"]
+    characters = getattr(state, "characters", {}) or {}
+    graph = getattr(state, "character_graph", None)
+
+    entries = []
+
+    for key, ch in characters.items():
+        goal = getattr(ch, "goal", None)
+        if goal is None:
+            continue
+        for chunk in goal.history:
+            entries.append({
+                "minute": chunk.timestamp_minute or 0,
+                "kind": "goal",
+                "character_id": key,
+                "character_name": ch.name,
+                "target_id": "",
+                "target_name": "",
+                "text": chunk.text,
+            })
+
+    if graph is not None:
+        for edge in graph.edges.values():
+            disposition = getattr(edge, "disposition", None)
+            if disposition is None:
+                continue
+            from_ch = characters.get(edge.from_id)
+            to_ch = characters.get(edge.to_id)
+            from_name = from_ch.name if from_ch else edge.from_id
+            to_name = to_ch.name if to_ch else edge.to_id
+            for chunk in disposition.history:
+                entries.append({
+                    "minute": chunk.timestamp_minute or 0,
+                    "kind": "disposition",
+                    "character_id": edge.from_id,
+                    "character_name": from_name,
+                    "target_id": edge.to_id,
+                    "target_name": to_name,
+                    "text": chunk.text,
+                })
+            for note in edge.narrative_log:
+                entries.append({
+                    "minute": 0,
+                    "kind": "note",
+                    "character_id": edge.from_id,
+                    "character_name": from_name,
+                    "target_id": edge.to_id,
+                    "target_name": to_name,
+                    "text": note,
+                })
+
+    entries.sort(key=lambda e: e["minute"])
+
+    return {"entries": entries}
 
 
 @router.delete("/api/user/sessions/{session_id}")

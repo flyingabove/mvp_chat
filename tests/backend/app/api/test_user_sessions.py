@@ -116,6 +116,117 @@ def test_history_cross_user_access_denied(client, user2_token):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/user/sessions/{id}/journal
+# ---------------------------------------------------------------------------
+
+def _make_journal_state():
+    """Build a minimal real GameState with goal/disposition history, mirroring
+    what a live session would actually produce (no mocking of engine internals,
+    only the DB-ownership + session-lookup boundary)."""
+    from backend.app.engine.state import Character, init_state
+    from backend.app.engine.social_traits import EvolvingTrait
+    from backend.app.engine.character_graph import CharacterGraph, CharacterType, RelationshipEdge
+
+    state = init_state()
+    state.character_graph = CharacterGraph()
+
+    makoto = Character(key="makoto", name="Makoto", character_type=CharacterType.NPC)
+    makoto.goal = EvolvingTrait(kind="goal", subject_id="makoto")
+    makoto.goal.set_initial("win Aiko's trust", minute=0, source="author")
+    makoto.goal.propose_change(
+        "protect Aiko from the truth", minute=120, reason="turn 4 shift",
+        confidence=0.8, entry_id="social_shift_goal_makoto__4",
+    )
+    state.characters = {"makoto": makoto}
+
+    edge = RelationshipEdge(id="makoto->aiko", from_id="makoto", to_id="aiko")
+    edge.disposition = EvolvingTrait(kind="disposition", subject_id="makoto", target_id="aiko")
+    edge.disposition.set_initial("guarded", minute=0, source="author")
+    edge.narrative_log.append("Makoto avoided eye contact with Aiko at dinner.")
+    aiko = Character(key="aiko", name="Aiko", character_type=CharacterType.NPC)
+    state.characters["aiko"] = aiko
+    state.character_graph.edges[CharacterGraph._edge_key("makoto", "aiko")] = edge
+
+    return state
+
+
+def test_journal_requires_auth(client):
+    resp = client.get("/api/user/sessions/sess1/journal")
+    assert resp.status_code == 401
+
+
+def test_journal_for_nonexistent_session_returns_404(client, user1_token):
+    with patch("backend.app.api.user_sessions.SessionRepo.get_session", new_callable=AsyncMock) as mock:
+        mock.return_value = None
+        resp = client.get(
+            "/api/user/sessions/nonexistent/journal",
+            headers={"Authorization": f"Bearer {user1_token}"},
+        )
+    assert resp.status_code == 404
+
+
+def test_journal_cross_user_access_denied(client, user2_token):
+    with patch("backend.app.api.user_sessions.SessionRepo.get_session", new_callable=AsyncMock) as mock:
+        mock.return_value = None
+        resp = client.get(
+            "/api/user/sessions/sess_of_user1/journal",
+            headers={"Authorization": f"Bearer {user2_token}"},
+        )
+    assert resp.status_code == 404
+
+
+def test_journal_returns_goal_and_disposition_history(client, user1_token):
+    state = _make_journal_state()
+    with patch("backend.app.api.user_sessions.SessionRepo.get_session", new_callable=AsyncMock) as sess_mock, \
+         patch("backend.app.api.user_sessions.get_session") as engine_get_session:
+        sess_mock.return_value = {"id": "sess1", "user_id": "uid1"}
+        engine_get_session.return_value = {"state": state}
+        resp = client.get(
+            "/api/user/sessions/sess1/journal",
+            headers={"Authorization": f"Bearer {user1_token}"},
+        )
+    assert resp.status_code == 200
+    entries = resp.json()["entries"]
+
+    kinds = {(e["kind"], e["text"]) for e in entries}
+    assert ("goal", "win Aiko's trust") in kinds
+    assert ("goal", "protect Aiko from the truth") in kinds
+    assert ("disposition", "guarded") in kinds
+    assert ("note", "Makoto avoided eye contact with Aiko at dinner.") in kinds
+
+    # Character names are resolved, not raw keys.
+    goal_entries = [e for e in entries if e["kind"] == "goal"]
+    assert all(e["character_name"] == "Makoto" for e in goal_entries)
+    disposition_entries = [e for e in entries if e["kind"] == "disposition"]
+    assert disposition_entries[0]["character_name"] == "Makoto"
+    assert disposition_entries[0]["target_name"] == "Aiko"
+
+    # Sorted by minute ascending.
+    minutes = [e["minute"] for e in entries if e["kind"] != "note"]
+    assert minutes == sorted(minutes)
+
+
+def test_journal_empty_for_character_with_no_goal(client, user1_token):
+    """Legacy/no-goal characters must not error or appear in the journal."""
+    from backend.app.engine.state import Character, init_state
+    from backend.app.engine.character_graph import CharacterType
+
+    state = init_state()
+    state.characters = {"plain": Character(key="plain", name="Plain", character_type=CharacterType.NPC)}
+
+    with patch("backend.app.api.user_sessions.SessionRepo.get_session", new_callable=AsyncMock) as sess_mock, \
+         patch("backend.app.api.user_sessions.get_session") as engine_get_session:
+        sess_mock.return_value = {"id": "sess1", "user_id": "uid1"}
+        engine_get_session.return_value = {"state": state}
+        resp = client.get(
+            "/api/user/sessions/sess1/journal",
+            headers={"Authorization": f"Bearer {user1_token}"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["entries"] == []
+
+
+# ---------------------------------------------------------------------------
 # DELETE /api/user/sessions/{id}
 # ---------------------------------------------------------------------------
 
