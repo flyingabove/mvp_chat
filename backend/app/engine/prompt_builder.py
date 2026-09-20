@@ -1262,6 +1262,20 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
     user_line = (current_user_msg or "").strip()
     user_line_text = f'Current player line: "{user_line}".' if user_line else "Current player line is available in the user message."
 
+    arrival_intro_line = ""
+    for entry in getattr(state, "transient_entries", []) or []:
+        txt = (getattr(entry, "text", "") or "").strip()
+        if txt.startswith("__cast_arrival_intro__:"):
+            arriving_key = txt.split(":", 1)[1].strip().lower()
+            if arriving_key:
+                arriving_name = (getattr(chars.get(arriving_key), "name", None) or arriving_key).strip()
+                arrival_intro_line = (
+                    f"{arriving_name} has just moved into the house — this is their first scene. "
+                    "Treat this as a fresh introduction: they are newly arrived and meeting the "
+                    "other residents for the first time.\n\n"
+                )
+                break
+
     roster_closure_line = ""
     lifecycle = getattr(state, "cast_lifecycle", None)
     if lifecycle is not None and getattr(lifecycle, "enabled", False):
@@ -1315,6 +1329,7 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         f"Current-turn speakers: {speakers_text}.\n\n"
         f"{cast_pressure_line}"
         f"{roster_closure_line}"
+        f"{arrival_intro_line}"
         "Narrate only what the player's message actually states or implies. "
         "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote.\n\n"
         f"{user_line_text}\n"

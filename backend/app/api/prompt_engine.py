@@ -74,7 +74,9 @@ from backend.app.engine.gameplay import (
 
     advance_time,
 
-    win_condition_detected
+    win_condition_detected,
+
+    process_pending_events,
 
 )
 from backend.app.engine.time_utils import WorldTimeFormatter
@@ -2453,6 +2455,46 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     # Only travel/time consumes the command; preserve player dialogue everywhere else.
     advance_time(state, movement_msg)
+
+    # Phase 2 cast-cycling scheduler: execute any departure replacement whose
+    # authored availability window (day boundary) has now arrived. Must run
+    # after advance_time so this turn's elapsed minutes are already reflected
+    # in state.minute/day_number.
+    _fired_events = process_pending_events(state, apply_cast_replacement=_apply_cast_replacement)
+    for _fired_event, _fired_transition in _fired_events:
+        _log({
+            "kind": "cast_departure_replacement_applied",
+            "event_id": _fired_event.event_id,
+            "departing_id": _fired_transition.departing_id,
+            "arriving_id": _fired_transition.arriving_id,
+        })
+        if _fired_transition.arriving_id and state.character_graph is not None:
+            _arrival_room_ids = {
+                cid for cid, loc in (getattr(state, "character_locations", {}) or {}).items()
+                if loc == getattr(state.cast_lifecycle, "arrival_location_id", "")
+            }
+            _arrival_room_ids.add(_fired_transition.arriving_id)
+            _arrival_room_ids.add("player")
+            # process_first_meetings() can only create a new edge for a pair
+            # with no authored relationship (the arriving character has none
+            # - they were upcoming) when both sides are registered in
+            # graph.characters. Nothing else in the codebase ever calls
+            # add_character(), so ensure the room's participants are present
+            # here (state.characters already has them from story load/newgame).
+            for _room_key in _arrival_room_ids:
+                _room_char = (getattr(state, "characters", {}) or {}).get(_room_key)
+                if _room_char is not None and _room_key not in state.character_graph.characters:
+                    state.character_graph.add_character(_room_char)
+            state.character_graph.process_first_meetings(
+                _arrival_room_ids, state, int(getattr(state, "minute", 0) or 0), is_new_encounter=True,
+            )
+            state.add_transient_entry(
+                id=f"cast_arrival_intro_{_fired_transition.arriving_id}",
+                namespace=_namespace_for_state(state),
+                scope="scene",
+                text=f"__cast_arrival_intro__:{_fired_transition.arriving_id}",
+                expires_after_turns=1,
+            )
 
     if str(getattr(state, "location_id", "") or "") != _current_location_id:
         # Travel clears location markers. Rebuild them and the FIFO fallback from

@@ -1331,6 +1331,216 @@ def test_departure_decision_does_not_duplicate_pending_event_across_turns(client
     assert len(state.pending_events) == 1, "reaffirming the same decision must not create a second pending event"
 
 
+# ============================================================================
+# Phase 2 cast-cycling, Commit 3: scheduler execution + arrival seeding.
+# A pending replacement executes on the correct day boundary and not before,
+# survives restart/retry, and the arriving character gets a fresh
+# introduction plus seeded relationship edges.
+# ============================================================================
+
+def test_pending_replacement_executes_on_scheduled_day_not_before(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "scheduler_day_boundary_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    # Manually schedule a departure (bypassing extraction) exactly as the
+    # apply pipeline would, one day ahead of the current day.
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+    scheduled_day = day_number(state.minute) + 1
+    state.pending_events.append(PendingEvent(
+        event_id="test_departure_replace_makoto",
+        event_type="cast_departure_replacement",
+        scheduled_day=scheduled_day,
+        payload={"departing_id": "makoto", "reason": "moving out"},
+        created_minute=state.minute,
+    ))
+
+    # Still within the same day: a normal turn must NOT execute the event yet.
+    r1 = client.post("/api/chat", json={"session_id": sid, "message": "good morning"})
+    assert r1.status_code == 200
+    assert "makoto" in state.cast_lifecycle.active_ids(), "event must not fire before its scheduled day"
+    assert state.pending_events[0].status == "pending"
+
+    # Jump time past the day boundary, then take one more turn to let the
+    # scheduler (which runs inside the normal turn pipeline) observe it.
+    state.minute += 1440
+    r2 = client.post("/api/chat", json={"session_id": sid, "message": "another day begins"})
+    assert r2.status_code == 200
+
+    assert state.pending_events[0].status == "applied"
+    assert state.cast_lifecycle.members["makoto"].status.value == "departed"
+    successor = state.cast_lifecycle.history[-1].arriving_id
+    assert successor is not None
+    assert state.cast_lifecycle.members[successor].status.value == "active"
+    assert state.character_locations.get(successor) == state.cast_lifecycle.arrival_location_id
+    assert "makoto" not in state.character_locations
+
+
+def test_pending_replacement_survives_restart_mid_vacancy(client):
+    """Restart/retry mid-vacancy (audit acceptance: 'the same outcome after
+    restart/retry'). Serialize state after proposal but before the day
+    boundary, restore it, then advance past the boundary in the restored
+    session and confirm the same single replacement fires."""
+    import json as _json
+    import unittest.mock as _mock
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+
+    guest_headers = {"X-Guest-Id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+    guest_user_id = "guest:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    sid = "scheduler_restart_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+        headers=guest_headers,
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    scheduled_day = day_number(state.minute) + 1
+    state.pending_events.append(PendingEvent(
+        event_id="test_departure_replace_makoto_restart",
+        event_type="cast_departure_replacement",
+        scheduled_day=scheduled_day,
+        payload={"departing_id": "makoto", "reason": "moving out"},
+        created_minute=state.minute,
+    ))
+
+    saved_json = pe_mod._serialize_state(state, [])
+    saved = _json.loads(saved_json)
+    assert saved["pending_events"], "pending event was not serialized before restart"
+
+    monkeypatch_get = {
+        "session_id": "scheduler_restart_restored",
+        "user_id": guest_user_id,
+        "story_id": "six_strangers",
+        "state_json": saved_json,
+        "flags_json": "{}",
+    }
+    with _mock.patch("backend.app.db.repos.SessionRepo._get", return_value=monkeypatch_get):
+        restored = pe_mod._try_load_session_from_db("scheduler_restart_restored", guest_user_id)
+    assert restored is not None
+    restored_state = restored["state"]
+    assert len(restored_state.pending_events) == 1
+    assert restored_state.pending_events[0].status == "pending"
+    assert "makoto" in restored_state.cast_lifecycle.active_ids(), "restore mid-vacancy must not itself trigger the replacement"
+
+    # Install the restored session (matching guest identity so the
+    # ownership check in get_session doesn't discard it as a fresh session)
+    # and advance past the boundary.
+    pe_mod.SESSIONS["scheduler_restart_restored"] = restored
+    restored_state.minute += 1440
+    r1 = client.post(
+        "/api/chat",
+        json={"session_id": "scheduler_restart_restored", "message": "a new day"},
+        headers=guest_headers,
+    )
+    assert r1.status_code == 200
+
+    assert restored_state.pending_events[0].status == "applied"
+    assert restored_state.cast_lifecycle.members["makoto"].status.value == "departed"
+
+    # Idempotency: replaying the exact same event_id must not double-apply
+    # even if somehow invoked again (e.g. a duplicated scheduler tick).
+    from backend.app.engine.gameplay import process_pending_events
+    from backend.app.api.prompt_engine import _apply_cast_replacement
+    restored_state.pending_events[0].status = "pending"  # simulate a retry seeing it as pending again
+    fired_again = process_pending_events(restored_state, apply_cast_replacement=_apply_cast_replacement)
+    assert len(fired_again) == 1
+    _, replay_transition = fired_again[0]
+    assert replay_transition.arriving_id == restored_state.cast_lifecycle.history[-1].arriving_id, (
+        "replaying the same event_id must return the original transition, not choose a new successor"
+    )
+
+
+def test_newly_arrived_character_gets_introduction_and_seeded_relationships(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+
+    sid = "scheduler_arrival_intro_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    scheduled_day = day_number(state.minute) + 1
+    state.pending_events.append(PendingEvent(
+        event_id="test_departure_replace_makoto_intro",
+        event_type="cast_departure_replacement",
+        scheduled_day=scheduled_day,
+        payload={"departing_id": "makoto", "reason": "moving out"},
+        created_minute=state.minute,
+    ))
+    state.minute += 1440
+    r1 = client.post("/api/chat", json={"session_id": sid, "message": "a new day begins"})
+    assert r1.status_code == 200
+
+    successor = state.cast_lifecycle.history[-1].arriving_id
+    assert successor is not None
+
+    edge = state.character_graph.get_edge("player", successor)
+    assert edge is not None, "arriving character must have a seeded relationship edge to the player"
+    assert edge.met_at is not None, "arriving character's edge must record a first-meeting minute"
+
+    intro_markers = [
+        e for e in state.transient_entries
+        if (getattr(e, "text", "") or "").strip() == f"__cast_arrival_intro__:{successor}"
+    ]
+    assert intro_markers, "no arrival-introduction transient marker was recorded"
+
+    scene_brief = pb._storyteller_scene_section(state, "hello")
+    assert "just moved into the house" in scene_brief
+    assert "first scene" in scene_brief
+
+
+def test_empty_queue_departure_leaves_valid_vacancy_no_arrival(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+
+    sid = "scheduler_empty_queue_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    # Exhaust the men's upcoming queue (test setup only - directly flip
+    # status rather than routing through activate()/deactivate(), which
+    # enforce capacity and would reject filling an already-full slot group)
+    # so replace() has no eligible successor when the scheduled departure
+    # fires - this must leave a valid vacancy (no crash, no arrival).
+    from backend.app.engine.cast_lifecycle import CastStatus
+    lifecycle = state.cast_lifecycle
+    for key, member in lifecycle.members.items():
+        if member.slot_group == "men" and member.status is CastStatus.UPCOMING:
+            member.status = CastStatus.INACTIVE
+
+    scheduled_day = day_number(state.minute) + 1
+    state.pending_events.append(PendingEvent(
+        event_id="test_departure_replace_yuki_empty_queue",
+        event_type="cast_departure_replacement",
+        scheduled_day=scheduled_day,
+        payload={"departing_id": "yuki", "reason": "moving out, no replacement available"},
+        created_minute=state.minute,
+    ))
+    state.minute += 1440
+    r1 = client.post("/api/chat", json={"session_id": sid, "message": "a new day begins"})
+    assert r1.status_code == 200
+
+    assert state.pending_events[-1].status in ("applied", "cancelled")
+    assert "yuki" not in state.cast_lifecycle.active_ids()
+
+
 def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(client):
     """Exercise actual initialization, including visibility seeding and prompt assembly."""
     from backend.app.api import prompt_engine as pe_mod
