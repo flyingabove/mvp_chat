@@ -247,9 +247,15 @@ async def test_fact_extraction_recovery_sweep_reprocesses_pending_row(monkeypatc
 
     await main._fact_extraction_recovery_sweep()
 
-    assert len(extract_calls) == 2, "recovery sweep must extract from both the stored user_msg and ai_reply"
-    assert extract_calls[0] == ("what happened here?", "user", "umsg-r1", "mizuki")
-    assert extract_calls[1] == ("A story unfolds...", "assistant", "aimsg-r1", "mizuki")
+    # Filter to this test's own row rather than asserting on the total call
+    # count - other tests in the same run may share this DB file and leave
+    # their own pending/leftover rows, which the sweep (by design) processes
+    # indiscriminately. Asserting only on this row's own calls keeps the
+    # test correct regardless of what else is present.
+    own_calls = [c for c in extract_calls if c[2] in ("umsg-r1", "aimsg-r1")]
+    assert len(own_calls) == 2, "recovery sweep must extract from both the stored user_msg and ai_reply"
+    assert own_calls[0] == ("what happened here?", "user", "umsg-r1", "mizuki")
+    assert own_calls[1] == ("A story unfolds...", "assistant", "aimsg-r1", "mizuki")
 
     pending_after = await FactExtractionOutboxRepo.fetch_pending()
     assert not any(row["id"] == row_id for row in pending_after), (

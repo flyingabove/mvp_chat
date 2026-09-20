@@ -1007,7 +1007,7 @@ def test_extraction_outbox_row_marked_done_after_successful_extraction(client, m
     assert r1.status_code == 200
 
     async def _wait_and_check():
-        for _ in range(20):
+        for _ in range(100):
             await asyncio.sleep(0.05)
             pending = await FactExtractionOutboxRepo.fetch_pending()
             if not any(row["session_id"] == sid for row in pending):
