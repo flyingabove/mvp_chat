@@ -805,6 +805,121 @@ def test_turn_extractor_catalog_still_uses_scene_context_eligibility(client):
     assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
 
 
+# ============================================================================
+# BL-02: turn-retry idempotency (remainder of Six Strangers audit Phase 1).
+# A retried request for an already-completed turn (network timeout, a
+# resend of the same message) must replay the exact prior reply instead of
+# reprocessing - reprocessing would double-advance time/turns and
+# double-apply relationship/affection deltas (audit acceptance criterion:
+# "a timeout/resend neither advances time nor duplicates affection or
+# departures").
+# ============================================================================
+
+def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
+    """The actual regression: sending the same request_id twice for a
+    guest (non-anon) session must not advance `state.turns` a second time,
+    and the second HTTP response body must be byte-identical to the first."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    guest_headers = {"X-Guest-Id": "22222222-3333-4444-5555-666666666666"}
+    sid = "dedup_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+        headers=guest_headers,
+    )
+    assert r0.status_code == 200
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    turns_before = state.turns
+
+    r1 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello there", "request_id": "req-dup-1"},
+        headers=guest_headers,
+    )
+    assert r1.status_code == 200
+    turns_after_first = state.turns
+    assert turns_after_first == turns_before + 1
+
+    r2 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello there", "request_id": "req-dup-1"},
+        headers=guest_headers,
+    )
+    assert r2.status_code == 200
+    assert r2.json() == r1.json(), "duplicate request_id must replay the exact prior reply"
+    assert state.turns == turns_after_first, (
+        "a retried request with the same request_id must not advance state.turns a second time"
+    )
+
+
+def test_different_request_id_still_processes_normally(client):
+    """Guard against over-aggressive dedup: a genuinely new message (new
+    request_id) for the same session must still advance state."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    guest_headers = {"X-Guest-Id": "33333333-4444-5555-6666-777777777777"}
+    sid = "dedup_distinct_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+        headers=guest_headers,
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    turns_before = state.turns
+
+    r1 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "first message", "request_id": "req-a"},
+        headers=guest_headers,
+    )
+    assert r1.status_code == 200
+    assert state.turns == turns_before + 1
+
+    r2 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "second message", "request_id": "req-b"},
+        headers=guest_headers,
+    )
+    assert r2.status_code == 200
+    assert state.turns == turns_before + 2, (
+        "a distinct request_id must be processed as a new turn, not treated as a duplicate"
+    )
+
+
+def test_anon_session_skips_dedup_check(client):
+    """Anon sessions never persist to SQLite (existing `user_id != "anon"`
+    guard at the save point), so they have no durable identity to dedup
+    against - the same request_id sent twice for an anon session must be
+    processed both times rather than erroring."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "dedup_anon_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    turns_before = state.turns
+
+    r1 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello", "request_id": "req-anon-1"},
+    )
+    assert r1.status_code == 200
+    assert state.turns == turns_before + 1
+
+    r2 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "hello", "request_id": "req-anon-1"},
+    )
+    assert r2.status_code == 200
+    assert state.turns == turns_before + 2, "anon sessions have no dedup identity and must reprocess"
+
+
 def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, monkeypatch):
     """BL-01: the session save must reflect `over` and `last_turn_*` for the
     turn just completed, not the prior turn - previously the save happened

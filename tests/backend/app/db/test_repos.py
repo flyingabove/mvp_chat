@@ -43,10 +43,17 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON game_sessions(user_id, last_play
 @pytest.fixture()
 def tmp_data_dir(tmp_path):
     """Patch DATA_DIR and DB_PATH to use a temp directory."""
+    from backend.app.db.database import _ensure_column
+
     db_path = tmp_path / "storieschat.db"
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    # BL-02: mirror database.py's init_db() additive-column guard so this
+    # fixture's hand-copied schema doesn't silently drift from the real one
+    # (game_sessions gains last_request_id/last_reply_json there).
+    _ensure_column(conn, "game_sessions", "last_request_id", "TEXT")
+    _ensure_column(conn, "game_sessions", "last_reply_json", "TEXT")
     conn.commit()
     conn.close()
 
@@ -444,3 +451,102 @@ async def test_delete_expired_guest_sessions(tmp_data_dir):
     assert await SessionRepo.get_session("new_gs", "guest:new-uuid") is not None
     # Real user's old session still exists
     assert await SessionRepo.get_session("real_sess", "real_user") is not None
+
+
+# ---------------------------------------------------------------------------
+# BL-02: turn-retry idempotency dedup token (last_request_id/last_reply_json)
+# ---------------------------------------------------------------------------
+
+def test_init_db_adds_dedup_columns_to_existing_database(tmp_path):
+    """init_db() must be safe to run against an existing on-disk DB that
+    predates the last_request_id/last_reply_json columns (e.g. the Railway
+    persistent volume before this change deploys) - additive ALTER, no
+    destructive migration, no crash on repeat calls."""
+    from backend.app.db import database as db_mod
+
+    db_path = tmp_path / "storieschat.db"
+    with patch("backend.app.db.database.DATA_DIR", tmp_path), \
+         patch("backend.app.db.database.DB_PATH", db_path):
+        # Simulate the pre-existing schema (no dedup columns) as it would
+        # have existed on disk before this change.
+        conn = sqlite3.connect(str(db_path))
+        conn.executescript(_SCHEMA)
+        conn.commit()
+        conn.close()
+
+        cols_before = {
+            row[1] for row in sqlite3.connect(str(db_path)).execute(
+                "PRAGMA table_info(game_sessions)"
+            ).fetchall()
+        }
+        assert "last_request_id" not in cols_before
+
+        # init_db() must add the columns without raising, and be idempotent.
+        db_mod.init_db()
+        db_mod.init_db()
+
+        cols_after = {
+            row[1] for row in sqlite3.connect(str(db_path)).execute(
+                "PRAGMA table_info(game_sessions)"
+            ).fetchall()
+        }
+        assert "last_request_id" in cols_after
+        assert "last_reply_json" in cols_after
+
+
+@pytest.mark.asyncio
+async def test_get_last_request_returns_none_for_new_session(tmp_data_dir):
+    from backend.app.db.repos import UserRepo, SessionRepo
+
+    await UserRepo.upsert_user("uid_dedup", "d@b.com", "Dana", None)
+    await SessionRepo.create_or_update_session(
+        session_id="sess_dedup", user_id="uid_dedup", story_id="s1",
+        story_title="T", player_name="Dana", gender="F",
+        state_json="{}", flags_json="{}", turns=0,
+    )
+    req_id, reply_json = await SessionRepo.get_last_request("sess_dedup", "uid_dedup")
+    assert req_id is None
+    assert reply_json is None
+
+
+@pytest.mark.asyncio
+async def test_update_and_get_last_request_round_trips(tmp_data_dir):
+    from backend.app.db.repos import UserRepo, SessionRepo
+
+    await UserRepo.upsert_user("uid_dedup2", "d2@b.com", "Deja", None)
+    await SessionRepo.create_or_update_session(
+        session_id="sess_dedup2", user_id="uid_dedup2", story_id="s1",
+        story_title="T", player_name="Deja", gender="F",
+        state_json="{}", flags_json="{}", turns=1,
+    )
+    await SessionRepo.update_last_request("sess_dedup2", "uid_dedup2", "req-abc", '{"reply":"x"}')
+
+    req_id, reply_json = await SessionRepo.get_last_request("sess_dedup2", "uid_dedup2")
+    assert req_id == "req-abc"
+    assert reply_json == '{"reply":"x"}'
+
+
+@pytest.mark.asyncio
+async def test_create_or_update_session_without_request_id_preserves_prior_dedup_token(tmp_data_dir):
+    """The COALESCE in the upsert's ON CONFLICT clause must not clobber a
+    previously stored dedup token when a later save (e.g. a different code
+    path) doesn't pass one."""
+    from backend.app.db.repos import UserRepo, SessionRepo
+
+    await UserRepo.upsert_user("uid_dedup3", "d3@b.com", "Drew", None)
+    await SessionRepo.create_or_update_session(
+        session_id="sess_dedup3", user_id="uid_dedup3", story_id="s1",
+        story_title="T", player_name="Drew", gender="M",
+        state_json="{}", flags_json="{}", turns=1,
+        last_request_id="req-xyz", last_reply_json='{"reply":"y"}',
+    )
+    # A subsequent save with no dedup fields (matches the main session-save
+    # call site in prompt_engine.py, which passes them as None/omits them).
+    await SessionRepo.create_or_update_session(
+        session_id="sess_dedup3", user_id="uid_dedup3", story_id="s1",
+        story_title="T", player_name="Drew", gender="M",
+        state_json='{"turns":2}', flags_json="{}", turns=2,
+    )
+    req_id, reply_json = await SessionRepo.get_last_request("sess_dedup3", "uid_dedup3")
+    assert req_id == "req-xyz"
+    assert reply_json == '{"reply":"y"}'

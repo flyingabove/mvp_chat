@@ -1702,6 +1702,27 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # Stored in JSONL with the turn; used as chunk ID prefix for extracted facts.
     user_msg_id: str = uuid.uuid4().hex[:12]
 
+    # BL-02: turn retry idempotency. A client resending the same logical turn
+    # (network timeout, double-click before the UI disables send) reuses the
+    # same request_id; if that request_id matches the last one this session
+    # actually completed, replay the exact stored reply instead of
+    # reprocessing — reprocessing would double-advance time and double-apply
+    # relationship/affection deltas. This check must run before ANY state
+    # mutation. Anon sessions never persist (see the `user_id != "anon"`
+    # guard at the save point below), so they have no durable identity to
+    # dedup against and are skipped here.
+    client_request_id = str(data.get("request_id") or "").strip()
+    if client_request_id and user_id != "anon":
+        try:
+            prior_request_id, prior_reply_json = await SessionRepo.get_last_request(session_id, user_id)
+        except Exception:
+            prior_request_id, prior_reply_json = None, None
+        if prior_request_id == client_request_id and prior_reply_json:
+            try:
+                return json.loads(prior_reply_json)
+            except Exception:
+                pass  # stored reply corrupt/unparseable - fall through and reprocess
+
     sess = get_session(session_id, user_id)
     state: GameState = sess["state"]
 
@@ -2646,4 +2667,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         if knowledge_resolution_updates:
             debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
         result["debug_box"] = debug_box
+
+    # BL-02: record this turn's dedup token now that `result` (the exact
+    # client-facing reply) is fully built, so a retry with the same
+    # request_id can replay it verbatim instead of reprocessing. A separate
+    # lightweight UPDATE rather than folding into the main session save
+    # above, so the existing atomic-turn-save ordering (over/last_turn_*
+    # must precede that save - see BL-01) is untouched.
+    if client_request_id and user_id != "anon":
+        try:
+            await SessionRepo.update_last_request(session_id, user_id, client_request_id, json.dumps(result))
+        except Exception:
+            logger.exception("Failed to persist request-id dedup token for session %s", session_id)
+
     return result

@@ -88,6 +88,7 @@ class SessionRepo:
         session_id: str, user_id: str, story_id: str, story_title: str,
         player_name: str, gender: str, state_json: str, flags_json: str,
         last_message: str = "", turns: int = 0,
+        last_request_id: str | None = None, last_reply_json: str | None = None,
     ) -> None:
         # A02 fix: reject unsafe session_ids before they can ever be stored
         # and later turned into a filesystem path elsewhere in this class.
@@ -114,21 +115,51 @@ class SessionRepo:
                 """
                 INSERT INTO game_sessions
                     (id, user_id, story_id, story_title, player_name, gender,
-                     status, created_at, last_played, turns, last_message, state_json, flags_json)
-                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
+                     status, created_at, last_played, turns, last_message, state_json, flags_json,
+                     last_request_id, last_reply_json)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
-                    story_title  = excluded.story_title,
-                    player_name  = excluded.player_name,
-                    gender       = excluded.gender,
-                    last_played  = excluded.last_played,
-                    turns        = excluded.turns,
-                    last_message = excluded.last_message,
-                    state_json   = excluded.state_json,
-                    flags_json   = excluded.flags_json
+                    story_title      = excluded.story_title,
+                    player_name      = excluded.player_name,
+                    gender           = excluded.gender,
+                    last_played      = excluded.last_played,
+                    turns            = excluded.turns,
+                    last_message     = excluded.last_message,
+                    state_json       = excluded.state_json,
+                    flags_json       = excluded.flags_json,
+                    last_request_id  = COALESCE(excluded.last_request_id, game_sessions.last_request_id),
+                    last_reply_json  = COALESCE(excluded.last_reply_json, game_sessions.last_reply_json)
                 WHERE game_sessions.user_id = excluded.user_id
                 """,
                 (session_id, user_id, story_id, story_title, player_name, gender,
-                 now, now, turns, last_message[:120], state_json, flags_json),
+                 now, now, turns, last_message[:120], state_json, flags_json,
+                 last_request_id, last_reply_json),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _get_last_request(session_id: str, user_id: str) -> tuple[str | None, str | None]:
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT last_request_id, last_reply_json FROM game_sessions WHERE id = ? AND user_id = ?",
+                (session_id, user_id),
+            ).fetchone()
+            if row is None:
+                return None, None
+            return row["last_request_id"], row["last_reply_json"]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _update_last_request(session_id: str, user_id: str, request_id: str, reply_json: str) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE game_sessions SET last_request_id = ?, last_reply_json = ? WHERE id = ? AND user_id = ?",
+                (request_id, reply_json, session_id, user_id),
             )
             conn.commit()
         finally:
@@ -197,11 +228,29 @@ class SessionRepo:
         cls, session_id: str, user_id: str, story_id: str, story_title: str,
         player_name: str, gender: str, state_json: str, flags_json: str,
         last_message: str = "", turns: int = 0,
+        last_request_id: str | None = None, last_reply_json: str | None = None,
     ) -> None:
         await asyncio.to_thread(
             cls._upsert, session_id, user_id, story_id, story_title,
             player_name, gender, state_json, flags_json, last_message, turns,
+            last_request_id, last_reply_json,
         )
+
+    @classmethod
+    async def get_last_request(cls, session_id: str, user_id: str) -> tuple[str | None, str | None]:
+        """BL-02: fetch the dedup token + replayed reply from the most
+        recently completed turn for this session, without loading the full
+        state_json blob."""
+        return await asyncio.to_thread(cls._get_last_request, session_id, user_id)
+
+    @classmethod
+    async def update_last_request(cls, session_id: str, user_id: str, request_id: str, reply_json: str) -> None:
+        """BL-02: record the dedup token for the turn that was just
+        completed, after `result` (the client-facing reply) is fully built.
+        Kept as a separate lightweight UPDATE (rather than folding into the
+        main create_or_update_session save) so the existing atomic-turn-save
+        ordering discipline at that call site is untouched."""
+        await asyncio.to_thread(cls._update_last_request, session_id, user_id, request_id, reply_json)
 
     @classmethod
     async def get_session(cls, session_id: str, user_id: str) -> dict | None:

@@ -2774,7 +2774,13 @@ function sendMessage(text, isInit, options){
 
   var session = appState.session;
 
-  var payload = { message: text, session_id: session ? session.session_id : genUUID() };
+  // BL-02: a per-attempt request ID lets the server detect and replay a
+  // retried turn (network timeout, a resend of the same message) instead of
+  // reprocessing it and double-advancing time/relationships. Reuse the same
+  // ID when the caller passes one back in (a genuine retry of this exact
+  // send); otherwise mint a fresh one for a new logical message.
+  var requestId = options.requestId || genUUID();
+  var payload = { message: text, session_id: session ? session.session_id : genUUID(), request_id: requestId };
   // If this is the initial new-game command, include persona metadata so backend can seed the session
   if (isInit && session) {
     payload.persona_mode = session.persona_mode || "default";
