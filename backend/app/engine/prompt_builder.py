@@ -1441,9 +1441,11 @@ clear English and never force Japanese terms into it.
     if _player_msg_word_count <= 6:
         pacing_line = (
             "The player's message is short and low-stakes (a greeting, a brief action, a "
-            "one-line question). Match that scale: 1 short paragraph, a few sentences at "
-            "most. Do not pad a small beat with extended scenery description or an internal "
-            "monologue that wasn't asked for."
+            "one-line question). HARD LIMIT: 3-4 sentences total, one beat, one short "
+            "paragraph. This overrides any general instinct toward scene-setting or "
+            "populating the room - do not add a second paragraph of scenery, an aside about "
+            "other characters, or a follow-up question just to fill space. A short message "
+            "earns a short, complete reply, not a scaled-down version of a long one."
         )
     elif _player_msg_word_count <= 20:
         pacing_line = (

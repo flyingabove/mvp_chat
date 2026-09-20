@@ -1079,7 +1079,7 @@ def test_pacing_section_scales_short_for_brief_player_message():
 
     sysmsg = pb.system_prompt(st, current_user_msg="hi there")
     assert "short and low-stakes" in sysmsg
-    assert "1 short paragraph" in sysmsg
+    assert "HARD LIMIT: 3-4 sentences" in sysmsg
 
 
 def test_pacing_section_scales_medium_for_normal_message():
