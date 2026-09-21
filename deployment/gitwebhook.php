@@ -60,6 +60,8 @@ $frontend = $repoDir . "/frontend";
 
 $files = [
     "index.html",
+    "dialogue.js",
+    "dialogue.css",
     "version.json"
 ];
 

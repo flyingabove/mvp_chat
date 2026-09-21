@@ -282,3 +282,14 @@ async def version():
 @app.get("/beta/version.json")
 async def version_json():
     return get_build_info()
+
+@app.get("/dialogue.js")
+@app.get("/beta/dialogue.js")
+async def dialogue_script():
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "dialogue.js"), media_type="text/javascript")
+
+
+@app.get("/dialogue.css")
+@app.get("/beta/dialogue.css")
+async def dialogue_styles():
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "dialogue.css"), media_type="text/css")

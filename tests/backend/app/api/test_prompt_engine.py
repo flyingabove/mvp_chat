@@ -4100,3 +4100,37 @@ def test_iu_identity_correction():
         assert entry in sysmsg
     for entry in by_key["priya"].self_knowledge:
         assert entry not in sysmsg
+
+
+@pytest.mark.parametrize("story_id,speaker_ids", [
+    ("six_strangers", ["mizuki", "makoto"]),
+    ("iu_murder_mystery", ["iu", "yoo_min_ho"]),
+])
+def test_structured_dialogue_reaches_ui_and_preserves_memory(client, monkeypatch, story_id, speaker_ids):
+    import json
+    from backend.app.api import prompt_engine as pe
+    sid = "dialogue_contract_" + story_id
+    start = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + story_id + "|M|Chris"})
+    assert start.status_code == 200
+    assert any(s["kind"] == "dialogue" for s in start.json()["segments"])
+
+    async def respond(self, url, **kwargs):
+        schema = kwargs["json"]["response_format"]["json_schema"]
+        assert schema["strict"] is True
+        assert "SPEAKER PRESENTATION CONTRACT" in kwargs["json"]["messages"][0]["content"]
+        scene = {"segments": [
+            {"kind": "dialogue", "speaker_id": speaker_ids[0], "text": "Hello."},
+            {"kind": "narration", "speaker_id": None, "text": "A pause."},
+            {"kind": "dialogue", "speaker_id": speaker_ids[1], "text": "Welcome."},
+        ], "state": {"emotion": "happy", "rel_delta": 0}}
+        return types.SimpleNamespace(status_code=200, text="ok", json=lambda: {
+            "choices": [{"message": {"content": json.dumps(scene)}}], "usage": {"total_tokens": 10}})
+    monkeypatch.setattr(pe.httpx.AsyncClient, "post", respond)
+    response = client.post("/api/chat", json={"session_id": sid, "message": "Hello everyone"})
+    assert response.status_code == 200
+    data = response.json()
+    assert [s.get("speaker_id") for s in data["segments"]] == [speaker_ids[0], None, speaker_ids[1]]
+    assert "[[STATE]]" not in data["reply"]
+    assert "[SPEAKER:" not in data["reply"]
+    memory = pe.SESSIONS[sid]["log"][-1]["content"]
+    assert data["segments"][0]["speaker_name"] + ": Hello." in memory

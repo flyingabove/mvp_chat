@@ -1287,6 +1287,7 @@
       border: none; cursor: pointer; font-size: 14px; font-weight: 600;
     }
   </style>
+<link rel="stylesheet" href="dialogue.css?v=2" />
 </head>
 
 <body>
@@ -1685,6 +1686,7 @@
 <!-- ════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════ -->
+<script src="dialogue.js?v=2"></script>
 <script>
 (function(){
 "use strict";
@@ -1776,8 +1778,8 @@ var GUEST_ID_KEY = "storieschat_guest_id";
 var SKIP_LOGIN_KEY = "storieschat_skip_login";
 var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
 
-// Typewriter speed: 0=Instant, 1=Normal(30ms), 2=Slow(55ms), 3=Very Slow(80ms)
-var TYPEWRITER_SPEEDS = [0, 30, 55, 80];
+// All reveal speeds are 3x faster; retain existing saved preference indices.
+var TYPEWRITER_SPEEDS = [0, 30 / 3, 55 / 3, 80 / 3];
 var TYPEWRITER_LABELS = ["Instant", "Normal", "Slow", "V. Slow"];
 var CHARACTER_ASSET_MAP = {
   makoto: "/img/characters/Makoto_Hasegawa.png",
@@ -1849,8 +1851,9 @@ function renderCharacterAvatar(target, characterId, characterName, fallbackText)
 }
 
 function getTypewriterDelay(){
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return 0;
   var idx = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
-  if (idx < 0 || idx >= TYPEWRITER_SPEEDS.length) idx = 1;
+  if (!Number.isFinite(idx) || idx < 0 || idx >= TYPEWRITER_SPEEDS.length) idx = 1;
   return TYPEWRITER_SPEEDS[idx];
 }
 
@@ -2517,6 +2520,7 @@ $("onboard-continue-btn").addEventListener("click", function(){
 // the ids are never left dangling between calls.
 function renderChatCharacterHeader(story){
   var msgs = $("chat-messages");
+  if (dialoguePresentation) dialoguePresentation.finish();
   msgs.innerHTML = "";
   var header = document.createElement("div");
   header.id = "chat-character-header";
@@ -2573,6 +2577,7 @@ function launchChat(story, playerName, gender, guestMode){
   renderAvatarImage($("chat-char-avatar-mini"), getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
   renderAvatarImage($("chat-user-dock-avatar"), getCharacterAvatarSrc("persona", appState.personaName || "Paul Dingus"), appState.userAvatarLabel || "U");
 
+  dialoguePresentation.finish();
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
 
@@ -2628,29 +2633,9 @@ function _renderLoadEarlierBtn(sessionId, oldestTurn){
         // Render oldest-first above existing messages
         var firstMsg = msgs.querySelector(".msg-row");
         entries.forEach(function(e){
-          var row = document.createElement("div");
-          row.className = "msg-row " + (e.role === "user" ? "user" : "npc");
-          var bubble = document.createElement("div");
-          bubble.className = "msg-bubble " + (e.role === "user" ? "user" : "npc");
-          bubble.innerHTML = formatMsgText(e.content);
-          if (e.role !== "user"){
-            var av = document.createElement("div");
-            av.className = "msg-avatar";
-            av.textContent = appState.currentStory ? genreEmoji(appState.currentStory.genre || "") : "🎭";
-            row.appendChild(av);
-          } else {
-            var userAv = document.createElement("div");
-            userAv.className = "msg-avatar user-avatar";
-            userAv.textContent = appState.userAvatarLabel || "U";
-            row.appendChild(bubble);
-            row.appendChild(userAv);
-            if (firstMsg) msgs.insertBefore(row, firstMsg);
-            else msgs.appendChild(row);
-            return;
-          }
-          row.appendChild(bubble);
-          if (firstMsg) msgs.insertBefore(row, firstMsg);
-          else msgs.appendChild(row);
+          addMessage(e.role === "user" ? "user" : "npc", e.content, {
+            skipTypewriter: true, segments: e.segments, before: firstMsg, noScroll: true, noRecord: true
+          });
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
       })
@@ -2680,6 +2665,7 @@ function resumeGameFromSession(sess){
   $("chat-char-avatar-mini").textContent = genreEmoji(story.genre || story.theme);
   $("chat-user-dock-avatar").textContent = appState.userAvatarLabel;
 
+  dialoguePresentation.finish();
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
 
@@ -2708,7 +2694,7 @@ function resumeGameFromSession(sess){
         if (!data) return;
         var entries = data.entries || [];
         entries.forEach(function(e){
-          addMessage(e.role === "user" ? "user" : "npc", e.content, { skipTypewriter: true });
+          addMessage(e.role === "user" ? "user" : "npc", e.content, { skipTypewriter: true, segments: e.segments });
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
         if (!entries.length) addSystemMessage("(Continue where you left off)");
@@ -2744,90 +2730,30 @@ function addMessage(role, text, options){
     bubble = document.createElement("div");
     bubble.className = "msg-bubble user";
     bubble.innerHTML = formatMsgText(text);
-    var userAv = document.createElement("div");
-    userAv.className = "msg-avatar user-avatar";
-    renderAvatarImage(userAv, getCharacterAvatarSrc("persona", appState.personaName || appState.userAvatarLabel || "Paul Dingus"), appState.onboardName || "You");
     row.appendChild(bubble);
-    row.appendChild(userAv);
-  } else { // npc
-    var av = document.createElement("div");
-    av.className = "msg-avatar";
-    var npcName = appState.currentStory ? (appState.currentStory.title || "Character") : "Character";
-    renderAvatarImage(av, getCharacterAvatarSrc(appState.currentStory && appState.currentStory.id, npcName), npcName);
-    bubble = document.createElement("div");
-    bubble.className = "msg-bubble npc";
-    row.appendChild(av);
-    row.appendChild(bubble);
+    var playerName = (appState.session && appState.session.player_name) || appState.onboardName || "You";
+    var playerLabel = document.createElement("div");
+    playerLabel.className = "speaker-name";
+    playerLabel.textContent = playerName;
+    bubble.insertBefore(playerLabel, bubble.firstChild);
+    row.appendChild(dialoguePresentation.portraitButton(playerName, getCharacterAvatarSrc("persona", playerName)));
+  } else { // npc: one ordered scene containing any number of speakers
+    dialoguePresentation.render(row, text, options.segments, getTypewriterDelay() > 0 && !options.skipTypewriter);
   }
 
-  msgs.appendChild(row);
-  appState.chatHistory.push({ role: role, text: text });
-
-  // Typewriter effect for NPC messages (not history loads)
-  var delay = getTypewriterDelay();
-  if (role === "npc" && delay > 0 && !options.skipTypewriter) {
-    typewriteMessage(bubble, text, delay);
-  } else if (role === "npc") {
-    bubble.innerHTML = formatMsgText(text);
-  }
-
-  scrollChatToBottom();
+  if (options.before) msgs.insertBefore(row, options.before);
+  else msgs.appendChild(row);
+  if (!options.noRecord) appState.chatHistory.push({ role: role, text: text, segments: options.segments });
+  if (!options.noScroll) scrollChatToBottom();
   return row;
 }
 
-var _typewriterAbort = null; // AbortController for current typewriter
-
-function typewriteMessage(bubble, text, charDelay){
-  // Cancel any prior typewriter
-  if (_typewriterAbort) _typewriterAbort.abort();
-  var controller = new AbortController();
-  _typewriterAbort = controller;
-
-  var formatted = formatMsgText(text);
-  // We type the raw text, then set full HTML at the end
-  var plainText = text.replace(/\\n/g, "\n");
-  bubble.textContent = "";
-  bubble.classList.add("typing-active");
-
-  var idx = 0;
-  var cancelled = false;
-  controller.signal.addEventListener("abort", function(){ cancelled = true; });
-
-  // Allow tap/click to skip to end
-  function skipHandler(){
-    cancelled = true;
-    bubble.removeEventListener("click", skipHandler);
-  }
-  bubble.addEventListener("click", skipHandler);
-  bubble.style.cursor = "pointer";
-
-  function typeNext(){
-    if (cancelled || idx >= plainText.length){
-      bubble.innerHTML = formatted;
-      bubble.classList.remove("typing-active");
-      bubble.style.cursor = "";
-      bubble.removeEventListener("click", skipHandler);
-      if (_typewriterAbort === controller) _typewriterAbort = null;
-      scrollChatToBottom();
-      return;
-    }
-    // Add next character
-    var ch = plainText[idx++];
-    if (ch === "\n") {
-      bubble.appendChild(document.createElement("br"));
-    } else {
-      bubble.appendChild(document.createTextNode(ch));
-    }
-    // Vary speed slightly for natural feel: pause longer on punctuation
-    var d = charDelay;
-    if (".!?".indexOf(ch) >= 0) d = charDelay * 4;
-    else if (",;:".indexOf(ch) >= 0) d = charDelay * 2;
-    scrollChatToBottom();
-    setTimeout(typeNext, d);
-  }
-
-  typeNext();
-}
+var dialoguePresentation = window.createDialoguePresentation({
+  renderAvatarImage: renderAvatarImage,
+  formatMsgText: formatMsgText,
+  getTypewriterDelay: getTypewriterDelay,
+  scrollChatToBottom: scrollChatToBottom
+});
 
 function addSystemMessage(text){ addMessage("system", text); }
 
@@ -3026,7 +2952,7 @@ function sendMessage(text, isInit, options){
       addSystemMessage("Error: " + data.error);
     } else {
       var reply = (data && data.reply) ? data.reply : "";
-      if (reply) addMessage("npc", reply);
+      if (reply) addMessage("npc", reply, { segments: data.segments });
       if (data && data.cast_roster) renderCastRoster(data.cast_roster);
       addDebugBox(data && data.debug_box);
 

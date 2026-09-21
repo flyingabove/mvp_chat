@@ -67,6 +67,10 @@ from backend.app.engine.state import (
     LanguageTheme,
 
 )
+from backend.app.engine.dialogue import (
+    present_dialogue, encode_dialogue, dialogue_transcript,
+    dialogue_response_format, decode_dialogue_response,
+)
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
@@ -1008,6 +1012,7 @@ async def _translate_to_chinese(text: str) -> str:
             "italics (*text*), quotes, newlines, punctuation, and special characters. "
             "Keep the layout and structure exactly the same as the original. "
             "Only translate the actual words, not the formatting markers. "
+            "Preserve [SPEAKER:id] and [/SPEAKER] markers and their IDs EXACTLY. "
             "Return ONLY the translated text, no explanations.\n\n"
             f"Text to translate:\n{text}"
         )
@@ -2323,6 +2328,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         opening = story_def.get("opening", {}).get("text", "The room is quiet. A story begins.")
         opening = apply_placeholders(opening, new_state)
+        opening, segments = present_dialogue(opening, new_state)
+        opening = dialogue_transcript(segments)
 
         sess["state"] = new_state
         new_state.session_chunk_store = SessionChunkStore()
@@ -2362,9 +2369,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         # Apply Chinese translation if chinese_mode is enabled
         reply = opening
         if bool(sess.get("chinese_mode", False)):
-            reply = await _translate_to_chinese(reply)
+            reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
 
-        return {"reply": reply, "usage": {"total_tokens": 0}, "character": "default"}
+        return {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
 
     # REGULAR TURN — auto-reinitialize if game state is missing
     if not state.story or not state.story_cfg:
@@ -2832,8 +2839,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     payload = {
         "model": OPENAI_MODEL,
         "messages": messages,
+        "response_format": dialogue_response_format(state),
         "temperature": TEMPERATURE,
-        "max_tokens": MAX_TOKENS,
+        # Reserve room for per-speaker metadata as well as the existing prose budget.
+        "max_tokens": max(1024, MAX_TOKENS * 2),
     }
 
     _log({
@@ -2866,7 +2875,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         return {"error": f"upstream HTTP {r.status_code}: {r.text}", "character": "default"}
 
     data = r.json()
-    reply = str(data["choices"][0]["message"]["content"])
+    try:
+        reply = decode_dialogue_response(str(data["choices"][0]["message"]["content"]))
+    except ValueError:
+        return {"error": "The scene response was incomplete. Please try again.", "character": "default"}
 
     guess_match = re.search(
         r"\bis your name\s+([A-Za-z][A-Za-z\s'\-]{0,40})\??",
@@ -2878,6 +2890,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
+    clean, segments = present_dialogue(clean, state)
+    clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]
 
@@ -2980,6 +2994,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 turn=state.turns,
                 user_msg_id=user_msg_id,
                 ai_msg_id=ai_msg_id,
+                segments=segments,
             )
         except Exception:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
@@ -3074,9 +3089,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     # Apply Chinese translation if chinese_mode is enabled
     if bool(sess.get("chinese_mode", False)):
-        reply = await _translate_to_chinese(reply)
+        reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
 
-    result = {"reply": reply, "usage": data.get("usage"), "character": "default"}
+    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
     # prompt_debug carries the FULL assembled system prompt (all canonical
     # facts, character secrets, retrieval chunk text) and is only for the
     # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,

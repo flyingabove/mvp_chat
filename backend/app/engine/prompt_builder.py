@@ -1705,6 +1705,8 @@ def build_messages(
             knowledge_chunks=pi.knowledge_chunks,
             current_user_msg=user_msg,
         )
+    from backend.app.engine.dialogue import dialogue_prompt
+    sysmsg += dialogue_prompt(state)
     messages = [{"role": "system", "content": sysmsg}]
 
     # keep last MEMORY_TURNS - 2 non-system turns

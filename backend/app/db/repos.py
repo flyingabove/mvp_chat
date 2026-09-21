@@ -519,6 +519,7 @@ class ConversationRepo:
     def _append(
         user_id: str, session_id: str, user_msg: str, assistant_reply: str, turn: int,
         user_msg_id: str = "", ai_msg_id: str = "",
+        segments: list[dict] | None = None,
     ) -> None:
         path = _jsonl_path(user_id, session_id)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -531,6 +532,8 @@ class ConversationRepo:
             ai_entry: dict = {"turn": turn, "role": "assistant", "content": assistant_reply, "ts": ts}
             if ai_msg_id:
                 ai_entry["msg_id"] = ai_msg_id
+            if segments is not None:
+                ai_entry["segments"] = segments
             f.write(json.dumps(ai_entry) + "\n")
 
     @staticmethod
@@ -570,10 +573,11 @@ class ConversationRepo:
     async def append_turns(
         cls, user_id: str, session_id: str, user_msg: str, assistant_reply: str, turn: int,
         user_msg_id: str = "", ai_msg_id: str = "",
+        segments: list[dict] | None = None,
     ) -> None:
         await asyncio.to_thread(
             cls._append, user_id, session_id, user_msg, assistant_reply, turn,
-            user_msg_id, ai_msg_id,
+            user_msg_id, ai_msg_id, segments,
         )
 
     @classmethod
