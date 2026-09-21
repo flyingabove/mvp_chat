@@ -236,6 +236,42 @@ def test_time_skip_overnight_and_day_use_distinct_durations(client):
     assert state.minute == minute_before_day + 24 * 60
 
 
+def test_time_skip_cue_states_the_new_time_explicitly(client, monkeypatch):
+    """Regression: live-verified on beta that a generic cue ("The night
+    passes") was silently ignored by the story master - it kept narrating
+    the OLD time of day ("dinner should be ready soon... first night") even
+    though state.minute had genuinely advanced, because the world clock is
+    otherwise never surfaced in the prompt (only in the debug box). The cue
+    sent to build_messages() must state the resulting time explicitly."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.prompt_builder import PromptInput
+
+    captured = {}
+    real_build_messages = pe_mod.build_messages
+
+    def _spy_build_messages(prompt_input, *args, **kwargs):
+        if isinstance(prompt_input, PromptInput):
+            captured["user_msg"] = prompt_input.user_msg
+        return real_build_messages(prompt_input, *args, **kwargs)
+    monkeypatch.setattr(pe_mod, "build_messages", _spy_build_messages)
+
+    sid = "six_strangers_skip_cue_time"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:OVERNIGHT"})
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    from backend.app.engine.time_utils import WorldTimeFormatter
+    expected_ts = WorldTimeFormatter.compute(
+        getattr(state, "world_start_datetime", ""), state.minute
+    ).display
+
+    assert "[Time skip]" in captured["user_msg"]
+    assert expected_ts in captured["user_msg"]
+
+
 def test_time_skip_narration_cue_does_not_overwrite_player_name(client):
     """Regression: the skip narration cue ('A few hours pass') has the same
     shape as extract_user_name_from_text()'s bare-word 'solo name' fallback
