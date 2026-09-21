@@ -1301,6 +1301,7 @@
     <span class="logo">StoriesChat</span>
     <div class="top-actions">
       <button class="guest-pill-btn" id="home-guest-pill" title="Play without signing in">✦ Play as Guest</button>
+      <button class="icon-btn" id="home-hard-reload-btn" title="Force update the app (clears cache)" aria-label="Hard reload">⟳</button>
       <button class="icon-btn" id="home-search-btn" title="Search" aria-label="Search">🔍</button>
       <button class="icon-btn" id="home-profile-btn" title="Profile" aria-label="Profile">👤</button>
     </div>
@@ -3697,6 +3698,48 @@ if ("serviceWorker" in navigator) {
     if (window.__swRefreshed) return;
     window.__swRefreshed = true;
     window.location.reload();
+  });
+}
+
+/* ─── HARD RELOAD (force-update the installed webapp) ─── */
+(function(){
+  var btn = $("home-hard-reload-btn");
+  if (!btn) return;
+  btn.addEventListener("click", function(){
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = "…";
+    hardReloadApp();
+  });
+})();
+
+function hardReloadApp(){
+  var steps = [];
+
+  // Unregister all service workers so a fresh one is installed on reload.
+  if ("serviceWorker" in navigator) {
+    steps.push(
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        return Promise.all(regs.map(function(r){ return r.unregister(); }));
+      }).catch(function(){})
+    );
+  }
+
+  // Delete every CacheStorage entry (the PWA shell cache from sw.js).
+  if (window.caches && caches.keys) {
+    steps.push(
+      caches.keys().then(function(keys){
+        return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+      }).catch(function(){})
+    );
+  }
+
+  Promise.all(steps).then(function(){
+    // Cache-bust the document itself in case the browser HTTP cache
+    // (not just the SW/CacheStorage) is holding a stale index.html.
+    var url = new URL(window.location.href);
+    url.searchParams.set("_hr", Date.now().toString());
+    window.location.replace(url.toString());
   });
 }
 
