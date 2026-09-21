@@ -2495,7 +2495,7 @@ def test_apply_placeholders_and_sanitize_honorific_terms():
     assert "{{HONORIFIC}}" not in out2  # placeholder replaced even if empty
 
 
-def test_japanese_language_theme_survives_canonicalization_and_styles_pauls_name():
+def test_japanese_language_theme_is_a_prompt_suggestion_not_reply_rewriting():
     from backend.app.engine.state import LanguageTheme, init_state
     from backend.app.engine.prompt_builder import system_prompt
     import backend.app.api.prompt_engine as pe_mod
@@ -2520,11 +2520,10 @@ def test_japanese_language_theme_survives_canonicalization_and_styles_pauls_name
     state.story_cfg = cfg
     state.language_theme = LanguageTheme.ENGLISH_JAPANESE
 
-    assert pe_mod.apply_language_theme_mixing('**"Paul, are you okay?"**', state).startswith('**"Paul-kun')
-    assert "Paul-kun-kun" not in pe_mod.apply_language_theme_mixing('**"Paul-kun, hi."**', state)
     prompt = system_prompt(state)
     assert "LANGUAGE STYLE — ENGLISH JAPANESE" in prompt
     assert 'Paul-kun' in prompt
+    assert "optional flavor, not output requirements" in prompt
 
 
 def test_name_extraction_and_confirmation():

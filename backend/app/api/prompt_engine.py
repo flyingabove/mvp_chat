@@ -1741,90 +1741,6 @@ def _derive_language_theme_from_story_cfg(cfg: dict) -> LanguageTheme:
     return LanguageTheme.ENGLISH_US
 
 
-import random
-
-def apply_language_theme_mixing(text: str, state: GameState) -> str:
-    """Post-process an assistant reply to introduce light honorifics / casual local flavor
-
-    Behavior:
-      - For English Korean / English Japanese themes, replace occurrences of the player's
-        display name with a name + honorific based on story language.honorifics map.
-      - Optionally append a small casual interjection from story_cfg.language.casual_terms
-        with modest frequency so output doesn't feel mechanical.
-
-    This is intentionally conservative: only shallow textual transforms are applied.
-    """
-    try:
-        if not text or not state:
-            return text
-        cfg = getattr(state, "story_cfg", {}) or {}
-        lang = cfg.get("language", {}) or {}
-        honorific_map = lang.get("honorifics") or {}
-        casual_terms = list(lang.get("casual_terms") or [])
-
-        # Determine theme preference (explicit state field preferred)
-        theme = getattr(state, "language_theme", None)
-        if theme is None or (isinstance(theme, str) and not theme):
-            theme = _derive_language_theme_from_story_cfg(cfg)
-        elif isinstance(theme, str):
-            # Tolerate session objects produced by older code paths that held
-            # the enum value as a plain string.
-            try:
-                theme = LanguageTheme(theme)
-            except ValueError:
-                theme = _derive_language_theme_from_story_cfg(cfg)
-
-        # Normalize player's display name
-        display_name = (state.user.display_name or state.player_name or "Player").strip()
-        if not display_name:
-            return text
-
-        # Honorific substitution
-        honorific = ""
-        if isinstance(honorific_map, dict):
-            honorific = honorific_map.get(state.gender) or honorific_map.get("default") or honorific_map.get("M") or honorific_map.get("F") or ""
-        # If honorific found and theme indicates mixing, replace bare name
-        # occurrences.  Do not add it a second time when the model already
-        # followed the language prompt.
-        if honorific and (theme == LanguageTheme.ENGLISH_KOREAN or theme == LanguageTheme.ENGLISH_JAPANESE):
-            # If honorific looks like a suffix (e.g., 'san' or '-kun') determine joiner
-            honor_l = str(honorific).strip()
-            if honor_l.startswith("-") or honor_l.startswith("-"):
-                # keep as-is (e.g., '-kun')
-                replacement = f"{display_name}{honor_l}"
-            elif honor_l.endswith("-"):
-                replacement = f"{honor_l}{display_name}"
-            else:
-                # Default: append with a space or hyphen for readability
-                if len(honor_l) <= 4 and honor_l.isalpha():
-                    # short suffix (san, kun, chan) — append with no space
-                    replacement = f"{display_name}{honor_l if honor_l.startswith('-') else ('-' + honor_l)}"
-                else:
-                    replacement = f"{display_name} {honor_l}"
-
-            # Replace case-insensitively but preserve basic case of display_name
-            pattern = (
-                rf"(?<![A-Za-z0-9]){re.escape(display_name)}"
-                rf"(?![A-Za-z0-9-]|\s*{re.escape(honor_l.lstrip('-'))}\b)"
-            )
-            text = re.sub(pattern, replacement, text)
-
-        # Occasionally append a casual interjection to the end of the reply
-        if casual_terms and (theme == LanguageTheme.ENGLISH_KOREAN or theme == LanguageTheme.ENGLISH_JAPANESE):
-            # modest probability to avoid heavy-handed mixing
-            if random.random() < 0.18:
-                term = random.choice(casual_terms)
-                # append separated by a space; don't duplicate punctuation
-                if not text.endswith((".", "?", "!")):
-                    text = text.rstrip()
-                    text += "."
-                text += f" {term}"
-
-        return text
-    except Exception:
-        return text
-
-
 # ---------------------------------------------------------------------------
 # NAME EXTRACTION
 # ---------------------------------------------------------------------------
@@ -2897,12 +2813,6 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
-    # Apply language-theme mixing (honorifics, casual interjections) conservatively
-    try:
-        clean = apply_language_theme_mixing(clean, state)
-    except Exception:
-        pass
-
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]
 

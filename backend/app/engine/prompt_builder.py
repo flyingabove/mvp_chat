@@ -1389,8 +1389,9 @@ def system_prompt(
 ### LANGUAGE STYLE — ENGLISH KOREAN
 ────────────────────────────────────────
 Write primarily natural English in a Korean setting. In character speech, use
-the story's Korean terms and relationship-appropriate honorifics naturally and
-sparingly; never turn every sentence into a glossary or fake Korean grammar.
+the story's Korean terms and relationship-appropriate honorifics as an
+occasional, context-sensitive choice; never turn every sentence into a glossary
+or fake Korean grammar.
 Keep narration in fluent English. Use the player's name and an honorific only
 when a character would actually address them, not as a narrator label.
 """
@@ -1402,13 +1403,15 @@ when a character would actually address them, not as a narrator label.
 ────────────────────────────────────────
 This story is set in Japan. Write primarily idiomatic English, with light,
 contextual Japanese-English code-switching in character speech.{suffix_note}
-When a character directly addresses the player by name, use the Japanese
-honorific as a suffix — for example, **\"Paul-kun\"** — rather than a space or
-a title before the name. Use common words such as `ne`, `daijoubu`, `sugoi`,
-`kawaii`, `onegai`, and `yoroshiku` only where their meaning and the speaker's
-tone make sense. Honorifics signal ordinary politeness/familiarity, not instant
-romance; do not overuse them or write faux Japanese grammar. Keep narration in
-clear English and never force Japanese terms into it.
+Treat Japanese terms as optional flavor, not output requirements. A character
+may occasionally address the player with an appropriate suffix — for example,
+**\"Paul-kun\"** — when it fits their voice and the moment; use a plain name
+just as naturally in other lines. If using an honorific, attach it as a suffix,
+never as a title before the name. Use common words such as `ne`, `daijoubu`,
+`sugoi`, `kawaii`, `onegai`, and `yoroshiku` only where their meaning and the
+speaker's tone make sense. Honorifics signal ordinary politeness/familiarity,
+not instant romance; do not overuse them or write faux Japanese grammar. Keep
+narration in clear English and never force Japanese terms into it.
 """
 
     main_scene_eligible = _main_character_scene_eligible(state)
