@@ -676,6 +676,7 @@
       flex: 1; min-width: 0;
       display: flex; align-items: center; gap: 10px;
       margin-right: 8px;
+      cursor: pointer;
     }
     #chat-char-avatar-mini {
       width: 36px; height: 36px; border-radius: 50%;
@@ -3088,8 +3089,13 @@ $("dd-exit").addEventListener("click", function(){
 });
 
 $("chat-back-btn").addEventListener("click", function(){
-  showConfirm("Leave Game?", "Your progress is saved. You can resume from My Games anytime.", "Leave", function(){
-    showScreen("games");
+  showScreen("games");
+});
+
+$("chat-char-name-wrap").addEventListener("click", function(){
+  if (!appState.currentStory) return;
+  showConfirm("Start new game?", "Your current progress will be saved. You can resume it anytime from My Games.", "Start New Game", function(){
+    launchChat(appState.currentStory, appState.session ? appState.session.player_name : "Paul Dingus", appState.session ? appState.session.gender : "M", appState.guestMode);
   });
 });
 
