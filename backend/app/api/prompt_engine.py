@@ -2876,7 +2876,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     data = r.json()
     try:
-        reply = decode_dialogue_response(str(data["choices"][0]["message"]["content"]))
+        reply = decode_dialogue_response(str(data["choices"][0]["message"]["content"]), state)
     except ValueError:
         return {"error": "The scene response was incomplete. Please try again.", "character": "default"}
 

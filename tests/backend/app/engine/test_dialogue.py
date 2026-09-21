@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from backend.app.engine.dialogue import dialogue_prompt, present_dialogue, encode_dialogue, decode_dialogue_response
-from backend.app.engine.state import Character
+from backend.app.engine.state import Character, extract_state_tag
 
 
 def state():
@@ -86,3 +86,26 @@ def test_structured_state_never_leaks_into_scene_and_consecutive_speech_is_group
 def test_truncated_json_cannot_be_displayed_as_story_prose():
     with pytest.raises(ValueError, match='Incomplete structured scene'):
         decode_dialogue_response('{"segments":[{"kind":"dialogue","text":"Cut short')
+
+
+def test_explicit_character_prefix_inside_narration_is_promoted_to_dialogue():
+    raw = json.dumps({'segments': [{
+        'kind': 'narration', 'speaker_id': None,
+        'text': 'She smiles.\n\nMizuki Shida: “I make coffee.”\n\nThe kettle clicks.'
+    }], 'state': {'emotion': 'warm', 'rel_delta': 0}})
+    prose, _ = extract_state_tag(decode_dialogue_response(raw, state()))
+    clean, blocks = present_dialogue(prose, state())
+    assert clean == 'She smiles.\n\n“I make coffee.”\n\nThe kettle clicks.'
+    assert [block['kind'] for block in blocks] == ['narration', 'dialogue', 'narration']
+    assert blocks[1]['speaker_id'] == 'mizuki'
+    assert blocks[1]['speaker_name'] == 'Mizuki Shida'
+
+
+def test_bare_quotes_in_narration_are_not_guessed():
+    raw = json.dumps({'segments': [{
+        'kind': 'narration', 'speaker_id': None, 'text': 'Someone says “hello.”'
+    }], 'state': {'emotion': 'wary', 'rel_delta': 0}})
+    prose, _ = extract_state_tag(decode_dialogue_response(raw, state()))
+    assert present_dialogue(prose, state())[1] == [
+        {'kind': 'narration', 'text': 'Someone says “hello.”'}
+    ]

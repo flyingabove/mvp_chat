@@ -58,7 +58,38 @@ def dialogue_response_format(state) -> dict:
     }}
 
 
-def decode_dialogue_response(raw: str) -> str:
+def _explicit_speaker_parts(text: str, state) -> list[tuple[str, str | None]]:
+    """Split only unambiguous ``Canonical Name: speech`` lines from narration.
+
+    This is a semantic guard for structured-output models that occasionally put
+    an explicitly attributed line in a narration segment. It deliberately does
+    not guess speakers from bare quotation marks or surrounding prose.
+    """
+    characters = getattr(state, "characters", {}) or {}
+    names = sorted(
+        ((str(ch.name).strip(), key) for key, ch in characters.items() if str(ch.name).strip()),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+    if not names:
+        return [(text, None)]
+    alternatives = "|".join(re.escape(name) for name, _ in names)
+    pattern = re.compile(rf"^\s*({alternatives})\s*:\s*(?=[\"“‘'])", re.I)
+    ids = {name.casefold(): key for name, key in names}
+    parts: list[tuple[str, str | None]] = []
+    for paragraph in re.split(r"\n\s*\n", text):
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        match = pattern.match(paragraph)
+        if match:
+            parts.append((paragraph[match.end():].strip(), ids[match.group(1).casefold()]))
+        else:
+            parts.append((paragraph, None))
+    return parts or [(text, None)]
+
+
+def decode_dialogue_response(raw: str, state=None) -> str:
     """Bridge structured generation into the existing state-tag pipeline.
 
     Retain compatibility with older model adapters returning ordinary prose.
@@ -83,8 +114,12 @@ def decode_dialogue_response(raw: str) -> str:
             speaker = segment.get("speaker_id") or "unknown"
             if not isinstance(speaker, str) or not re.fullmatch(r"[\w.-]+", speaker):
                 speaker = "unknown"
-            text = f"[SPEAKER:{speaker}]{text}[/SPEAKER]"
-        parts.append(text)
+            parts.append(f"[SPEAKER:{speaker}]{text}[/SPEAKER]")
+        elif state is not None:
+            for part, speaker in _explicit_speaker_parts(text, state):
+                parts.append(f"[SPEAKER:{speaker}]{part}[/SPEAKER]" if speaker else part)
+        else:
+            parts.append(text)
     if isinstance(value.get("state"), dict):
         parts.append("[[STATE]]" + json.dumps(value["state"]) + "[[/STATE]]")
     return "\n\n".join(parts)
