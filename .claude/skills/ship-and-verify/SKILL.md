@@ -33,9 +33,26 @@ duplicating), and find the right doc to update for whatever you change.
    precedent (see `tests/frontend/test_beta_api_base.py`, from the BL-03 fix)
    is a structural/string-level regression test asserting the specific
    pattern you fixed is present and the specific bug pattern is absent. This
-   is a floor, not a substitute for Phase 3's live browser check below — a
+   is a floor, not a substitute for the live browser check below — a
    string assertion cannot catch a runtime JS error, a CORS rejection, or a
    layout break.
+4a. **Any UI-visible change (frontend/index.html, frontend/debug.html, CSS,
+    manifest.json, sw.js) MUST be checked in a real browser against your
+    local dev server BEFORE you commit** — not just before calling the task
+    done. Use the Playwright MCP tools (`playwright@claude-plugins-official`
+    — confirm with `claude plugin list` if tools aren't showing up) to run
+    both of the following against `localhost`, using the exact procedure in
+    Phase 3 step 12 below:
+    - **Desktop Chromium** — default Playwright viewport/browser.
+    - **iPhone-sized WebKit** — `browser_resize` to 390×844 (or 430×932),
+      plus true WebKit engine + iOS Safari UA + touch emulation via
+      `browser_run_code_unsafe` (Playwright's `devices['iPhone 13']`
+      descriptor), per the detailed steps in Phase 3 step 12.
+    Check the console for JS errors in both, and actually click the golden
+    path for what you changed — don't just load and screenshot. If Playwright
+    tools are genuinely unavailable, say so explicitly and do not commit a
+    UI-visible change without this check; escalate to the user instead of
+    skipping it silently.
 5. Run the full suite: `python -m pytest tests/ -x -q`. Must be 100% pass,
    zero skips (conftest.py hard-fails any skip attempt — this is
    intentional, don't work around it).
@@ -60,14 +77,23 @@ Railway auto-deploys `beta` on push, but the build (Docker, heavy deps like
 torch) can take several minutes — don't assume it's live immediately, and
 don't silently skip this phase because polling is slower than you'd like.
 
-10. **Poll for the new build**, don't just wait a fixed guess-time. There's
-    no version/commit-SHA stamp in `/api/health` today (a real gap — worth a
-    BACKLOG.md entry if it keeps costing time), so poll for a
-    content-level signal specific to what you just shipped instead — e.g.
-    `curl -s https://beta-api.storieschat.ai/api/stories | grep -o
-    '<new_story_id>'` for new content, or a distinctive string from a
-    frontend change via `curl -s https://storieschat.ai/beta/ | grep -o
-    '<new_marker>'`. Poll on an interval matched to Railway's actual build
+10. **Poll for the new build**, don't just wait a fixed guess-time.
+    `/api/health` DOES carry a commit-SHA stamp (confirmed 2026-09-21) — poll
+    it directly and compare against your pushed SHA, this is the most
+    reliable signal since it doesn't depend on what you happened to change:
+    `curl -s https://beta-api.storieschat.ai/api/health` →
+    `{"ok":true,...,"commit":"<full sha>","environment":"beta",...}`. For a
+    frontend-only change you can also poll for a content-level signal
+    specific to what you shipped — e.g. `curl -s
+    https://beta-api.storieschat.ai/api/stories | grep -o '<new_story_id>'`
+    for new content, or a distinctive string from a frontend change via
+    `curl -s https://storieschat.ai/beta/ | grep -o '<new_marker>'` — but
+    prefer the `/api/health` commit check when in doubt, since it confirms
+    the deploy landed even when your specific change has no easily-grepped
+    marker. Note storieschat.ai/beta/ page responses are `CF-Cache-Status:
+    DYNAMIC` (no edge caching), so a stale result there means the Railway
+    origin itself hasn't redeployed yet, not a CDN cache issue. Poll on an
+    interval matched to Railway's actual build
     time (start around 20-30s, don't hammer it every 2s) and don't block the
     conversation indefinitely — after a couple minutes without a hit, say so
     and either keep polling in the background or move on to other work and
