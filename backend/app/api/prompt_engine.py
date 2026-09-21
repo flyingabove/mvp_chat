@@ -78,6 +78,8 @@ from backend.app.engine.gameplay import (
 
     advance_time,
 
+    advance_time_by,
+
     win_condition_detected,
 
     process_pending_events,
@@ -847,6 +849,30 @@ EPISTEMIC_TOGGLE_TOKENS = {
 
 def _is_epistemic_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in EPISTEMIC_TOGGLE_TOKENS
+
+
+# ---------------------------------------------------------------------------
+# TIME SKIP — player-triggered jump forward in world time.
+# ---------------------------------------------------------------------------
+# Named presets only (no free-form minute counts from the client) so every
+# value is validated and the narration cue text stays predictable.
+TIME_SKIP_PRESETS: dict[str, tuple[int, str]] = {
+    "HOURS": (4 * 60, "A few hours pass"),
+    "OVERNIGHT": (8 * 60, "The night passes"),
+    "DAY": (24 * 60, "A full day passes"),
+}
+TIME_SKIP_PREFIX = "__cmd_skip__:"
+
+
+def _parse_time_skip(msg: str) -> Optional[tuple[int, str]]:
+    """Returns (minutes, narration_cue) if msg is a valid time-skip command,
+    else None. Unknown preset keys are treated as not-a-command (safe no-op),
+    matching the tolerant-parsing convention used elsewhere in this file."""
+    text = (msg or "").strip()
+    if not text.startswith(TIME_SKIP_PREFIX):
+        return None
+    preset_key = text[len(TIME_SKIP_PREFIX):].strip().upper()
+    return TIME_SKIP_PRESETS.get(preset_key)
 
 
 def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
@@ -1893,6 +1919,22 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         state.session_chunk_store = SessionChunkStore()
     log = sess["log"]
 
+    # TIME SKIP — jump the world clock forward, then fall through into the
+    # normal turn pipeline with a short narration-cue message so the story
+    # master narrates what's changed (consistent with the North Star's
+    # "events continue off-screen" principle — a skip is not a silent no-op,
+    # the next reply must acknowledge time has passed). advance_time_by()
+    # runs here (once, for the full jump) instead of relying on the
+    # per-turn advance_time() call later, which is sized for dialogue-length
+    # deltas, not multi-hour/day jumps.
+    _time_skip = _parse_time_skip(msg)
+    _is_time_skip_turn = False
+    if _time_skip is not None and state is not None:
+        _skip_minutes, _skip_cue = _time_skip
+        advance_time_by(state, _skip_minutes)
+        msg = _skip_cue
+        _is_time_skip_turn = True
+
     # Sync epistemic master flag to this session's toggle.
     set_master(bool(sess.get("epistemic_state", True)))
 
@@ -2381,13 +2423,19 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # NOTE: advance_time is called AFTER location extraction (below) so that
     # the canonicalized movement message (e.g. "go to interview_room_bob") is
     # used instead of the raw user text which may not match the strict regex.
-    handle_name_confirmation(msg, state)
+    # Skip on a time-skip turn: the narration cue ("A few hours pass") is
+    # narrator framing, not player dialogue, but its shape (a short bare
+    # phrase of letters/spaces) matches extract_user_name_from_text()'s
+    # "solo name" fallback pattern and would otherwise overwrite the
+    # player's real name with the cue text.
+    if not _is_time_skip_turn:
+        handle_name_confirmation(msg, state)
 
-    extracted = extract_user_name_from_text(msg)
-    if extracted:
-        state.user.formal_name = extracted
-        if not state.user.display_name:
-            state.user.display_name = extracted
+        extracted = extract_user_name_from_text(msg)
+        if extracted:
+            state.user.formal_name = extracted
+            if not state.user.display_name:
+                state.user.display_name = extracted
 
     # --- KNOWLEDGE RETRIEVAL (must happen BEFORE location extraction) ---
     # This retrieval provides context that helps LocationExtractor disambiguate ambiguous location
@@ -2675,7 +2723,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             _log({"kind": "turn_extraction_skipped", "reason": "no_location_id"})
 
     # Only travel/time consumes the command; preserve player dialogue everywhere else.
-    advance_time(state, movement_msg)
+    # Skip the normal per-turn advance on a time-skip turn: advance_time_by()
+    # already jumped the clock by the exact preset amount above, and the
+    # narration-cue text ("A few hours pass") is not real player dialogue -
+    # running it through advance_time()'s word-count delta would add a few
+    # stray extra minutes on top of an otherwise-exact jump.
+    if not _is_time_skip_turn:
+        advance_time(state, movement_msg)
 
     # Phase 2 cast-cycling scheduler: execute any departure replacement whose
     # authored availability window (day boundary) has now arrived. Must run

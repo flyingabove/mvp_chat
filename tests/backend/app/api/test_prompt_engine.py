@@ -193,6 +193,91 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
         assert future_id not in public_ids
 
 
+def test_time_skip_hours_advances_minute_and_narrates(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_hours"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    minute_before = state.minute
+
+    response = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:HOURS"})
+    assert response.status_code == 200
+    payload = response.json()
+    # The skip falls through into a real turn - the mocked story master reply
+    # ("ok") comes back as normal narration, not an empty/zero-token toggle response.
+    assert payload["reply"]
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.minute == minute_before + 4 * 60
+
+
+def test_time_skip_overnight_and_day_use_distinct_durations(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_presets"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    minute_before = state.minute
+
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:OVERNIGHT"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.minute == minute_before + 8 * 60
+
+    minute_before_day = state.minute
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:DAY"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.minute == minute_before_day + 24 * 60
+
+
+def test_time_skip_narration_cue_does_not_overwrite_player_name(client):
+    """Regression: the skip narration cue ('A few hours pass') has the same
+    shape as extract_user_name_from_text()'s bare-word 'solo name' fallback
+    pattern and would otherwise be mistaken for the player stating their name."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_name_safety"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    name_before = state.user.formal_name
+
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:HOURS"})
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.user.formal_name == name_before
+    assert "hours" not in state.user.formal_name.lower()
+
+
+def test_time_skip_unknown_preset_is_not_treated_as_skip_command(client):
+    """An invalid/unknown preset key must fall through as ordinary player
+    dialogue (safe no-op for the skip parser), not silently jump time."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_unknown"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    minute_before = state.minute
+
+    response = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:NEXT_WEEK"})
+    assert response.status_code == 200
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    # Only the ordinary per-turn dialogue delta applies, not a multi-hour jump.
+    assert state.minute < minute_before + 60
+
+
 def test_six_strangers_lifecycle_round_trips_in_session_snapshot(client):
     import json
     from backend.app.api import prompt_engine as pe_mod
@@ -1853,6 +1938,37 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
     assert "makoto" not in state.character_locations
 
 
+def test_time_skip_day_crosses_scheduled_replacement_boundary(client):
+    """A player-triggered [SKIP] jump (not a manual state.minute edit) must
+    correctly hand off to the existing Phase 2 day-boundary scheduler -
+    proving the two features compose rather than needing a parallel loop."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+
+    sid = "scheduler_time_skip_boundary_check"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    scheduled_day = day_number(state.minute) + 1
+    state.pending_events.append(PendingEvent(
+        event_id="test_departure_replace_makoto_skip",
+        event_type="cast_departure_replacement",
+        scheduled_day=scheduled_day,
+        payload={"departing_id": "makoto", "reason": "moving out"},
+        created_minute=state.minute,
+    ))
+
+    response = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:DAY"})
+    assert response.status_code == 200
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.pending_events[0].status == "applied"
+    assert state.cast_lifecycle.members["makoto"].status.value == "departed"
+
+
 def test_pending_replacement_survives_restart_mid_vacancy(client):
     """Restart/retry mid-vacancy (audit acceptance: 'the same outcome after
     restart/retry'). Serialize state after proposal but before the day
@@ -2604,6 +2720,29 @@ def test_map_toggle_token_detection():
     assert not pe_mod._is_map_toggle("[X]")  # Unknown token
     assert not pe_mod._is_map_toggle("")     # Empty string
     assert not pe_mod._is_map_toggle("hello world")  # Normal message
+
+
+def test_parse_time_skip_token_detection():
+    """Test _parse_time_skip() directly with various inputs."""
+    import backend.app.api.prompt_engine as pe_mod
+
+    hours = pe_mod._parse_time_skip("__cmd_skip__:HOURS")
+    assert hours == (4 * 60, "A few hours pass")
+
+    overnight = pe_mod._parse_time_skip("__cmd_skip__:OVERNIGHT")
+    assert overnight == (8 * 60, "The night passes")
+
+    day = pe_mod._parse_time_skip("__cmd_skip__:DAY")
+    assert day == (24 * 60, "A full day passes")
+
+    # Case-insensitive preset key.
+    assert pe_mod._parse_time_skip("__cmd_skip__:hours") == hours
+
+    # Unknown preset, malformed prefix, or ordinary dialogue are all safe no-ops.
+    assert pe_mod._parse_time_skip("__cmd_skip__:NEXT_WEEK") is None
+    assert pe_mod._parse_time_skip("skip:HOURS") is None
+    assert pe_mod._parse_time_skip("") is None
+    assert pe_mod._parse_time_skip("let's skip ahead a few hours") is None
 
 
 def test_map_toggle_no_llm_call(client):
