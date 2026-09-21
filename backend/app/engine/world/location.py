@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Tuple, Union
 
 from .ids import LocationId
+from .map_model import MapPoint, PlaceResearch
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,9 @@ class Location:
     allows_phone: bool = True
     is_transit: bool = False
     uuid: str = ""
+    area_id: str | None = None
+    map_position: MapPoint | None = None
+    research: PlaceResearch = field(default_factory=PlaceResearch)
 
     def __post_init__(self) -> None:
         if isinstance(self.id, str):

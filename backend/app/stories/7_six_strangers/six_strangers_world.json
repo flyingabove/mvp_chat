@@ -1,6 +1,6 @@
 {
   "world_id": "six_strangers",
-  "version": 2,
+  "version": 3,
   "time": {
     "start_minute": 0,
     "minute_label": "minutes_since_start"
@@ -14,331 +14,4392 @@
       "p_describe_B": 0.6
     }
   },
+  "map": {
+    "title": "Six Strangers · Tokyo & beyond",
+    "coordinate_system": "relative_km",
+    "origin_label": "the house",
+    "nearby_radius_km": 16,
+    "route_policy": "shortest_time",
+    "areas": [
+      {
+        "id": "house",
+        "name": "The House",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "distance_min_km": 0,
+        "distance_max_km": 0,
+        "direction": "",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "gotanda",
+        "name": "Gotanda Neighborhood",
+        "position": {
+          "x": 0.0,
+          "y": 0.5
+        },
+        "distance_min_km": 0,
+        "distance_max_km": 1,
+        "direction": "local",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "meguro_ebisu",
+        "name": "Meguro / Ebisu",
+        "position": {
+          "x": 2.8284,
+          "y": 2.8284
+        },
+        "distance_min_km": 3,
+        "distance_max_km": 5,
+        "direction": "NE",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "nakameguro",
+        "name": "Nakameguro",
+        "position": {
+          "x": -1.5,
+          "y": 4
+        },
+        "distance_min_km": null,
+        "distance_max_km": null,
+        "direction": "N",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "shibuya_aoyama",
+        "name": "Shibuya / Aoyama",
+        "position": {
+          "x": 2.2961,
+          "y": 5.5433
+        },
+        "distance_min_km": 5,
+        "distance_max_km": 7,
+        "direction": "NNE",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "marunouchi_tsukiji",
+        "name": "Marunouchi / Tsukiji",
+        "position": {
+          "x": 7.0711,
+          "y": 7.0711
+        },
+        "distance_min_km": 9,
+        "distance_max_km": 11,
+        "direction": "NE",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "odaiba",
+        "name": "Odaiba",
+        "position": {
+          "x": 8.0,
+          "y": 0.0
+        },
+        "distance_min_km": 7,
+        "distance_max_km": 9,
+        "direction": "E",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "asakusa_sumida",
+        "name": "Asakusa / Sumida",
+        "position": {
+          "x": 9.8995,
+          "y": 9.8995
+        },
+        "distance_min_km": 13,
+        "distance_max_km": 15,
+        "direction": "NE",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "yomiuriland",
+        "name": "Yomiuriland",
+        "position": {
+          "x": -18.0,
+          "y": -0.0
+        },
+        "distance_min_km": 18,
+        "distance_max_km": 18,
+        "direction": "W",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "yokohama",
+        "name": "Yokohama Waterfront",
+        "position": {
+          "x": -8.0364,
+          "y": -19.4015
+        },
+        "distance_min_km": 21,
+        "distance_max_km": 21,
+        "direction": "SSW",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "kamakura",
+        "name": "Kamakura",
+        "position": {
+          "x": -13.7766,
+          "y": -33.2597
+        },
+        "distance_min_km": 36,
+        "distance_max_km": 36,
+        "direction": "SSW",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "takao",
+        "name": "Mount Takao",
+        "position": {
+          "x": -43.0,
+          "y": -0.0
+        },
+        "distance_min_km": 43,
+        "distance_max_km": 43,
+        "direction": "W",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "enoshima",
+        "name": "Enoshima",
+        "position": {
+          "x": -30.4056,
+          "y": -30.4056
+        },
+        "distance_min_km": 43,
+        "distance_max_km": 43,
+        "direction": "SW",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "nagatoro",
+        "name": "Nagatoro",
+        "position": {
+          "x": -60.1041,
+          "y": 60.1041
+        },
+        "distance_min_km": 85,
+        "distance_max_km": 85,
+        "direction": "NW",
+        "note": "Cluster-level schematic offset, not a venue address."
+      },
+      {
+        "id": "unverified",
+        "name": "Unverified Locations",
+        "position": null,
+        "distance_min_km": null,
+        "distance_max_km": null,
+        "direction": "unknown",
+        "note": "No defensible map position; individual venues need verification."
+      },
+      {
+        "id": "girlsaward",
+        "name": "GirlsAward Venue",
+        "parent_id": "unverified",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "takao_park",
+        "name": "Mount Takao Trail and Summit",
+        "parent_id": "takao",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "yomiuriland_park",
+        "name": "Yomiuriland Park",
+        "parent_id": "yomiuriland",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "snow_resort",
+        "name": "Unverified Snow Resort",
+        "parent_id": "unverified",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "muscats_venue",
+        "name": "Ebisu Muscats Performance Venue",
+        "parent_id": "unverified",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "tsukiji_market",
+        "name": "Tsukiji Outer Market",
+        "parent_id": "marunouchi_tsukiji",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "cup_noodles_museum",
+        "name": "Cup Noodles Museum Yokohama",
+        "parent_id": "yokohama",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "hayato_restaurant",
+        "name": "Hayato's Restaurant Workplace",
+        "parent_id": "unverified",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "ballet_competition",
+        "name": "Ballet Competition Venue",
+        "parent_id": "unverified",
+        "note": "Venue container; visit its individual scene areas."
+      },
+      {
+        "id": "nagatoro_camp",
+        "name": "Nagatoro Campground",
+        "parent_id": "nagatoro",
+        "note": "Venue container; visit its individual scene areas."
+      }
+    ],
+    "sources": [
+      "documentation/research/terrace_house_bgitc_places.md",
+      "documentation/research/terrace_house_regional_reference.png"
+    ],
+    "notes": [
+      "Regional offsets follow the supplied approximate straight-line distance table, not private addresses.",
+      "East is +x; north is +y; origin is the house. Indoor positions use a separate 0–100 functional layout.",
+      "All route minutes are gameplay estimates, not researched journey times; the engine adds its departure cost.",
+      "The house is scene-derived, not a verified floor plan. Guest room and local cafe are game additions.",
+      "Unverified venues have no regional coordinates; named historical venues are not claims of current operation.",
+      "O13 aliases H15. Other unnamed scene types remain placeholders pending direct episode review."
+    ]
+  },
   "locations": {
     "front_entry": {
-      "name": "Front Entry",
+      "name": "Front Entry / Genkan",
+      "description": "Street-side entry; opens into the internal circulation area. Used for arrivals, departures, greetings, and luggage.",
       "tags": [
-        "indoor",
-        "transitional",
-        "shared"
+        "home",
+        "shared",
+        "indoor"
       ],
-      "description": "A glass-fronted genkan in a modern Higashi-Gotanda house. Shoes line the recessed rack; the doorway opens onto the shared living floor, with the kitchen and dining table in view. Stairs lead to the bedrooms and rooftop, and the garage opens beside the entry.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-front_entry"
+      "uuid": "default_user-six_strangers-1-front_entry",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H01"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 15,
+        "y": 70
+      }
     },
     "living_room": {
       "name": "Living Room",
+      "description": "Large sunken/lounge-style communal seating zone with sofas and TV; visually connected to the dining/kitchen side and facing the glass doors toward the terrace.",
       "tags": [
-        "indoor",
+        "home",
         "shared",
-        "social"
+        "indoor"
       ],
-      "description": "Floor-to-ceiling glass brings Tokyo daylight across a broad sofa and low coffee table. The open-plan room connects to the kitchen and dining area; stairs link the bedrooms and rooftop.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-living_room"
-    },
-    "kitchen": {
-      "name": "Open Kitchen",
-      "tags": [
-        "indoor",
-        "shared",
-        "social"
-      ],
-      "description": "An island counter, full-size refrigerator and rice cooker anchor the open kitchen. Grocery notes and a washing-up rota share a board beside the counter.",
-      "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-kitchen"
+      "uuid": "default_user-six_strangers-1-living_room",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H02"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 30,
+        "y": 45
+      }
     },
     "dining_room": {
       "name": "Dining Room",
+      "description": "Long communal dining table between/alongside the living room and kitchen; many house meetings and meals happen here.",
       "tags": [
-        "indoor",
+        "home",
         "shared",
-        "social"
+        "indoor"
       ],
-      "description": "A long communal table sits between the kitchen and the glass wall. Seven chairs make room for the six original housemates and the new arrival.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-dining_room"
+      "uuid": "default_user-six_strangers-1-dining_room",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H03"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 50,
+        "y": 45
+      }
+    },
+    "kitchen": {
+      "name": "Open Kitchen",
+      "description": "Open-plan kitchen with island/counter, sink, cooktop, storage, and refrigerator; directly connected to dining area.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-kitchen",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H04"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 70,
+        "y": 45
+      }
+    },
+    "playroom": {
+      "name": "Playroom / TV Room",
+      "description": "Separate, more private lounge used for one-on-one conversations and group TV viewing; distinct from the main living room.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-playroom",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H05"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 90,
+        "y": 45
+      }
     },
     "boys_bedroom": {
       "name": "Boys' Bedroom",
+      "description": "Shared male sleeping room with three beds and personal storage. Hayato’s bed is specifically important late in the season. Knock and wait for an invitation before entering.",
       "tags": [
-        "indoor",
+        "home",
         "shared",
+        "indoor",
         "bedroom"
       ],
-      "description": "The shared bedroom for Makoto, Yuki and Uchi has three beds, individual storage and a small common sitting area. Knock and wait for an invitation before entering.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-boys_bedroom"
+      "uuid": "default_user-six_strangers-1-boys_bedroom",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H06"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 15,
+        "y": 15
+      }
     },
     "girls_bedroom": {
       "name": "Girls' Bedroom",
+      "description": "Shared female sleeping room with three beds, vanity/storage, and its own conversation zone. Knock and wait for an invitation before entering.",
       "tags": [
-        "indoor",
+        "home",
         "shared",
+        "indoor",
         "bedroom"
       ],
-      "description": "The shared bedroom for Minori, Mizuki and Yuriko has three beds, individual storage and a shared dressing area. Knock and wait for an invitation before entering.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-girls_bedroom"
+      "uuid": "default_user-six_strangers-1-girls_bedroom",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H07"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 40,
+        "y": 15
+      }
+    },
+    "washitsu": {
+      "name": "Japanese-style Room / Washitsu",
+      "description": "Upstairs tatami room discovered/used in Episode 17; proposed as a sleeping space for Minori and Uchi.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-washitsu",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H08"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 65,
+        "y": 15
+      }
+    },
+    "shared_bathroom": {
+      "name": "Main Bathroom / Bathing Room",
+      "description": "Enclosed wet room/bath used by residents; count separately from sink/toilet areas.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": false,
+      "uuid": "default_user-six_strangers-1-shared_bathroom",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H09"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 45,
+        "y": 70
+      }
+    },
+    "washroom": {
+      "name": "Washroom / Vanity Area",
+      "description": "Sink, mirrors, grooming/laundry transition area adjacent to bathing functions.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-washroom",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H10"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 60,
+        "y": 70
+      }
+    },
+    "toilet": {
+      "name": "Toilet",
+      "description": "Separate toilet room, consistent with the Japanese bath layout.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": false,
+      "uuid": "default_user-six_strangers-1-toilet",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H11"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 75,
+        "y": 70
+      }
+    },
+    "laundry": {
+      "name": "Laundry / Utility Area",
+      "description": "Washer/household utility zone; functionally distinct even when adjacent to washroom.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-laundry",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H12"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 90,
+        "y": 70
+      }
+    },
+    "hallway": {
+      "name": "Hallway and Staircase",
+      "description": "Internal circulation joining common rooms, bedrooms, and upstairs washitsu.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-hallway",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H13"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 50,
+        "y": 30
+      }
+    },
+    "terrace": {
+      "name": "Terrace / Pool Deck",
+      "description": "Outdoor paved social zone immediately outside the main glazing; used for conversations, parties, and lounging.",
+      "tags": [
+        "home",
+        "shared",
+        "outdoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-terrace",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H14"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 35,
+        "y": 90
+      }
+    },
+    "swimming_pool": {
+      "name": "Swimming Pool",
+      "description": "Separate water zone; used repeatedly, including Episode 2 and the finale.",
+      "tags": [
+        "home",
+        "shared",
+        "outdoor"
+      ],
+      "allows_phone": false,
+      "uuid": "default_user-six_strangers-1-swimming_pool",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H15",
+          "O13"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 55,
+        "y": 90
+      }
+    },
+    "barbecue": {
+      "name": "Barbecue Area",
+      "description": "Outdoor grill/dining portion of the terrace; used for the Episode 31–32 barbecue and finale.",
+      "tags": [
+        "home",
+        "shared",
+        "outdoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-barbecue",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H16"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 75,
+        "y": 90
+      }
+    },
+    "driveway": {
+      "name": "Front Exterior / Driveway",
+      "description": "Arrival/departure and vehicle-loading area outside the entrance.",
+      "tags": [
+        "home",
+        "shared",
+        "outdoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-driveway",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H17"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 15,
+        "y": 90
+      }
+    },
+    "garage": {
+      "name": "Garage / Car Area",
+      "description": "House vehicle storage/parking zone; count only when the scene actually occurs there.",
+      "tags": [
+        "home",
+        "shared",
+        "indoor"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-garage",
+      "area_id": "house",
+      "research": {
+        "source_ids": [
+          "H18"
+        ],
+        "status": "scene_derived",
+        "episodes": "",
+        "note": "Functional layout inferred from scenes; not a verified floor plan."
+      },
+      "map_position": {
+        "x": 5,
+        "y": 90
+      }
     },
     "player_bedroom": {
       "name": "Your Guest Room",
+      "description": "A single-bed guest room with desk and suitcase space, added for the seventh resident.",
       "tags": [
-        "indoor",
+        "home",
         "private",
-        "home"
+        "bedroom"
       ],
-      "description": "A small furnished guest room reserved for you, the seventh resident, with a single bed, desk and suitcase space. This extra room belongs to the game adaptation of the house.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-player_bedroom"
-    },
-    "shared_bathroom": {
-      "name": "Shared Bathroom",
-      "tags": [
-        "indoor",
-        "shared",
-        "transitional"
-      ],
-      "description": "A shared washroom with separate bathing space, towels and labeled toiletry baskets. The occupied sign and a closed door mean wait outside.",
-      "allows_phone": false,
-      "uuid": "default_user-six_strangers-1-shared_bathroom"
-    },
-    "terrace": {
-      "name": "Rooftop Terrace",
-      "tags": [
-        "outdoor",
-        "shared",
-        "quiet"
-      ],
-      "description": "A furnished rooftop terrace above the glass-fronted house, with outdoor seating and a view across residential Higashi-Gotanda toward the Tokyo skyline.",
-      "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-terrace"
-    },
-    "garage": {
-      "name": "Garage",
-      "tags": [
-        "indoor",
-        "shared",
-        "transitional"
-      ],
-      "description": "Two shared cars sit beneath the house. A key board and a simple booking notebook help residents coordinate commutes, shopping trips and days out.",
-      "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-garage"
+      "uuid": "default_user-six_strangers-1-player_bedroom",
+      "area_id": "house",
+      "research": {
+        "source_ids": [],
+        "status": "game_added",
+        "episodes": "",
+        "note": ""
+      },
+      "map_position": {
+        "x": 90,
+        "y": 15
+      }
     },
     "neighborhood": {
       "name": "Higashi-Gotanda Streets",
+      "description": "Residential streets linking the house, local shops and Gotanda Station.",
       "tags": [
         "outdoor",
         "public",
         "transitional"
       ],
-      "description": "Quiet residential streets in Shinagawa Ward connect the house with small restaurants, shops and the busier streets around Gotanda Station.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-neighborhood"
+      "uuid": "default_user-six_strangers-1-neighborhood",
+      "area_id": "gotanda",
+      "research": {
+        "source_ids": [],
+        "status": "game_added",
+        "episodes": "",
+        "note": "Game connective location; exact house address not published."
+      }
     },
     "gotanda_station": {
       "name": "Gotanda Station",
+      "description": "Public ticket gates and concourse used to begin city and regional trips.",
       "tags": [
         "public",
-        "transitional",
-        "city"
+        "transitional"
       ],
-      "description": "The station connects the neighborhood to the JR Yamanote Line and the wider city. Ticket gates, platform signs and a meeting spot outside make it a useful starting point for a day out.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-gotanda_station"
+      "uuid": "default_user-six_strangers-1-gotanda_station",
+      "area_id": "gotanda",
+      "research": {
+        "source_ids": [],
+        "status": "game_added",
+        "episodes": "",
+        "note": "Game transit node, not a substitute for the unidentified station in E67."
+      }
     },
     "cafe": {
       "name": "Neighborhood Cafe",
+      "description": "A fictional local cafe for a coffee or quiet conversation.",
       "tags": [
-        "indoor",
-        "public",
-        "social"
+        "public"
       ],
-      "description": "A small neighborhood cafe with a coffee counter and window seats. It is a game-created local place for a drink, a work break or an unhurried conversation.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-cafe"
+      "uuid": "default_user-six_strangers-1-cafe",
+      "area_id": "gotanda",
+      "research": {
+        "source_ids": [],
+        "status": "game_added",
+        "episodes": "",
+        "note": "Retained game addition; distinct from researched named cafes."
+      }
     },
-    "dance_studio": {
-      "name": "Tap Dance Studio",
+    "place_e01": {
+      "name": "Porco Rosso, Ebisu — Restaurant dining room",
+      "description": "Restaurant dining room at Porco Rosso, Ebisu. Confirmed by contemporary location guide.",
       "tags": [
-        "indoor",
-        "workplace"
+        "public"
       ],
-      "description": "A rented Tokyo rehearsal studio with a sprung wooden floor, mirrors and stacked folding chairs. This game-created workplace is reached by a short train ride and walk from Gotanda.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-dance_studio"
+      "uuid": "default_user-six_strangers-1-place_e01",
+      "area_id": "meguro_ebisu",
+      "research": {
+        "source_ids": [
+          "E01"
+        ],
+        "status": "named",
+        "episodes": "4",
+        "note": "Confirmed by contemporary location guide."
+      }
+    },
+    "place_e02": {
+      "name": "Zauo Meguro — Seafood restaurant dining/fishing area",
+      "description": "Seafood restaurant dining/fishing area at Zauo Meguro. Confirmed by contemporary location guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e02",
+      "area_id": "meguro_ebisu",
+      "research": {
+        "source_ids": [
+          "E02"
+        ],
+        "status": "named",
+        "episodes": "5",
+        "note": "Confirmed by contemporary location guide."
+      }
     },
     "salon": {
-      "name": "Hair Salon",
+      "name": "Uchi’s hair salon (L.DORADO / salon workplace) — Salon floor",
+      "description": "Salon floor at Uchi’s hair salon (L.DORADO / salon workplace). Workplace identity is widely associated with Uchi; salon floor is the actual scene-place. Shibuya cluster placement is approximate; exact address is not asserted.",
       "tags": [
-        "indoor",
-        "workplace"
+        "public"
       ],
-      "description": "A bright Tokyo salon with mirrored stations, appointment books and a waiting bench. This game-created workplace is reached by a short train ride and walk from Gotanda.",
       "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-salon"
+      "uuid": "default_user-six_strangers-1-salon",
+      "area_id": "shibuya_aoyama",
+      "research": {
+        "source_ids": [
+          "E03"
+        ],
+        "status": "approximate",
+        "episodes": "5, 10 and work scenes",
+        "note": "Workplace identity is widely associated with Uchi; salon floor is the actual scene-place. Shibuya cluster placement is approximate; exact address is not asserted."
+      }
+    },
+    "place_e04": {
+      "name": "Tokyo Leisureland — Used amusement/game area",
+      "description": "Used amusement/game area at Tokyo Leisureland. Episode source confirms Leisure Land; exact internal attraction is not consistently documented.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e04",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E04"
+        ],
+        "status": "unverified",
+        "episodes": "6",
+        "note": "Episode source confirms Leisure Land; exact internal attraction is not consistently documented."
+      }
+    },
+    "place_e05": {
+      "name": "Enoshima Aquarium entrance — Closed entrance/forecourt",
+      "description": "Closed entrance/forecourt at Enoshima Aquarium entrance. They arrive after closing, so the aquarium interior is not counted here.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e05",
+      "area_id": "enoshima",
+      "research": {
+        "source_ids": [
+          "E05"
+        ],
+        "status": "named",
+        "episodes": "6",
+        "note": "They arrive after closing, so the aquarium interior is not counted here."
+      }
+    },
+    "place_e06": {
+      "name": "DIEGO BY THE RIVER, Enoshima — Restaurant/café dining area",
+      "description": "Restaurant/café dining area at DIEGO BY THE RIVER, Enoshima. Confirmed by contemporary location guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e06",
+      "area_id": "enoshima",
+      "research": {
+        "source_ids": [
+          "E06"
+        ],
+        "status": "named",
+        "episodes": "6",
+        "note": "Confirmed by contemporary location guide."
+      }
+    },
+    "place_e07": {
+      "name": "Queen’s Bath Resort, Odaiba — Restaurant dining area",
+      "description": "Restaurant dining area at Queen’s Bath Resort, Odaiba. Confirmed by contemporary location guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e07",
+      "area_id": "odaiba",
+      "research": {
+        "source_ids": [
+          "E07"
+        ],
+        "status": "named",
+        "episodes": "6",
+        "note": "Confirmed by contemporary location guide."
+      }
+    },
+    "place_e08": {
+      "name": "art baru muse, Shibuya — Bar/performance room",
+      "description": "Bar/performance room at art baru muse, Shibuya. Confirmed by contemporary location guide; associated with Yuki’s tap performance/date-era scenes.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e08",
+      "area_id": "shibuya_aoyama",
+      "research": {
+        "source_ids": [
+          "E08"
+        ],
+        "status": "named",
+        "episodes": "7",
+        "note": "Confirmed by contemporary location guide; associated with Yuki’s tap performance/date-era scenes."
+      }
+    },
+    "place_e09": {
+      "name": "Sumida Aquarium — Aquarium galleries",
+      "description": "Aquarium galleries at Sumida Aquarium. Named in the episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e09",
+      "area_id": "asakusa_sumida",
+      "research": {
+        "source_ids": [
+          "E09"
+        ],
+        "status": "named",
+        "episodes": "7",
+        "note": "Named in the episode guide."
+      }
+    },
+    "place_e10": {
+      "name": "Torigoya Honten, Nakameguro — Restaurant dining room",
+      "description": "Restaurant dining room at Torigoya Honten, Nakameguro. Confirmed by contemporary location guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e10",
+      "area_id": "nakameguro",
+      "research": {
+        "source_ids": [
+          "E10"
+        ],
+        "status": "named",
+        "episodes": "8",
+        "note": "Confirmed by contemporary location guide."
+      }
+    },
+    "place_e11": {
+      "name": "HATAKE AOYAMA — Restaurant dining room",
+      "description": "Restaurant dining room at HATAKE AOYAMA. Confirmed by contemporary location guide; Minori/Kurumi lunch.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e11",
+      "area_id": "shibuya_aoyama",
+      "research": {
+        "source_ids": [
+          "E11"
+        ],
+        "status": "named",
+        "episodes": "9",
+        "note": "Confirmed by contemporary location guide; Minori/Kurumi lunch."
+      }
+    },
+    "place_e12": {
+      "name": "Blue Note Tokyo — Concert hall / audience seating",
+      "description": "Concert hall / audience seating at Blue Note Tokyo. Named in episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e12",
+      "area_id": "shibuya_aoyama",
+      "research": {
+        "source_ids": [
+          "E12"
+        ],
+        "status": "named",
+        "episodes": "9",
+        "note": "Named in episode guide."
+      }
+    },
+    "place_e13": {
+      "name": "IL GHIOTTONE Marunouchi — Restaurant dining room",
+      "description": "Restaurant dining room at IL GHIOTTONE Marunouchi. Confirmed by contemporary location guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e13",
+      "area_id": "marunouchi_tsukiji",
+      "research": {
+        "source_ids": [
+          "E13"
+        ],
+        "status": "named",
+        "episodes": "10",
+        "note": "Confirmed by contemporary location guide."
+      }
+    },
+    "place_e14": {
+      "name": "GirlsAward venue — Backstage/hair-and-makeup area",
+      "description": "Backstage/hair-and-makeup area at GirlsAward venue. Separate from runway.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e14",
+      "area_id": "girlsaward",
+      "research": {
+        "source_ids": [
+          "E14"
+        ],
+        "status": "unverified",
+        "episodes": "11",
+        "note": "Separate from runway."
+      }
+    },
+    "place_e15": {
+      "name": "GirlsAward venue — Fashion runway / audience hall",
+      "description": "Fashion runway / audience hall at GirlsAward venue. Minori models while Uchi works backstage.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e15",
+      "area_id": "girlsaward",
+      "research": {
+        "source_ids": [
+          "E15"
+        ],
+        "status": "unverified",
+        "episodes": "11",
+        "note": "Minori models while Uchi works backstage."
+      }
+    },
+    "place_e16": {
+      "name": "TARGET Shibuya kickboxing gym — Training ring/floor",
+      "description": "Training ring/floor at TARGET Shibuya kickboxing gym. Named in episode guide; recurring Arman workplace/training place.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e16",
+      "area_id": "shibuya_aoyama",
+      "research": {
+        "source_ids": [
+          "E16"
+        ],
+        "status": "named",
+        "episodes": "12, 14–17 and later training scenes",
+        "note": "Named in episode guide; recurring Arman workplace/training place."
+      }
+    },
+    "place_e17": {
+      "name": "Cafe Chillax, Nakameguro — Café dining room",
+      "description": "Café dining room at Cafe Chillax, Nakameguro. Confirmed by contemporary location guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e17",
+      "area_id": "nakameguro",
+      "research": {
+        "source_ids": [
+          "E17"
+        ],
+        "status": "named",
+        "episodes": "12–13",
+        "note": "Confirmed by contemporary location guide."
+      }
+    },
+    "place_e18": {
+      "name": "TARLUM BIANCO Odaiba — Restaurant dining room",
+      "description": "Restaurant dining room at TARLUM BIANCO Odaiba. Confirmed by contemporary location guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e18",
+      "area_id": "odaiba",
+      "research": {
+        "source_ids": [
+          "E18"
+        ],
+        "status": "named",
+        "episodes": "12",
+        "note": "Confirmed by contemporary location guide."
+      }
+    },
+    "place_e19": {
+      "name": "Mount Takao — Trail",
+      "description": "Trail at Mount Takao. Trail and summit are separate scene-places.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e19",
+      "area_id": "takao_park",
+      "research": {
+        "source_ids": [
+          "E19"
+        ],
+        "status": "named",
+        "episodes": "15",
+        "note": "Trail and summit are separate scene-places."
+      }
+    },
+    "place_e20": {
+      "name": "Mount Takao — Summit/picnic area",
+      "description": "Summit/picnic area at Mount Takao. Bento eaten at/near summit.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e20",
+      "area_id": "takao_park",
+      "research": {
+        "source_ids": [
+          "E20"
+        ],
+        "status": "named",
+        "episodes": "15",
+        "note": "Bento eaten at/near summit."
+      }
+    },
+    "place_e21": {
+      "name": "Costco — Warehouse sales floor",
+      "description": "Warehouse sales floor at Costco. Episode title and scene establish the Costco trip; branch not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e21",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E21"
+        ],
+        "status": "unverified",
+        "episodes": "16",
+        "note": "Episode title and scene establish the Costco trip; branch not safely verified."
+      }
+    },
+    "place_e22": {
+      "name": "Kickboxing event venue — Ring / competition hall",
+      "description": "Ring / competition hall at Kickboxing event venue. Arman’s amateur match; venue name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e22",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E22"
+        ],
+        "status": "unverified",
+        "episodes": "17",
+        "note": "Arman’s amateur match; venue name not safely verified."
+      }
+    },
+    "place_e23": {
+      "name": "Kamakura Loco Mart & Garden — Shop/garden workplace",
+      "description": "Shop/garden workplace at Kamakura Loco Mart & Garden. Named in episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e23",
+      "area_id": "kamakura",
+      "research": {
+        "source_ids": [
+          "E23"
+        ],
+        "status": "named",
+        "episodes": "18, later work scenes, 45",
+        "note": "Named in episode guide."
+      }
+    },
+    "place_e24": {
+      "name": "Yomiuriland — Amusement-park grounds",
+      "description": "Amusement-park grounds at Yomiuriland. Named in episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e24",
+      "area_id": "yomiuriland_park",
+      "research": {
+        "source_ids": [
+          "E24"
+        ],
+        "status": "named",
+        "episodes": "18",
+        "note": "Named in episode guide."
+      }
+    },
+    "place_e25": {
+      "name": "Yomiuriland — Specific ride/attraction areas shown",
+      "description": "Specific ride/attraction areas shown at Yomiuriland. Each ride could be subdivided further from direct episode review; public recaps do not identify all ride names.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e25",
+      "area_id": "yomiuriland_park",
+      "research": {
+        "source_ids": [
+          "E25"
+        ],
+        "status": "named",
+        "episodes": "18",
+        "note": "Each ride could be subdivided further from direct episode review; public recaps do not identify all ride names."
+      }
+    },
+    "place_e26": {
+      "name": "Snow resort — Ski/snowboard slope",
+      "description": "Ski/snowboard slope at Snow resort. Uchi/Minori farewell outing; resort name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e26",
+      "area_id": "snow_resort",
+      "research": {
+        "source_ids": [
+          "E26"
+        ],
+        "status": "unverified",
+        "episodes": "24",
+        "note": "Uchi/Minori farewell outing; resort name not safely verified."
+      }
+    },
+    "place_e27": {
+      "name": "Snow resort — Lodge/restaurant dining room",
+      "description": "Lodge/restaurant dining room at Snow resort. Separate interior place from the slope.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e27",
+      "area_id": "snow_resort",
+      "research": {
+        "source_ids": [
+          "E27"
+        ],
+        "status": "unverified",
+        "episodes": "24",
+        "note": "Separate interior place from the slope."
+      }
+    },
+    "place_e28": {
+      "name": "Han-san’s architecture studio — Main workroom/model-building area",
+      "description": "Main workroom/model-building area at Han-san’s architecture studio. Recurring private studio; exact public business name not reliably established.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e28",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E28"
+        ],
+        "status": "unverified",
+        "episodes": "25, 27, 30",
+        "note": "Recurring private studio; exact public business name not reliably established."
+      }
+    },
+    "place_e29": {
+      "name": "Yakiniku restaurant — Dining room",
+      "description": "Dining room at Yakiniku restaurant. Business name not safely verified from public recaps.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e29",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E29"
+        ],
+        "status": "unverified",
+        "episodes": "26",
+        "note": "Business name not safely verified from public recaps."
+      }
+    },
+    "place_e30": {
+      "name": "Motorcycle/bicycle outing route — Road/route scenes",
+      "description": "Road/route scenes at Motorcycle/bicycle outing route. Treat route as one place unless reconstructing every stop from the episode.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e30",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E30"
+        ],
+        "status": "unverified",
+        "episodes": "27",
+        "note": "Treat route as one place unless reconstructing every stop from the episode."
+      }
+    },
+    "place_e31": {
+      "name": "Arisa’s hat exhibition venue — Exhibition/gallery room",
+      "description": "Exhibition/gallery room at Arisa’s hat exhibition venue. Exact venue not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e31",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E31"
+        ],
+        "status": "unverified",
+        "episodes": "27–28",
+        "note": "Exact venue not safely verified."
+      }
+    },
+    "place_e32": {
+      "name": "Clothing/lingerie store — Sales floor",
+      "description": "Sales floor at Clothing/lingerie store. Misaki and Riko shop for a nightgown; store name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e32",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E32"
+        ],
+        "status": "unverified",
+        "episodes": "29",
+        "note": "Misaki and Riko shop for a nightgown; store name not safely verified."
+      }
+    },
+    "place_e33": {
+      "name": "Yokohama date restaurant — Dining room",
+      "description": "Dining room at Yokohama date restaurant. Specific restaurant not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e33",
+      "area_id": "yokohama",
+      "research": {
+        "source_ids": [
+          "E33"
+        ],
+        "status": "unverified",
+        "episodes": "30",
+        "note": "Specific restaurant not safely verified."
+      }
+    },
+    "place_e34": {
+      "name": "Yokohama waterfront/date area — Promenade/viewpoint",
+      "description": "Promenade/viewpoint at Yokohama waterfront/date area. Separate from restaurant.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e34",
+      "area_id": "yokohama",
+      "research": {
+        "source_ids": [
+          "E34"
+        ],
+        "status": "named",
+        "episodes": "30–31",
+        "note": "Separate from restaurant."
+      }
+    },
+    "place_e35": {
+      "name": "Meat festival — Festival food-stall grounds",
+      "description": "Festival food-stall grounds at Meat festival. Riko/Hayato date.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e35",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E35"
+        ],
+        "status": "unverified",
+        "episodes": "33",
+        "note": "Riko/Hayato date."
+      }
+    },
+    "place_e36": {
+      "name": "Group restaurant after meat-festival period — Dining room",
+      "description": "Dining room at Group restaurant after meat-festival period. Named only generically in public episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e36",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E36"
+        ],
+        "status": "unverified",
+        "episodes": "33",
+        "note": "Named only generically in public episode guide."
+      }
+    },
+    "place_e37": {
+      "name": "SHIBUYA 109 — Specific shop/job-interview room or sales floor",
+      "description": "Specific shop/job-interview room or sales floor at SHIBUYA 109. The store/tenant is the true place under the user’s rule; tenant name is not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e37",
+      "area_id": "shibuya_aoyama",
+      "research": {
+        "source_ids": [
+          "E37"
+        ],
+        "status": "unverified",
+        "episodes": "33",
+        "note": "The store/tenant is the true place under the user’s rule; tenant name is not safely verified."
+      }
+    },
+    "place_e38": {
+      "name": "Ballet school/studio — Dance floor",
+      "description": "Dance floor at Ballet school/studio. Momoka teaches/rehearses; organization name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e38",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E38"
+        ],
+        "status": "unverified",
+        "episodes": "34 and other Momoka work scenes",
+        "note": "Momoka teaches/rehearses; organization name not safely verified."
+      }
+    },
+    "place_e39": {
+      "name": "Sanja Matsuri — Mikoshi procession street segment",
+      "description": "Mikoshi procession street segment at Sanja Matsuri. Festival route where Arman carries the mikoshi.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e39",
+      "area_id": "asakusa_sumida",
+      "research": {
+        "source_ids": [
+          "E39"
+        ],
+        "status": "named",
+        "episodes": "34",
+        "note": "Festival route where Arman carries the mikoshi."
+      }
+    },
+    "place_e40": {
+      "name": "Han-san-designed café — Café interior",
+      "description": "Café interior at Han-san-designed café. Exact café name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e40",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E40"
+        ],
+        "status": "unverified",
+        "episodes": "34",
+        "note": "Exact café name not safely verified."
+      }
+    },
+    "place_e41": {
+      "name": "Comedy club — Performance/audience room",
+      "description": "Performance/audience room at Comedy club. Arman/Momoka date; exact club name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e41",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E41"
+        ],
+        "status": "unverified",
+        "episodes": "34",
+        "note": "Arman/Momoka date; exact club name not safely verified."
+      }
+    },
+    "place_e42": {
+      "name": "Ebisu Muscats performance venue — Stage",
+      "description": "Stage at Ebisu Muscats performance venue. Separate from backstage.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e42",
+      "area_id": "muscats_venue",
+      "research": {
+        "source_ids": [
+          "E42"
+        ],
+        "status": "unverified",
+        "episodes": "34 and tour scenes",
+        "note": "Separate from backstage."
+      }
+    },
+    "place_e43": {
+      "name": "Ebisu Muscats performance venue — Backstage/dressing area",
+      "description": "Backstage/dressing area at Ebisu Muscats performance venue. Work/support scene-place.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e43",
+      "area_id": "muscats_venue",
+      "research": {
+        "source_ids": [
+          "E43"
+        ],
+        "status": "unverified",
+        "episodes": "34 and tour scenes",
+        "note": "Work/support scene-place."
+      }
+    },
+    "place_e44": {
+      "name": "Tsukiji Outer Market — Market lanes/stalls",
+      "description": "Market lanes/stalls at Tsukiji Outer Market. Named in episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e44",
+      "area_id": "tsukiji_market",
+      "research": {
+        "source_ids": [
+          "E44"
+        ],
+        "status": "named",
+        "episodes": "35",
+        "note": "Named in episode guide."
+      }
+    },
+    "place_e45": {
+      "name": "Tsukiji food shop/restaurant used on date — Counter/dining area",
+      "description": "Counter/dining area at Tsukiji food shop/restaurant used on date. Exact tenant requires direct frame verification.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e45",
+      "area_id": "tsukiji_market",
+      "research": {
+        "source_ids": [
+          "E45"
+        ],
+        "status": "unverified",
+        "episodes": "35",
+        "note": "Exact tenant requires direct frame verification."
+      }
+    },
+    "place_e46": {
+      "name": "Architecture competition/exhibition — Exhibition gallery",
+      "description": "Exhibition gallery at Architecture competition/exhibition. Han-san’s accessible-facility design display.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e46",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E46"
+        ],
+        "status": "unverified",
+        "episodes": "35",
+        "note": "Han-san’s accessible-facility design display."
+      }
+    },
+    "place_e47": {
+      "name": "Restaurant used for Yuki Byrnes/Misaki date — Dining room",
+      "description": "Dining room at Restaurant used for Yuki Byrnes/Misaki date. Business name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e47",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E47"
+        ],
+        "status": "unverified",
+        "episodes": "37",
+        "note": "Business name not safely verified."
+      }
+    },
+    "place_e48": {
+      "name": "Cup Noodles Museum Yokohama — Exhibition galleries",
+      "description": "Exhibition galleries at Cup Noodles Museum Yokohama. Named in episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e48",
+      "area_id": "cup_noodles_museum",
+      "research": {
+        "source_ids": [
+          "E48"
+        ],
+        "status": "named",
+        "episodes": "37",
+        "note": "Named in episode guide."
+      }
+    },
+    "place_e49": {
+      "name": "Cup Noodles Museum Yokohama — My CUPNOODLES Factory/workshop",
+      "description": "My CUPNOODLES Factory/workshop at Cup Noodles Museum Yokohama. Separate activity room inside the museum.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e49",
+      "area_id": "cup_noodles_museum",
+      "research": {
+        "source_ids": [
+          "E49"
+        ],
+        "status": "named",
+        "episodes": "37",
+        "note": "Separate activity room inside the museum."
+      }
+    },
+    "place_e50": {
+      "name": "Hayato’s restaurant workplace — Kitchen",
+      "description": "Kitchen at Hayato’s restaurant workplace. Separate from dining room. Exact restaurant name not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e50",
+      "area_id": "hayato_restaurant",
+      "research": {
+        "source_ids": [
+          "E50"
+        ],
+        "status": "unverified",
+        "episodes": "38, 45–46",
+        "note": "Separate from dining room. Exact restaurant name not safely verified."
+      }
+    },
+    "place_e51": {
+      "name": "Hayato’s restaurant workplace — Dining room",
+      "description": "Dining room at Hayato’s restaurant workplace. Yuki/Arman visit and finale dessert plan.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e51",
+      "area_id": "hayato_restaurant",
+      "research": {
+        "source_ids": [
+          "E51"
+        ],
+        "status": "unverified",
+        "episodes": "38, 45–46",
+        "note": "Yuki/Arman visit and finale dessert plan."
+      }
+    },
+    "place_e52": {
+      "name": "Ballet competition venue — Stage",
+      "description": "Stage at Ballet competition venue. Separate from backstage/warm-up.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e52",
+      "area_id": "ballet_competition",
+      "research": {
+        "source_ids": [
+          "E52"
+        ],
+        "status": "unverified",
+        "episodes": "38",
+        "note": "Separate from backstage/warm-up."
+      }
+    },
+    "place_e53": {
+      "name": "Ballet competition venue — Backstage/warm-up room",
+      "description": "Backstage/warm-up room at Ballet competition venue. Momoka competition scenes.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e53",
+      "area_id": "ballet_competition",
+      "research": {
+        "source_ids": [
+          "E53"
+        ],
+        "status": "unverified",
+        "episodes": "38",
+        "note": "Momoka competition scenes."
+      }
+    },
+    "place_e54": {
+      "name": "Ballet company office/studio — Meeting room",
+      "description": "Meeting room at Ballet company office/studio. Momoka meets artistic director.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e54",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E54"
+        ],
+        "status": "unverified",
+        "episodes": "39",
+        "note": "Momoka meets artistic director."
+      }
+    },
+    "place_e55": {
+      "name": "Talent/management agency — Contract-signing office",
+      "description": "Contract-signing office at Talent/management agency. Riko signs with her mother present.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e55",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E55"
+        ],
+        "status": "unverified",
+        "episodes": "40",
+        "note": "Riko signs with her mother present."
+      }
+    },
+    "place_e56": {
+      "name": "Driver licensing center — Test/administrative area",
+      "description": "Test/administrative area at Driver licensing center. Yuki’s license test scenes; exact center not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e56",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E56"
+        ],
+        "status": "unverified",
+        "episodes": "38–40",
+        "note": "Yuki’s license test scenes; exact center not safely verified."
+      }
+    },
+    "place_e57": {
+      "name": "Yokohama date location — Waterfront/observation area",
+      "description": "Waterfront/observation area at Yokohama date location. Yuki and Misaki’s successful date; exact stops not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e57",
+      "area_id": "yokohama",
+      "research": {
+        "source_ids": [
+          "E57"
+        ],
+        "status": "unverified",
+        "episodes": "41",
+        "note": "Yuki and Misaki’s successful date; exact stops not safely verified."
+      }
+    },
+    "place_e58": {
+      "name": "Nagatoro campground — Campsite/tent area",
+      "description": "Campsite/tent area at Nagatoro campground. Named in episode guide.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e58",
+      "area_id": "nagatoro_camp",
+      "research": {
+        "source_ids": [
+          "E58"
+        ],
+        "status": "named",
+        "episodes": "41",
+        "note": "Named in episode guide."
+      }
+    },
+    "place_e59": {
+      "name": "Nagatoro campground — Riverbank",
+      "description": "Riverbank at Nagatoro campground. Separate natural scene-place.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e59",
+      "area_id": "nagatoro_camp",
+      "research": {
+        "source_ids": [
+          "E59"
+        ],
+        "status": "named",
+        "episodes": "41",
+        "note": "Separate natural scene-place."
+      }
+    },
+    "place_e60": {
+      "name": "Nagatoro outing — Food/cooking area",
+      "description": "Food/cooking area at Nagatoro outing. Camp cooking and group gathering zone.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e60",
+      "area_id": "nagatoro_camp",
+      "research": {
+        "source_ids": [
+          "E60"
+        ],
+        "status": "named",
+        "episodes": "41",
+        "note": "Camp cooking and group gathering zone."
+      }
+    },
+    "place_e61": {
+      "name": "Lunch restaurant for Martha/Hayato — Dining room",
+      "description": "Dining room at Lunch restaurant for Martha/Hayato. Exact restaurant not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e61",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E61"
+        ],
+        "status": "unverified",
+        "episodes": "42",
+        "note": "Exact restaurant not safely verified."
+      }
+    },
+    "place_e62": {
+      "name": "Street/skateboarding route — Road/sidewalk segment",
+      "description": "Road/sidewalk segment at Street/skateboarding route. Arman is struck by a car while skating with Yuki.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e62",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E62"
+        ],
+        "status": "unverified",
+        "episodes": "42",
+        "note": "Arman is struck by a car while skating with Yuki."
+      }
+    },
+    "place_e63": {
+      "name": "Yukata shop — Sales/fitting room",
+      "description": "Sales/fitting room at Yukata shop. Misaki and Riko shop; exact retailer not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e63",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E63"
+        ],
+        "status": "unverified",
+        "episodes": "42",
+        "note": "Misaki and Riko shop; exact retailer not safely verified."
+      }
+    },
+    "place_e64": {
+      "name": "Fireworks festival — Festival grounds / viewing area",
+      "description": "Festival grounds / viewing area at Fireworks festival. Riko/Hayato date.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e64",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E64"
+        ],
+        "status": "unverified",
+        "episodes": "43",
+        "note": "Riko/Hayato date."
+      }
+    },
+    "place_e65": {
+      "name": "Beach for Arman/Martha date — Beachfront",
+      "description": "Beachfront at Beach for Arman/Martha date. Exact beach not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e65",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E65"
+        ],
+        "status": "unverified",
+        "episodes": "44",
+        "note": "Exact beach not safely verified."
+      }
+    },
+    "place_e66": {
+      "name": "Boat used on Arman/Martha date — Passenger deck/seating",
+      "description": "Passenger deck/seating at Boat used on Arman/Martha date. Separate place under a scene-level model.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e66",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E66"
+        ],
+        "status": "unverified",
+        "episodes": "44",
+        "note": "Separate place under a scene-level model."
+      }
+    },
+    "place_e67": {
+      "name": "Train station used by Riko on return — Platform/concourse",
+      "description": "Platform/concourse at Train station used by Riko on return. Exact station not safely verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_e67",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "E67"
+        ],
+        "status": "unverified",
+        "episodes": "46",
+        "note": "Exact station not safely verified."
+      }
+    },
+    "place_o01": {
+      "name": "Grocery store sales floor",
+      "description": "Grocery store sales floor. Episode 1 group grocery trip; branch/name not verified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o01",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O01"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Episode 1 group grocery trip; branch/name not verified."
+      }
+    },
+    "place_o02": {
+      "name": "Neighborhood jogging route",
+      "description": "Neighborhood jogging route. Minori/Makoto runs; treat as one route node.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o02",
+      "area_id": "gotanda",
+      "research": {
+        "source_ids": [
+          "O02"
+        ],
+        "status": "approximate",
+        "episodes": "",
+        "note": "Minori/Makoto runs; treat as one route node."
+      }
+    },
+    "place_o03": {
+      "name": "Baseball field",
+      "description": "Baseball field. Makoto’s university baseball practice/game environment.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o03",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O03"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Makoto’s university baseball practice/game environment."
+      }
+    },
+    "place_o04": {
+      "name": "Baseball dugout/bench",
+      "description": "Baseball dugout/bench. Separate room/zone if reproducing scenes closely.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o04",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O04"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Separate room/zone if reproducing scenes closely."
+      }
+    },
+    "dance_studio": {
+      "name": "Tap-dance rehearsal studio",
+      "description": "Tap-dance rehearsal studio. Yuki’s work/practice space.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-dance_studio",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O05"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Yuki’s work/practice space."
+      }
+    },
+    "place_o06": {
+      "name": "English-teaching job interview/classroom",
+      "description": "English-teaching job interview/classroom. Arman’s application scene in Episode 12.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o06",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O06"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Arman’s application scene in Episode 12."
+      }
+    },
+    "place_o07": {
+      "name": "Beach used by Arman/Mizuki",
+      "description": "Beach used by Arman/Mizuki. Episode 12 date; exact beach not securely identified.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o07",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O07"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Episode 12 date; exact beach not securely identified."
+      }
+    },
+    "place_o08": {
+      "name": "Yuriko’s university/medical-study room",
+      "description": "Yuriko’s university/medical-study room. School/study context; count the actual room, not the whole university.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o08",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O08"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "School/study context; count the actual room, not the whole university."
+      }
+    },
+    "place_o09": {
+      "name": "Mizuki’s workplace/café-related workroom",
+      "description": "Mizuki’s workplace/café-related workroom. Work scene; exact business/room requires direct episode check.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o09",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O09"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Work scene; exact business/room requires direct episode check."
+      }
+    },
+    "place_o10": {
+      "name": "Arisa’s hat workshop",
+      "description": "Arisa’s hat workshop. Design/work room distinct from exhibition venue.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o10",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O10"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Design/work room distinct from exhibition venue."
+      }
+    },
+    "place_o11": {
+      "name": "Construction site",
+      "description": "Construction site. Hikaru’s work; each job site can be a separate place if shown as distinct.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o11",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O11"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Hikaru’s work; each job site can be a separate place if shown as distinct."
+      }
+    },
+    "place_o12": {
+      "name": "Modeling/photo studio",
+      "description": "Modeling/photo studio. Various residents’ shoots; each identifiable studio is separate.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o12",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O12"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Various residents’ shoots; each identifiable studio is separate."
+      }
+    },
+    "place_o14": {
+      "name": "Restaurant/café interiors shown in advice/friend meetings",
+      "description": "Restaurant/café interiors shown in advice/friend meetings. Count each distinct establishment separately when direct episode frames provide its title card.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o14",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O14"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Count each distinct establishment separately when direct episode frames provide its title card."
+      }
+    },
+    "place_o15": {
+      "name": "Private family/friend meeting rooms",
+      "description": "Private family/friend meeting rooms. Count each distinct home/room separately, but exact addresses should not be published.",
+      "tags": [
+        "public"
+      ],
+      "allows_phone": true,
+      "uuid": "default_user-six_strangers-1-place_o15",
+      "area_id": "unverified",
+      "research": {
+        "source_ids": [
+          "O15"
+        ],
+        "status": "unverified",
+        "episodes": "",
+        "note": "Count each distinct home/room separately, but exact addresses should not be published."
+      }
     }
   },
   "edges": [
     {
-      "from": "front_entry",
-      "to": "living_room",
-      "minutes": 1
+      "from": "driveway",
+      "to": "front_entry",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
-      "from": "living_room",
-      "to": "front_entry",
-      "minutes": 1
+      "from": "front_entry",
+      "to": "driveway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "driveway",
+      "to": "garage",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "garage",
+      "to": "driveway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "front_entry",
       "to": "garage",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "garage",
       "to": "front_entry",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "front_entry",
-      "to": "neighborhood",
-      "minutes": 1
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
-      "from": "neighborhood",
+      "from": "hallway",
       "to": "front_entry",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "front_entry",
+      "to": "living_room",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "living_room",
-      "to": "kitchen",
-      "minutes": 1
+      "to": "front_entry",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
-      "from": "kitchen",
+      "from": "hallway",
       "to": "living_room",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "living_room",
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "living_room",
       "to": "dining_room",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "dining_room",
       "to": "living_room",
-      "minutes": 1
-    },
-    {
-      "from": "kitchen",
-      "to": "dining_room",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "dining_room",
       "to": "kitchen",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "kitchen",
+      "to": "dining_room",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "living_room",
+      "to": "kitchen",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "kitchen",
+      "to": "living_room",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "hallway",
+      "to": "playroom",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "playroom",
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "hallway",
       "to": "boys_bedroom",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "boys_bedroom",
-      "to": "living_room",
-      "minutes": 1
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
-      "from": "living_room",
+      "from": "hallway",
       "to": "girls_bedroom",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "girls_bedroom",
-      "to": "living_room",
-      "minutes": 1
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
-      "from": "living_room",
+      "from": "hallway",
+      "to": "washitsu",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "washitsu",
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "hallway",
       "to": "player_bedroom",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "player_bedroom",
-      "to": "living_room",
-      "minutes": 1
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
-      "from": "living_room",
+      "from": "hallway",
+      "to": "washroom",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "washroom",
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "washroom",
       "to": "shared_bathroom",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "shared_bathroom",
-      "to": "living_room",
-      "minutes": 1
+      "to": "washroom",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "hallway",
+      "to": "toilet",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "toilet",
+      "to": "hallway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "washroom",
+      "to": "laundry",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "laundry",
+      "to": "washroom",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "living_room",
       "to": "terrace",
-      "minutes": 2
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "terrace",
       "to": "living_room",
-      "minutes": 2
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "dining_room",
+      "to": "terrace",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "terrace",
+      "to": "dining_room",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "terrace",
+      "to": "swimming_pool",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "swimming_pool",
+      "to": "terrace",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "terrace",
+      "to": "barbecue",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "barbecue",
+      "to": "terrace",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "driveway",
+      "to": "neighborhood",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "neighborhood",
+      "to": "driveway",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "front_entry",
+      "to": "neighborhood",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "neighborhood",
+      "to": "front_entry",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "garage",
       "to": "neighborhood",
-      "minutes": 1
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "neighborhood",
       "to": "garage",
-      "minutes": 1
-    },
-    {
-      "from": "neighborhood",
-      "to": "gotanda_station",
-      "minutes": 10
-    },
-    {
-      "from": "gotanda_station",
-      "to": "neighborhood",
-      "minutes": 10
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "neighborhood",
       "to": "cafe",
-      "minutes": 5
+      "minutes": 5,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "cafe",
       "to": "neighborhood",
-      "minutes": 5
+      "minutes": 5,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "neighborhood",
+      "to": "gotanda_station",
+      "minutes": 10,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
       "from": "gotanda_station",
-      "to": "dance_studio",
-      "minutes": 20
+      "to": "neighborhood",
+      "minutes": 10,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
     },
     {
-      "from": "dance_studio",
+      "from": "neighborhood",
+      "to": "place_o02",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_o02",
+      "to": "neighborhood",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e01",
+      "minutes": 20,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e01",
       "to": "gotanda_station",
-      "minutes": 20
+      "minutes": 20,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e01",
+      "to": "place_e02",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e02",
+      "to": "place_e01",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e02",
+      "minutes": 20,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e02",
+      "to": "gotanda_station",
+      "minutes": 20,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e10",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e10",
+      "to": "gotanda_station",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e10",
+      "to": "place_e17",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e17",
+      "to": "place_e10",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e17",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e17",
+      "to": "gotanda_station",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
     },
     {
       "from": "gotanda_station",
       "to": "salon",
-      "minutes": 25
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
     },
     {
       "from": "salon",
       "to": "gotanda_station",
-      "minutes": 25
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "salon",
+      "to": "place_e08",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e08",
+      "to": "salon",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "salon",
+      "to": "place_e11",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e11",
+      "to": "salon",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "salon",
+      "to": "place_e12",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e12",
+      "to": "salon",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "salon",
+      "to": "place_e16",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e16",
+      "to": "salon",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "salon",
+      "to": "place_e37",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e37",
+      "to": "salon",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e08",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e08",
+      "to": "gotanda_station",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e08",
+      "to": "place_e11",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e11",
+      "to": "place_e08",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e08",
+      "to": "place_e12",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e12",
+      "to": "place_e08",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e08",
+      "to": "place_e16",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e16",
+      "to": "place_e08",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e08",
+      "to": "place_e37",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e37",
+      "to": "place_e08",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e11",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e11",
+      "to": "gotanda_station",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e11",
+      "to": "place_e12",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e12",
+      "to": "place_e11",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e11",
+      "to": "place_e16",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e16",
+      "to": "place_e11",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e11",
+      "to": "place_e37",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e37",
+      "to": "place_e11",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e12",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e12",
+      "to": "gotanda_station",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e12",
+      "to": "place_e16",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e16",
+      "to": "place_e12",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e12",
+      "to": "place_e37",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e37",
+      "to": "place_e12",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e16",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e16",
+      "to": "gotanda_station",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e16",
+      "to": "place_e37",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e37",
+      "to": "place_e16",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e37",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e37",
+      "to": "gotanda_station",
+      "minutes": 25,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e13",
+      "minutes": 35,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e13",
+      "to": "gotanda_station",
+      "minutes": 35,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e13",
+      "to": "place_e44",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e44",
+      "to": "place_e13",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e44",
+      "minutes": 35,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e44",
+      "to": "gotanda_station",
+      "minutes": 35,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e07",
+      "minutes": 40,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e07",
+      "to": "gotanda_station",
+      "minutes": 40,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e07",
+      "to": "place_e18",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e18",
+      "to": "place_e07",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e18",
+      "minutes": 40,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e18",
+      "to": "gotanda_station",
+      "minutes": 40,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e09",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e09",
+      "to": "gotanda_station",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e09",
+      "to": "place_e39",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e39",
+      "to": "place_e09",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e39",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e39",
+      "to": "gotanda_station",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e24",
+      "minutes": 60,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e24",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e33",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e33",
+      "to": "gotanda_station",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e33",
+      "to": "place_e34",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e34",
+      "to": "place_e33",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e33",
+      "to": "place_e48",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e48",
+      "to": "place_e33",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e33",
+      "to": "place_e57",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e57",
+      "to": "place_e33",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e34",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e34",
+      "to": "gotanda_station",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e34",
+      "to": "place_e48",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e48",
+      "to": "place_e34",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e34",
+      "to": "place_e57",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e57",
+      "to": "place_e34",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e48",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e48",
+      "to": "gotanda_station",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e48",
+      "to": "place_e57",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e57",
+      "to": "place_e48",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e57",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e57",
+      "to": "gotanda_station",
+      "minutes": 45,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e23",
+      "minutes": 70,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e23",
+      "to": "gotanda_station",
+      "minutes": 70,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e19",
+      "minutes": 90,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e19",
+      "to": "gotanda_station",
+      "minutes": 90,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e05",
+      "minutes": 85,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e05",
+      "to": "gotanda_station",
+      "minutes": 85,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e05",
+      "to": "place_e06",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e06",
+      "to": "place_e05",
+      "minutes": 15,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e06",
+      "minutes": 85,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e06",
+      "to": "gotanda_station",
+      "minutes": 85,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e58",
+      "minutes": 150,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e58",
+      "to": "gotanda_station",
+      "minutes": 150,
+      "mode": "train_walk",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e04",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e04",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e14",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e14",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e21",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e21",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e22",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e22",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e26",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e26",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e28",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e28",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e29",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e29",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e30",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e30",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e31",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e31",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e32",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e32",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e35",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e35",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e36",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e36",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e38",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e38",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e40",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e40",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e41",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e41",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e42",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e42",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e46",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e46",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e47",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e47",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e50",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e50",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e52",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e52",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e54",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e54",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e55",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e55",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e56",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e56",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e61",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e61",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e62",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e62",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e63",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e63",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e64",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e64",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e65",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e65",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_e67",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e67",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o01",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o01",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o03",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o03",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o04",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o04",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "dance_studio",
+      "minutes": 20,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "dance_studio",
+      "to": "gotanda_station",
+      "minutes": 20,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o06",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o06",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o07",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o07",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o08",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o08",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o09",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o09",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o10",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o10",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o11",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o11",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o12",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o12",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o14",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o14",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "gotanda_station",
+      "to": "place_o15",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_o15",
+      "to": "gotanda_station",
+      "minutes": 60,
+      "mode": "estimated_transit",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e14",
+      "to": "place_e15",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e15",
+      "to": "place_e14",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e19",
+      "to": "place_e20",
+      "minutes": 60,
+      "mode": "hike",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e20",
+      "to": "place_e19",
+      "minutes": 60,
+      "mode": "hike",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e24",
+      "to": "place_e25",
+      "minutes": 5,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e25",
+      "to": "place_e24",
+      "minutes": 5,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e26",
+      "to": "place_e27",
+      "minutes": 5,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e27",
+      "to": "place_e26",
+      "minutes": 5,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e42",
+      "to": "place_e43",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e43",
+      "to": "place_e42",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e44",
+      "to": "place_e45",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e45",
+      "to": "place_e44",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e48",
+      "to": "place_e49",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e49",
+      "to": "place_e48",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e50",
+      "to": "place_e51",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e51",
+      "to": "place_e50",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e52",
+      "to": "place_e53",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e53",
+      "to": "place_e52",
+      "minutes": 2,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e58",
+      "to": "place_e59",
+      "minutes": 3,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e59",
+      "to": "place_e58",
+      "minutes": 3,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e58",
+      "to": "place_e60",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e60",
+      "to": "place_e58",
+      "minutes": 1,
+      "mode": "walk",
+      "is_transit": false,
+      "estimated": true
+    },
+    {
+      "from": "place_e65",
+      "to": "place_e66",
+      "minutes": 10,
+      "mode": "boat",
+      "is_transit": true,
+      "estimated": true
+    },
+    {
+      "from": "place_e66",
+      "to": "place_e65",
+      "minutes": 10,
+      "mode": "boat",
+      "is_transit": true,
+      "estimated": true
     }
   ]
 }

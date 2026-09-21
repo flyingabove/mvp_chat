@@ -11,6 +11,7 @@ from .edge import PathEdge
 from .exposure import ExposureResolver
 from .graph import WorldGraph
 from .location import Location
+from .map_model import WorldMap, location_map_fields
 from .travel_resolver import TravelResolver
 from .travel_rules import TravelRules
 from backend.app.utils.id_utils import build_deterministic_uuid
@@ -42,7 +43,7 @@ class WorldLoader:
         p = Path(filepath)
         data = json.loads(p.read_text(encoding="utf-8"))
 
-        graph = WorldGraph()
+        graph = WorldGraph(WorldMap.from_dict(data.get("map")))
 
         locs = data.get("locations") or {}
         for loc_id, obj in locs.items():
@@ -62,9 +63,11 @@ class WorldLoader:
                     allows_phone=bool(obj.get("allows_phone", True)),
                     is_transit=bool(obj.get("is_transit", False)),
                     uuid=loc_uuid,
+                    **location_map_fields(obj),
                 )
             )
 
+        graph.world_map.validate_locations(graph.locations)
         for e in data.get("edges") or []:
             graph.add_edge(
                 PathEdge(
@@ -73,6 +76,8 @@ class WorldLoader:
                     minutes=int(e.get("minutes", 1)),
                     is_transit=bool(e.get("is_transit", False)),
                     blocked=bool(e.get("blocked", False)),
+                    mode=str(e.get("mode", "walk")),
+                    estimated=bool(e.get("estimated", True)),
                 )
             )
 

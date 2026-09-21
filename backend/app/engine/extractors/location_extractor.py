@@ -108,9 +108,8 @@ class LocationExtractor:
                 lines.append(f"- {loc_id}: {name}")
             else:
                 lines.append(f"- {loc_id}")
-            # Keep prompt bounded
-            if len(lines) >= 80:
-                break
+            # Include every authored destination. A fixed node-count cap silently
+            # made later locations unreachable to the extractor in larger worlds.
         return "\n".join(lines)
 
     @staticmethod

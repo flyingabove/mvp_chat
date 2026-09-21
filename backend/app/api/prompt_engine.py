@@ -2025,6 +2025,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 map_image = str(world_cfg.get("world_map_image", "")).strip() or None
 
         result = {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+        if state and state.world_runtime:
+            from backend.app.engine.world.map_model import world_map_payload
+            result["world_map"] = world_map_payload(state.world_runtime.world_graph)
         if map_image:
             result["world_map_image"] = map_image
             try:

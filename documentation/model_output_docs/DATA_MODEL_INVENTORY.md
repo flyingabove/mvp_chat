@@ -10,6 +10,12 @@ Last updated: 2026-02-26
 
 ## Story / Authoring (static, from JSON)
 
+The optional world atlas adds `MapPoint`, `PlaceResearch`, `MapArea`, and `WorldMap`
+in `backend/app/engine/world/map_model.py`. `WorldGraph.world_map` owns the atlas;
+`Location` adds `area_id`, `map_position`, and `research`; `PathEdge` adds `mode`
+and `estimated`. Both world loaders preserve these fields. See
+[WORLD_ATLAS_DESIGN.md](WORLD_ATLAS_DESIGN.md) for validation, coordinates and API shape.
+
 | Class | File | What it is |
 |---|---|---|
 | `StoryDefinition` | `backend/app/engine/story_loader.py` | Top-level container parsed from the story JSON. Holds characters, relationships, raw config. |

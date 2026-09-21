@@ -2,7 +2,7 @@
   "id": "six_strangers",
   "title": "Terrace in the City",
   "theme": "shared_house_city",
-  "description": "Tokyo, 2015. A fictional shared-house story with the original six members of Boys & Girls in the City. Work, dreams, awkward dinners, and rooftop conversations — with you as a seventh arrival, life takes a new direction.",
+  "description": "Tokyo, 2015. A fictional shared-house story with the original six members of Boys & Girls in the City. Work, dreams, awkward dinners, and pool-deck conversations — with you as a seventh arrival, life takes a new direction.",
   "genre": "Slice of Life / Ensemble Drama",
   "thumbnail_url": "/img/six_strangers.svg",
   "featured": true,
@@ -330,7 +330,7 @@
     "canonical_facts": [
       {
         "id": "tokyo_house_setting",
-        "content": "This fictional story begins in September 2015 in a modern, multi-level shared house in Higashi-Gotanda, Shinagawa Ward, Tokyo. Large windows, an open kitchen and living space, a communal dining table, and a rooftop terrace shape everyday life. The street outside is residential; Gotanda station connects the household to the wider city.",
+        "content": "This fictional story begins in September 2015 in a modern, multi-level shared house in Higashi-Gotanda, Shinagawa Ward, Tokyo. Large windows, an open kitchen and living space, a communal dining table, and a terrace and swimming pool shape everyday life. The street outside is residential; Gotanda station connects the household to the wider city.",
         "known_by": [
           "all_characters",
           "player"
@@ -774,7 +774,7 @@
       "A resident may leave only after clearly committing to that choice. On the next day, the next eligible resident in the same slot group arrives; chronology determines only arrival order, never relationships or outcomes.",
       "Mornings involve office hours, coffee shifts, salon appointments, baseball practice, dance rehearsal, modeling, and study. These are narrative commitments, not a mechanically enforced schedule.",
       "Evenings gather around the open kitchen and dining table: cooking, washing up, gentle teasing, questions about work, and silences that need not become confrontations.",
-      "A rooftop conversation, a cafe stop, or a trip into the city can grow out of a small invitation. Nobody owes a date or an explanation for declining one.",
+      "A pool-deck conversation, a cafe stop, or a trip into the city can grow out of a small invitation. Nobody owes a date or an explanation for declining one.",
       "Keep the perspective observational. Show changes in trust through actions; let mundane problems, ambitions, and relationships matter without assigning missions, manufacturing crises, or revealing other people's private concerns."
     ]
   },

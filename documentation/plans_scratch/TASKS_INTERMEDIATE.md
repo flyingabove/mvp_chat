@@ -4,6 +4,15 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### Six Strangers researched atlas and isolated Codex checkout
+
+- [x] Clone latest beta into `mvp_chat_for_codex_only`; create `codex/six-strangers-world-atlas`.
+- [x] Restore artwork and reusable map/location/route models without touching the shared checkout.
+- [x] Model all supplied research IDs, uncertainty, area containers, and estimated travel relationships.
+- [x] Finish reusable map UI and verify desktop/mobile behavior locally (Chromium + iPhone 13 WebKit; no page errors or failed requests).
+- [ ] Run the full suite, integrate latest beta changes, and retest as needed.
+- [ ] Commit, deploy beta, and verify live artwork, data, and interactions.
+
 - [x] Finalize the two-story catalog: keep only IU Murder Mystery and Six Strangers, delete stale inactive games, and align runtime tests to the active catalogue.
 - [x] Keep the server-backed default persona system and temp persona flow for the active titles.
 - [ ] Push the final beta-ready branch after the live validation step.

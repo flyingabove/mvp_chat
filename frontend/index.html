@@ -1289,6 +1289,7 @@
     }
   </style>
 <link rel="stylesheet" href="dialogue.css?v=2" />
+<link rel="stylesheet" href="world-map.css?v=1">
 </head>
 
 <body>
@@ -1687,6 +1688,7 @@
 <!-- ════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════ -->
+<script src="world-map.js?v=1"></script>
 <script src="dialogue.js?v=2"></script>
 <script>
 (function(){
@@ -2770,7 +2772,7 @@ function renderInlineWorldMap(meta){
     var imgWrap = document.createElement("div");
     imgWrap.style.cssText = "max-width:100%;border-radius:12px;overflow:hidden;margin:4px 0;";
     var img = document.createElement("img");
-    img.src = API_BASE + "/story-image/" + meta.world_map_image;
+    img.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
     img.alt = "World Map";
     img.style.cssText = "width:100%;display:block;border-radius:12px;";
     imgWrap.appendChild(img);
@@ -3107,6 +3109,20 @@ function showMapModal(){
   var container = modal.querySelector(".map-container");
   var locationsEl = $("map-modal-locations");
 
+  var atlasHost = modal.querySelector(".atlas-host");
+  if (atlasHost) atlasHost.remove();
+  container.style.display = "";
+  modal.classList.remove("fullscreen");
+  if (meta && meta.world_map && meta.world_map.areas.length && window.WorldMapView) {
+    container.style.display = "none";
+    atlasHost = document.createElement("div");
+    atlasHost.className = "atlas-host";
+    modal.appendChild(atlasHost);
+    new WorldMapView(atlasHost, meta.world_map, meta.world_map_image ? API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "") : null);
+    openModal("map-modal");
+    return;
+  }
+
   // Reset state
   imgEl.style.display = "none";
   imgEl.style.transform = "translate(0, 0) scale(1)";
@@ -3120,7 +3136,7 @@ function showMapModal(){
   }
 
   if (meta.world_map_image){
-    imgEl.src = API_BASE + "/story-image/" + meta.world_map_image;
+    imgEl.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
     imgEl.style.display = "block";
     imgEl.onload = function(){
       // Check if image is larger than container

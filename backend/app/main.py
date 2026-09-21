@@ -293,3 +293,15 @@ async def dialogue_script():
 @app.get("/beta/dialogue.css")
 async def dialogue_styles():
     return FileResponse(str(_INDEX_HTML_PATH.parent / "dialogue.css"), media_type="text/css")
+
+
+@app.get("/world-map.js")
+@app.get("/beta/world-map.js")
+async def world_map_script():
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "world-map.js"), media_type="text/javascript")
+
+
+@app.get("/world-map.css")
+@app.get("/beta/world-map.css")
+async def world_map_styles():
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "world-map.css"), media_type="text/css")

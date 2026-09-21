@@ -37,6 +37,10 @@
 
 ## Game Design Systems
 
+The reusable world/location atlas schema, research mapping and routing policy are
+documented in [WORLD_ATLAS_DESIGN.md](model_output_docs/WORLD_ATLAS_DESIGN.md).
+Update that document when map metadata, coordinates, routes or map UI behavior changes.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [GAME_DESIGN_SYSTEMS.md](model_output_docs/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). |

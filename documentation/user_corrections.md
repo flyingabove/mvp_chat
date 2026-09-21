@@ -4,6 +4,16 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-20: Isolate Codex from other agents' working trees
+
+The user requested a full independent `mvp_chat_for_codex_only` clone after an
+external reset removed in-progress map work from the shared checkout. Codex uses
+a dedicated `codex/` feature branch there, fetches/merges current `origin/beta`
+before work and before shipping, preserves both agents' intent in conflicts,
+and verifies local and deployed beta behavior. Do not reset or clean the other
+agents' `mvp_chat` checkout. This supersedes older direct-on-beta implementation
+guidance for Codex; beta remains the deployment target.
+
 ## 2026-03-08: Don't auto-push to production
 
 **What happened:** After fixing SVG thumbnails and hero CSS, I pushed to both `beta` AND `main` (production) without asking.

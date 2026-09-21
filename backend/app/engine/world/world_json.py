@@ -8,6 +8,7 @@ from .exposure import ExposureConfig
 from .graph import WorldGraph
 from .ids import LocationId
 from .location import Location
+from .map_model import WorldMap, location_map_fields
 from .travel_resolver import TravelTiming
 
 
@@ -56,7 +57,7 @@ class WorldDefinitionLoader:
         timing = TravelTiming(exit_minutes=int(data.get("defaults", {}).get("exit_minutes", 1)))
         timing.validate()
 
-        graph = WorldGraph()
+        graph = WorldGraph(WorldMap.from_dict(data.get("map")))
 
         # Locations
         locations = data.get("locations", {})
@@ -76,9 +77,11 @@ class WorldDefinitionLoader:
                     tags=tags,
                     allows_phone=allows_phone,
                     is_transit=is_transit,
+                    **location_map_fields(loc),
                 )
             )
 
+        graph.world_map.validate_locations(graph.locations)
         # Edges
         for e in data.get("edges", []) or []:
             from_id = LocationId(str(e["from"]))
@@ -86,7 +89,8 @@ class WorldDefinitionLoader:
             minutes = int(e["minutes"])
             is_transit = bool(e.get("is_transit", False))
             blocked = bool(e.get("blocked", False))
-            graph.add_edge(PathEdge(from_id=from_id, to_id=to_id, minutes=minutes, is_transit=is_transit, blocked=blocked))
+            graph.add_edge(PathEdge(from_id=from_id, to_id=to_id, minutes=minutes, is_transit=is_transit, blocked=blocked,
+                                    mode=str(e.get("mode", "walk")), estimated=bool(e.get("estimated", True))))
 
         return WorldDefinition(
             world_id=world_id,
