@@ -6,6 +6,9 @@ from backend.app.config.credentials import (
     get_google_client_id,
     get_google_client_secret,
     get_jwt_secret,
+    get_langsmith_api_key,
+    get_langsmith_project,
+    is_langsmith_enabled,
 )
 
 # --- OpenAI / model config ---
@@ -70,6 +73,15 @@ GOOGLE_CLIENT_SECRET: str = get_google_client_secret()
 JWT_SECRET: str = get_jwt_secret()
 JWT_ALGORITHM: str = "HS256"
 JWT_EXPIRY_DAYS: int = 365
+
+# --- LangSmith tracing (optional observability) ---
+# Key lives in .env.test locally / Railway env vars in beta+prod, read through
+# credentials.py like every other secret. Tracing stays OFF unless
+# LANGSMITH_TRACING is explicitly truthy, so player content is never shipped to
+# an external service just because the key is present.
+LANGSMITH_API_KEY: str = get_langsmith_api_key()
+LANGSMITH_PROJECT: str = get_langsmith_project()
+LANGSMITH_TRACING_ENABLED: bool = is_langsmith_enabled()
 
 # --- Integration test run counts (used by multi-run scenarios via _integ_run_count()) ---
 # X: number of runs per multi-run scenario when running locally (no RAILWAY_* env vars)

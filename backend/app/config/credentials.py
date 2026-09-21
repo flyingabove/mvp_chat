@@ -7,6 +7,10 @@ Priority order:
 
 All code and tests should use this module instead of reading env vars directly
 or implementing their own .env.test parsers.
+
+Trigger keys that lazily load .env.test on first read: OPENAI_API_KEY,
+GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET, LANGSMITH_API_KEY,
+LANGSMITH_PROJECT.
 """
 from __future__ import annotations
 
@@ -120,3 +124,29 @@ def get_jwt_secret() -> str:
     must always set this via Railway env vars.
     """
     return _get_env_with_fallback("JWT_SECRET") or "dev-secret-change-in-production"
+
+
+def get_langsmith_api_key() -> str:
+    """Return LANGSMITH_API_KEY, loading .env.test as fallback if needed.
+
+    Returns "" when tracing is not configured; callers must treat LangSmith as
+    optional and never fail a turn because tracing is unavailable.
+    """
+    return _get_env_with_fallback("LANGSMITH_API_KEY")
+
+
+def get_langsmith_project() -> str:
+    """Return the LangSmith project name, defaulting to "storieschat"."""
+    return _get_env_with_fallback("LANGSMITH_PROJECT") or "storieschat"
+
+
+def is_langsmith_enabled() -> bool:
+    """True only when a LangSmith key is present AND tracing is opted in.
+
+    Tracing is off unless LANGSMITH_TRACING is truthy, so merely having the key
+    in .env.test never silently ships player content to an external service.
+    """
+    if not get_langsmith_api_key():
+        return False
+    flag = _get_env_with_fallback("LANGSMITH_TRACING").lower()
+    return flag in {"1", "true", "yes", "on"}

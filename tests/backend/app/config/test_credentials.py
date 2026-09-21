@@ -88,3 +88,70 @@ def test_get_env_with_fallback_ignores_whitespace_keys(monkeypatch, tmp_path):
         assert credentials.get_google_client_id() == ""
     finally:
         os.environ.pop("GOOGLE_CLIENT_ID ", None)
+
+
+# --- LangSmith tracing credentials -------------------------------------------
+# Tracing is opt-in: holding the key must never by itself start shipping player
+# content to an external service, so is_langsmith_enabled() requires the flag.
+
+def test_get_langsmith_api_key_prefers_live_env(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_API_KEY", "  lsv2_live  ")
+    assert credentials.get_langsmith_api_key() == "lsv2_live"
+
+
+def test_get_langsmith_api_key_falls_back_to_env_test(monkeypatch, tmp_path):
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    (tmp_path / ".env.test").write_text("LANGSMITH_API_KEY=lsv2_from_file", encoding="utf-8")
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    try:
+        assert credentials.get_langsmith_api_key() == "lsv2_from_file"
+    finally:
+        os.environ.pop("LANGSMITH_API_KEY", None)
+
+
+def test_get_langsmith_api_key_empty_when_unset(monkeypatch, tmp_path):
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.get_langsmith_api_key() == ""
+
+
+def test_get_langsmith_project_defaults(monkeypatch, tmp_path):
+    monkeypatch.delenv("LANGSMITH_PROJECT", raising=False)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.get_langsmith_project() == "storieschat"
+
+
+def test_get_langsmith_project_prefers_live_env(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_PROJECT", "storieschat-prod")
+    assert credentials.get_langsmith_project() == "storieschat-prod"
+
+
+def test_langsmith_disabled_without_key(monkeypatch, tmp_path):
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_langsmith_enabled() is False
+
+
+def test_langsmith_disabled_when_key_present_but_flag_unset(monkeypatch, tmp_path):
+    """Regression guard: a populated .env.test key must not auto-enable tracing."""
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_present")
+    monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_langsmith_enabled() is False
+
+
+@pytest.mark.parametrize("flag", ["1", "true", "TRUE", "yes", "on"])
+def test_langsmith_enabled_for_truthy_flags(monkeypatch, tmp_path, flag):
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_present")
+    monkeypatch.setenv("LANGSMITH_TRACING", flag)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_langsmith_enabled() is True
+
+
+@pytest.mark.parametrize("flag", ["0", "false", "no", "off", "", "maybe"])
+def test_langsmith_disabled_for_falsy_flags(monkeypatch, tmp_path, flag):
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_present")
+    monkeypatch.setenv("LANGSMITH_TRACING", flag)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_langsmith_enabled() is False

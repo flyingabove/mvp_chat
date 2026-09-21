@@ -121,6 +121,13 @@ Update that document when map metadata, coordinates, routes or map UI behavior c
 | [ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md](model_output_docs/ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md) | Historical audit of NorthStar gaps. |
 | [ARCHIVE_DOC_REWRITE_ENFORCEMENT_2026_02_23.md](plans_scratch/ARCHIVE_DOC_REWRITE_ENFORCEMENT_2026_02_23.md) | Historical doc rewrite enforcement plan. |
 
+## Active Initiatives (Plans Under Execution)
+
+| Doc | Edit this doc if... |
+|-----|---------------------|
+| [ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md](ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md) | ...a phase of the reuse/correctness/performance/Jev initiative is started, completed, re-scoped, or its measurements are re-run. **Verified against code + measured on 2026-09-21; supersedes the raw audit's priorities where they conflict.** |
+| [CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md](CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md) | ...never — source audit, read-only input to the engineering plan above. |
+
 ## Verification Ledger
 
 | Doc | Edit this doc if... |
