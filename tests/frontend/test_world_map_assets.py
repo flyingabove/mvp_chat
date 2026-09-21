@@ -23,3 +23,10 @@ def test_map_modal_uses_metadata_and_versioned_artwork():
     assert 'encodeURIComponent(meta.world_map_image_revision || "")' in html
     assert '<script src="world-map.js?v=1"></script>' in html
     assert '<link rel="stylesheet" href="world-map.css?v=1">' in html
+
+
+def test_worker_update_does_not_race_initial_install_or_reject_unhandled():
+    html = (Path(__file__).resolve().parents[2] / "frontend/index.html").read_text(encoding="utf-8")
+    block = html.split('navigator.serviceWorker.register("sw.js")', 1)[1].split('navigator.serviceWorker.addEventListener', 1)[0]
+    assert "if (reg.active && !reg.installing)" in block
+    assert "reg.update().catch(" in block

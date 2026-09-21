@@ -3746,7 +3746,11 @@ fetch("version.json", { cache: "no-store" })
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js")
     .then(function(reg){
-      reg.update();
+      // A first install already fetches the current worker. Racing it with an
+      // update can be cancelled by WebKit when controllerchange reloads us.
+      if (reg.active && !reg.installing) {
+        reg.update().catch(function(){});
+      }
       if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
     })
     .catch(function(){});
