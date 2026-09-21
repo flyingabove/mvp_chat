@@ -67,7 +67,6 @@ from backend.app.engine.state import (
     LanguageTheme,
 
 )
-from backend.app.engine.dialogue import present_dialogue, encode_dialogue
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
@@ -1009,7 +1008,6 @@ async def _translate_to_chinese(text: str) -> str:
             "italics (*text*), quotes, newlines, punctuation, and special characters. "
             "Keep the layout and structure exactly the same as the original. "
             "Only translate the actual words, not the formatting markers. "
-            "Preserve [SPEAKER:id] and [/SPEAKER] markers and their IDs EXACTLY. "
             "Return ONLY the translated text, no explanations.\n\n"
             f"Text to translate:\n{text}"
         )
@@ -2325,7 +2323,6 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         opening = story_def.get("opening", {}).get("text", "The room is quiet. A story begins.")
         opening = apply_placeholders(opening, new_state)
-        opening, segments = present_dialogue(opening, new_state)
 
         sess["state"] = new_state
         new_state.session_chunk_store = SessionChunkStore()
@@ -2365,9 +2362,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         # Apply Chinese translation if chinese_mode is enabled
         reply = opening
         if bool(sess.get("chinese_mode", False)):
-            reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
+            reply = await _translate_to_chinese(reply)
 
-        return {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
+        return {"reply": reply, "usage": {"total_tokens": 0}, "character": "default"}
 
     # REGULAR TURN — auto-reinitialize if game state is missing
     if not state.story or not state.story_cfg:
@@ -2881,7 +2878,6 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
-    clean, segments = present_dialogue(clean, state)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]
 
@@ -2984,7 +2980,6 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 turn=state.turns,
                 user_msg_id=user_msg_id,
                 ai_msg_id=ai_msg_id,
-                segments=segments,
             )
         except Exception:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
@@ -3079,9 +3074,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     # Apply Chinese translation if chinese_mode is enabled
     if bool(sess.get("chinese_mode", False)):
-        reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
+        reply = await _translate_to_chinese(reply)
 
-    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
+    result = {"reply": reply, "usage": data.get("usage"), "character": "default"}
     # prompt_debug carries the FULL assembled system prompt (all canonical
     # facts, character secrets, retrieval chunk text) and is only for the
     # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
