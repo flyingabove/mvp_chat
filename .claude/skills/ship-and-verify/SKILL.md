@@ -83,23 +83,57 @@ don't silently skip this phase because polling is slower than you'd like.
     those tools aren't available in your current tool list, the plugin was
     installed after this session started and needs a Claude Code
     restart/reconnect to load; say so explicitly rather than silently
-    skipping this step). At minimum for a frontend-touching change:
-    - Navigate to `https://storieschat.ai/beta/`.
-    - Open the browser console and check for JS errors on load and after
-      each interaction — a silent console error is exactly the class of bug
-      unit tests and curl checks both miss.
+    skipping this step). This project is primarily played as an iOS
+    "Add to Home Screen" webapp, so **verify BOTH a standard desktop/website
+    view AND an iOS-simulated view — every time, not just for PWA/cache
+    changes**:
+    - **Website mode**: default Playwright viewport, navigate to
+      `https://storieschat.ai/beta/`.
+    - **iOS-simulated mode**: the Playwright MCP tools here don't expose a
+      device picker directly, so simulate iOS with what they do give you:
+      1. `browser_resize` to an iPhone viewport (390×844 for iPhone 13/14,
+         or 430×932 for a Pro Max) — this alone catches most layout/touch
+         sizing bugs.
+      2. For true Safari/WebKit engine + iOS user-agent + touch emulation
+         (not just viewport size), use
+         `browser_run_code_unsafe` to drive Playwright's own device
+         descriptors, e.g.:
+         `async (page) => { const { devices } = require('playwright'); /* if unavailable in this context, fall back to context.newPage with a manually-set userAgent + viewport + hasTouch:true, isMobile:true matching devices['iPhone 13'] */ }`
+         — if `browser_run_code_unsafe` can't load Playwright's `devices`
+         registry in this sandboxed context, at minimum set the iPhone
+         Safari UA string manually
+         (`Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)
+         AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0
+         Mobile/15E148 Safari/604.1`) alongside the resized viewport.
+      3. This project's PWA-specific behavior (service worker caching,
+         `standalone` display mode, `manifest.json`, the iOS install
+         prompt, the hard-reload button) is exactly the class of bug that
+         only reproduces under iOS Safari's cache/rendering quirks — a
+         desktop Chrome pass alone is not sufficient for any change
+         touching `sw.js`, `manifest.json`, or anything under the
+         `iOS INSTALL PROMPT` / `HARD RELOAD` blocks in
+         `frontend/index.html`.
+    - For BOTH modes: open the browser console and check for JS errors on
+      load and after each interaction — a silent console error is exactly
+      the class of bug unit tests and curl checks both miss.
     - Actually click through the golden path relevant to your change (pick a
       story card, send a chat message, navigate a menu — whatever you
       touched), not just load the page and screenshot it.
-    - Take at least one screenshot as evidence, and note it in your report.
+    - Take at least one screenshot per mode as evidence, and note both in
+      your report.
     - Check the Network tab / requests for which host API calls actually hit
       (this is how BL-03 would have been caught immediately instead of via
       manual curl comparison).
     If Playwright tools are genuinely unavailable this session, fall back to
     API-level verification via curl/PowerShell against the real hosted
     endpoints and say explicitly that browser-level QA (console errors,
-    visual layout, click-through) was not done and why — never claim "smoke
-    tested in browser" when you only checked curl output.
+    visual layout, click-through, and the iOS-simulated pass) was not done
+    and why — never claim "smoke tested in browser" or "verified on iOS"
+    when you only checked curl output or a desktop-viewport pass.
+
+    The same website-mode + iOS-simulated-mode pass applies locally too
+    (Phase 1/local dev server), not just against the deployed beta site —
+    catch layout/PWA regressions before they ever reach beta.
 13. If live verification finds a bug that local tests didn't catch: that's a
     real bug in production-adjacent (beta) infrastructure. Go back to Phase
     1 — write a test that would have caught it if at all feasible (matching
