@@ -6,7 +6,12 @@
  * - Copies ONLY frontend-owned files
  */
 
-$SECRET = "vtJ43JLqcKXsrC3u6ZQjVnBX878Qcmnfo2BmYd7xpkdu14h/PPrxZ6L9UESfrxqaWlo+dabbCe8JNtfburg4pGIWjemb+VllZC62iZ2//twMuDBJ1GjmZCKVP77Iy41dSEPg18y7jhrD9KZ50NtDL5xTfcL9GgxwBBV7J7zk9sKjT/CIkl9jd9gEUGy+zqc92wGcWTZ/znU0QR5zu3tc0FxApKcgvIwcDTuO5bXkbr1LRB6Jcfu+eCW9uRhfJmJiJ4TX3hMZQIBxZZVX+3c1g2KVMRKEmDwbEgkyr5cF2uPxEsL4D1WCaiUEiOZGIhsPB8hpsAeHb8YEWrwSNLqj";
+// SECRET REMOVED (Phase 0A.3). The literal that was here is COMPROMISED:
+// it was committed to git history and must be treated as public. It has been
+// replaced with an env read purely so this file is not a credential store.
+// This whole mechanism is DEAD - see README_DISABLED.md in this directory.
+$SECRET = getenv("GITWEBHOOK_SECRET") ?: "";
+if ($SECRET === "") { http_response_code(503); echo "Deploy webhook disabled"; exit; }
 
 /* -----------------------------
    Validate GitHub signature

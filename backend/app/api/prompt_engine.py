@@ -1898,6 +1898,13 @@ def handle_name_confirmation(user_msg: str, state: GameState):
 # smaller, separate piece of work flagged as out of scope for this pass.
 _SESSION_LOCKS: dict[str, asyncio.Lock] = {}
 
+# Stable, provider-agnostic message shown to players when the story master call
+# fails upstream. Deliberately says nothing about which provider, model, quota or
+# account was involved - operators correlate via req_id in the JSONL log instead.
+_PUBLIC_UPSTREAM_ERROR = (
+    "The story master is unavailable right now. Please try that again in a moment."
+)
+
 
 def _get_session_lock(session_id: str) -> asyncio.Lock:
     lock = _SESSION_LOCKS.get(session_id)
@@ -2928,7 +2935,12 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             "status": r.status_code,
             "body": _truncate(r.text, 4000),
         })
-        return {"error": f"upstream HTTP {r.status_code}: {r.text}", "character": "default"}
+        # Phase 0A.6: never return the provider's raw response body to the
+        # client. It can carry provider org/project identifiers, quota and
+        # billing details, model names, and internal request IDs. The full body
+        # is already in the operator log above (kind=chat_upstream_error) with
+        # req_id for correlation; the player gets a stable, generic message.
+        return {"error": _PUBLIC_UPSTREAM_ERROR, "character": "default"}
 
     data = r.json()
     try:

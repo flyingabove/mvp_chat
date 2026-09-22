@@ -157,6 +157,31 @@ async def _fact_extraction_recovery_sweep():
         _log.exception("Fact-extraction outbox: prune step failed")
 
 
+async def _warm_embedder() -> None:
+    """Phase 1.3: load the sentence-transformer model off the request path.
+
+    Measured locally: the first `embed_*` call constructs the model in ~15.9s,
+    and because retrieval runs synchronously inside the async route that time is
+    spent with the event loop fully blocked - every other session, and health
+    checks, stall for the whole window, once per deploy.
+
+    Warming it here converts that one-off stall into background work. Two
+    deliberate properties:
+      * `asyncio.to_thread` - the load is CPU/IO-bound and blocking, so running
+        it on the loop would recreate exactly the stall we are removing.
+      * NOT awaited by `lifespan` - readiness must not wait on a multi-second
+        model load, or deploys would look unhealthy. A request arriving mid-load
+        blocks on the embedder's own lock and then reuses the same model, so
+        correctness does not depend on the warm-up finishing first.
+    """
+    try:
+        from backend.app.knowledge.build.embedder import warm_up
+        ok = await asyncio.to_thread(warm_up)
+        _log.info("Embedder warm-up %s", "complete" if ok else "failed (will load lazily)")
+    except Exception:
+        _log.exception("Embedder warm-up task failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -164,8 +189,11 @@ async def lifespan(app: FastAPI):
     await _fact_extraction_recovery_sweep()
     # Start guest cleanup background task
     cleanup_task = asyncio.create_task(_guest_cleanup_loop())
+    # Fire-and-forget: readiness intentionally does not await the model load.
+    warm_task = asyncio.create_task(_warm_embedder())
     yield
     cleanup_task.cancel()
+    warm_task.cancel()
 
 
 # --------------------------------------------------

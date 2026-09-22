@@ -4221,3 +4221,51 @@ def test_old_seventh_resident_save_migrates_once(client, gender, bedroom):
     snapshot = state.cast_lifecycle.to_dict()
     pe._initialize_cast_lifecycle(state, snapshot)
     assert state.cast_lifecycle.to_dict() == snapshot
+
+
+# --- Phase 0A.6: upstream provider errors must not leak to clients -----------
+
+def test_public_upstream_error_reveals_no_provider_detail():
+    """The player-facing story-master failure message must be provider-agnostic.
+
+    Regression guard for the audit finding that the chat endpoint returned
+    `f"upstream HTTP {status}: {r.text}"` straight to the browser. A provider's
+    error body can carry org/project IDs, quota and billing details, model
+    names and internal request IDs, so none of that may appear in a response.
+    """
+    from backend.app.api import prompt_engine as pe_mod
+
+    msg = pe_mod._PUBLIC_UPSTREAM_ERROR
+    assert isinstance(msg, str) and msg.strip()
+    lowered = msg.lower()
+    # No provider, model, account or transport detail.
+    for leak in (
+        "openai", "anthropic", "ollama", "gpt", "claude", "api.", "http",
+        "token", "quota", "billing", "org-", "project", "bearer", "key",
+        "traceback", "exception", "localhost", "127.0.0.1",
+    ):
+        assert leak not in lowered, f"public error message leaks {leak!r}: {msg!r}"
+    # No status codes or raw numbers that would hint at the upstream failure.
+    assert not re.search(r"\b[45]\d{2}\b", msg), f"public error leaks a status code: {msg!r}"
+
+
+def test_chat_upstream_error_path_returns_only_the_public_message():
+    """The error-return shape at the upstream-failure branch is the public one.
+
+    Reads the source of the failure branch rather than standing up the whole
+    1,255-line handler: the assertion is that the branch returns the constant
+    and does NOT interpolate the provider's response text.
+    """
+    import inspect
+
+    from backend.app.api import prompt_engine as pe_mod
+
+    src = inspect.getsource(pe_mod._chat_handler_impl)
+    # The old leaking form must be gone.
+    assert 'f"upstream HTTP {r.status_code}: {r.text}"' not in src
+    assert "_PUBLIC_UPSTREAM_ERROR" in src
+    # The raw body may still be logged for operators, but only inside a _log call.
+    for line in src.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("return") and "r.text" in stripped:
+            raise AssertionError(f"upstream body returned to client: {stripped!r}")
