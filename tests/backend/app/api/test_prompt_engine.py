@@ -951,8 +951,14 @@ def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
     )
     assert r0.status_code == 200
 
-    state = pe_mod.SESSIONS[sid]["state"]
-    turns_before = state.turns
+    # Phase 1.1: `state` is re-fetched from SESSIONS after each call rather
+    # than held across calls. The turn pipeline now clones state, mutates the
+    # clone, and publishes the clone back into SESSIONS only on success (see
+    # prompt_engine.py "Phase 1.1" comments) — so a reference grabbed before a
+    # call points at an object that is correctly no longer the live one after
+    # a completed turn. Re-fetching is the correct pattern going forward, not
+    # a workaround: it verifies the publish actually happened.
+    turns_before = pe_mod.SESSIONS[sid]["state"].turns
 
     r1 = client.post(
         "/api/chat",
@@ -960,7 +966,7 @@ def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
         headers=guest_headers,
     )
     assert r1.status_code == 200
-    turns_after_first = state.turns
+    turns_after_first = pe_mod.SESSIONS[sid]["state"].turns
     assert turns_after_first == turns_before + 1
 
     r2 = client.post(
@@ -970,7 +976,7 @@ def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
     )
     assert r2.status_code == 200
     assert r2.json() == r1.json(), "duplicate request_id must replay the exact prior reply"
-    assert state.turns == turns_after_first, (
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_after_first, (
         "a retried request with the same request_id must not advance state.turns a second time"
     )
 
@@ -988,8 +994,9 @@ def test_different_request_id_still_processes_normally(client):
         headers=guest_headers,
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    turns_before = state.turns
+    # Phase 1.1: re-fetch state after each call (see comment in
+    # test_duplicate_request_id_replays_prior_reply_without_reprocessing).
+    turns_before = pe_mod.SESSIONS[sid]["state"].turns
 
     r1 = client.post(
         "/api/chat",
@@ -997,7 +1004,7 @@ def test_different_request_id_still_processes_normally(client):
         headers=guest_headers,
     )
     assert r1.status_code == 200
-    assert state.turns == turns_before + 1
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 1
 
     r2 = client.post(
         "/api/chat",
@@ -1005,7 +1012,7 @@ def test_different_request_id_still_processes_normally(client):
         headers=guest_headers,
     )
     assert r2.status_code == 200
-    assert state.turns == turns_before + 2, (
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 2, (
         "a distinct request_id must be processed as a new turn, not treated as a duplicate"
     )
 
@@ -1023,22 +1030,23 @@ def test_anon_session_skips_dedup_check(client):
         json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    turns_before = state.turns
+    # Phase 1.1: re-fetch state after each call (see comment in
+    # test_duplicate_request_id_replays_prior_reply_without_reprocessing).
+    turns_before = pe_mod.SESSIONS[sid]["state"].turns
 
     r1 = client.post(
         "/api/chat",
         json={"session_id": sid, "message": "hello", "request_id": "req-anon-1"},
     )
     assert r1.status_code == 200
-    assert state.turns == turns_before + 1
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 1
 
     r2 = client.post(
         "/api/chat",
         json={"session_id": sid, "message": "hello", "request_id": "req-anon-1"},
     )
     assert r2.status_code == 200
-    assert state.turns == turns_before + 2, "anon sessions have no dedup identity and must reprocess"
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 2, "anon sessions have no dedup identity and must reprocess"
 
 
 # ============================================================================
@@ -1478,7 +1486,6 @@ def test_behavior_tags_accumulate_in_recent_behavior_log(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(behavior_tags=[
@@ -1490,6 +1497,10 @@ def test_behavior_tags_accumulate_in_recent_behavior_log(client):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch state AFTER the mutating call, not before — the turn
+    # handler clones state and publishes the clone on success, so a
+    # pre-fetched reference would be stale.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert state.recent_behavior_log.get("makoto->mizuki") == ["aggressive"]
     # No shift signal was mocked - no goal/disposition mutation.
     makoto = state.characters["makoto"]
@@ -1506,7 +1517,6 @@ def test_behavior_log_caps_at_window_size(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
 
     import unittest.mock as _mock
     for i in range(10):
@@ -1518,6 +1528,8 @@ def test_behavior_log_caps_at_window_size(client):
             r = client.post("/api/chat", json={"session_id": sid, "message": f"turn {i}"})
         assert r.status_code == 200
 
+    # Phase 1.1: fetch AFTER the loop — each call publishes a fresh clone.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert len(state.recent_behavior_log["makoto->mizuki"]) == 8
     assert state.recent_behavior_log["makoto->mizuki"] == [f"tag{i}" for i in range(2, 10)]
 
@@ -1540,10 +1552,10 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    makoto = state.characters["makoto"]
-    original_goal = makoto.goal.current
-    assert len(makoto.goal.history) == 1
+    # original_goal captured from the pre-turn state (safe to read before,
+    # since we're not asserting on this SAME object after a mutating call).
+    original_goal = pe_mod.SESSIONS[sid]["state"].characters["makoto"].goal.current
+    assert len(pe_mod.SESSIONS[sid]["state"].characters["makoto"].goal.history) == 1
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
@@ -1557,6 +1569,9 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch AFTER the mutating call — the handler publishes a
+    # fresh clone on success, so `makoto` must be re-derived from it here.
+    makoto = pe_mod.SESSIONS[sid]["state"].characters["makoto"]
     assert makoto.goal.current == "No longer chasing romance - focused entirely on baseball now."
     assert len(makoto.goal.history) == 2
     # Old value still readable - never overwritten.
@@ -1579,8 +1594,7 @@ def test_social_shift_disposition_creates_new_history_entry(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    assert state.character_graph.get_edge("player", "mizuki") is not None
+    assert pe_mod.SESSIONS[sid]["state"].character_graph.get_edge("player", "mizuki") is not None
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
@@ -1593,6 +1607,8 @@ def test_social_shift_disposition_creates_new_history_entry(client):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch state AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
     edge = state.character_graph.get_edge("player", "mizuki")
     assert edge is not None
     assert edge.disposition is not None
@@ -1640,7 +1656,6 @@ def test_social_shift_goal_reflected_in_next_turn_prompt(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
@@ -1653,6 +1668,9 @@ def test_social_shift_goal_reflected_in_next_turn_prompt(client):
     with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
+
+    # Phase 1.1: fetch AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
 
     # Force makoto present so the identity block (and any goal line for him)
     # would render if the game surfaces non-main present characters.
@@ -1832,9 +1850,8 @@ def test_departure_decision_schedules_pending_replacement_not_immediate(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    assert "makoto" in state.cast_lifecycle.active_ids()
-    minute_before = state.minute
+    assert "makoto" in pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()
+    minute_before = pe_mod.SESSIONS[sid]["state"].minute
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
@@ -1846,6 +1863,8 @@ def test_departure_decision_schedules_pending_replacement_not_immediate(client):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert len(state.pending_events) == 1, "an explicit decision must schedule exactly one pending replacement"
     event = state.pending_events[0]
     assert event.event_type == "cast_departure_replacement"
@@ -1906,7 +1925,6 @@ def test_departure_decision_does_not_duplicate_pending_event_across_turns(client
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
@@ -1920,6 +1938,8 @@ def test_departure_decision_does_not_duplicate_pending_event_across_turns(client
         r2 = client.post("/api/chat", json={"session_id": sid, "message": "still thinking about it"})
         assert r2.status_code == 200
 
+    # Phase 1.1: fetch AFTER both mutating calls.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert len(state.pending_events) == 1, "reaffirming the same decision must not create a second pending event"
 
 
@@ -1956,6 +1976,10 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
     # Still within the same day: a normal turn must NOT execute the event yet.
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "good morning"})
     assert r1.status_code == 200
+    # Phase 1.1: fetch AFTER the call — the pre-append above is read by the
+    # handler's clone at request time (still visible), but the post-turn
+    # assertions must read the PUBLISHED clone, not this stale local `state`.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert "makoto" in state.cast_lifecycle.active_ids(), "event must not fire before its scheduled day"
     assert state.pending_events[0].status == "pending"
 
@@ -1965,6 +1989,7 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
     r2 = client.post("/api/chat", json={"session_id": sid, "message": "another day begins"})
     assert r2.status_code == 200
 
+    state = pe_mod.SESSIONS[sid]["state"]
     assert state.pending_events[0].status == "applied"
     assert state.cast_lifecycle.members["makoto"].status.value == "departed"
     successor = state.cast_lifecycle.history[-1].arriving_id
@@ -2066,6 +2091,10 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     )
     assert r1.status_code == 200
 
+    # Phase 1.1: the turn handler now clones state, mutates the clone, and
+    # publishes the clone back to SESSIONS on success. `restored_state` above
+    # is the PRE-turn object; re-fetch to see the published, mutated state.
+    restored_state = pe_mod.SESSIONS["scheduler_restart_restored"]["state"]
     assert restored_state.pending_events[0].status == "applied"
     assert restored_state.cast_lifecycle.members["makoto"].status.value == "departed"
 
@@ -2107,6 +2136,8 @@ def test_newly_arrived_character_gets_introduction_and_seeded_relationships(clie
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "a new day begins"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
     successor = state.cast_lifecycle.history[-1].arriving_id
     assert successor is not None
 
@@ -2351,6 +2382,9 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
         "/api/chat", headers=headers,
         json={"session_id": sid, "message": "I walk to the terrace to enjoy the evening air."},
     ).status_code == 200
+    # Phase 1.1: fetch AFTER this second mutating call — the reference from
+    # after the first call (line 2365 above) is now stale.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert state.location_id == "terrace"
     terrace_prompt = rendered_messages[-1][0]["content"]
     for key in ("makoto", "minori", "yuki", "uchi", "yuriko"):
@@ -4269,3 +4303,241 @@ def test_chat_upstream_error_path_returns_only_the_public_message():
         stripped = line.strip()
         if stripped.startswith("return") and "r.text" in stripped:
             raise AssertionError(f"upstream body returned to client: {stripped!r}")
+
+
+# ============================================================================
+# Phase 1.1 - atomic turn commit. A failed/interrupted turn must leave the
+# LIVE session exactly as it was before the request, and a client retry must
+# see pre-turn state, not a partially-mutated one. This is the actual
+# acceptance criterion the audit named (state.turns mutated before the
+# storyteller call, both failure paths returning without restoring anything).
+# ============================================================================
+
+def test_failed_storyteller_call_does_not_mutate_live_session(client, monkeypatch):
+    """The audit's core finding: `state.turns += 1` and mutations happened
+    BEFORE the storyteller call, with no rollback on HTTP failure. This
+    reproduces exactly that failure and asserts the live session is
+    byte-identical to before the failed turn - not just that turns didn't
+    advance, but that the whole published object is untouched."""
+    from backend.app.api import prompt_engine as pe_mod
+    import copy as _copy
+    import json as _json_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000001"}
+    sid = "atomic_commit_storyteller_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_snapshot = _copy.deepcopy(pre_turn_state)
+    pre_turn_turns = pre_turn_state.turns
+    pre_turn_minute = pre_turn_state.minute
+
+    class _FailingAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            class _ErrResp:
+                status_code = 503
+                text = "simulated upstream outage - do not leak this string"
+
+                def json(self):
+                    return {}
+            return _ErrResp()
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _FailingAsyncClient)
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "I walk to the terrace."},
+    )
+    assert resp.status_code == 200  # the endpoint itself doesn't 500 - it returns a public error
+    body = resp.json()
+    assert body.get("error"), "a failed storyteller call must surface as an error, not a silent success"
+    assert "simulated upstream outage" not in _json_mod.dumps(body), (
+        "Phase 0A.6: the provider error body must never reach the client"
+    )
+
+    # THE ACTUAL PHASE 1.1 GUARANTEE: the live session object is exactly what
+    # it was before the failed turn - same turns, same minute, same identity
+    # object reference (never replaced by a partially-mutated clone).
+    post_failure_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_failure_state is pre_turn_state, (
+        "a failed turn must never publish its working clone - SESSIONS must "
+        "still hold the exact pre-turn object"
+    )
+    assert post_failure_state.turns == pre_turn_turns, "turns must not advance on a failed turn"
+    assert post_failure_state.minute == pre_turn_minute, "time must not advance on a failed turn"
+    assert post_failure_state.location_id == pre_turn_snapshot.location_id, (
+        "location (movement) must not apply on a failed turn"
+    )
+
+
+def test_failed_retrieval_does_not_mutate_live_session(client, monkeypatch):
+    """Same guarantee, different failure boundary: retrieval raising before
+    the storyteller is ever called."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000002"}
+    sid = "atomic_commit_retrieval_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_turns = pre_turn_state.turns
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated retrieval outage")
+
+    monkeypatch.setattr(pe_mod, "retrieve_knowledge", _boom, raising=False)
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello"},
+    )
+    assert resp.status_code == 200
+    assert resp.json().get("error") == "knowledge retrieval failed"
+
+    post_failure_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_failure_state is pre_turn_state
+    assert post_failure_state.turns == pre_turn_turns
+
+
+def test_failed_dialogue_decode_does_not_mutate_live_session(client, monkeypatch):
+    """Same guarantee, third failure boundary: the storyteller responds 200
+    but with a reply that fails STATE-tag decoding."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000003"}
+    sid = "atomic_commit_decode_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_turns = pre_turn_state.turns
+
+    class _MalformedResp:
+        status_code = 200
+
+        def json(self):
+            # A truncated/incomplete structured-scene JSON object: starts with
+            # "{" (so decode_dialogue_response treats it as intended-structured,
+            # not legacy prose) but fails json.loads - this is the actual
+            # ValueError("Incomplete structured scene") path.
+            return {"choices": [{"message": {"content": '{"segments": [{"kind": "dialo'}}], "usage": {}}
+
+        text = "n/a"
+
+    class _MalformedAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return _MalformedResp()
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _MalformedAsyncClient)
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello"},
+    )
+    assert resp.status_code == 200
+    assert "incomplete" in (resp.json().get("error") or "").lower()
+
+    post_failure_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_failure_state is pre_turn_state
+    assert post_failure_state.turns == pre_turn_turns
+
+
+def test_successful_turn_publishes_a_new_state_object_and_advances_turns(client):
+    """Sanity check for the success path, to make sure the clone-and-publish
+    mechanism isn't accidentally disabled: a SUCCESSFUL turn must replace
+    SESSIONS[sid]["state"] with a new object (the published clone) and must
+    advance `turns` - this is the complement to the three failure tests
+    above, proving discard-on-failure isn't just "nothing ever publishes"."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000004"}
+    sid = "atomic_commit_success_path_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_turns = pre_turn_state.turns
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello"},
+    )
+    assert resp.status_code == 200
+    assert not resp.json().get("error")
+
+    post_turn_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_turn_state is not pre_turn_state, (
+        "a successful turn must publish a NEW (cloned, mutated) state object, "
+        "not mutate the pre-turn object in place"
+    )
+    assert post_turn_state.turns == pre_turn_turns + 1
+
+
+def test_retry_after_failed_turn_reprocesses_from_correct_pre_turn_state(client, monkeypatch):
+    """End-to-end proof the fix actually solves the audit's scenario: a
+    client that retries after a failed turn must reprocess from the
+    UNADVANCED pre-turn state, not double-advance from a partially-mutated
+    one. (This is distinct from BL-02 dedup, which replays an already-
+    SUCCEEDED turn's exact reply - this is about a turn that never
+    succeeded at all.)"""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000005"}
+    sid = "atomic_commit_retry_after_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+    turns_at_start = pe_mod.SESSIONS[sid]["state"].turns
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated one-shot outage")
+
+    monkeypatch.setattr(pe_mod, "retrieve_knowledge", _boom, raising=False)
+    failed_resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello", "request_id": "retry-after-fail-1"},
+    )
+    assert failed_resp.json().get("error")
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_at_start
+
+    # Restore retrieval and retry with the SAME request_id (a real client
+    # would resend after a failure exactly like this).
+    monkeypatch.setattr(pe_mod, "retrieve_knowledge", lambda *a, **k: ([], {}), raising=False)
+    retry_resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello", "request_id": "retry-after-fail-1"},
+    )
+    assert retry_resp.status_code == 200
+    assert not retry_resp.json().get("error")
+    # Exactly ONE successful advance, from the correct pre-turn baseline -
+    # not a double-advance from state the failed attempt might have mutated.
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_at_start + 1

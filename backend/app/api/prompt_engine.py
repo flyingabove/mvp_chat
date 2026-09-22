@@ -13,6 +13,7 @@ from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, 
 from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo
 
 import asyncio
+import copy
 import dataclasses
 import httpx
 import json
@@ -2460,6 +2461,39 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     if state.over:
         return {"reply": "This story has ended. Start a new game from the home screen to play again.", "character": "default"}
 
+    # Phase 1.1: isolate this turn's mutations from the live cached session.
+    #
+    # Problem this closes: `state` below is a LIVE reference into
+    # SESSIONS[session_id]["state"] (see `state = sess["state"]` above and in
+    # get_session()), mutated in place, not copy-on-write. Every mutation from
+    # here on (advance_time, relationship deltas, cast lifecycle, state.turns
+    # += 1, scene knowledge) was applied directly to that shared object BEFORE
+    # the storyteller call. If the storyteller call then fails (see the
+    # retrieval/upstream/decode `return` points below) or the process is
+    # killed mid-turn, the live session was left permanently mutated with no
+    # completed reply and no BL-02 dedup token — a client retry would
+    # reprocess from already-advanced state and double-apply everything.
+    #
+    # Fix: clone the state into an isolated working copy up front. All
+    # mutation below operates on the clone. The clone is written back to
+    # SESSIONS only at the single success point (alongside the BL-02 dedup
+    # token, in the same block) — see `_publish_turn_state` below. Every
+    # failure `return` between here and there discards the clone; the live
+    # session is untouched by construction, so a retry sees exactly the
+    # pre-turn state it would have seen if this turn had never been attempted.
+    #
+    # Cost: measured ~30ms for a full GameState clone (world graph, cast
+    # lifecycle, character graph, session chunk store all included) against a
+    # multi-second storyteller call — not a meaningful tax on turn latency.
+    working_state = copy.deepcopy(state)
+    state = working_state
+    # `log` (recent dialogue turns, used for MEMORY_TURNS context) is a
+    # separate mutable structure hanging off `sess`, not off `state` — clone
+    # it too so its mutation below (log.append(...) further down) is subject
+    # to the same discard-on-failure / publish-on-success rule.
+    working_log = list(log)
+    log = working_log
+
     # Keep transient scene memory bounded.
     state.purge_transient_entries()
 
@@ -2974,7 +3008,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     log.append({"role": "user", "content": msg})
     log.append({"role": "assistant", "content": clean})
-    sess["log"] = log[-MEMORY_TURNS:]
+    # Phase 1.1: trim the WORKING clone only; do not publish to `sess` yet —
+    # that happens once, atomically with `state`, at the success point below.
+    log = log[-MEMORY_TURNS:]
 
     try:
         state.add_transient_entry(
@@ -3049,7 +3085,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     story_title=story_title,
                     player_name=state.player_name or "",
                     gender=state.gender or "M",
-                    state_json=_serialize_state(state, sess["log"]),
+                    state_json=_serialize_state(state, log),  # Phase 1.1: working clone, not stale sess["log"]
                     flags_json=json.dumps({
                         "debug_mode": bool(sess.get("debug_mode", False)),
                         "chinese_mode": bool(sess.get("chinese_mode", False)),
@@ -3198,6 +3234,19 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         if knowledge_resolution_updates:
             debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
         result["debug_box"] = debug_box
+
+    # Phase 1.1: publish the working clone back to the live session cache.
+    # This is the ONE place `SESSIONS[session_id]` is updated for a regular
+    # turn — every mutation since the clone point above happened on
+    # `working_state`/`working_log`, never on the object other requests could
+    # see. Every failure `return` between the clone point and here skipped
+    # this line, so a failed/interrupted turn leaves the live session exactly
+    # as it was before this request started. This must run BEFORE the BL-02
+    # dedup token write immediately below, so a retry that finds the token can
+    # also find the state it describes (both true-together, not just the
+    # token alone).
+    sess["state"] = state
+    sess["log"] = log
 
     # BL-02: record this turn's dedup token now that `result` (the exact
     # client-facing reply) is fully built, so a retry with the same
