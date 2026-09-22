@@ -1128,13 +1128,19 @@ def _mode_context_section(state) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _identity_block(char_name: str, entries: list, goal: str = "") -> str:
+def _identity_block(char_name: str, entries: list, goal: str = "", voice: list | None = None) -> str:
     """Render one '### CHARACTER IDENTITY — <name>' block for the given entries.
 
     `goal` (Phase 3 "Social life"): the character's current persistent
     goal/motive, if any. Empty string (the common case for a character with
     no authored motive) renders no extra line at all - byte-identical
     output to before this parameter was added.
+
+    `voice`: authored speech-style cues (diction, rhythm, verbal tics,
+    catchphrases) — separate from `entries` (what the character knows/
+    believes) so that two characters with similar knowledge still read as
+    distinct people in dialogue. Empty/absent renders no extra section -
+    byte-identical output to before this parameter was added.
     """
     lines = [
         "\n────────────────────────────────────────",
@@ -1151,6 +1157,14 @@ def _identity_block(char_name: str, entries: list, goal: str = "") -> str:
         lines.append(f"- {entry}")
     if goal:
         lines.append(f"- [{char_name}'s current goal] {goal}")
+    if voice:
+        lines.append(
+            f"\n{char_name}'s speech style — follow these cues so {char_name} "
+            "sounds distinct from every other character in the scene, in every "
+            "line of dialogue, not just when the topic calls for it:"
+        )
+        for cue in voice:
+            lines.append(f"- {cue}")
     return "\n".join(lines) + "\n"
 
 
@@ -1208,10 +1222,11 @@ def _character_identity_section(state) -> str:
     main_goal_obj = getattr(main_char, "goal", None)
     if main_goal_obj is not None:
         main_goal = (getattr(main_goal_obj, "current", "") or "").strip()
+    main_voice = list(getattr(main_char, "voice", None) or [])
 
     blocks: list[str] = []
     if entries and _main_character_scene_eligible(state):
-        blocks.append(_identity_block(char_name, entries, goal=main_goal))
+        blocks.append(_identity_block(char_name, entries, goal=main_goal, voice=main_voice))
 
     # Additional present, non-main characters with their own self_knowledge.
     people_present_keys = _get_people_present_keys(state)
@@ -1230,7 +1245,8 @@ def _character_identity_section(state) -> str:
         other_goal_obj = getattr(ch, "goal", None)
         if other_goal_obj is not None:
             other_goal = (getattr(other_goal_obj, "current", "") or "").strip()
-        blocks.append(_identity_block(other_name, other_entries, goal=other_goal))
+        other_voice = list(getattr(ch, "voice", None) or [])
+        blocks.append(_identity_block(other_name, other_entries, goal=other_goal, voice=other_voice))
 
     if not blocks:
         return ""

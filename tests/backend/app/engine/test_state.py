@@ -284,6 +284,50 @@ def test_character_self_knowledge_round_trips_from_dict_to_dict():
     assert round_tripped.self_knowledge == ["You are fiercely independent."]
 
 
+# ─── Character.voice: authored speech-style cues, distinct from self_knowledge ──
+
+def test_character_from_dict_parses_voice_when_present():
+    ch = Character.from_dict({
+        "key": "daeho",
+        "name": "Dae-ho",
+        "voice": ["Short, clipped sentences.", "Never uses contractions."],
+    })
+    assert ch.voice == ["Short, clipped sentences.", "Never uses contractions."]
+    assert "voice" not in ch.meta
+
+
+def test_character_from_dict_voice_absent_defaults_to_empty_list():
+    ch = Character.from_dict({"key": "npc", "name": "NPC"})
+    assert ch.voice == []
+
+
+def test_character_from_dict_voice_drops_blank_entries():
+    ch = Character.from_dict({
+        "key": "npc",
+        "name": "NPC",
+        "voice": ["Real cue.", "   ", "", "Another real cue."],
+    })
+    assert ch.voice == ["Real cue.", "Another real cue."]
+
+
+def test_character_to_dict_serializes_voice():
+    ch = Character(key="mina", name="Mina", voice=["Talks in run-on sentences."])
+    d = ch.to_dict()
+    assert d["voice"] == ["Talks in run-on sentences."]
+
+
+def test_character_voice_round_trips_from_dict_to_dict():
+    original = {
+        "key": "priya",
+        "name": "Priya",
+        "role": "housemate",
+        "voice": ["Answers questions with a question."],
+    }
+    ch = Character.from_dict(original)
+    round_tripped = Character.from_dict(ch.to_dict())
+    assert round_tripped.voice == ["Answers questions with a question."]
+
+
 # ============================================================================
 # Phase 3 "Social life": Character.goal seeded from authored motive/goal,
 # and Character.tells preserved. This is the regression test proving the

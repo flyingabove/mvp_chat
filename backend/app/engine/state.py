@@ -97,6 +97,10 @@ class Character:
     - tags: optional category labels (e.g. ["idol", "ghost"])
     - meta: forward-compat bucket for unknown JSON keys
     - self_knowledge: first-person identity facts injected directly into prompt
+    - voice: authored speech-style cues (diction, rhythm, verbal tics,
+      catchphrases) injected alongside self_knowledge so each character's
+      dialogue is distinguishable from every other character's, independent
+      of what they know or believe
 
     Runtime state (set at game init / updated during play):
     - emotion: current emotional descriptor ("wary", "cold", "soft")
@@ -113,6 +117,7 @@ class Character:
     tags: List[str] = field(default_factory=list)
     meta: Dict[str, Any] = field(default_factory=dict)
     self_knowledge: List[str] = field(default_factory=list)
+    voice: List[str] = field(default_factory=list)
     emotion: str = EMOTION_START
     relationship: int = REL_START
     # Phase 3 "Social life": this character's own persistent goal/motive.
@@ -138,6 +143,7 @@ class Character:
         uuid = str(data.get("uuid") or "").strip()
         tags = list(data.get("tags") or [])
         self_knowledge = [str(x) for x in (data.get("self_knowledge") or []) if str(x).strip()]
+        voice = [str(x) for x in (data.get("voice") or []) if str(x).strip()]
         tells = [str(x) for x in (data.get("tells") or []) if str(x).strip()]
         # Determine character_type: is_main → MAIN; else parse from JSON or default CANONICAL
         if is_main:
@@ -151,7 +157,7 @@ class Character:
         known_keys = {
             "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
             "knowledge_character_id", "uuid", "tags", "character_type", "self_knowledge",
-            "motive", "goal", "tells",
+            "motive", "goal", "tells", "voice",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
 
@@ -194,6 +200,7 @@ class Character:
             tags=tags,
             meta=meta,
             self_knowledge=self_knowledge,
+            voice=voice,
             goal=goal_trait,
             tells=tells,
         )
@@ -210,6 +217,7 @@ class Character:
             "uuid": self.uuid,
             "tags": self.tags,
             "self_knowledge": self.self_knowledge,
+            "voice": self.voice,
             "tells": self.tells,
             "goal": self.goal.to_dict() if self.goal is not None else None,
             **(self.meta or {}),

@@ -856,6 +856,77 @@ def test_character_identity_section_absent_non_main_character_not_present():
     assert "### CHARACTER IDENTITY" not in sysmsg
 
 
+# ─── voice: authored speech-style cues rendered alongside self_knowledge ────
+
+def test_identity_block_renders_voice_cues_when_present():
+    from backend.app.engine.prompt_builder import _identity_block
+
+    block = _identity_block(
+        "Mina",
+        ["You are the first to notice when someone's upset."],
+        voice=["Short, clipped sentences.", "Never uses contractions."],
+    )
+    assert "speech style" in block.lower()
+    assert "sounds distinct from every other character" in block
+    assert "- Short, clipped sentences." in block
+    assert "- Never uses contractions." in block
+
+
+def test_identity_block_omits_voice_section_when_absent():
+    """No voice cues authored -> byte-identical to pre-voice output, no
+    stray 'speech style' section."""
+    from backend.app.engine.prompt_builder import _identity_block
+
+    block = _identity_block("Mina", ["You are quietly proud."])
+    assert "speech style" not in block.lower()
+
+
+def test_character_identity_section_injects_main_character_voice():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["ghost"] = Character(
+        key="ghost", name="Ghost", role="ghost", is_main=True,
+        self_knowledge=["You are a ghost."],
+        voice=["Speaks in fragments.", "Trails off mid-sentence."],
+    )
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "Speaks in fragments." in sysmsg
+    assert "Trails off mid-sentence." in sysmsg
+
+
+def test_character_identity_section_injects_present_non_main_character_voice():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}}
+    st.characters["mina"] = Character(
+        key="mina", name="Mina", role="housemate", is_main=True,
+        self_knowledge=["You are the first to notice when someone's upset."],
+    )
+    st.characters["daeho"] = Character(
+        key="daeho", name="Dae-ho", role="housemate",
+        self_knowledge=["You hate asking anyone for help."],
+        voice=["Answers questions with a shrug before words."],
+    )
+    st.main_character_id = "mina"
+
+    st.add_transient_entry(
+        id="pp::mina", namespace="test", scope="scene",
+        text="__people_present_marker__:mina", expires_after_turns=4,
+    )
+    st.add_transient_entry(
+        id="pp::daeho", namespace="test", scope="scene",
+        text="__people_present_marker__:daeho", expires_after_turns=4,
+    )
+
+    sysmsg = pb.system_prompt(st, current_user_msg="hello")
+    assert "Answers questions with a shrug before words." in sysmsg
+
+
 def test_character_identity_section_main_character_unconditional_regardless_of_presence():
     """The main character's identity block is unconditional (a ghost NPC not
     tied to a location still gets their block) — unchanged legacy behavior."""

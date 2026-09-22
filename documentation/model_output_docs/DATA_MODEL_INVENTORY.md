@@ -29,7 +29,7 @@ and `estimated`. Both world loaders preserve these fields. See
 | Class | File | What it is |
 |---|---|---|
 | `GameState` | `backend/app/engine/state.py` | The entire session container. Holds all sub-objects below. |
-| `Character` | `backend/app/engine/state.py` | Unified character object — authoring identity fields (key, name, role, character_type, is_main, is_suspect, knowledge_character_id, uuid, tags, meta, self_knowledge) merged with runtime state (emotion, relationship). Replaces the former StoryCharacter + CharacterState split. |
+| `Character` | `backend/app/engine/state.py` | Unified character object — authoring identity fields (key, name, role, character_type, is_main, is_suspect, knowledge_character_id, uuid, tags, meta, self_knowledge, voice) merged with runtime state (emotion, relationship). Replaces the former StoryCharacter + CharacterState split. |
 | `UserState` | `backend/app/engine/state.py` | The human player as seen in-story: display name, formal name, gender. |
 
 `GameState` is the single object passed through the entire engine. Everything else hangs off it.
@@ -39,6 +39,8 @@ and `estimated`. Both world loaders preserve these fields. See
 - `StoryCharacter = Character` (in `story_loader.py`)
 
 **`self_knowledge` (BL-07):** each `characters[]` entry in story JSON may declare its own `self_knowledge: [<first-person identity facts>]` array, parsed by `Character.from_dict()` and preserved by `Character.to_dict()` (so it survives `StoryDefinition.from_dict()`'s normalization round-trip). In `prompt_engine.py`, a character's own `self_knowledge` always wins when present; the legacy top-level story JSON `character_self_knowledge` array remains a fallback used only for whichever character is `is_main` and has no per-character `self_knowledge` of its own. See `SOCIAL_MODE_DESIGN.md` §5 for the full injection/gating rule.
+
+**`voice` (personality/speech-style mechanism):** each `characters[]` entry may also declare a `voice: [<speech-style cues>]` array — diction, sentence rhythm, verbal tics, catchphrases, and other HOW-they-talk cues, kept deliberately separate from `self_knowledge` (WHAT they know/believe). Parsed by `Character.from_dict()`/serialized by `Character.to_dict()` the same way as `self_knowledge`. `prompt_builder._identity_block()` renders a character's `voice` cues in their `### CHARACTER IDENTITY` block under a "speech style" subsection, instructing the model to keep every line of that character's dialogue distinct from other characters in the scene. Empty/absent `voice` renders no extra section — additive, no effect on stories that don't author it. All 17 authored members of `7_six_strangers/six_strangers_story.json` have a `voice` profile.
 
 ---
 
