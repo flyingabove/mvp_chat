@@ -15,11 +15,17 @@ def test_map_assets_are_served_for_both_frontend_prefixes():
         assert ".atlas-host" in style.text
 
 
-def test_map_is_on_demand_full_screen_artwork_without_location_dump():
+def test_map_appears_inline_and_opens_full_screen_without_location_dump():
     html = (Path(__file__).resolve().parents[2] / "frontend/index.html").read_text(
         encoding="utf-8"
     )
-    assert "renderInlineWorldMap(meta);" not in html
+    assert html.count("renderInlineWorldMap(meta);") == 2
+    inline_map = html.split("function renderInlineWorldMap(meta){", 1)[1].split(
+        "function addDebugBox", 1
+    )[0]
+    assert 'imgWrap.addEventListener("click", showMapModal);' in inline_map
+    assert "known_locations" not in inline_map
+    assert "loc.description" not in inline_map
     assert 'modal.classList.add("fullscreen")' in html
     assert "map-modal-locations" not in html
     assert 'encodeURIComponent(meta.world_map_image_revision || "")' in html

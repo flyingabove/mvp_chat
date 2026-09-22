@@ -9,7 +9,7 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
 - [x] Eliminate iOS standalone safe-area gap and inspect desktop/mobile screenshots before shipping.
 - [x] Randomize valid starting five-NPC roster, enforce player-bedroom opening variants, and retain atomic same-gender replacements.
-- [ ] Regenerate the world-map artwork without any guest-room representation; keep it on-demand in a clean full-screen viewer, then deploy beta and live-test.
+- [x] Regenerate the world-map artwork without any guest-room representation; show the artwork automatically without location descriptions and open it full-screen when tapped, then deploy beta and live-test.
 
 ### Six Strangers researched atlas and isolated Codex checkout
 

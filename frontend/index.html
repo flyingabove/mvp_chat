@@ -2589,11 +2589,12 @@ function launchChat(story, playerName, gender, guestMode){
 
   showScreen("chat");
 
-  // Load map metadata for the on-demand full-screen map viewer.
+  // Load and show the map artwork; tapping it opens the full-screen viewer.
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
       appState.currentMeta = meta;
+      renderInlineWorldMap(meta);
     })
     .catch(function(){});
 
@@ -2672,11 +2673,12 @@ function resumeGameFromSession(sess){
 
   showScreen("chat");
 
-  // Load map metadata for the on-demand full-screen map viewer.
+  // Load and show the map artwork; tapping it opens the full-screen viewer.
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
       appState.currentMeta = meta;
+      renderInlineWorldMap(meta);
     })
     .catch(function(){});
 
@@ -2768,43 +2770,24 @@ var dialoguePresentation = window.createDialoguePresentation({
 function addSystemMessage(text){ addMessage("system", text); }
 
 function renderInlineWorldMap(meta){
-  if (!meta) return;
+  if (!meta || !meta.world_map_image) return;
   var msgs = $("chat-messages");
 
-  // World map image
-  if (meta.world_map_image){
-    var imgRow = document.createElement("div");
-    imgRow.className = "msg-row system";
-    imgRow.style.cssText = "justify-content:center;";
-    var imgWrap = document.createElement("div");
-    imgWrap.style.cssText = "max-width:100%;border-radius:12px;overflow:hidden;margin:4px 0;";
-    var img = document.createElement("img");
-    img.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
-    img.alt = "World Map";
-    img.style.cssText = "width:100%;display:block;border-radius:12px;";
-    imgWrap.appendChild(img);
-    imgRow.appendChild(imgWrap);
-    msgs.appendChild(imgRow);
-  }
-
-  // Location list
-  var locs = meta.known_locations || [];
-  if (locs.length){
-    var locRow = document.createElement("div");
-    locRow.className = "msg-row system";
-    var locBubble = document.createElement("div");
-    locBubble.className = "msg-bubble system-msg";
-    locBubble.style.cssText = "text-align:left;font-size:13px;";
-    var html = "<strong>World Map</strong><br><br>";
-    locs.forEach(function(loc){
-      var name = escapeHTML(loc.name || loc.id);
-      var desc = loc.description ? " — " + escapeHTML(loc.description) : "";
-      html += "<em>" + name + "</em>" + desc + "<br>";
-    });
-    locBubble.innerHTML = html;
-    locRow.appendChild(locBubble);
-    msgs.appendChild(locRow);
-  }
+  var imgRow = document.createElement("div");
+  imgRow.className = "msg-row system";
+  imgRow.style.cssText = "justify-content:center;";
+  var imgWrap = document.createElement("button");
+  imgWrap.type = "button";
+  imgWrap.setAttribute("aria-label", "Open world map full screen");
+  imgWrap.style.cssText = "display:block;width:100%;max-width:100%;padding:0;border:0;background:none;border-radius:12px;overflow:hidden;margin:4px 0;cursor:zoom-in;";
+  var img = document.createElement("img");
+  img.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
+  img.alt = "World Map";
+  img.style.cssText = "width:100%;display:block;border-radius:12px;";
+  imgWrap.addEventListener("click", showMapModal);
+  imgWrap.appendChild(img);
+  imgRow.appendChild(imgWrap);
+  msgs.appendChild(imgRow);
 
   scrollChatToBottom();
 }
@@ -3119,8 +3102,8 @@ function showMapModal(){
     return;
   }
 
-  // Maps are deliberately on-demand and distraction-free: no location
-  // directory, atlas controls, or chat-time dump accompanies the artwork.
+  // The full-screen viewer contains only the artwork: no location directory
+  // or description dump accompanies it.
   imgEl.style.display = "none";
   imgEl.style.transform = "translate(0, 0) scale(1)";
   imgEl.classList.remove("pannable", "dragging");
