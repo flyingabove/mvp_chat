@@ -6,10 +6,10 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ### Terrace in the City mobile/PWA and six-resident correctness
 
-- [ ] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
-- [ ] Eliminate iOS standalone safe-area gap and inspect desktop/mobile screenshots before shipping.
-- [ ] Randomize valid starting five-NPC roster, enforce player-bedroom opening variants, and retain atomic same-gender replacements.
-- [ ] Regenerate the world-map artwork without any guest-room representation; run full verification, deploy beta, and live-test.
+- [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
+- [x] Eliminate iOS standalone safe-area gap and inspect desktop/mobile screenshots before shipping.
+- [x] Randomize valid starting five-NPC roster, enforce player-bedroom opening variants, and retain atomic same-gender replacements.
+- [ ] Regenerate the world-map artwork without any guest-room representation; keep it on-demand in a clean full-screen viewer, then deploy beta and live-test.
 
 ### Six Strangers researched atlas and isolated Codex checkout
 

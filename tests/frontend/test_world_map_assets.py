@@ -15,11 +15,13 @@ def test_map_assets_are_served_for_both_frontend_prefixes():
         assert ".atlas-host" in style.text
 
 
-def test_map_modal_uses_metadata_and_versioned_artwork():
+def test_map_is_on_demand_full_screen_artwork_without_location_dump():
     html = (Path(__file__).resolve().parents[2] / "frontend/index.html").read_text(
         encoding="utf-8"
     )
-    assert "new WorldMapView(atlasHost, meta.world_map" in html
+    assert "renderInlineWorldMap(meta);" not in html
+    assert 'modal.classList.add("fullscreen")' in html
+    assert "map-modal-locations" not in html
     assert 'encodeURIComponent(meta.world_map_image_revision || "")' in html
     assert '<script src="world-map.js?v=1"></script>' in html
     assert '<link rel="stylesheet" href="world-map.css?v=1">' in html

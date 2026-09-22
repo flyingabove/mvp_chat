@@ -1056,7 +1056,7 @@
       padding: 16px;
       cursor: pointer;
     }
-    #map-modal.open { display: flex; flex-direction: column; gap: 12px; }
+    #map-modal.open { display: flex; }
     #map-modal.fullscreen {
       padding: 0;
       background: #000;
@@ -1067,10 +1067,11 @@
     }
     .map-container {
       position: relative;
-      max-width: 90vw; max-height: 70vh;
+      width: 100vw; height: var(--app-height);
+      max-width: none; max-height: none;
       overflow: hidden;
-      border-radius: 12px;
-      background: var(--surface);
+      border-radius: 0;
+      background: #000;
       cursor: default;
     }
     .map-image {
@@ -1081,19 +1082,6 @@
     }
     .map-image.dragging { cursor: grabbing; }
     .map-image.pannable { cursor: grab; }
-    .map-locations {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      background: var(--surface);
-      border-radius: 0 0 12px 12px;
-      padding: 12px 14px; max-height: 200px; overflow-y: auto;
-      width: 100%;
-    }
-    .map-locations.hidden { display: none; }
-    .map-loc-item {
-      font-size: 13px; color: var(--text-sub);
-      padding: 4px 0; border-bottom: 1px solid var(--border);
-    }
-    .map-loc-item:last-child { border-bottom: none; }
     #map-modal-close {
       position: absolute; top: 16px; right: 16px;
       width: 36px; height: 36px; border-radius: 50%;
@@ -1653,10 +1641,9 @@
 
 <!-- World map modal -->
 <div id="map-modal">
-  <button id="map-modal-close">✕</button>
+  <button id="map-modal-close" aria-label="Close full-screen map">✕</button>
   <div class="map-container">
     <img id="map-modal-img" class="map-image" alt="World map" style="display:none;" />
-    <div id="map-modal-locations" class="map-locations"></div>
   </div>
 </div>
 
@@ -2602,12 +2589,11 @@ function launchChat(story, playerName, gender, guestMode){
 
   showScreen("chat");
 
-  // Load story meta and show world map inline at game start
+  // Load map metadata for the on-demand full-screen map viewer.
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
       appState.currentMeta = meta;
-      renderInlineWorldMap(meta);
     })
     .catch(function(){});
 
@@ -2686,12 +2672,11 @@ function resumeGameFromSession(sess){
 
   showScreen("chat");
 
-  // Load story meta and show world map inline
+  // Load map metadata for the on-demand full-screen map viewer.
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
       appState.currentMeta = meta;
-      renderInlineWorldMap(meta);
     })
     .catch(function(){});
 
@@ -3128,62 +3113,21 @@ function showMapModal(){
   var meta = appState.currentMeta;
   var imgEl = $("map-modal-img");
   var modal = $("map-modal");
-  var container = modal.querySelector(".map-container");
-  var locationsEl = $("map-modal-locations");
 
-  var atlasHost = modal.querySelector(".atlas-host");
-  if (atlasHost) atlasHost.remove();
-  container.style.display = "";
-  modal.classList.remove("fullscreen");
-  if (meta && meta.world_map && meta.world_map.areas.length && window.WorldMapView) {
-    container.style.display = "none";
-    atlasHost = document.createElement("div");
-    atlasHost.className = "atlas-host";
-    modal.appendChild(atlasHost);
-    new WorldMapView(atlasHost, meta.world_map, meta.world_map_image ? API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "") : null);
-    openModal("map-modal");
-    return;
-  }
-
-  // Reset state
-  imgEl.style.display = "none";
-  imgEl.style.transform = "translate(0, 0) scale(1)";
-  imgEl.classList.remove("pannable", "dragging");
-  locationsEl.innerHTML = "";
-  modal.classList.remove("fullscreen");
-
-  if (!meta){
+  if (!meta || !meta.world_map_image){
     showToast("Map not available yet.");
     return;
   }
 
-  if (meta.world_map_image){
-    imgEl.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
-    imgEl.style.display = "block";
-    imgEl.onload = function(){
-      // Check if image is larger than container
-      var imgRect = imgEl.getBoundingClientRect();
-      var containerRect = container.getBoundingClientRect();
-      if (imgRect.width > containerRect.width || imgRect.height > containerRect.height) {
-        imgEl.classList.add("pannable");
-      }
-    };
-  }
-
-  var locs = meta.known_locations || [];
-  if (locs.length){
-    locationsEl.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Locations</div>';
-    locs.forEach(function(loc){
-      var d = document.createElement("div");
-      d.className = "map-loc-item";
-      d.textContent = (loc.name || loc.id) + (loc.description ? " — " + loc.description : "");
-      locationsEl.appendChild(d);
-    });
-  }
-
+  // Maps are deliberately on-demand and distraction-free: no location
+  // directory, atlas controls, or chat-time dump accompanies the artwork.
+  imgEl.style.display = "none";
+  imgEl.style.transform = "translate(0, 0) scale(1)";
+  imgEl.classList.remove("pannable", "dragging");
+  modal.classList.add("fullscreen");
+  imgEl.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
+  imgEl.style.display = "block";
   openModal("map-modal");
-
-  // Set up pan/zoom functionality
   setupMapInteraction();
 }
 
@@ -3191,7 +3135,6 @@ function setupMapInteraction(){
   var modal = $("map-modal");
   var imgEl = $("map-modal-img");
   var container = modal.querySelector(".map-container");
-  var locationsEl = $("map-modal-locations");
 
   var isDragging = false;
   var startX, startY, initialX, initialY;
@@ -3201,19 +3144,6 @@ function setupMapInteraction(){
   function updateTransform(){
     imgEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   }
-
-  // Click to toggle fullscreen
-  container.addEventListener("click", function(e){
-    if (e.target === imgEl && !isDragging) {
-      modal.classList.toggle("fullscreen");
-      locationsEl.classList.toggle("hidden", modal.classList.contains("fullscreen"));
-      // Reset pan/zoom when toggling
-      scale = 1;
-      translateX = 0;
-      translateY = 0;
-      updateTransform();
-    }
-  });
 
   // Pan functionality
   imgEl.addEventListener("mousedown", function(e){

@@ -2170,7 +2170,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
-    # MAP TOGGLE - Show available locations
+    # MAP TOGGLE - keep chat clear; the client owns the full-screen artwork.
     if _is_map_toggle(msg):
         state: GameState = sess.get("state")
         if not state or not state.world_runtime:
@@ -2182,11 +2182,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             )
             map_image = None
         else:
-            locations = list(state.world_runtime.world_graph.locations.values())
-            location_lines = []
-            for loc in locations:
-                location_lines.append(f"{loc.name}")
-            notice = _box("World Map", location_lines)
+            notice = _box("World Map", ["Open the map from the game menu."])
             
             # Get world map image path if available
             map_image = None

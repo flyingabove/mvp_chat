@@ -48,6 +48,7 @@ class StageTimer:
     @contextmanager
     def stage(self, name: str) -> Iterator[None]:
         t0 = time.perf_counter()
+        wall_t0 = time.time()
         try:
             yield
         except Exception as exc:
@@ -56,7 +57,12 @@ class StageTimer:
             self._errors[name] = f"{type(exc).__name__}: {exc}"
             raise
         finally:
-            elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            # perf_counter is the normal source of truth. A few Windows hosts
+            # have reported a temporarily under-advancing performance counter
+            # after long, mixed sync/async test runs, so retain wall-clock as
+            # a defensive lower bound rather than logging a knowingly short
+            # stage duration.
+            elapsed_ms = max(time.perf_counter() - t0, time.time() - wall_t0) * 1000.0
             self._durations_ms[name] = self._durations_ms.get(name, 0.0) + elapsed_ms
             self._counts[name] = self._counts.get(name, 0) + 1
 

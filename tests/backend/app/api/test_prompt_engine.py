@@ -2940,8 +2940,8 @@ def test_name_extraction_and_confirmation():
 # Map toggle tests
 # ============================================================================
 
-def test_map_toggle_shows_locations_from_world(client):
-    """Test that [M] or [MAP] command shows available locations."""
+def test_map_toggle_keeps_location_directory_out_of_chat(client):
+    """[M] remains a zero-token compatibility command without dumping the atlas."""
     # Start new game
     r0 = client.post("/api/chat", json={"session_id": "map1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Player"})
     assert r0.status_code == 200
@@ -2952,10 +2952,10 @@ def test_map_toggle_shows_locations_from_world(client):
     resp1 = r1.json()
     reply1 = resp1["reply"]
 
-    # Should show World Map box with locations (no LLM call)
+    # Should show a compact World Map notice (no LLM call)
     assert "World Map" in reply1
-    # Should contain at least one location name from the story world
-    assert len(reply1) > 30, "Map should contain location data"
+    assert "Open the map from the game menu." in reply1
+    assert "Living Room" not in reply1
 
     # Verify no LLM tokens were used (early exit, same as [D])
     assert resp1.get("usage", {}).get("total_tokens", 0) == 0
@@ -3065,8 +3065,8 @@ def test_map_toggle_returns_boxed_format(client):
         assert "┘" in reply, "Bottom right corner missing"
 
 
-def test_map_toggle_shows_all_locations(client):
-    """Verify that MAP toggle lists all world locations."""
+def test_map_toggle_does_not_list_world_locations(client):
+    """The full-screen client map replaces the old long chat directory."""
     # Start new game
     r0 = client.post("/api/chat", json={"session_id": "map_all_locs", "message": "__cmd_newgame__:" + STORY_ID + "|M|AllLocs"})
     assert r0.status_code == 200
@@ -3076,9 +3076,8 @@ def test_map_toggle_shows_all_locations(client):
     assert r1.status_code == 200
     reply = r1.json()["reply"]
 
-    # Should contain multiple locations from the story world
-    location_lines = [line for line in reply.split('\n') if line.strip() and '─' not in line and 'World' not in line]
-    assert len(location_lines) > 3, f"Should list multiple locations, got: {reply}"
+    assert "Open the map from the game menu." in reply
+    assert "Living Room" not in reply
 
 
 def test_map_toggle_without_world_runtime(client, monkeypatch):
