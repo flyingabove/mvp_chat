@@ -10,7 +10,7 @@ or implementing their own .env.test parsers.
 
 Trigger keys that lazily load .env.test on first read: OPENAI_API_KEY,
 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET, LANGSMITH_API_KEY,
-LANGSMITH_PROJECT.
+LANGSMITH_PROJECT, TYPESAFE_API_KEY, TYPESAFE_MODEL.
 """
 from __future__ import annotations
 
@@ -149,4 +149,39 @@ def is_langsmith_enabled() -> bool:
     if not get_langsmith_api_key():
         return False
     flag = _get_env_with_fallback("LANGSMITH_TRACING").lower()
+    return flag in {"1", "true", "yes", "on"}
+
+
+def get_typesafe_api_key() -> str:
+    """Return TYPESAFE_API_KEY, loading .env.test as fallback if needed.
+
+    Returns "" when not configured; callers must treat Jev as optional and
+    fall back to the existing generative-model path when no key is present -
+    per the engineering plan, Jev is evaluated for bounded decisions only and
+    never becomes a hard dependency for a turn to complete.
+    """
+    return _get_env_with_fallback("TYPESAFE_API_KEY")
+
+
+def get_typesafe_model() -> str:
+    """Return the pinned TypeSafe model version, defaulting to "jev-latest".
+
+    The plan explicitly warns against relying on a moving alias once real
+    tuning begins ("pin the tested version instead of relying on a moving
+    alias") - set TYPESAFE_MODEL to a specific version (e.g. "jev-1.13.0")
+    before any threshold-tuned production use.
+    """
+    return _get_env_with_fallback("TYPESAFE_MODEL") or "jev-latest"
+
+
+def is_typesafe_enabled() -> bool:
+    """True only when a TypeSafe key is present AND its use is opted in.
+
+    Mirrors is_langsmith_enabled()'s design: holding the key alone must never
+    silently start routing real decisions through a third-party model.
+    Requires TYPESAFE_ENABLED to be explicitly truthy.
+    """
+    if not get_typesafe_api_key():
+        return False
+    flag = _get_env_with_fallback("TYPESAFE_ENABLED").lower()
     return flag in {"1", "true", "yes", "on"}

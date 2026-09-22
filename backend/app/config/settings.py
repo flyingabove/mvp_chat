@@ -9,6 +9,9 @@ from backend.app.config.credentials import (
     get_langsmith_api_key,
     get_langsmith_project,
     is_langsmith_enabled,
+    get_typesafe_api_key,
+    get_typesafe_model,
+    is_typesafe_enabled,
 )
 
 # --- OpenAI / model config ---
@@ -82,6 +85,19 @@ JWT_EXPIRY_DAYS: int = 365
 LANGSMITH_API_KEY: str = get_langsmith_api_key()
 LANGSMITH_PROJECT: str = get_langsmith_project()
 LANGSMITH_TRACING_ENABLED: bool = is_langsmith_enabled()
+
+# --- TypeSafe AI / Jev (optional bounded-decision model, Phase 4 of the
+# reuse/performance engineering plan) ---
+# Same pattern as LangSmith above: key lives in .env.test / Railway env vars,
+# read through credentials.py. Jev routing stays OFF unless TYPESAFE_ENABLED
+# is explicitly truthy, so holding the key never silently reroutes a real
+# decision through a third-party model. TYPESAFE_MODEL defaults to the
+# "jev-latest" alias but should be pinned to a specific version (e.g.
+# "jev-1.13.0") before any threshold-tuned production use - see the plan's
+# Jev section for why a moving alias is unsafe once tuning begins.
+TYPESAFE_API_KEY: str = get_typesafe_api_key()
+TYPESAFE_MODEL: str = get_typesafe_model()
+TYPESAFE_ENABLED: bool = is_typesafe_enabled()
 
 # --- Integration test run counts (used by multi-run scenarios via _integ_run_count()) ---
 # X: number of runs per multi-run scenario when running locally (no RAILWAY_* env vars)

@@ -155,3 +155,72 @@ def test_langsmith_disabled_for_falsy_flags(monkeypatch, tmp_path, flag):
     monkeypatch.setenv("LANGSMITH_TRACING", flag)
     monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
     assert credentials.is_langsmith_enabled() is False
+
+
+# --- TypeSafe AI / Jev credentials -------------------------------------------
+# Same opt-in design as LangSmith above: holding the key must never by itself
+# start routing real decisions through a third-party model.
+
+def test_get_typesafe_api_key_prefers_live_env(monkeypatch):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "  apikey_live  ")
+    assert credentials.get_typesafe_api_key() == "apikey_live"
+
+
+def test_get_typesafe_api_key_falls_back_to_env_test(monkeypatch, tmp_path):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    (tmp_path / ".env.test").write_text("TYPESAFE_API_KEY=apikey_from_file", encoding="utf-8")
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    try:
+        assert credentials.get_typesafe_api_key() == "apikey_from_file"
+    finally:
+        os.environ.pop("TYPESAFE_API_KEY", None)
+
+
+def test_get_typesafe_api_key_empty_when_unset(monkeypatch, tmp_path):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.get_typesafe_api_key() == ""
+
+
+def test_get_typesafe_model_defaults_to_jev_latest(monkeypatch, tmp_path):
+    monkeypatch.delenv("TYPESAFE_MODEL", raising=False)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.get_typesafe_model() == "jev-latest"
+
+
+def test_get_typesafe_model_prefers_pinned_version(monkeypatch):
+    """Pinning a specific version (not the moving 'jev-latest' alias) is the
+    documented safe path once threshold-tuned production use begins."""
+    monkeypatch.setenv("TYPESAFE_MODEL", "jev-1.13.0")
+    assert credentials.get_typesafe_model() == "jev-1.13.0"
+
+
+def test_typesafe_disabled_without_key(monkeypatch, tmp_path):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    monkeypatch.setenv("TYPESAFE_ENABLED", "true")
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_typesafe_enabled() is False
+
+
+def test_typesafe_disabled_when_key_present_but_flag_unset(monkeypatch, tmp_path):
+    """Regression guard: a populated .env.test key must not auto-enable Jev routing."""
+    monkeypatch.setenv("TYPESAFE_API_KEY", "apikey_present")
+    monkeypatch.delenv("TYPESAFE_ENABLED", raising=False)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_typesafe_enabled() is False
+
+
+@pytest.mark.parametrize("flag", ["1", "true", "TRUE", "yes", "on"])
+def test_typesafe_enabled_for_truthy_flags(monkeypatch, tmp_path, flag):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "apikey_present")
+    monkeypatch.setenv("TYPESAFE_ENABLED", flag)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_typesafe_enabled() is True
+
+
+@pytest.mark.parametrize("flag", ["0", "false", "no", "off", "", "maybe"])
+def test_typesafe_disabled_for_falsy_flags(monkeypatch, tmp_path, flag):
+    monkeypatch.setenv("TYPESAFE_API_KEY", "apikey_present")
+    monkeypatch.setenv("TYPESAFE_ENABLED", flag)
+    monkeypatch.setattr(credentials, "_find_project_root", lambda: tmp_path)
+    assert credentials.is_typesafe_enabled() is False
