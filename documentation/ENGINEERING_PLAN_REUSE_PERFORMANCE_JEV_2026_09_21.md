@@ -2,7 +2,9 @@
 
 September 21, 2026. Derived from `CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md`.
 
-**Status: plan only. No phase below is authorized to ship by this document.** Each phase is requested separately and follows `.claude/skills/ship-and-verify/SKILL.md` (local pass → beta → live beta verification). No production merge without explicit approval.
+**Status: execution started 2026-09-21.** See the Execution Log at the end of
+this document for what has actually shipped. Phases not marked shipped there are
+still plan-only and are requested separately. Each phase is requested separately and follows `.claude/skills/ship-and-verify/SKILL.md` (local pass → beta → live beta verification). No production merge without explicit approval.
 
 ---
 
@@ -398,3 +400,72 @@ Scripts are in the session scratchpad, not the repo (they are throwaway probes, 
 - **Parsing hotspots:** median of 20 `build_story_registry()` calls; median of 10 `SessionChunkStore.query()` calls at n = 10/50/200/500; add the same `chunk_id` five times and assert `len()`.
 
 All figures in 0.2 and 0.3 are from this Windows development machine, single process, CPU only. **They establish orders of magnitude, not production values** — Railway hardware, container memory limits, and a cold model cache will differ, which is precisely what Phase 0B measures.
+
+---
+
+## Execution log
+
+### Shipped — Phase 0A (release safety) + Phase 1.3 (embedder), commit `c0d8b45`, beta 2026-09-21
+
+**0A.1 — live deploy mechanism established.** The plan listed this as an open
+question. Settled empirically: `storieschat.ai` and `beta-api.storieschat.ai`
+both return `x-railway-edge` / `x-railway-request-id`, with no Apache/LiteSpeed/
+cPanel signature, and `backend/app/main.py` serves `frontend/index.html` itself.
+**Both environments are Railway-only; the cPanel/PHP path is dead code.** That
+means the destructive `.cpanel.yml` never runs — but the leaked secret is still
+live, so 0A.2 remains mandatory.
+
+**0A.3 / 0A.5 — quarantined.** `deployment/gitwebhook.php` and `.cpanel.yml`
+moved to `deployment/legacy_cpanel_unused/*.disabled`. The literal secret is
+replaced with `getenv("GITWEBHOOK_SECRET")` and the webhook now **fails closed**
+(503) when unset. Both `rm -rf` lines removed. `README_DISABLED.md` records the
+header evidence and forbids restoring them as-is.
+
+**0A.6 — upstream error leak closed.** The chat endpoint no longer returns
+`f"upstream HTTP {status}: {r.text}"` to the browser; it returns the
+provider-agnostic `_PUBLIC_UPSTREAM_ERROR`. The full body is still logged with
+`req_id`. The second site (`chinese_translation_error`) was audited and is
+log-only, so it never reached a client.
+
+**1.3 — embedder availability.** Single-flight `threading.Lock` around
+`_get_model()`, writability-checked `_resolve_cache_dir()` (the old hardcoded
+`/app/.model_cache` silently forced a re-download off-container), plus
+`is_loaded()`/`warm_up()` and a fire-and-forget `_warm_embedder()` task in
+lifespan that runs via `asyncio.to_thread` and is deliberately **not awaited**,
+so readiness never waits on the model.
+
+Measured before → after (local):
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Event-loop lag during cold model load | 15,916 ms fully blocked | p50 **10.8 ms** (max 197 ms) |
+| Startup → ready | — | **0.25 s**, `/api/health` 200, model still loading |
+| 8 concurrent `_get_model()` after warm | — | 4.7 ms, one shared instance |
+
+Live beta verification after deploy: `/api/health` 0.19–0.26 s across 5 serial
+and 10 parallel requests; a real guest session played two turns (new game +
+message) with retrieval in 5.0 s and no cold-start stall; the quarantined deploy
+files return 404.
+
+Tests: 722 passed, 1 xfailed. New `tests/backend/app/knowledge/test_embedder_warmup.py`
+(10 tests, fake model — nothing downloaded) covers the 8-thread cold-start
+stampede constructing exactly one model, cache-dir fallback, and an asyncio test
+asserting the warm-up keeps the loop ticking.
+
+### Outstanding owner action
+
+**0A.2 — rotate the webhook secret.** Not done; needs GitHub repo-settings
+access. Tracked as **BL-14**. The secret is in history across five commits, so
+it must be treated as public regardless of the working-tree fix.
+
+### Plan corrections found during execution
+
+- **BL-02 request-ID dedup already exists** (`prompt_engine.py` ~1956 and ~3169)
+  and is persisted to SQLite. Phase 1.1 is therefore smaller than written: the
+  remaining gap is that the dedup token is written *after* the turn's mutations
+  commit, and only for non-anon users, so it replays a completed reply but does
+  not protect a turn that failed partway. Phase 1.1 should extend this
+  mechanism rather than introduce a parallel one.
+- **Prompt caching is confirmed unclaimed.** A live beta turn reported
+  `prompt_tokens: 4831` with `cached_tokens: 0`, so the Phase 3 stable-prefix
+  item has real headroom rather than assumed headroom.
