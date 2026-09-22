@@ -33,7 +33,7 @@ CHARACTER_ASSET_MAP: dict[str, str] = {
     "player": DEFAULT_PERSONA_AVATAR,
     "persona": DEFAULT_PERSONA_AVATAR,
     "default_persona": DEFAULT_PERSONA_AVATAR,
-    "six_strangers": "/img/characters/Mizuki_Shida.png",
+    "six_strangers": "/img/six_strangers_house.jpg",
 }
 
 

@@ -1,11 +1,15 @@
 # Speaker-aware dialogue
 
-The shared chat renderer presents a reply as ordered narration and dialogue
-blocks. Dialogue has a visible name and a 46px portrait (38px on phones).
-Hovering a portrait shows the name; clicking or pressing Enter opens a centered,
-uncropped image. Escape, the close button, and the backdrop dismiss it, restoring
-focus to the originating portrait. Missing art uses initials and an explicit
-unavailable message in the viewer.
+The shared chat renderer presents every AI reply in one classic chat bubble.
+It totals the number of spoken characters for each canonical speaker across the
+reply and places the most frequent speaker's portrait beside that bubble. A tie
+uses the speaker who appeared first. Narration does not add to a speaker's total.
+
+If no one speaks, the winning speaker is unknown (for example, a generated
+waiter), or the winning canonical character has no dedicated portrait, the
+bubble uses the current game's cover and title. Hovering the picture shows that
+person or game name. Clicking or pressing Enter opens the full image in the
+center. Escape, the close button, and the backdrop dismiss it and restore focus.
 
 ## Generation and persistence
 
@@ -19,14 +23,16 @@ kept out of the visible scene.
 
 `/api/chat` returns readable `reply` text plus `segments`. Conversation memory
 keeps speaker names, while JSONL history stores the full segment metadata.
-New turns, resumed games, and paginated history share one renderer. Existing
-unlabelled history remains narration rather than guessing who spoke. Authored
+New turns, resumed games, and paginated history share one renderer. The readable
+reply retains speaker-name prefixes inside the single bubble. Existing
+unlabelled history uses the game cover rather than guessing who spoke. Authored
 openings use speaker markers; the IU opening's unidentified voice stays unnamed.
 Translation carries the same speaker IDs through preserved markers.
 
 Character metadata can supply `portrait_url` or `avatar_url` under `/img/`.
 Otherwise the shared asset registry supplies existing artwork. The repository
-currently has Terrace House portraits but no dedicated IU cast portrait files.
+currently has Terrace House portraits but no dedicated IU cast portrait files,
+so IU replies use that game's cover.
 
 The story-model endpoint must support OpenAI-compatible `json_schema` structured
 output. Older prose responses remain readable, but cannot provide reliable
@@ -36,9 +42,9 @@ speaker attribution. No additional attribution model call is required.
 
 Saved speed settings retain their meaning, with delays divided by three:
 normal is 10ms instead of 30ms. An elapsed-time animation clock batches characters
-per frame, respects punctuation pauses, and reveals speakers in reading order.
-Reduced-motion preferences show replies instantly. Clicking scene text or the
-Show full reply button completes the turn. Portrait interaction does not skip it.
+per frame and respects punctuation pauses. Reduced-motion preferences show
+replies instantly. Clicking the bubble completes the turn; clicking the picture
+opens it without skipping the text.
 
 The frontend modules are `dialogue.js` and `dialogue.css`, loaded relative to the
 environment's base URL and included in the frontend deployment whitelist. FastAPI
@@ -48,9 +54,11 @@ serves both root and beta paths. The service worker cache version is bumped.
 
 - Python unit/API tests cover both games, structured output, state updates,
   history metadata, malformed markers, unknown voices, and portrait URLs.
-- `node --test tests/frontend/dialogue_renderer.test.cjs` checks the 3x reveal
-  rate, speaker ordering, completion on interruption, and history rendering.
+- `node --test tests/frontend/dialogue_renderer.test.cjs` checks the one-bubble
+  layout, dominant-speaker totals and ties, fallback cases, the 3x reveal rate,
+  and completion on interruption.
 - Local browser checks exercised a real multi-speaker model reply, portrait
   enlargement, Escape/focus restoration, and phone-width layout.
 
-This change is local; it has not been deployed.
+The game cover for Terrace in the City is a generated, optimized photograph-style
+asset of a believable Japanese house on a Tokyo residential street.

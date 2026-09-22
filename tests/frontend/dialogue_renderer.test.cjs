@@ -24,45 +24,59 @@ function setup() {
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../frontend/dialogue.js'), 'utf8'), ctx);
   const api = ctx.window.createDialoguePresentation({
-    renderAvatarImage: () => { throw Error('No remote image should be loaded for missing portraits'); },
+    renderAvatarImage: (target, src) => { const img = new Element(); img.src = src; target.appendChild(img); return img; },
     formatMsgText: text => text.replaceAll('<', '&lt;'),
     getTypewriterDelay: () => 10, scrollChatToBottom() {}
   });
   return { api, row: () => new Element(), advance(now) { const pending = [...frames.values()]; frames.clear(); pending.forEach(fn => fn(now)); } };
 }
 
-test('elapsed-time reveal is three times the old 30ms rate and respects speaker order', () => {
+test('renders one old-style bubble and uses the speaker with the most dialogue', () => {
   const { api, row, advance } = setup();
   const scene = row();
-  api.render(scene, '', [
-    { kind: 'dialogue', speaker_name: 'IU', text: 'abcdefghij' },
-    { kind: 'dialogue', speaker_name: 'Mizuki', text: 'klmnop' }
-  ], true);
+  api.render(scene, 'IU: hi\n\nMizuki: abcdefghij', [
+    { kind: 'dialogue', speaker_id: 'iu', speaker_name: 'IU', portrait_url: '/img/characters/iu.png', text: 'hi' },
+    { kind: 'dialogue', speaker_id: 'mizuki', speaker_name: 'Mizuki', portrait_url: '/img/characters/mizuki.png', text: 'abcdefghij' }
+  ], true, { name: 'Terrace in the City', src: '/img/six_strangers.png' });
+  assert.equal(scene.children.length, 2);
+  assert.equal(scene.children[0].title, 'Mizuki');
+  assert.equal(scene.children[1].className, 'msg-bubble npc');
   advance(90);
-  assert.equal(scene.children[0].children[1].children[1].textContent, 'abcdefghi');
-  assert.equal(scene.children[1].hidden, true);
-  advance(120);
-  assert.equal(scene.children[0].children[1].children[1].innerHTML, 'abcdefghij');
-  assert.equal(scene.children[1].children[1].children[1].textContent, 'kl');
-  advance(160);
-  assert.equal(scene.children[1].children[1].children[1].innerHTML, 'klmnop');
+  assert.equal(scene.children[1].textContent, 'IU: hi\n\n');
+  advance(400);
+  assert.equal(scene.children[1].innerHTML, 'IU: hi\n\nMizuki: abcdefghij');
   assert.equal(scene.attributes['aria-busy'], undefined);
 });
 
 test('new turn completes the prior turn instead of leaving truncated dialogue', () => {
   const { api, row } = setup();
   const first = row();
-  api.render(first, 'First complete reply', null, true);
-  api.render(row(), 'Next reply', null, true);
-  assert.equal(first.children[0].children[0].children[1].innerHTML, 'First complete reply');
+  api.render(first, 'First complete reply', null, true, { name: 'Game', src: '/img/game.png' });
+  api.render(row(), 'Next reply', null, true, { name: 'Game', src: '/img/game.png' });
+  assert.equal(first.children[1].innerHTML, 'First complete reply');
   assert.equal(first.attributes['aria-busy'], undefined);
 });
 
-test('history uses the same identities; unsafe or missing portrait URLs use initials', () => {
+test('narration and an unknown side character use the game picture', () => {
+  const { api, row } = setup();
+  for (const segments of [
+    [{ kind: 'narration', speaker_id: null, text: 'Rain falls.' }],
+    [{ kind: 'dialogue', speaker_id: null, speaker_name: 'Waiter', portrait_url: '/img/avatars/persona_default.svg', text: 'Welcome.' }]
+  ]) {
+    const scene = row();
+    api.render(scene, '<script>hello', segments, false, { name: 'Terrace in the City', src: '/img/six_strangers.png' });
+    assert.equal(scene.children[0].title, 'Terrace in the City');
+    assert.equal(scene.children[1].innerHTML, '&lt;script>hello');
+  }
+});
+
+test('dialogue totals are combined by speaker and ties use first appearance', () => {
   const { api, row } = setup();
   const scene = row();
-  api.render(scene, '', [{ kind: 'dialogue', speaker_name: 'IU', portrait_url: 'javascript:bad()', text: '<script>hello' }], false);
-  assert.equal(scene.children[0].children[0].title, 'IU');
-  assert.equal(scene.children[0].children[1].children[0].textContent, 'IU');
-  assert.equal(scene.children[0].children[1].children[1].innerHTML, '&lt;script>hello');
+  api.render(scene, 'Mixed reply', [
+    { kind: 'dialogue', speaker_id: 'mizuki', speaker_name: 'Mizuki', portrait_url: '/img/mizuki.png', text: '1234' },
+    { kind: 'dialogue', speaker_id: 'iu', speaker_name: 'IU', portrait_url: '/img/iu.png', text: '1234567' },
+    { kind: 'dialogue', speaker_id: 'mizuki', speaker_name: 'Mizuki', portrait_url: '/img/mizuki.png', text: '567' }
+  ], false, { name: 'Game', src: '/img/game.png' });
+  assert.equal(scene.children[0].title, 'Mizuki');
 });

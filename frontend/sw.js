@@ -1,7 +1,7 @@
 // StoriesChat Service Worker
 // Network-first for HTML/API, cache-first for static assets.
 
-const CACHE_NAME = 'storieschat-v4';
+const CACHE_NAME = 'storieschat-v5';
 const SHELL_URLS = ['/manifest.json', '/beta/manifest.json', '/sw.js', '/beta/sw.js'];
 
 self.addEventListener('install', event => {

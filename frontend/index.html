@@ -1288,7 +1288,7 @@
       border: none; cursor: pointer; font-size: 14px; font-weight: 600;
     }
   </style>
-<link rel="stylesheet" href="dialogue.css?v=2" />
+<link rel="stylesheet" href="dialogue.css?v=3" />
 <link rel="stylesheet" href="world-map.css?v=1">
 </head>
 
@@ -1690,7 +1690,7 @@
      JAVASCRIPT
 ════════════════════════════════════════════════ -->
 <script src="world-map.js?v=1"></script>
-<script src="dialogue.js?v=2"></script>
+<script src="dialogue.js?v=3"></script>
 <script>
 (function(){
 "use strict";
@@ -1806,7 +1806,7 @@ var CHARACTER_ASSET_MAP = {
   player: "/img/avatars/persona_default.svg",
   persona: "/img/avatars/persona_default.svg",
   default_persona: "/img/avatars/persona_default.svg",
-  six_strangers: "/img/characters/Mizuki_Shida.png"
+  six_strangers: "/img/six_strangers_house.jpg"
 };
 
 function normalizeAssetKey(value){
@@ -2740,9 +2740,21 @@ function addMessage(role, text, options){
     playerLabel.className = "speaker-name";
     playerLabel.textContent = playerName;
     bubble.insertBefore(playerLabel, bubble.firstChild);
-    row.appendChild(dialoguePresentation.portraitButton(playerName, getCharacterAvatarSrc("persona", playerName)));
+    var playerPortrait = dialoguePresentation.portraitButton(playerName, getCharacterAvatarSrc("persona", playerName), true);
+    playerPortrait.classList.add("user-avatar");
+    row.appendChild(playerPortrait);
   } else { // npc: one ordered scene containing any number of speakers
-    dialoguePresentation.render(row, text, options.segments, getTypewriterDelay() > 0 && !options.skipTypewriter);
+    var game = appState.currentStory || {};
+    dialoguePresentation.render(
+      row,
+      text,
+      options.segments,
+      getTypewriterDelay() > 0 && !options.skipTypewriter,
+      {
+        name: game.title || "Game",
+        src: game.thumbnail_url || getCharacterAvatarSrc(game.id, game.title)
+      }
+    );
   }
 
   if (options.before) msgs.insertBefore(row, options.before);
