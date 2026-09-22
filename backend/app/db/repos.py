@@ -318,9 +318,17 @@ class SessionRepo:
         return count
 
     @staticmethod
-    def _delete_expired_guests(cutoff_ts: int) -> int:
+    def _delete_expired_guests(cutoff_ts: int) -> list[str]:
         """Delete all guest sessions older than cutoff_ts (Unix seconds).
-        Returns number of sessions deleted."""
+
+        Phase 1.5: returns the exact session IDs deleted, not just a count.
+        The caller (main.py's _guest_cleanup_loop) previously had no way to
+        know WHICH sessions were deleted, so it evicted every cached guest
+        session indiscriminately - including ones that were still active and
+        simply hadn't been touched recently enough in the DB to matter, or
+        (worse) a session an in-flight turn was actively working with at that
+        exact moment. Returning the precise ID list lets the caller evict
+        only what was actually deleted."""
         conn = get_connection()
         try:
             # Find sessions to delete (need IDs for JSONL cleanup)
@@ -331,7 +339,7 @@ class SessionRepo:
             ).fetchall()
 
             if not rows:
-                return 0
+                return []
 
             ids = [r["id"] for r in rows]
             user_ids = {r["user_id"] for r in rows}
@@ -365,14 +373,16 @@ class SessionRepo:
             except Exception:
                 pass
 
-        return len(ids)
+        return ids
 
     @classmethod
     async def transfer_sessions(cls, from_user_id: str, to_user_id: str) -> int:
         return await asyncio.to_thread(cls._transfer, from_user_id, to_user_id)
 
     @classmethod
-    async def delete_expired_guest_sessions(cls, cutoff_ts: int) -> int:
+    async def delete_expired_guest_sessions(cls, cutoff_ts: int) -> list[str]:
+        """Phase 1.5: returns the exact deleted session IDs (was: a count).
+        Callers that only need the count can use len(...) on the result."""
         return await asyncio.to_thread(cls._delete_expired_guests, cutoff_ts)
 
 

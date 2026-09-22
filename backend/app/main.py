@@ -84,22 +84,56 @@ FACT_EXTRACTION_OUTBOX_RETENTION_SECONDS = 7 * 24 * 60 * 60  # 7 days
 
 
 async def _guest_cleanup_loop():
-    """Background task: delete guest sessions older than 24 hours. Runs every hour."""
+    """Background task: delete guest sessions older than 24 hours. Runs every hour.
+
+    Phase 1.5: evicts EXACTLY the session IDs the DB delete actually removed,
+    not every cached guest session. The old code built its eviction list from
+    SESSIONS' own contents filtered by user_id prefix - so ANY cached guest
+    session was evicted whenever ANY expired guest rows were deleted,
+    including one an in-flight turn was actively using at that exact moment
+    (evicting mid-turn would not corrupt that turn - it operates on a local
+    `state`/`log` reference per Phase 1.1's clone-and-publish, not the
+    SESSIONS entry directly - but the NEXT request for that session would
+    incorrectly see "session expired" for a session that was in fact still
+    within its TTL).
+
+    Each eviction also acquires that session's own per-session lock (the same
+    lock chat_handler holds for the full duration of a turn) before popping
+    it from SESSIONS. This guarantees eviction cannot interleave with an
+    in-flight turn for that specific session: either the turn finishes first
+    and this cleanly evicts the (now-idle) cached entry, or this runs first
+    and the next request for that session correctly falls through to
+    get_session()'s "not in SESSIONS -> try DB restore" path, which correctly
+    finds nothing (the DB row is genuinely gone) rather than resurrecting a
+    deleted session from a stale in-memory copy."""
     while True:
         await asyncio.sleep(3600)  # 1 hour
         try:
             cutoff = int(time.time()) - GUEST_TTL_SECONDS
-            count = await SessionRepo.delete_expired_guest_sessions(cutoff)
-            if count:
-                _log.info("Guest cleanup: deleted %d expired guest sessions", count)
-                # Also evict from in-memory SESSIONS cache
-                from backend.app.api.prompt_engine import SESSIONS
-                expired = [
-                    sid for sid, sess in SESSIONS.items()
-                    if sess.get("user_id", "").startswith("guest:")
-                ]
-                for sid in expired:
-                    SESSIONS.pop(sid, None)
+            deleted_ids = await SessionRepo.delete_expired_guest_sessions(cutoff)
+            if deleted_ids:
+                _log.info("Guest cleanup: deleted %d expired guest sessions", len(deleted_ids))
+                from backend.app.api.prompt_engine import SESSIONS, _SESSION_LOCKS, _get_session_lock
+                for sid in deleted_ids:
+                    if sid not in SESSIONS:
+                        continue
+                    async with _get_session_lock(sid):
+                        SESSIONS.pop(sid, None)
+                    # Retire the lock too, once we're certain nothing else is
+                    # waiting on it (we just released it and this session's
+                    # data is gone, so no new request should be racing to
+                    # acquire it right this instant) - bounds _SESSION_LOCKS'
+                    # otherwise-unbounded growth (one entry per session_id
+                    # ever seen). `locked()` being False here does not
+                    # guarantee zero waiters queued a microsecond earlier, but
+                    # a session that no longer exists in SESSIONS will fail
+                    # its "session expired" check immediately regardless of
+                    # which Lock object it happens to synchronize on, so a
+                    # rare miss here just means the lock dict grows by one
+                    # entry occasionally, not a correctness issue.
+                    lock = _SESSION_LOCKS.get(sid)
+                    if lock is not None and not lock.locked():
+                        _SESSION_LOCKS.pop(sid, None)
         except Exception:
             _log.exception("Guest cleanup task failed")
 

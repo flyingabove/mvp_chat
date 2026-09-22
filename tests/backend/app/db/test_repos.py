@@ -407,7 +407,8 @@ async def test_delete_expired_guest_sessions(tmp_data_dir):
 
     cutoff = now - 86400  # 24 hours ago
     deleted = await SessionRepo.delete_expired_guest_sessions(cutoff)
-    assert deleted == 1  # Only the old guest session
+    # Phase 1.5: now returns the exact deleted session IDs, not just a count.
+    assert deleted == ["old_gs"]  # Only the old guest session
 
     # Verify old guest is gone
     assert await SessionRepo.get_session("old_gs", "guest:old-uuid") is None

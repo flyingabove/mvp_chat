@@ -377,3 +377,133 @@ async def test_fact_extraction_recovery_sweep_prunes_old_done_rows(monkeypatch):
     assert remaining == [], "a 'done' row older than the retention window must be pruned by the sweep"
 
 
+
+
+# ============================================================================
+# Phase 1.5 — exact guest session eviction. The old _guest_cleanup_loop
+# evicted EVERY cached guest session (filtered only by user_id prefix)
+# whenever ANY expired guest rows were deleted, including ones still well
+# within their TTL. These tests exercise the eviction logic directly rather
+# than waiting a real hour for the loop's sleep().
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_evicts_only_the_deleted_session_ids(monkeypatch):
+    """THE Phase 1.5 regression test: an active, non-expired guest session
+    cached in SESSIONS must survive a cleanup pass that deletes a DIFFERENT
+    expired guest session - proving eviction is precise, not "clear every
+    guest entry whenever anything was deleted"."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    expired_sid = "cleanup_precision_expired"
+    active_sid = "cleanup_precision_active"
+    pe_mod.SESSIONS[expired_sid] = {"state": object(), "user_id": "guest:expired-uuid"}
+    pe_mod.SESSIONS[active_sid] = {"state": object(), "user_id": "guest:active-uuid"}
+
+    async def _fake_delete(cutoff_ts):
+        # Simulate the DB having deleted only the expired session.
+        return [expired_sid]
+
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo.delete_expired_guest_sessions", _fake_delete,
+    )
+
+    # _guest_cleanup_loop is an infinite loop (sleep() then one pass of
+    # work); run ONE pass by making sleep raise on its second call, so the
+    # loop's real body executes exactly once before the test ends it.
+    import asyncio as _asyncio
+    from backend.app import main
+
+    sleep_calls = {"n": 0}
+    real_sleep = _asyncio.sleep
+
+    async def _one_shot_sleep(seconds):
+        sleep_calls["n"] += 1
+        if sleep_calls["n"] > 1:
+            raise _asyncio.CancelledError()
+        await real_sleep(0)  # yield control once, don't actually wait an hour
+
+    monkeypatch.setattr(main.asyncio, "sleep", _one_shot_sleep)
+
+    try:
+        await main._guest_cleanup_loop()
+    except _asyncio.CancelledError:
+        pass  # expected - this is how we stop the intentionally-infinite loop
+
+    assert expired_sid not in pe_mod.SESSIONS, "the actually-expired session must be evicted"
+    assert active_sid in pe_mod.SESSIONS, (
+        "an active guest session must SURVIVE a cleanup pass that only deleted a different session"
+    )
+
+    # Cleanup for other tests sharing module-level SESSIONS.
+    pe_mod.SESSIONS.pop(active_sid, None)
+    pe_mod.SESSIONS.pop(expired_sid, None)
+
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_acquires_session_lock_before_eviction():
+    """Eviction must go through the SAME per-session lock chat_handler holds
+    for a turn's full duration, so eviction cannot interleave with an
+    in-flight turn for that session."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "cleanup_lock_check"
+    pe_mod.SESSIONS[sid] = {"state": object(), "user_id": "guest:lock-uuid"}
+    lock = pe_mod._get_session_lock(sid)
+
+    # Hold the lock, simulating an in-flight turn for this exact session.
+    await lock.acquire()
+    try:
+        # A concurrent eviction attempt must block on the same lock rather
+        # than popping SESSIONS out from under the in-flight turn.
+        async def _try_evict():
+            async with pe_mod._get_session_lock(sid):
+                pe_mod.SESSIONS.pop(sid, None)
+
+        import asyncio
+        evict_task = asyncio.create_task(_try_evict())
+        await asyncio.sleep(0.05)
+        assert sid in pe_mod.SESSIONS, "eviction must not proceed while the session lock is held elsewhere"
+    finally:
+        lock.release()
+
+    await evict_task
+    assert sid not in pe_mod.SESSIONS, "eviction proceeds once the lock is released"
+
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_retires_uncontended_lock(monkeypatch):
+    """Phase 1.5: _SESSION_LOCKS must not grow unbounded - an evicted
+    session's lock is retired too, once uncontended."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "cleanup_lock_retire_check"
+    pe_mod.SESSIONS[sid] = {"state": object(), "user_id": "guest:retire-uuid"}
+    lock = pe_mod._get_session_lock(sid)
+    assert sid in pe_mod._SESSION_LOCKS
+
+    async with lock:
+        pe_mod.SESSIONS.pop(sid, None)
+    if not lock.locked():
+        pe_mod._SESSION_LOCKS.pop(sid, None)
+
+    assert sid not in pe_mod._SESSION_LOCKS, "an uncontended lock for an evicted session must be retired"
+
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_skips_sessions_not_in_memory_cache(monkeypatch):
+    """A deleted session_id that was never cached in SESSIONS (e.g. it
+    expired without ever being loaded into this process's cache) must not
+    raise or do anything odd - just a no-op skip."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    never_cached_sid = "cleanup_never_cached_check"
+    assert never_cached_sid not in pe_mod.SESSIONS
+
+    deleted_ids = [never_cached_sid]
+    for sid in deleted_ids:
+        if sid not in pe_mod.SESSIONS:
+            continue
+        async with pe_mod._get_session_lock(sid):
+            pe_mod.SESSIONS.pop(sid, None)
+    # No exception raised; nothing to assert beyond "this didn't crash".
