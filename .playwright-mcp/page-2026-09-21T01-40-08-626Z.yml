@@ -1,0 +1,85 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e139]:
+    - generic [ref=f2e140]:
+      - button "Back" [ref=f2e141] [cursor=pointer]
+      - generic [ref=f2e142]:
+        - img "Terrace in the City" [ref=f2e144]
+        - generic [ref=f2e145]:
+          - generic [ref=f2e146]: Terrace in the City
+          - generic [ref=f2e147]: Slice of Life / Ensemble Drama
+      - generic [ref=f2e148]:
+        - button "Mute" [ref=f2e149] [cursor=pointer]: 🔇
+        - button "Voice" [ref=f2e150] [cursor=pointer]: 📞
+        - button "⋯" [ref=f2e151] [cursor=pointer]
+    - generic [ref=f2e153]:
+      - generic [ref=f2e154]:
+        - img "Terrace in the City" [ref=f2e156]
+        - generic [ref=f2e157]: Terrace in the City
+        - generic [ref=f2e158]: Slice of Life / Ensemble Drama
+      - generic [ref=f2e159]: "Starting game as Paul Dingus (persona: Paul Dingus)…"
+      - generic [ref=f2e161]: "Guest mode: your progress will be deleted after 24 hours unless you sign in with Google."
+      - img "World Map" [ref=f2e165]
+      - generic [ref=f2e167]:
+        - strong [ref=f2e168]: World Map
+        - emphasis [ref=f2e169]: Front Entry
+        - text: — A glass-fronted genkan in a modern Higashi-Gotanda house. Shoes line the recessed rack; the doorway opens onto the shared living floor, with the kitchen and dining table in view. Stairs lead to the bedrooms and rooftop, and the garage opens beside the entry.
+        - emphasis [ref=f2e170]: Living Room
+        - text: — Floor-to-ceiling glass brings Tokyo daylight across a broad sofa and low coffee table. The open-plan room connects to the kitchen and dining area; stairs link the bedrooms and rooftop.
+        - emphasis [ref=f2e171]: Open Kitchen
+        - text: — An island counter, full-size refrigerator and rice cooker anchor the open kitchen. Grocery notes and a washing-up rota share a board beside the counter.
+        - emphasis [ref=f2e172]: Dining Room
+        - text: — A long communal table sits between the kitchen and the glass wall. Seven chairs make room for the six original housemates and the new arrival.
+        - emphasis [ref=f2e173]: Boys' Bedroom
+        - text: — The shared bedroom for Makoto, Yuki and Uchi has three beds, individual storage and a small common sitting area. Knock and wait for an invitation before entering.
+        - emphasis [ref=f2e174]: Girls' Bedroom
+        - text: — The shared bedroom for Minori, Mizuki and Yuriko has three beds, individual storage and a shared dressing area. Knock and wait for an invitation before entering.
+        - emphasis [ref=f2e175]: Your Guest Room
+        - text: — A small furnished guest room reserved for you, the seventh resident, with a single bed, desk and suitcase space. This extra room belongs to the game adaptation of the house.
+        - emphasis [ref=f2e176]: Shared Bathroom
+        - text: — A shared washroom with separate bathing space, towels and labeled toiletry baskets. The occupied sign and a closed door mean wait outside.
+        - emphasis [ref=f2e177]: Rooftop Terrace
+        - text: — A furnished rooftop terrace above the glass-fronted house, with outdoor seating and a view across residential Higashi-Gotanda toward the Tokyo skyline.
+        - emphasis [ref=f2e178]: Garage
+        - text: — Two shared cars sit beneath the house. A key board and a simple booking notebook help residents coordinate commutes, shopping trips and days out.
+        - emphasis [ref=f2e179]: Higashi-Gotanda Streets
+        - text: — Quiet residential streets in Shinagawa Ward connect the house with small restaurants, shops and the busier streets around Gotanda Station.
+        - emphasis [ref=f2e180]: Gotanda Station
+        - text: — The station connects the neighborhood to the JR Yamanote Line and the wider city. Ticket gates, platform signs and a meeting spot outside make it a useful starting point for a day out.
+        - emphasis [ref=f2e181]: Neighborhood Cafe
+        - text: — A small neighborhood cafe with a coffee counter and window seats. It is a game-created local place for a drink, a work break or an unhurried conversation.
+        - emphasis [ref=f2e182]: Tap Dance Studio
+        - text: — A rented Tokyo rehearsal studio with a sprung wooden floor, mirrors and stacked folding chairs. This game-created workplace is reached by a short train ride and walk from Gotanda.
+        - emphasis [ref=f2e183]: Hair Salon
+        - text: — A bright Tokyo salon with mirrored stations, appointment books and a waiting bench. This game-created workplace is reached by a short train ride and walk from Gotanda.
+      - generic [ref=f2e184]:
+        - img "Terrace in the City" [ref=f2e186]
+        - generic [ref=f2e187] [cursor=pointer]: The last of the e▎
+    - generic [ref=f2e188]:
+      - generic [ref=f2e189]:
+        - img "P" [ref=f2e191]
+        - textbox "Message..." [active] [ref=f2e192]
+        - generic [ref=f2e193]:
+          - button "Image" [ref=f2e194] [cursor=pointer]: 🖼️
+          - button "Persona" [ref=f2e195] [cursor=pointer]: ◌
+      - button "Send" [disabled] [ref=f2e196]: ➤
+    - generic [ref=f2e197]: This is A.I. and not a real person. Treat everything it says as fiction.
+  - option "Murder Mystery" [selected]
+  - option "Romance"
+  - option "Horror"
+  - option "Fantasy"
+  - option "Comedy"
+  - option "Sci-Fi"
+  - option "Thriller"
+  - navigation [ref=f2e21]:
+    - generic [ref=f2e22] [cursor=pointer]:
+      - generic [ref=f2e23]: 🏠
+      - generic [ref=f2e24]: Home
+    - generic [ref=f2e25] [cursor=pointer]:
+      - generic [ref=f2e26]: 💬
+      - generic [ref=f2e27]: My Games
+    - generic [ref=f2e28] [cursor=pointer]:
+      - generic [ref=f2e29]: ✚
+      - generic [ref=f2e31]: Create
+    - generic [ref=f2e32] [cursor=pointer]:
+      - generic [ref=f2e33]: 👤
+      - generic [ref=f2e34]: Profile

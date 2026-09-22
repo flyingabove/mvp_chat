@@ -1,0 +1,92 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e107]:
+    - generic [ref=f2e108]:
+      - button "Back" [ref=f2e109] [cursor=pointer]
+      - generic [ref=f2e110]:
+        - img "Six Strangers" [ref=f2e112]
+        - generic [ref=f2e113]:
+          - generic [ref=f2e114]: Six Strangers
+          - generic [ref=f2e115]: Slice of Life / Ensemble Drama
+      - generic [ref=f2e116]:
+        - button "Mute" [ref=f2e117] [cursor=pointer]: 🔇
+        - button "Voice" [ref=f2e118] [cursor=pointer]: 📞
+        - button "⋯" [ref=f2e119] [cursor=pointer]
+    - generic [ref=f2e121]:
+      - generic [ref=f2e122]:
+        - img "Six Strangers" [ref=f2e124]
+        - generic [ref=f2e125]: Six Strangers
+        - generic [ref=f2e126]: Slice of Life / Ensemble Drama
+      - generic [ref=f2e127]: "Starting game as Playwright Tester (persona: Paul Dingus)…"
+      - generic [ref=f2e129]: "Guest mode: your progress will be deleted after 24 hours unless you sign in with Google."
+      - img "World Map" [ref=f2e166]
+      - generic [ref=f2e133]:
+        - strong [ref=f2e134]: World Map
+        - emphasis [ref=f2e135]: Front Entry
+        - text: — A glass-fronted genkan in a modern Higashi-Gotanda house. Shoes line the recessed rack; the doorway opens onto the shared living floor, with the kitchen and dining table in view. Stairs lead to the bedrooms and rooftop, and the garage opens beside the entry.
+        - emphasis [ref=f2e136]: Living Room
+        - text: — Floor-to-ceiling glass brings Tokyo daylight across a broad sofa and low coffee table. The open-plan room connects to the kitchen and dining area; stairs link the bedrooms and rooftop.
+        - emphasis [ref=f2e137]: Open Kitchen
+        - text: — An island counter, full-size refrigerator and rice cooker anchor the open kitchen. Grocery notes and a washing-up rota share a board beside the counter.
+        - emphasis [ref=f2e138]: Dining Room
+        - text: — A long communal table sits between the kitchen and the glass wall. Seven chairs make room for the six original housemates and the new arrival.
+        - emphasis [ref=f2e139]: Boys' Bedroom
+        - text: — The shared bedroom for Makoto, Yuki and Uchi has three beds, individual storage and a small common sitting area. Knock and wait for an invitation before entering.
+        - emphasis [ref=f2e140]: Girls' Bedroom
+        - text: — The shared bedroom for Minori, Mizuki and Yuriko has three beds, individual storage and a shared dressing area. Knock and wait for an invitation before entering.
+        - emphasis [ref=f2e141]: Your Guest Room
+        - text: — A small furnished guest room reserved for you, the seventh resident, with a single bed, desk and suitcase space. This extra room belongs to the game adaptation of the house.
+        - emphasis [ref=f2e142]: Shared Bathroom
+        - text: — A shared washroom with separate bathing space, towels and labeled toiletry baskets. The occupied sign and a closed door mean wait outside.
+        - emphasis [ref=f2e143]: Rooftop Terrace
+        - text: — A furnished rooftop terrace above the glass-fronted house, with outdoor seating and a view across residential Higashi-Gotanda toward the Tokyo skyline.
+        - emphasis [ref=f2e144]: Garage
+        - text: — Two shared cars sit beneath the house. A key board and a simple booking notebook help residents coordinate commutes, shopping trips and days out.
+        - emphasis [ref=f2e145]: Higashi-Gotanda Streets
+        - text: — Quiet residential streets in Shinagawa Ward connect the house with small restaurants, shops and the busier streets around Gotanda Station.
+        - emphasis [ref=f2e146]: Gotanda Station
+        - text: — The station connects the neighborhood to the JR Yamanote Line and the wider city. Ticket gates, platform signs and a meeting spot outside make it a useful starting point for a day out.
+        - emphasis [ref=f2e147]: Neighborhood Cafe
+        - text: — A small neighborhood cafe with a coffee counter and window seats. It is a game-created local place for a drink, a work break or an unhurried conversation.
+        - emphasis [ref=f2e148]: Tap Dance Studio
+        - text: — A rented Tokyo rehearsal studio with a sprung wooden floor, mirrors and stacked folding chairs. This game-created workplace is reached by a short train ride and walk from Gotanda.
+        - emphasis [ref=f2e149]: Hair Salon
+        - text: — A bright Tokyo salon with mirrored stations, appointment books and a waiting bench. This game-created workplace is reached by a short train ride and walk from Gotanda.
+      - generic [ref=f2e167]:
+        - img "Six Strangers" [ref=f2e169]
+        - generic [ref=f2e170]: The last of the evening light is caught in the windows when you reach the house. Behind you, the residential street is quiet enough to hear the wheels of your suitcase catch on a seam in the pavement. Somewhere back toward Gotanda station, a train passes above the traffic.Through the glass, you can see a long table laid with plates that do not quite match. Someone is counting them, starting again, and pulling out another chair.You ring the bell.The woman who opens the door has pushed her sleeves back and is carrying a tea towel. She looks from you to the suitcase, then smiles.“Hi. You found it. I'm Mizuki.” She steps aside. “Come in — there's space for your shoes here. Well. There was this morning.”Seven pairs could fit if everyone moved something an inch. Mizuki nudges her own shoes out of the way first.“They've made up the little guest room for you,” she says. “The rest of us are sharing upstairs. I can show you after dinner, if you're hungry.”Beyond her, the living room opens into the kitchen and dining area. A young man in a T-shirt has a baseball resting against his knee; beside the sofa, a woman closes a magazine over one finger and looks toward the door. At the table, the person counting plates finally seems satisfied. From upstairs comes the brief rush of a hairdryer, then quiet.“Everyone's only just getting used to being here,” Mizuki says, a little more softly. “So you haven't missed much.”She leaves your suitcase beside the entry bench. The kettle clicks off behind her. Nobody calls for a speech, and nobody seems quite sure whether introductions should happen standing up or over dinner.Mizuki stays beside you, one hand resting on the back of the bench.“What should we call you? And — tea, coffee, or something cold?”
+      - generic [ref=f2e171]:
+        - generic [ref=f2e172]: I quietly go up to the rooftop by myself, wanting some time alone.
+        - img "Playwright Tester" [ref=f2e174]
+      - generic [ref=f2e175]:
+        - img "Six Strangers" [ref=f2e177]
+        - generic [ref=f2e178] [cursor=pointer]: You step up to th▎
+    - generic [ref=f2e155]:
+      - generic [ref=f2e156]:
+        - img "P" [ref=f2e158]
+        - textbox "Message..." [ref=f2e159]
+        - generic [ref=f2e160]:
+          - button "Image" [ref=f2e161] [cursor=pointer]: 🖼️
+          - button "Persona" [ref=f2e162] [cursor=pointer]: ◌
+      - button "Send" [disabled] [ref=f2e163]: ➤
+    - generic [ref=f2e164]: This is A.I. and not a real person. Treat everything it says as fiction.
+  - option "Murder Mystery" [selected]
+  - option "Romance"
+  - option "Horror"
+  - option "Fantasy"
+  - option "Comedy"
+  - option "Sci-Fi"
+  - option "Thriller"
+  - navigation [ref=f2e70]:
+    - generic [ref=f2e71] [cursor=pointer]:
+      - generic [ref=f2e72]: 🏠
+      - generic [ref=f2e73]: Home
+    - generic [ref=f2e74] [cursor=pointer]:
+      - generic [ref=f2e75]: 💬
+      - generic [ref=f2e76]: My Games
+    - generic [ref=f2e77] [cursor=pointer]:
+      - generic [ref=f2e78]: ✚
+      - generic [ref=f2e80]: Create
+    - generic [ref=f2e81] [cursor=pointer]:
+      - generic [ref=f2e82]: 👤
+      - generic [ref=f2e83]: Profile
+  - generic: "Guest mode on. Temp ID: 8d6c1a32…"

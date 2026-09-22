@@ -1,0 +1,107 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: StoriesChat
+      - generic [ref=e5]:
+        - button "Search" [ref=e6] [cursor=pointer]: 🔍
+        - button "Profile" [ref=e7] [cursor=pointer]: 👤
+    - generic [ref=e8]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: Murder Mystery
+        - generic [ref=e15]: "Echoes of Cheongdam: IU Murder Mystery"
+        - generic [ref=e16]: A beloved singer is dead in Gangnam's most exclusive neighborhood. The suspects are hiding something. Can you expose the truth before it's buried forever?
+        - generic [ref=e17]:
+          - button "▶ Play" [ref=e18] [cursor=pointer]
+          - button "ⓘ More Info" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: Featured Games
+          - generic [ref=e23]:
+            - generic [ref=e24] [cursor=pointer]:
+              - generic [ref=e25]:
+                - generic [ref=e26]: 🔪
+                - generic [ref=e27]: Murder Mystery
+              - generic [ref=e28]: "Echoes of Cheongdam: IU Murder Mystery"
+            - generic [ref=e30] [cursor=pointer]:
+              - generic [ref=e31]:
+                - generic [ref=e32]: 🔪
+                - generic [ref=e33]: Murder Mystery
+              - generic [ref=e34]: The Quiet Agreement — Jennie Mini-Case
+            - generic [ref=e36] [cursor=pointer]:
+              - generic [ref=e37]:
+                - generic [ref=e38]: 🔪
+                - generic [ref=e39]: Murder Mystery
+              - generic [ref=e40]: Blackout Manor
+        - generic [ref=e42]:
+          - generic [ref=e43]: Murder Mystery
+          - generic [ref=e44]:
+            - generic [ref=e45] [cursor=pointer]:
+              - generic [ref=e46]:
+                - generic [ref=e47]: 🔪
+                - generic [ref=e48]: Murder Mystery
+              - generic [ref=e49]: "Echoes of Cheongdam: IU Murder Mystery"
+            - generic [ref=e51] [cursor=pointer]:
+              - generic [ref=e52]:
+                - generic [ref=e53]: 🔪
+                - generic [ref=e54]: Murder Mystery
+              - generic [ref=e55]: The Quiet Agreement — Jennie Mini-Case
+            - generic [ref=e57] [cursor=pointer]:
+              - generic [ref=e58]:
+                - generic [ref=e59]: 🔪
+                - generic [ref=e60]: Murder Mystery
+              - generic [ref=e61]: Blackout Manor
+        - generic [ref=e63]:
+          - generic [ref=e64]: Cyberpunk Noir
+          - generic [ref=e66] [cursor=pointer]:
+            - generic [ref=e67]:
+              - generic [ref=e68]: 🎭
+              - generic [ref=e69]: Cyberpunk Noir
+            - generic [ref=e70]: Neon District
+        - generic [ref=e72]:
+          - generic [ref=e73]: Psychological Thriller
+          - generic [ref=e75] [cursor=pointer]:
+            - generic [ref=e76]:
+              - generic [ref=e77]: 🎭
+              - generic [ref=e78]: Psychological Thriller
+            - generic [ref=e79]: The Last Session
+        - generic [ref=e81]:
+          - generic [ref=e82]: All Games
+          - generic [ref=e83]:
+            - generic [ref=e84] [cursor=pointer]:
+              - generic [ref=e85]:
+                - generic [ref=e86]: 🔪
+                - generic [ref=e87]: Murder Mystery
+              - generic [ref=e88]: "Echoes of Cheongdam: IU Murder Mystery"
+            - generic [ref=e90] [cursor=pointer]:
+              - generic [ref=e91]:
+                - generic [ref=e92]: 🔪
+                - generic [ref=e93]: Murder Mystery
+              - generic [ref=e94]: The Quiet Agreement — Jennie Mini-Case
+            - generic [ref=e96] [cursor=pointer]:
+              - generic [ref=e97]:
+                - generic [ref=e98]: 🔪
+                - generic [ref=e99]: Murder Mystery
+              - generic [ref=e100]: Blackout Manor
+            - generic [ref=e102] [cursor=pointer]:
+              - generic [ref=e103]:
+                - generic [ref=e104]: 🎭
+                - generic [ref=e105]: Cyberpunk Noir
+              - generic [ref=e106]: Neon District
+            - generic [ref=e108] [cursor=pointer]:
+              - generic [ref=e109]:
+                - generic [ref=e110]: 🎭
+                - generic [ref=e111]: Psychological Thriller
+              - generic [ref=e112]: The Last Session
+  - navigation [ref=e114]:
+    - generic [ref=e115] [cursor=pointer]:
+      - generic [ref=e116]: 🏠
+      - generic [ref=e117]: Home
+    - generic [ref=e118] [cursor=pointer]:
+      - generic [ref=e119]: 💬
+      - generic [ref=e120]: My Games
+    - generic [ref=e121] [cursor=pointer]:
+      - generic [ref=e122]: ✚
+      - generic [ref=e124]: Create
+    - generic [ref=e125] [cursor=pointer]:
+      - generic [ref=e126]: 👤
+      - generic [ref=e127]: Profile

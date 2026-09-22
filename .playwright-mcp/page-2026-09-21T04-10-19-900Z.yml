@@ -1,0 +1,97 @@
+- generic [ref=f3e1]:
+  - generic [ref=f3e94]:
+    - generic [ref=f3e95]:
+      - button "Back" [ref=f3e96] [cursor=pointer]
+      - generic [ref=f3e97] [cursor=pointer]:
+        - generic [ref=f3e98]: 🎭
+        - generic [ref=f3e99]:
+          - generic [ref=f3e100]: Terrace in the City
+          - generic [ref=f3e101]: Slice of Life / Ensemble Drama
+      - generic [ref=f3e102]:
+        - button "Mute" [ref=f3e103] [cursor=pointer]: 🔇
+        - button "Voice" [ref=f3e104] [cursor=pointer]: 📞
+        - button "⋯" [ref=f3e105] [cursor=pointer]
+    - generic [ref=f3e107]:
+      - generic [ref=f3e187]:
+        - img "Terrace in the City" [ref=f3e189]
+        - generic [ref=f3e190]: Terrace in the City
+        - generic [ref=f3e191]: Slice of Life / Ensemble Drama
+      - generic [ref=f3e192]: Resuming game as SkipTester…
+      - generic [ref=f3e194]:
+        - generic [ref=f3e195]:
+          - generic [ref=f3e196]: SkipTester
+          - text: The night passes
+        - button "View portrait of SkipTester" [ref=f3e197]: S
+      - generic [ref=f3e200]:
+        - generic [ref=f3e201]: Narrator
+        - generic [ref=f3e202]: As the evening deepens, the house settles into a gentle rhythm. The laughter and chatter from the kitchen echo through the entryway, mingling with the quiet hum of conversation. Mizuki glances at the doorway, her expression flickering with a hint of anticipation before she refocuses on you.“Dinner should be ready soon,” she says, her voice warm. “It’s just the first night for you, but everyone’s excited to meet you properly. I hope you’re feeling okay after your trip.” With a subtle shift of her weight, she leans against the wall, her curiosity evident. “Do you have any questions about the house or the neighborhood? I can help with anything you need, or we can just dive into dinner and get to know each other then.” In the dim light, her eyes hold a spark of eagerness, a welcoming spirit that softens the edges of the unfamiliar environment. The sound of utensils clinking and the occasional shout of playful banter from the kitchen suggests that connections are already beginning to form among the other residents, waiting just for you to join.
+      - generic [ref=f3e203]:
+        - generic [ref=f3e204]:
+          - generic [ref=f3e205]: SkipTester
+          - text: What time is it?
+        - button "View portrait of SkipTester" [ref=f3e206]: S
+      - generic [ref=f3e209]:
+        - generic [ref=f3e210]: Narrator
+        - generic [ref=f3e211]: Mizuki checks her watch, her brow furrowed just slightly in concentration. “It’s about seven-thirty,” she replies, her voice steady but tinged with the familiar warmth of hospitality. “Dinner should be ready soon, so we’ll all be gathering around the table." She glances toward the kitchen, where the vibrant sounds of cooking continue, and adds, “It’s a little chaotic, but I promise it’ll be good. You’ll get to meet everyone properly then.” The soft glow from the overhead lights casts a cozy atmosphere, making the entryway feel inviting, even as you stand just outside the warmth of the shared space. Mizuki's eyes linger on you, waiting as if unsure whether to fill the silence with more conversation or allow the anticipation of the meal to speak for itself.
+      - img "World Map" [ref=f3e214]
+      - generic [ref=f3e216]:
+        - strong [ref=f3e217]: World Map
+        - emphasis [ref=f3e218]: Front Entry
+        - text: — A glass-fronted genkan in a modern Higashi-Gotanda house. Shoes line the recessed rack; the doorway opens onto the shared living floor, with the kitchen and dining table in view. Stairs lead to the bedrooms and rooftop, and the garage opens beside the entry.
+        - emphasis [ref=f3e219]: Living Room
+        - text: — Floor-to-ceiling glass brings Tokyo daylight across a broad sofa and low coffee table. The open-plan room connects to the kitchen and dining area; stairs link the bedrooms and rooftop.
+        - emphasis [ref=f3e220]: Open Kitchen
+        - text: — An island counter, full-size refrigerator and rice cooker anchor the open kitchen. Grocery notes and a washing-up rota share a board beside the counter.
+        - emphasis [ref=f3e221]: Dining Room
+        - text: — A long communal table sits between the kitchen and the glass wall. Seven chairs make room for the six original housemates and the new arrival.
+        - emphasis [ref=f3e222]: Boys' Bedroom
+        - text: — The shared bedroom for Makoto, Yuki and Uchi has three beds, individual storage and a small common sitting area. Knock and wait for an invitation before entering.
+        - emphasis [ref=f3e223]: Girls' Bedroom
+        - text: — The shared bedroom for Minori, Mizuki and Yuriko has three beds, individual storage and a shared dressing area. Knock and wait for an invitation before entering.
+        - emphasis [ref=f3e224]: Your Guest Room
+        - text: — A small furnished guest room reserved for you, the seventh resident, with a single bed, desk and suitcase space. This extra room belongs to the game adaptation of the house.
+        - emphasis [ref=f3e225]: Shared Bathroom
+        - text: — A shared washroom with separate bathing space, towels and labeled toiletry baskets. The occupied sign and a closed door mean wait outside.
+        - emphasis [ref=f3e226]: Rooftop Terrace
+        - text: — A furnished rooftop terrace above the glass-fronted house, with outdoor seating and a view across residential Higashi-Gotanda toward the Tokyo skyline.
+        - emphasis [ref=f3e227]: Garage
+        - text: — Two shared cars sit beneath the house. A key board and a simple booking notebook help residents coordinate commutes, shopping trips and days out.
+        - emphasis [ref=f3e228]: Higashi-Gotanda Streets
+        - text: — Quiet residential streets in Shinagawa Ward connect the house with small restaurants, shops and the busier streets around Gotanda Station.
+        - emphasis [ref=f3e229]: Gotanda Station
+        - text: — The station connects the neighborhood to the JR Yamanote Line and the wider city. Ticket gates, platform signs and a meeting spot outside make it a useful starting point for a day out.
+        - emphasis [ref=f3e230]: Neighborhood Cafe
+        - text: — A small neighborhood cafe with a coffee counter and window seats. It is a game-created local place for a drink, a work break or an unhurried conversation.
+        - emphasis [ref=f3e231]: Tap Dance Studio
+        - text: — A rented Tokyo rehearsal studio with a sprung wooden floor, mirrors and stacked folding chairs. This game-created workplace is reached by a short train ride and walk from Gotanda.
+        - emphasis [ref=f3e232]: Hair Salon
+        - text: — A bright Tokyo salon with mirrored stations, appointment books and a waiting bench. This game-created workplace is reached by a short train ride and walk from Gotanda.
+    - generic [ref=f3e154]:
+      - generic [ref=f3e155]:
+        - generic [ref=f3e156]: S
+        - textbox "Message..." [active] [ref=f3e157]
+        - generic [ref=f3e158]:
+          - button "Image" [ref=f3e159] [cursor=pointer]: 🖼️
+          - button "Persona" [ref=f3e160] [cursor=pointer]: ◌
+      - button "Send" [disabled] [ref=f3e161]: ➤
+    - generic [ref=f3e162]: This is A.I. and not a real person. Treat everything it says as fiction.
+  - option "Murder Mystery" [selected]
+  - option "Romance"
+  - option "Horror"
+  - option "Fantasy"
+  - option "Comedy"
+  - option "Sci-Fi"
+  - option "Thriller"
+  - navigation [ref=f3e80]:
+    - generic [ref=f3e81] [cursor=pointer]:
+      - generic [ref=f3e82]: 🏠
+      - generic [ref=f3e83]: Home
+    - generic [ref=f3e84] [cursor=pointer]:
+      - generic [ref=f3e85]: 💬
+      - generic [ref=f3e86]: My Games
+    - generic [ref=f3e87] [cursor=pointer]:
+      - generic [ref=f3e88]: ✚
+      - generic [ref=f3e90]: Create
+    - generic [ref=f3e91] [cursor=pointer]:
+      - generic [ref=f3e92]: 👤
+      - generic [ref=f3e93]: Profile

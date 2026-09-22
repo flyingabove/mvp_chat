@@ -1,0 +1,85 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - generic [ref=f3e4]: StoriesChat
+      - generic [ref=f3e5]:
+        - button "✓ Guest Mode" [ref=f3e6] [cursor=pointer]
+        - button "Hard reload" [ref=f3e7] [cursor=pointer]: ⟳
+        - button "Search" [ref=f3e8] [cursor=pointer]: 🔍
+        - button "Profile" [ref=f3e9] [cursor=pointer]: 👤
+    - generic [ref=f3e10]:
+      - generic [ref=f3e15]:
+        - generic [ref=f3e16]: Murder Mystery
+        - generic [ref=f3e17]: "Echoes of Cheongdam: IU Murder Mystery"
+        - generic [ref=f3e18]: A beloved singer is dead in Gangnam's most exclusive neighborhood. The suspects are hiding something. Can you expose the truth before it's buried forever?
+        - generic [ref=f3e19]:
+          - button "▶ Play" [ref=f3e20] [cursor=pointer]
+          - button "ⓘ More Info" [ref=f3e21] [cursor=pointer]
+      - generic [ref=f3e22]:
+        - generic [ref=f3e23]:
+          - generic [ref=f3e24]: Continue Playing
+          - generic [ref=f3e26] [cursor=pointer]:
+            - generic [ref=f3e27]:
+              - generic [ref=f3e28]: 🎭
+              - generic [ref=f3e29]: Slice of Life / Ensemble Drama
+            - generic [ref=f3e30]: Terrace in the City
+        - generic [ref=f3e32]:
+          - generic [ref=f3e33]: Featured Games
+          - generic [ref=f3e34]:
+            - generic [ref=f3e35] [cursor=pointer]:
+              - generic [ref=f3e36]:
+                - generic [ref=f3e37]: 🔪
+                - generic [ref=f3e38]: Murder Mystery
+              - generic [ref=f3e39]: "Echoes of Cheongdam: IU Murder Mystery"
+            - generic [ref=f3e41] [cursor=pointer]:
+              - generic [ref=f3e42]:
+                - generic [ref=f3e43]: 🎭
+                - generic [ref=f3e44]: Slice of Life / Ensemble Drama
+              - generic [ref=f3e45]: Terrace in the City
+        - generic [ref=f3e47]:
+          - generic [ref=f3e48]: Murder Mystery
+          - generic [ref=f3e50] [cursor=pointer]:
+            - generic [ref=f3e51]:
+              - generic [ref=f3e52]: 🔪
+              - generic [ref=f3e53]: Murder Mystery
+            - generic [ref=f3e54]: "Echoes of Cheongdam: IU Murder Mystery"
+        - generic [ref=f3e56]:
+          - generic [ref=f3e57]: Slice of Life / Ensemble Drama
+          - generic [ref=f3e59] [cursor=pointer]:
+            - generic [ref=f3e60]:
+              - generic [ref=f3e61]: 🎭
+              - generic [ref=f3e62]: Slice of Life / Ensemble Drama
+            - generic [ref=f3e63]: Terrace in the City
+        - generic [ref=f3e65]:
+          - generic [ref=f3e66]: All Games
+          - generic [ref=f3e67]:
+            - generic [ref=f3e68] [cursor=pointer]:
+              - generic [ref=f3e69]:
+                - generic [ref=f3e70]: 🔪
+                - generic [ref=f3e71]: Murder Mystery
+              - generic [ref=f3e72]: "Echoes of Cheongdam: IU Murder Mystery"
+            - generic [ref=f3e74] [cursor=pointer]:
+              - generic [ref=f3e75]:
+                - generic [ref=f3e76]: 🎭
+                - generic [ref=f3e77]: Slice of Life / Ensemble Drama
+              - generic [ref=f3e78]: Terrace in the City
+  - option "Murder Mystery" [selected]
+  - option "Romance"
+  - option "Horror"
+  - option "Fantasy"
+  - option "Comedy"
+  - option "Sci-Fi"
+  - option "Thriller"
+  - navigation [ref=f3e80]:
+    - generic [ref=f3e81] [cursor=pointer]:
+      - generic [ref=f3e82]: 🏠
+      - generic [ref=f3e83]: Home
+    - generic [ref=f3e84] [cursor=pointer]:
+      - generic [ref=f3e85]: 💬
+      - generic [ref=f3e86]: My Games
+    - generic [ref=f3e87] [cursor=pointer]:
+      - generic [ref=f3e88]: ✚
+      - generic [ref=f3e90]: Create
+    - generic [ref=f3e91] [cursor=pointer]:
+      - generic [ref=f3e92]: 👤
+      - generic [ref=f3e93]: Profile
