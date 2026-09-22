@@ -156,11 +156,118 @@ async def test_call_extractor_llm_strips_markdown_fences():
 
 
 @pytest.mark.asyncio
-async def test_call_extractor_llm_returns_empty_on_network_error():
-    """_call_extractor_llm returns [] without raising on HTTP failure."""
+async def test_call_extractor_llm_raises_on_network_error():
+    """Phase 1.2: _call_extractor_llm now RAISES on HTTP failure instead of
+    swallowing to []. This is the deliberate contract change that lets
+    extract_facts_with_status distinguish "provider failed" (must retry) from
+    "genuinely nothing to extract" (safe to mark done) — the old []-for-both
+    behavior meant a provider outage was silently recorded as a successful
+    empty extraction. The OLD assertion (returns [] without raising) is now
+    the contract of the public `extract_facts_from_message` wrapper instead —
+    see test_extract_facts_from_message_returns_empty_on_llm_failure below."""
     from backend.app.knowledge.runtime.dialogue_extractor import _call_extractor_llm
 
     with patch("httpx.AsyncClient", side_effect=Exception("connection refused")):
-        result = await _call_extractor_llm("some text")
+        with pytest.raises(Exception, match="connection refused"):
+            await _call_extractor_llm("some text")
+
+
+@pytest.mark.asyncio
+async def test_extract_facts_from_message_returns_empty_on_llm_failure():
+    """The PUBLIC, backward-compatible contract: extract_facts_from_message
+    still never raises, even though the underlying _call_extractor_llm now
+    does. Many existing callers (and tests) depend on this."""
+    from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_from_message
+
+    with patch("httpx.AsyncClient", side_effect=Exception("connection refused")):
+        result = await extract_facts_from_message("some text", "user", "msg1", "char1")
 
     assert result == []
+
+
+# ============================================================================
+# Phase 1.2 — extract_facts_with_status / ExtractionResult: the richer
+# contract durable callers use to distinguish a provider failure (must
+# retry) from a genuinely fact-free message (safe to mark done, no retry).
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_extract_facts_with_status_empty_text_is_empty_success():
+    """An empty/whitespace message is EmptySuccess, not a failure — there was
+    never anything to extract, so it must be marked done, not retried."""
+    from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_with_status
+
+    result = await extract_facts_with_status("", "user", "abc123", "iu")
+    assert result.ok is True
+    assert result.chunks == []
+
+    result2 = await extract_facts_with_status("   \n\t  ", "user", "abc123", "iu")
+    assert result2.ok is True
+    assert result2.chunks == []
+
+
+@pytest.mark.asyncio
+async def test_extract_facts_with_status_success_with_facts():
+    from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_with_status
+
+    with patch("backend.app.knowledge.runtime.dialogue_extractor._call_extractor_llm",
+               new=AsyncMock(return_value=["IU lived in the apartment."])):
+        result = await extract_facts_with_status(
+            "IU lived in this apartment.", role="user", msg_id="abc123", character_id="iu",
+        )
+
+    assert result.ok is True
+    assert len(result.chunks) == 1
+    assert result.chunks[0]["text"] == "IU lived in the apartment."
+    assert result.error == ""
+
+
+@pytest.mark.asyncio
+async def test_extract_facts_with_status_genuinely_no_facts_is_empty_success():
+    """The LLM ran successfully and found nothing worth extracting (e.g. "ok",
+    "hi") — this must be ok=True with empty chunks, NOT a failure."""
+    from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_with_status
+
+    with patch("backend.app.knowledge.runtime.dialogue_extractor._call_extractor_llm",
+               new=AsyncMock(return_value=[])):
+        result = await extract_facts_with_status("ok", role="user", msg_id="abc123", character_id="iu")
+
+    assert result.ok is True
+    assert result.chunks == []
+
+
+@pytest.mark.asyncio
+async def test_extract_facts_with_status_provider_failure_is_not_ok():
+    """THE regression test: a provider failure must be told apart from a
+    fact-free message. Before Phase 1.2, both cases returned [] identically —
+    a durable caller could not tell "nothing to extract" from "extraction
+    never actually ran"."""
+    from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_with_status
+
+    with patch("httpx.AsyncClient", side_effect=Exception("connection refused")):
+        result = await extract_facts_with_status(
+            "some real dialogue with facts in it", role="user", msg_id="abc123", character_id="iu",
+        )
+
+    assert result.ok is False
+    assert result.chunks == []
+    assert "connection refused" in result.error
+
+
+@pytest.mark.asyncio
+async def test_extract_facts_with_status_chunk_ids_match_legacy_format():
+    """Chunk shape/IDs must match extract_facts_from_message exactly — this
+    is a parallel API, not a schema change."""
+    from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_with_status
+
+    with patch("backend.app.knowledge.runtime.dialogue_extractor._call_extractor_llm",
+               new=AsyncMock(return_value=["A fact.", "Another fact."])):
+        result = await extract_facts_with_status(
+            "dialogue text", role="assistant", msg_id="ff1122334455", character_id="iu",
+        )
+
+    assert len(result.chunks) == 2
+    assert result.chunks[0]["chunk_id"] == "ai-ff1122334455-0"
+    assert result.chunks[1]["chunk_id"] == "ai-ff1122334455-1"
+    assert result.chunks[0]["source_type"] == "ai"
+    assert result.chunks[0]["confidence"] == "ai_stated"

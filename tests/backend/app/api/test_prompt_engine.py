@@ -1063,16 +1063,19 @@ def test_extraction_outbox_row_enqueued_for_guest_session(client, monkeypatch):
     exist for a guest (non-anon) turn, capturing the exact user_msg/ai_reply
     that would otherwise only live in-memory until the extraction task
     (which might never complete, e.g. on a crash) finishes. Extraction is
-    patched to raise so the row is left in a state we can inspect (marked
-    'failed' with the row's fields intact) rather than racing the
-    fire-and-forget task's completion."""
+    patched to fail (Phase 1.2: extract_facts_with_status, which the durable
+    path actually calls — NOT extract_facts_from_message, which is only the
+    anon best-effort path since Phase 1.2) so the row is left in a state we
+    can inspect (marked 'failed' with the row's fields intact) rather than
+    racing the fire-and-forget task's completion."""
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.db.repos import get_connection
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
     import asyncio
 
-    async def _raising_extract(*args, **kwargs):
-        raise RuntimeError("simulated extraction failure")
-    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _raising_extract, raising=False)
+    async def _failing_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=False, chunks=[], error="simulated extraction failure")
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _failing_extract_with_status, raising=False)
 
     guest_headers = {"X-Guest-Id": "44444444-5555-6666-7777-888888888888"}
     sid = "outbox_enqueue_check"
@@ -1114,11 +1117,12 @@ def test_extraction_outbox_row_enqueued_for_guest_session(client, monkeypatch):
 def test_extraction_outbox_row_marked_done_after_successful_extraction(client, monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.db.repos import FactExtractionOutboxRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
     import asyncio
 
-    async def _fast_extract(*args, **kwargs):
-        return []
-    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _fast_extract, raising=False)
+    async def _fast_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=True, chunks=[])
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _fast_extract_with_status, raising=False)
 
     guest_headers = {"X-Guest-Id": "55555555-6666-7777-8888-999999999999"}
     sid = "outbox_mark_done_check"
@@ -1177,6 +1181,107 @@ def test_anon_session_skips_outbox_enqueue(client, monkeypatch):
 
     matching = asyncio.run(_check())
     assert matching == [], "anon sessions must not create a durable outbox row"
+
+
+def test_extraction_output_is_durably_queryable_not_just_marked_done(client, monkeypatch):
+    """Phase 1.2's actual acceptance criterion, end-to-end through the real
+    /api/chat path: a successful non-anon extraction must leave its chunks
+    readable from ExtractedChunksRepo — durable storage, not just an
+    in-memory SessionChunkStore that a crash before the NEXT turn's session
+    save would have lost despite the outbox row correctly saying 'done'."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+    import asyncio
+    import uuid
+
+    async def _extract_with_status(text, role, msg_id, char_id):
+        return ExtractionResult(ok=True, chunks=[{
+            "chunk_id": f"{'usr' if role == 'user' else 'ai'}-{msg_id}-0",
+            "character_id": char_id, "type": "dialogue_fact",
+            "text": f"durable fact from {role}", "confidence": "player_stated",
+            "source_type": "usr" if role == "user" else "ai", "source_msg_id": msg_id,
+        }])
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _extract_with_status, raising=False)
+
+    guest_headers = {"X-Guest-Id": "66666666-7777-8888-9999-aaaaaaaaaaaa"}
+    # Unique per invocation: this repo's DB is NOT test-isolated for this
+    # file (no tmp_data_dir fixture here), so a shared real SQLite file can
+    # carry rows from other runs in the same session_id if it were reused.
+    # Filtering to only rows/chunks whose source_msg_id came from THIS
+    # specific request_id keeps the assertion correct regardless.
+    sid = f"durable_extraction_e2e_check_{uuid.uuid4().hex[:8]}"
+    r0 = client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r0.status_code == 200
+    r1 = client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": "hello there"},
+    )
+    assert r1.status_code == 200
+
+    async def _wait_for_durable_chunks():
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            pending = await FactExtractionOutboxRepo.fetch_pending()
+            if not any(row["session_id"] == sid for row in pending):
+                return await ExtractedChunksRepo.load_for_session(sid)
+        return None
+
+    chunks = asyncio.run(_wait_for_durable_chunks())
+    assert chunks is not None, "outbox row never left pending"
+    # This session_id is freshly randomized above, so unlike the general
+    # repo it cannot collide with rows from any other test run.
+    assert len(chunks) == 2, "must durably store both the user-message and AI-reply chunks"
+    texts = {c["text"] for c in chunks}
+    assert texts == {"durable fact from user", "durable fact from assistant"}
+
+
+def test_extraction_failure_leaves_row_pending_not_falsely_done(client, monkeypatch):
+    """The regression this whole phase closes: a provider failure during
+    extraction must be retryable (status left non-done), never recorded as a
+    successful empty extraction the way the old []-for-everything contract
+    did."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import get_connection
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+    import asyncio
+
+    async def _failing_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=False, chunks=[], error="simulated provider outage")
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _failing_extract_with_status, raising=False)
+
+    guest_headers = {"X-Guest-Id": "77777777-8888-9999-aaaa-bbbbbbbbbbbb"}
+    sid = "extraction_failure_not_falsely_done_check"
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": "hello there"},
+    ).status_code == 200
+
+    async def _wait_for_row():
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            conn = get_connection()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM fact_extraction_outbox WHERE session_id = ?", (sid,)
+                ).fetchall()
+            finally:
+                conn.close()
+            if rows and rows[0]["status"] != "pending":
+                return dict(rows[0])
+        return None
+
+    row = asyncio.run(_wait_for_row())
+    assert row is not None
+    assert row["status"] == "failed", "a provider failure must never be recorded as 'done'"
+    assert "simulated provider outage" in (row["last_error"] or "")
 
 
 def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, monkeypatch):

@@ -10,7 +10,7 @@ from backend.app.engine.extractors.turn_extractor import (
 
 from fastapi import APIRouter, Depends, Request
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
-from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo
+from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 
 import asyncio
 import copy
@@ -32,7 +32,9 @@ logger = logging.getLogger(__name__)
 
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
 from backend.app.knowledge.runtime.session_chunk_store import SessionChunkStore
-from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_from_message
+from backend.app.knowledge.runtime.dialogue_extractor import (
+    extract_facts_from_message, extract_facts_with_status, EXTRACTOR_VERSION,
+)
 
 from backend.app.knowledge.runtime.index_service import IndexService
 
@@ -3120,43 +3122,89 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # sessions have no durable identity (they never persist to SQLite at
     # all - see the `user_id != "anon"` guard above), so they keep the
     # legacy best-effort fire-and-forget path unchanged.
+    #
+    # Phase 1.2: for non-anon sessions, ALSO make the extraction OUTPUT
+    # durable, not just the attempt. The old `_extract_and_store` wrote
+    # chunks only into the in-memory SessionChunkStore, then called plain
+    # `mark_done` - a crash between those two lines left a 'done' row with no
+    # actual chunks anywhere durable (the in-memory store is only persisted
+    # by a LATER turn's session save, which hasn't happened yet at this
+    # point). It also used extract_facts_from_message, which collapses
+    # "provider failed" and "genuinely nothing to extract" to the same []
+    # and always marked done either way - a real outage was silently
+    # recorded as a successful empty extraction and never retried.
     character_id = str(getattr(state, "knowledge_character_id", "") or state.story or "unknown")
     if state.session_chunk_store is not None:
         import asyncio as _asyncio
 
-        async def _extract_and_store(
-            _user_msg: str, _user_id: str, _ai_reply: str, _ai_id: str,
-            _char_id: str, _store: "SessionChunkStore", _outbox_row_id: int | None,
+        async def _extract_and_store_durable(
+            _user_msg: str, _user_msg_id: str, _ai_reply: str, _ai_msg_id: str,
+            _char_id: str, _store: "SessionChunkStore", _session_id: str, _user_id: str,
+            _outbox_row_id: int,
         ) -> None:
+            usr_result = await extract_facts_with_status(_user_msg, "user", _user_msg_id, _char_id)
+            ai_result = await extract_facts_with_status(_ai_reply, "assistant", _ai_msg_id, _char_id)
+            # Either half failing means the OUTPUT is incomplete for this
+            # turn - must retry, never mark done. (A retry re-runs both
+            # halves; INSERT OR REPLACE on the chunk table means a half that
+            # already durably succeeded is simply overwritten with the same
+            # content, not duplicated.)
+            if not usr_result.ok or not ai_result.ok:
+                err = usr_result.error or ai_result.error or "unknown extraction failure"
+                try:
+                    await FactExtractionOutboxRepo.mark_failed(_outbox_row_id, err)
+                except Exception:
+                    logger.exception(
+                        "Failed to mark fact-extraction outbox row %s failed for session %s",
+                        _outbox_row_id, _session_id,
+                    )
+                return
+            all_chunks = usr_result.chunks + ai_result.chunks
+            _store.add_chunks(all_chunks)
+            try:
+                await FactExtractionOutboxRepo.mark_done_with_chunks(
+                    _outbox_row_id, _session_id, _user_id,
+                    {_user_msg_id: usr_result.chunks, _ai_msg_id: ai_result.chunks},
+                    EXTRACTOR_VERSION,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to durably persist extracted chunks for session %s (row %s) - "
+                    "chunks are in the in-memory store but NOT marked done, so a "
+                    "recovery sweep will retry rather than silently lose them",
+                    _session_id, _outbox_row_id,
+                )
+
+        async def _extract_and_store_best_effort(
+            _user_msg: str, _user_id: str, _ai_reply: str, _ai_id: str,
+            _char_id: str, _store: "SessionChunkStore",
+        ) -> None:
+            # Anon path, unchanged: no durable identity to persist chunks or
+            # an outbox row against, so this stays fire-and-forget.
             try:
                 usr_chunks = await extract_facts_from_message(_user_msg, "user", _user_id, _char_id)
                 ai_chunks = await extract_facts_from_message(_ai_reply, "assistant", _ai_id, _char_id)
                 _store.add_chunks(usr_chunks + ai_chunks)
-                if _outbox_row_id is not None:
-                    await FactExtractionOutboxRepo.mark_done(_outbox_row_id)
-            except Exception as exc:
-                if _outbox_row_id is not None:
-                    try:
-                        await FactExtractionOutboxRepo.mark_failed(_outbox_row_id, str(exc))
-                    except Exception:
-                        pass
+            except Exception:
+                pass
 
         if user_id != "anon":
             try:
                 outbox_row_id = await FactExtractionOutboxRepo.enqueue(
                     session_id, user_id, msg, user_msg_id, clean, ai_msg_id, character_id,
                 )
-                _asyncio.ensure_future(_extract_and_store(
+                _asyncio.ensure_future(_extract_and_store_durable(
                     msg, user_msg_id, clean, ai_msg_id,
-                    character_id, state.session_chunk_store, outbox_row_id,
+                    character_id, state.session_chunk_store, session_id, user_id,
+                    outbox_row_id,
                 ))
             except Exception:
                 logger.exception("Failed to enqueue fact-extraction outbox row for session %s", session_id)
         else:
             try:
-                _asyncio.ensure_future(_extract_and_store(
+                _asyncio.ensure_future(_extract_and_store_best_effort(
                     msg, user_msg_id, clean, ai_msg_id,
-                    character_id, state.session_chunk_store, None,
+                    character_id, state.session_chunk_store,
                 ))
             except Exception:
                 pass

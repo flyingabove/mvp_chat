@@ -445,6 +445,49 @@ class FactExtractionOutboxRepo:
             conn.close()
 
     @staticmethod
+    def _mark_done_with_chunks(
+        row_id: int, session_id: str, user_id: str,
+        chunks_by_msg_id: dict[str, list[dict]], extractor_version: int,
+    ) -> None:
+        """Phase 1.2: the actual durability fix. Writes the extracted chunks
+        into `extracted_chunks` AND marks the outbox row done in ONE
+        transaction on ONE connection — `mark_done` alone (above) previously
+        let a crash between "chunks written to the in-memory
+        SessionChunkStore" and "row marked done" silently lose the facts
+        despite the row correctly saying done. Making both writes atomic
+        closes that window entirely: either both happened, or neither did.
+
+        `chunks_by_msg_id` maps a source message id to its extracted chunk
+        list (e.g. {"user_msg_id": [...], "ai_msg_id": [...]}) so a single
+        call durably records both halves of one turn's extraction.
+        """
+        conn = get_connection()
+        try:
+            now = int(time.time())
+            for source_msg_id, chunks in chunks_by_msg_id.items():
+                for chunk in chunks:
+                    chunk_id = str(chunk.get("chunk_id") or "").strip()
+                    if not chunk_id:
+                        continue
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO extracted_chunks
+                            (session_id, user_id, source_msg_id, extractor_version,
+                             chunk_id, chunk_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (session_id, user_id, source_msg_id, extractor_version,
+                         chunk_id, json.dumps(chunk, ensure_ascii=False), now),
+                    )
+            conn.execute(
+                "UPDATE fact_extraction_outbox SET status = 'done', completed_at = ? WHERE id = ?",
+                (now, row_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
     def _mark_failed(row_id: int, error: str) -> None:
         conn = get_connection()
         try:
@@ -455,6 +498,42 @@ class FactExtractionOutboxRepo:
                 (error[:500], row_id),
             )
             conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _claim_pending(limit: int, lease_seconds: int) -> list[dict]:
+        """Phase 1.2 (closes BL-01c): atomically claim up to `limit` pending
+        rows by setting a lease_until in the future, so a periodic mid-uptime
+        sweep can tell a row currently being worked on (lease not yet
+        expired) apart from one whose worker hung without crashing (lease
+        expired, still 'pending'). A single UPDATE...RETURNING-style claim
+        via two statements under one connection - SQLite's Python driver
+        doesn't support RETURNING on older versions, so select-then-update
+        with a WHERE guard on status='pending' AND (lease_until IS NULL OR
+        lease_until < now) is used instead, which is still race-safe under
+        SQLite's single-writer model."""
+        conn = get_connection()
+        try:
+            now = int(time.time())
+            lease_until = now + lease_seconds
+            rows = conn.execute(
+                """SELECT * FROM fact_extraction_outbox
+                   WHERE status = 'pending' AND (lease_until IS NULL OR lease_until < ?)
+                   ORDER BY created_at ASC LIMIT ?""",
+                (now, limit),
+            ).fetchall()
+            claimed = []
+            for row in rows:
+                cur = conn.execute(
+                    """UPDATE fact_extraction_outbox SET lease_until = ?
+                       WHERE id = ? AND status = 'pending' AND (lease_until IS NULL OR lease_until < ?)""",
+                    (lease_until, row["id"], now),
+                )
+                if cur.rowcount:
+                    claimed.append(dict(row))
+            conn.commit()
+            return claimed
         finally:
             conn.close()
 
@@ -502,6 +581,18 @@ class FactExtractionOutboxRepo:
         await asyncio.to_thread(cls._mark_done, row_id)
 
     @classmethod
+    async def mark_done_with_chunks(
+        cls, row_id: int, session_id: str, user_id: str,
+        chunks_by_msg_id: dict[str, list[dict]], extractor_version: int,
+    ) -> None:
+        """Phase 1.2: the durable path — use this instead of mark_done() for
+        any extraction that produced chunks. See _mark_done_with_chunks."""
+        await asyncio.to_thread(
+            cls._mark_done_with_chunks, row_id, session_id, user_id,
+            chunks_by_msg_id, extractor_version,
+        )
+
+    @classmethod
     async def mark_failed(cls, row_id: int, error: str) -> None:
         await asyncio.to_thread(cls._mark_failed, row_id, error)
 
@@ -510,8 +601,51 @@ class FactExtractionOutboxRepo:
         return await asyncio.to_thread(cls._fetch_pending, limit)
 
     @classmethod
+    async def claim_pending(cls, limit: int = 200, lease_seconds: int = 300) -> list[dict]:
+        """Phase 1.2 (closes BL-01c): atomically lease pending rows so a
+        periodic mid-uptime sweep can reclaim ones whose worker hung without
+        crashing, not just ones left pending by a process restart."""
+        return await asyncio.to_thread(cls._claim_pending, limit, lease_seconds)
+
+    @classmethod
     async def prune_done_older_than(cls, cutoff_ts: int) -> int:
         return await asyncio.to_thread(cls._prune_done_older_than, cutoff_ts)
+
+
+class ExtractedChunksRepo:
+    """Phase 1.2: durable extraction OUTPUT (see extracted_chunks table).
+
+    Complements FactExtractionOutboxRepo, which durably records that an
+    extraction was ATTEMPTED. This repo durably records what it PRODUCED, so
+    a crash between "chunks stored in-memory" and "next session save" cannot
+    silently drop them — mark_done_with_chunks above writes here and marks
+    the outbox row done in one transaction.
+    """
+
+    @staticmethod
+    def _load_for_session(session_id: str) -> list[dict]:
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT chunk_json FROM extracted_chunks WHERE session_id = ? ORDER BY created_at ASC",
+                (session_id,),
+            ).fetchall()
+            out = []
+            for row in rows:
+                try:
+                    out.append(json.loads(row["chunk_json"]))
+                except Exception:
+                    continue
+            return out
+        finally:
+            conn.close()
+
+    @classmethod
+    async def load_for_session(cls, session_id: str) -> list[dict]:
+        """Return every durably-stored chunk for a session, in insertion
+        order. Used to reattach recovered facts to a session's
+        SessionChunkStore (e.g. after a restart sweep, or on session load)."""
+        return await asyncio.to_thread(cls._load_for_session, session_id)
 
 
 class ConversationRepo:

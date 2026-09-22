@@ -40,12 +40,6 @@
 **What's needed:** Author NPC-NPC `RelationshipEdge` entries in `six_strangers_story.json` (and any future story wanting this) for the specific pairs whose evolving relationships matter to the narrative — at that point `SocialShiftSignal` will work for those pairs with zero engine changes.
 **Touches:** `backend/app/stories/7_six_strangers/six_strangers_story.json` (content only).
 
-### BL-01c — Fact-extraction outbox has no mid-uptime recovery for hung (not crashed) tasks (source: BL-01b scoping decision, 2026-09-19)
-**What:** BL-01b's recovery sweep (`_fact_extraction_recovery_sweep()` in `backend/app/main.py`) runs once at startup only. It correctly recovers a row left `pending` by a process crash/restart, but if the in-process extraction task silently hangs (e.g. network stall) without the process crashing, that row stays `pending` indefinitely until the next restart.
-**Why deferred:** Deliberately scoped to the crash-recovery failure mode BL-01b's audit finding actually described; a periodic mid-uptime sweep is broader scope (needs a hang-timeout policy, not just an existence check) and wasn't part of the original acceptance criterion.
-**What's needed:** If hung (not crashed) extraction tasks turn out to matter in practice, add a periodic sweep (e.g. alongside `_guest_cleanup_loop`) that reclaims `pending` rows older than some timeout and retries them.
-**Touches:** `backend/app/main.py`.
-
 ### BL-04 — `frontend/debug.html` doesn't send the new operator token (source: audit A03 follow-up)
 **What:** Debug/playback/authoring routes now require `X-Operator-Token` (commit `f443238`), but the hosted debug UI (`frontend/debug.html`) was never updated to send it, so it will 401 against a real deployment with `DEBUG_TOOLS_ENABLED=1`.
 **Why deferred:** Out of scope for the security-fix pass (frontend UI wiring, not a vulnerability).
@@ -82,6 +76,11 @@
 ## Done
 
 _(move resolved items here with the commit SHA that closed them)_
+
+### BL-01c — Fact-extraction outbox mid-uptime recovery for hung (not crashed) tasks — CLOSED (2026-09-22, Phase 1.2 of the reuse/performance engineering plan)
+**What was done:** `FactExtractionOutboxRepo.claim_pending()` (`backend/app/db/repos.py`) atomically leases pending rows (`lease_until` column, added via `_ensure_column` migration so existing deployed DBs pick it up without a destructive `ALTER`). A new `_fact_extraction_periodic_sweep_loop()` in `backend/app/main.py` runs every 10 minutes (`FACT_EXTRACTION_SWEEP_INTERVAL_SECONDS`), claiming rows whose lease has expired (5-minute lease, `FACT_EXTRACTION_LEASE_SECONDS`) and reprocessing them through the same durable path the startup sweep uses (`_reprocess_outbox_rows`, shared between both sweeps). Wired into `lifespan` alongside the existing guest-cleanup task.
+**Tests:** `test_claim_pending_sets_lease_and_hides_row_from_immediate_reclaim`, `test_claim_pending_reclaims_after_lease_expires`, `test_claim_pending_does_not_claim_done_or_failed_rows` (`tests/backend/app/db/test_repos.py`); `test_fact_extraction_periodic_sweep_reclaims_hung_task` (`tests/backend/app/test_main.py`) — simulates a row left pending by a hung (not crashed) task via an already-expired lease, proves the periodic sweep's claim step reclaims it and resolves it.
+**Touches:** `backend/app/db/database.py`, `backend/app/db/repos.py`, `backend/app/main.py`.
 
 ### Six Strangers audit Phase 4 — engagement and polish — FULLY COMPLETE (2026-09-20, source: [audit and proposal](SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md))
 **Status:** all four items in the user's confirmed sequencing (response/initiative tuning → journal/recap UI → time-skip UI → mobile/portrait polish) are done and live-verified.

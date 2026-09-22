@@ -20,7 +20,7 @@ from backend.app.api.debug_engine import router as debug_router, ws_debug
 from backend.app.api.auth import router as auth_router
 from backend.app.api.user_sessions import router as user_sessions_router
 from backend.app.db.database import init_db
-from backend.app.db.repos import SessionRepo, FactExtractionOutboxRepo
+from backend.app.db.repos import SessionRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 
 from backend.app.middleware.request_id import request_id_middleware
 from backend.app.knowledge.runtime.index_service import IndexService
@@ -104,49 +104,94 @@ async def _guest_cleanup_loop():
             _log.exception("Guest cleanup task failed")
 
 
+FACT_EXTRACTION_LEASE_SECONDS = 300  # 5 minutes
+FACT_EXTRACTION_SWEEP_INTERVAL_SECONDS = 600  # 10 minutes
+
+
+async def _fact_extraction_periodic_sweep_loop():
+    """Phase 1.2 (closes BL-01c): the startup sweep in
+    _fact_extraction_recovery_sweep only runs once, at process start, so it
+    correctly recovers a row left 'pending' by a CRASH/restart but not one
+    whose in-process extraction task HUNG (e.g. a network stall) without the
+    process itself crashing - that row would stay 'pending' indefinitely
+    until the next restart. This loop periodically claims pending rows whose
+    lease has expired (claim_pending sets a lease so a row currently being
+    worked by the original task is not double-processed) and reprocesses
+    them through the same durable path."""
+    while True:
+        await asyncio.sleep(FACT_EXTRACTION_SWEEP_INTERVAL_SECONDS)
+        try:
+            claimed = await FactExtractionOutboxRepo.claim_pending(
+                limit=200, lease_seconds=FACT_EXTRACTION_LEASE_SECONDS,
+            )
+            await _reprocess_outbox_rows(claimed, "periodic sweep")
+        except Exception:
+            _log.exception("Fact-extraction periodic sweep failed")
+
+
+async def _reprocess_outbox_rows(rows: list[dict], sweep_name: str) -> None:
+    """Shared reprocessing body for both the startup sweep and the periodic
+    mid-uptime sweep (BL-01c). Phase 1.2: uses extract_facts_with_status so a
+    provider failure is retried (mark_failed) instead of being silently
+    recorded as a successful empty extraction, and durably persists the
+    extracted chunks via mark_done_with_chunks in the SAME transaction as the
+    done status - not just the in-memory SessionChunkStore, which is only
+    persisted by a LATER turn's session save.
+
+    Recovered chunks are ALSO attached to the in-memory SESSIONS cache when
+    that session happens to still be loaded, for immediate availability; the
+    durable write above is what actually prevents loss regardless of whether
+    the session is loaded right now."""
+    if not rows:
+        return
+    _log.info("Fact-extraction %s: reprocessing %d rows", sweep_name, len(rows))
+    from backend.app.api.prompt_engine import SESSIONS, extract_facts_with_status, EXTRACTOR_VERSION
+
+    for row in rows:
+        try:
+            usr_result = await extract_facts_with_status(
+                row["user_msg"], "user", row["user_msg_id"], row["character_id"],
+            )
+            ai_result = await extract_facts_with_status(
+                row["ai_reply"], "assistant", row["ai_msg_id"], row["character_id"],
+            )
+            if not usr_result.ok or not ai_result.ok:
+                err = usr_result.error or ai_result.error or "unknown extraction failure"
+                await FactExtractionOutboxRepo.mark_failed(row["id"], err)
+                continue
+
+            sess = SESSIONS.get(row["session_id"])
+            if sess is not None and sess.get("state") is not None:
+                store = sess["state"].session_chunk_store
+                if store is not None:
+                    store.add_chunks(usr_result.chunks + ai_result.chunks)
+
+            await FactExtractionOutboxRepo.mark_done_with_chunks(
+                row["id"], row["session_id"], row["user_id"],
+                {row["user_msg_id"]: usr_result.chunks, row["ai_msg_id"]: ai_result.chunks},
+                EXTRACTOR_VERSION,
+            )
+        except Exception as exc:
+            try:
+                await FactExtractionOutboxRepo.mark_failed(row["id"], str(exc))
+            except Exception:
+                _log.exception("Fact-extraction %s: failed to mark row %s failed", sweep_name, row["id"])
+
+
 async def _fact_extraction_recovery_sweep():
     """BL-01b: one-shot startup sweep that reprocesses any fact-extraction
     outbox rows left 'pending' by a crash between enqueue and completion on
     a prior run (the failure mode this durable outbox exists to close). Also
     prunes 'done' rows older than the retention window so the table doesn't
     grow unbounded on a long-running deploy; 'failed' rows are kept
-    indefinitely for diagnosis since volume is low (one row per failure).
-
-    Recovered chunks are attached to the in-memory SESSIONS cache when that
-    session happens to still be loaded; right after a fresh process start
-    the cache is typically empty (rebuilt lazily on next request), so the
-    practical guarantee here is durability - the extraction ran and is
-    marked done, so the facts are not silently lost - not necessarily
-    immediate re-attachment to a currently-open session."""
+    indefinitely for diagnosis since volume is low (one row per failure)."""
     try:
         pending = await FactExtractionOutboxRepo.fetch_pending()
     except Exception:
         _log.exception("Fact-extraction recovery sweep: failed to fetch pending rows")
         return
 
-    if pending:
-        _log.info("Fact-extraction recovery: reprocessing %d pending rows", len(pending))
-        from backend.app.api.prompt_engine import SESSIONS, extract_facts_from_message
-
-        for row in pending:
-            try:
-                usr_chunks = await extract_facts_from_message(
-                    row["user_msg"], "user", row["user_msg_id"], row["character_id"],
-                )
-                ai_chunks = await extract_facts_from_message(
-                    row["ai_reply"], "assistant", row["ai_msg_id"], row["character_id"],
-                )
-                sess = SESSIONS.get(row["session_id"])
-                if sess is not None and sess.get("state") is not None:
-                    store = sess["state"].session_chunk_store
-                    if store is not None:
-                        store.add_chunks(usr_chunks + ai_chunks)
-                await FactExtractionOutboxRepo.mark_done(row["id"])
-            except Exception as exc:
-                try:
-                    await FactExtractionOutboxRepo.mark_failed(row["id"], str(exc))
-                except Exception:
-                    _log.exception("Fact-extraction recovery: failed to mark row %s failed", row["id"])
+    await _reprocess_outbox_rows(pending, "startup recovery")
 
     try:
         cutoff = int(time.time()) - FACT_EXTRACTION_OUTBOX_RETENTION_SECONDS
@@ -189,10 +234,13 @@ async def lifespan(app: FastAPI):
     await _fact_extraction_recovery_sweep()
     # Start guest cleanup background task
     cleanup_task = asyncio.create_task(_guest_cleanup_loop())
+    # Phase 1.2 (BL-01c): periodic sweep for HUNG (not crashed) extraction tasks.
+    extraction_sweep_task = asyncio.create_task(_fact_extraction_periodic_sweep_loop())
     # Fire-and-forget: readiness intentionally does not await the model load.
     warm_task = asyncio.create_task(_warm_embedder())
     yield
     cleanup_task.cancel()
+    extraction_sweep_task.cancel()
     warm_task.cancel()
 
 

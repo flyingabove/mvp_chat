@@ -222,10 +222,11 @@ async def test_fact_extraction_recovery_sweep_reprocesses_pending_row(monkeypatc
     """Simulates the exact failure mode BL-01b closes: a row left 'pending'
     by a prior process crash (enqueued, but the in-process extraction task
     never got to run/complete). The startup sweep must reprocess it and mark
-    it done."""
+    it done - and (Phase 1.2) durably persist whatever it extracted."""
     from backend.app import main
     from backend.app.db.database import init_db
-    from backend.app.db.repos import FactExtractionOutboxRepo
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
 
     init_db()
     row_id = await FactExtractionOutboxRepo.enqueue(
@@ -237,12 +238,12 @@ async def test_fact_extraction_recovery_sweep_reprocesses_pending_row(monkeypatc
 
     extract_calls = []
 
-    async def _fake_extract(text, role, msg_id, char_id):
+    async def _fake_extract_with_status(text, role, msg_id, char_id):
         extract_calls.append((text, role, msg_id, char_id))
-        return []
+        return ExtractionResult(ok=True, chunks=[])
 
     monkeypatch.setattr(
-        "backend.app.api.prompt_engine.extract_facts_from_message", _fake_extract, raising=False,
+        "backend.app.api.prompt_engine.extract_facts_with_status", _fake_extract_with_status, raising=False,
     )
 
     await main._fact_extraction_recovery_sweep()
@@ -277,11 +278,13 @@ async def test_fact_extraction_recovery_sweep_marks_row_failed_on_error(monkeypa
         character_id="mizuki",
     )
 
-    async def _raising_extract(*args, **kwargs):
-        raise RuntimeError("recovery extraction failed")
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+
+    async def _failing_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=False, chunks=[], error="recovery extraction failed")
 
     monkeypatch.setattr(
-        "backend.app.api.prompt_engine.extract_facts_from_message", _raising_extract, raising=False,
+        "backend.app.api.prompt_engine.extract_facts_with_status", _failing_extract_with_status, raising=False,
     )
 
     await main._fact_extraction_recovery_sweep()
@@ -295,6 +298,48 @@ async def test_fact_extraction_recovery_sweep_marks_row_failed_on_error(monkeypa
         conn.close()
     assert row["status"] == "failed"
     assert "recovery extraction failed" in row["last_error"]
+
+
+@pytest.mark.asyncio
+async def test_fact_extraction_periodic_sweep_reclaims_hung_task(monkeypatch):
+    """Phase 1.2 (closes BL-01c): a row left 'pending' by a HUNG task (not a
+    crash - the process is still running, the task just never finished) must
+    be reclaimable by the periodic sweep once its lease expires. The
+    one-shot startup sweep alone cannot catch this, since it only runs once
+    at process start."""
+    from backend.app import main
+    from backend.app.db.database import init_db
+    from backend.app.db.repos import FactExtractionOutboxRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+
+    init_db()
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="hung_task_sess", user_id="guest:hung-uuid",
+        user_msg="a message", user_msg_id="umsg-h1",
+        ai_reply="a reply", ai_msg_id="aimsg-h1",
+        character_id="mizuki",
+    )
+    # Simulate the row already having an expired lease (as if a prior worker
+    # claimed it, then hung without ever marking done/failed).
+    await FactExtractionOutboxRepo.claim_pending(limit=10, lease_seconds=-10)
+
+    async def _fake_extract_with_status(text, role, msg_id, char_id):
+        return ExtractionResult(ok=True, chunks=[])
+
+    monkeypatch.setattr(
+        "backend.app.api.prompt_engine.extract_facts_with_status", _fake_extract_with_status, raising=False,
+    )
+
+    claimed = await FactExtractionOutboxRepo.claim_pending(limit=200, lease_seconds=300)
+    own_claimed = [r for r in claimed if r["id"] == row_id]
+    assert own_claimed, "periodic sweep's claim step must reclaim a row with an expired lease"
+
+    await main._reprocess_outbox_rows(own_claimed, "test periodic sweep")
+
+    pending_after = await FactExtractionOutboxRepo.fetch_pending()
+    assert not any(r["id"] == row_id for r in pending_after), (
+        "reclaimed hung row must be resolved (done) after reprocessing"
+    )
 
 
 @pytest.mark.asyncio

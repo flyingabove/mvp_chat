@@ -50,10 +50,41 @@ CREATE TABLE IF NOT EXISTS fact_extraction_outbox (
     created_at   INTEGER NOT NULL,
     completed_at INTEGER,
     attempts     INTEGER NOT NULL DEFAULT 0,
-    last_error   TEXT
+    last_error   TEXT,
+    lease_until  INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_status ON fact_extraction_outbox(status, created_at);
+
+-- Phase 1.2: durable extraction OUTPUT, not just the input the old outbox
+-- table recorded. Previously `mark_done` was written after the extracted
+-- chunks were only stored in the in-memory SessionChunkStore, which itself
+-- is only persisted into game_sessions.state_json on a LATER turn's save
+-- (the save for THIS turn happens before the background extraction task
+-- even starts) - so a crash between mark_done and the next save silently
+-- lost the facts despite the outbox correctly saying "done". This table
+-- makes the extraction's actual output durable in the same write as the
+-- outbox row being marked done (single connection, single transaction —
+-- see FactExtractionOutboxRepo.mark_done_with_chunks).
+--
+-- Keyed by (session_id, source_msg_id, extractor_version) rather than just
+-- source_msg_id: an extractor prompt/schema change bumps extractor_version,
+-- so old and new extractions of the same message coexist instead of the new
+-- one silently overwriting a differently-shaped old one.
+CREATE TABLE IF NOT EXISTS extracted_chunks (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id        TEXT NOT NULL,
+    user_id           TEXT NOT NULL,
+    source_msg_id     TEXT NOT NULL,
+    extractor_version INTEGER NOT NULL,
+    chunk_id          TEXT NOT NULL,
+    chunk_json        TEXT NOT NULL,
+    created_at        INTEGER NOT NULL,
+    UNIQUE(session_id, chunk_id, extractor_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_extracted_chunks_session
+    ON extracted_chunks(session_id, source_msg_id, extractor_version);
 """
 
 
@@ -77,6 +108,9 @@ def init_db() -> None:
     # SessionRepo.get_last_request/update_last_request in repos.py).
     _ensure_column(conn, "game_sessions", "last_request_id", "TEXT")
     _ensure_column(conn, "game_sessions", "last_reply_json", "TEXT")
+    # Phase 1.2: lease for reclaiming a HUNG (not crashed) extraction task —
+    # the existing table predates this column on any already-deployed DB.
+    _ensure_column(conn, "fact_extraction_outbox", "lease_until", "INTEGER")
     conn.commit()
     conn.close()
 
