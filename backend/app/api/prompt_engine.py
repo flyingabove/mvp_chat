@@ -98,6 +98,7 @@ from backend.app.engine.prompt_builder import (
 
 )
 from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace_key
+from backend.app.utils.stage_timer import StageTimer
 
 
 router = APIRouter()
@@ -2157,6 +2158,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
     t0 = time.time()
+    stage_timer = StageTimer()  # Phase 0B: per-turn stage ledger
 
     # RESET
     if msg == "__cmd_reset__":
@@ -2523,14 +2525,15 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # references. For example, "I'm going to her old studio" needs FAISS knowledge context to
     # resolve "old studio" to the specific location ID (e.g., "downtown_recording_studio").
     try:
-        # Route retrieval to the correct character bundle for this story.
-        if getattr(state, "knowledge_character_id", ""):
-            IndexService.set_active_character(state.knowledge_character_id)
-        namespace = build_namespace_key(user_id=getattr(state, "user_id", ""), story_id=getattr(state, "story", ""), instance=getattr(state, "instance", 1))
-        retrieved, debug = retrieve_knowledge(
-            msg, namespace=namespace,
-            session_store=state.session_chunk_store,
-        )
+        with stage_timer.stage("retrieval"):
+            # Route retrieval to the correct character bundle for this story.
+            if getattr(state, "knowledge_character_id", ""):
+                IndexService.set_active_character(state.knowledge_character_id)
+            namespace = build_namespace_key(user_id=getattr(state, "user_id", ""), story_id=getattr(state, "story", ""), instance=getattr(state, "instance", 1))
+            retrieved, debug = retrieve_knowledge(
+                msg, namespace=namespace,
+                session_store=state.session_chunk_store,
+            )
     except Exception as e:
         _log({"kind": "retrieval_error", "error": str(e)})
         return {"error": "knowledge retrieval failed", "character": "default"}
@@ -2921,12 +2924,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     # Story master call — uses configurable base URL/model so the same code
     # works against OpenAI (online) or a local Ollama instance (local dev).
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.post(
-            f"{STORY_MASTER_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
-            json={**payload, "model": STORY_MASTER_MODEL},
-        )
+    with stage_timer.stage("storyteller"):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                f"{STORY_MASTER_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                json={**payload, "model": STORY_MASTER_MODEL},
+            )
 
     if r.status_code < 200 or r.status_code >= 300:
         _log({
@@ -3033,37 +3037,38 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # persisted snapshot is atomic with respect to the turn just completed.
     if user_id != "anon":
         try:
-            story_title = ""
-            if hasattr(state, "story_cfg") and state.story_cfg:
-                cfg = state.story_cfg
-                story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
-            await SessionRepo.create_or_update_session(
-                session_id=session_id,
-                user_id=user_id,
-                story_id=state.story or "",
-                story_title=story_title,
-                player_name=state.player_name or "",
-                gender=state.gender or "M",
-                state_json=_serialize_state(state, sess["log"]),
-                flags_json=json.dumps({
-                    "debug_mode": bool(sess.get("debug_mode", False)),
-                    "chinese_mode": bool(sess.get("chinese_mode", False)),
-                    "epistemic_state": bool(sess.get("epistemic_state", True)),
-                    "truth_mode": bool(sess.get("truth_mode", False)),
-                }),
-                last_message=clean[:120],
-                turns=state.turns,
-            )
-            await ConversationRepo.append_turns(
-                user_id=user_id,
-                session_id=session_id,
-                user_msg=msg,
-                assistant_reply=clean,
-                turn=state.turns,
-                user_msg_id=user_msg_id,
-                ai_msg_id=ai_msg_id,
-                segments=segments,
-            )
+            with stage_timer.stage("commit"):
+                story_title = ""
+                if hasattr(state, "story_cfg") and state.story_cfg:
+                    cfg = state.story_cfg
+                    story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
+                await SessionRepo.create_or_update_session(
+                    session_id=session_id,
+                    user_id=user_id,
+                    story_id=state.story or "",
+                    story_title=story_title,
+                    player_name=state.player_name or "",
+                    gender=state.gender or "M",
+                    state_json=_serialize_state(state, sess["log"]),
+                    flags_json=json.dumps({
+                        "debug_mode": bool(sess.get("debug_mode", False)),
+                        "chinese_mode": bool(sess.get("chinese_mode", False)),
+                        "epistemic_state": bool(sess.get("epistemic_state", True)),
+                        "truth_mode": bool(sess.get("truth_mode", False)),
+                    }),
+                    last_message=clean[:120],
+                    turns=state.turns,
+                )
+                await ConversationRepo.append_turns(
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_msg=msg,
+                    assistant_reply=clean,
+                    turn=state.turns,
+                    user_msg_id=user_msg_id,
+                    ai_msg_id=ai_msg_id,
+                    segments=segments,
+                )
         except Exception:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
 
@@ -3128,6 +3133,22 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         "usage": data.get("usage", {}),
         "assistant_reply_preview": _truncate(clean, 1200),
     })
+
+    # Phase 0B: per-stage timing/cost ledger for this turn. Separate log line
+    # (kind=turn_stage_ledger) rather than folded into chat_response above, so
+    # a ledger-only query/dashboard doesn't have to also parse reply previews.
+    _log(stage_timer.as_ledger({
+        "kind": "turn_stage_ledger",
+        "req_id": req_id,
+        "session_id": session_id,
+        "user_id": user_id,
+        "story": state.story or "",
+        "turn": state.turns,
+        "model": STORY_MASTER_MODEL,
+        "prompt_tokens": (data.get("usage") or {}).get("prompt_tokens"),
+        "completion_tokens": (data.get("usage") or {}).get("completion_tokens"),
+        "cached_tokens": ((data.get("usage") or {}).get("prompt_tokens_details") or {}).get("cached_tokens"),
+    }))
 
     # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
     ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display

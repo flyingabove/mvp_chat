@@ -8,6 +8,13 @@
 
 ## Open
 
+### BL-15 — Workload harness needs the full matrix run (source: Phase 0B, 2026-09-22)
+**What:** `scripts/bench/turn_workload_harness.py` (Phase 0B) is proven working against live beta but was only run at a small scale: one story, concurrency 1/3, 2 sessions per level. The plan specifies both stories, cold/warm start, short/long conversations, movement, time skip, queue exhaustion, provider errors, and concurrency 1/10/50.
+**Why deferred:** Each additional run spends real paid LLM tokens against the live provider; running the full matrix casually was out of scope for proving the harness itself works. Concurrency 10/50 in particular are real paid-call bursts that deserve a deliberate window, not an unattended background run.
+**What's needed:** Run `--concurrency 10 50`, add the second story, and add the scenario types listed above once there is a deliberate budget/window for it. See `documentation/PHASE_0B_BASELINE_NOTES_2026_09_22.md` for the current partial baseline and exact gaps.
+**Touches:** `scripts/bench/turn_workload_harness.py` (also needs `cached_tokens` added to its summary — currently only captured manually, not in the harness's own report).
+
+
 ### BL-14 — GitHub webhook secret is recoverable from git history; needs rotation or webhook deletion (source: Engineering plan Phase 0A, 2026-09-21)
 **What:** `deployment/gitwebhook.php` contained a literal HMAC signing secret and was a **tracked** file, so the value is present in git history across at least `2caee48`, `57c1a9a`, `612d104`, `0fa402e`, `0578a87`. Phase 0A quarantined the file to `deployment/legacy_cpanel_unused/gitwebhook.php.disabled`, removed the literal (now `getenv("GITWEBHOOK_SECRET")`), and made it fail closed with 503 when unset. **Removing it from the working tree does NOT remove it from history** — anyone with repo read access can still recover the original value.
 **Why deferred:** Rotation requires GitHub repository-settings access (Settings → Webhooks), which the agent does not hold. Code-side remediation is complete; this is the owner action that remains.
