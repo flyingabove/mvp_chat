@@ -243,6 +243,14 @@ def process_pending_events(state, *, apply_cast_replacement) -> list:
         if ev.status != "pending" or ev.scheduled_day > current_day:
             continue
         if ev.event_type == "cast_departure_replacement":
+            lifecycle = getattr(state, "cast_lifecycle", None)
+            member = lifecycle.members.get(ev.payload.get("departing_id")) if lifecycle else None
+            if (lifecycle and lifecycle.require_replacement and member
+                    and lifecycle.is_scene_eligible(ev.payload.get("departing_id"))
+                    and lifecycle.next_up(member.slot_group) is None):
+                # The final cast stays together once this group's queue is spent.
+                # Keep the intention pending without narrating a vacant slot.
+                continue
             try:
                 transition = apply_cast_replacement(
                     state,

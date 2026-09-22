@@ -1297,6 +1297,8 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
     lifecycle = getattr(state, "cast_lifecycle", None)
     if lifecycle is not None and getattr(lifecycle, "enabled", False):
         active_names = []
+        if lifecycle.player_slot_group:
+            active_names.append(f"{state.player_name or 'Player'} (the player)")
         for key in lifecycle.active_ids():
             ch = chars.get(key)
             active_names.append((getattr(ch, "name", None) or key).strip())
@@ -1312,6 +1314,15 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
             "person would to an unfamiliar name: with genuine unfamiliarity, not vague "
             "recognition.\n\n"
         )
+        if lifecycle.player_slot_group:
+            bedroom = state.story_cfg["cast_lifecycle"]["player_bedrooms"][lifecycle.player_slot_group]
+            roster_closure_line += (
+                "The player occupies one of the six resident slots: exactly three men and three women, "
+                "including the player, live here. The player shares "
+                f"{bedroom.replace('_', ' ')}. Departures and same-gender arrivals happen together "
+                "through the automatic replacement queue; nobody leaves without a replacement. "
+                "When that queue is exhausted, the final residents stay.\n\n"
+            )
 
     main_present = _main_character_scene_eligible(state)
     if main_present:

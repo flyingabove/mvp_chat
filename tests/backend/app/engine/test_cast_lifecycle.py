@@ -76,6 +76,35 @@ def test_replace_is_idempotent_by_event_id():
     assert len(state.history) == 1
 
 
+def test_player_reservation_counts_against_capacity_and_cannot_be_duplicated():
+    state = _state()
+    state.reserve_player_slot("men")
+    assert state.active_ids("men") == ["a"]
+    assert state.next_up("men") == "b"
+    assert state.vacancies("men") == 0
+    with pytest.raises(ValueError, match="at capacity"):
+        state.activate("b", minute=1)
+    snapshot = state.to_dict()
+    state.reserve_player_slot("men")
+    assert state.to_dict() == snapshot
+    with pytest.raises(ValueError, match="cannot change"):
+        state.reserve_player_slot("women")
+    restored = CastLifecycleState.from_dict(snapshot)
+    assert restored.to_dict() == snapshot
+
+
+def test_full_house_disallows_departure_without_atomic_replacement():
+    state = _state()
+    state.require_replacement = True
+    for operation in (state.depart, state.deactivate):
+        with pytest.raises(ValueError, match="atomic replacement"):
+            operation("a", minute=1)
+    before = state.to_dict()
+    with pytest.raises(ValueError, match="no same-slot replacement"):
+        state.replace("w", minute=1, event_id="no-women-left")
+    assert state.to_dict() == before
+
+
 def test_propose_departure_does_not_change_status():
     """The audit's 'a decision to leave next week is not immediate removal':
     proposing a departure must leave the member ACTIVE and scene-eligible."""

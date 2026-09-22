@@ -93,6 +93,13 @@ If instructions every conflict with what is designed in the doc, always update t
   otherwise) before calling it done. Passing the local test suite is
   necessary, not sufficient — BL-03 shipped a bug that only existed in the
   deployed/browser context, not in pytest.
+- **Any UI-visible change is checked in a real browser BEFORE committing —
+  standard workflow, not optional.** Desktop Chromium AND an iPhone-sized
+  WebKit session, both against the local dev server, using the Playwright
+  MCP plugin. See `.claude/skills/ship-and-verify/SKILL.md` step 4a for the
+  exact procedure. The same two-mode check is repeated against the live beta
+  site after deploy (Phase 3) — pre-commit doesn't replace post-deploy,
+  it catches layout/JS regressions earlier.
 - Browser automation: the official Playwright MCP plugin
   (`playwright@claude-plugins-official`) should be installed
   (`claude plugin list` to check). If its tools aren't showing up in a

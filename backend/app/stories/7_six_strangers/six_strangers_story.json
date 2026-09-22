@@ -10,7 +10,7 @@
   "meta": {
     "disclaimer": "An unofficial fictional adaptation inspired by Terrace House: Boys & Girls in the City. Public cast names and occupations come from the supplied season dossier; dialogue, private thoughts, house layout, and events are invented for this game. No affiliation with the show.",
     "source_reference": "terrace_house_boys_girls_in_the_city_season1.md, supplied season dossier, sections 1–2 and 4.1–4.17.",
-    "adaptation": "The original six cast members begin together in 2015. The remaining eleven are authored as a private upcoming replacement pool in season entry order. The player is an additional seventh resident in a guest room; departure timing, relationships, and televised outcomes are not pre-scripted."
+    "adaptation": "The player is one of six residents, replacing one original member of the same gender. That member returns to the private upcoming queue. All 17 authored members can enter through automatic same-gender replacements; departure timing and relationships emerge through play."
   },
   "characters": [
     {
@@ -259,8 +259,11 @@
     "replacement_policy": "same_slot_next",
     "departure_policy": "committed_intent",
     "replacement_timing": "next_day",
-    "player_mode": "extra_resident",
-    "rules_profile": "Six NPC residents are active at once: three men and three women. They share a furnished Tokyo house and coordinate two shared cars while continuing outside jobs, school, training, creative work, friendships, and dates. There are no imposed challenges, eliminations, prize, fixed romance, or win condition. Daily life, chores, outings, friendship, and romance emerge from choices; invitations and affection require consent. A resident may leave voluntarily after clearly committing to that decision, without a vote, failure, or romantic outcome. On the next day, the next eligible resident in the same slot group arrives. Entry order follows the supplied season chronology, while timing, relationships, and outcomes remain emergent. Housemates do not know private concerns, future entrants, or televised outcomes. Adaptation: the player occupies a separate guest room as an additional seventh resident and does not consume an NPC slot.",
+    "player_mode": "resident_slot",
+    "player_slot_groups": {"M": "men", "F": "women"},
+    "player_bedrooms": {"men": "boys_bedroom", "women": "girls_bedroom"},
+    "require_replacement": true,
+    "rules_profile": "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. No imposed challenges, eliminations, prize, fixed romance, or win condition. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
     "slot_groups": {
       "men": {"capacity": 3, "label": "Men's resident slots"},
       "women": {"capacity": 3, "label": "Women's resident slots"}
@@ -286,9 +289,9 @@
     }
   },
   "protagonist": {
-    "role": "New seventh housemate in a fictional adaptation of the original six-member household",
+    "role": "One of six housemates, with three men and three women including you",
     "profile": "Your name, background, work, ambitions, and romantic interests are yours to define. You arrive in Tokyo looking for a new everyday life among people with lives of their own.",
-    "reason_for_apartment": "For this game, the house has made a small guest room available to an additional resident. None of the six original housemates has been replaced."
+    "reason_for_apartment": "You have been selected for a resident spot and share the boys bedroom if male or the girls bedroom if female."
   },
   "style": {
     "tone": "Patient, observant Tokyo slice-of-life: light through glass walls, a kettle interrupting an awkward pause, work bags by the stairs, and a dinner conversation that becomes personal before anyone intended it. Let humor and warmth come from specific behavior."
@@ -341,7 +344,7 @@
       },
       {
         "id": "household_premise",
-        "content": "Six original housemates are beginning life together, and the player joins as an additional seventh resident in a small guest room added for this adaptation. Six Strangers is the game title, not an empty-room legend. The original men and women use shared bedrooms; the player chooses their own identity and has a separate room.",
+        "content": "Six residents, including the player, begin life together: three men and three women. The player shares the bedroom matching their gender. The runtime roster determines which five NPCs live here; queued residents are unknown until arrival.",
         "known_by": [
           "all_characters",
           "player"
@@ -748,11 +751,11 @@
     }
   },
   "opening": {
-    "text": "The last of the evening light is caught in the windows when you reach the house. Behind you, the residential street is quiet enough to hear the wheels of your suitcase catch on a seam in the pavement. Somewhere back toward Gotanda station, a train passes above the traffic.\n\nThrough the glass, you can see a long table laid with plates that do not quite match. Someone is counting them, starting again, and pulling out another chair.\n\nYou ring the bell.\n\nThe woman who opens the door has pushed her sleeves back and is carrying a tea towel. She looks from you to the suitcase, then smiles.\n\n[SPEAKER:mizuki]“Hi. You found it. I'm Mizuki.”[/SPEAKER] She steps aside. [SPEAKER:mizuki]“Come in — there's space for your shoes here. Well. There was this morning.”[/SPEAKER]\n\nSeven pairs could fit if everyone moved something an inch. Mizuki nudges her own shoes out of the way first.\n\n[SPEAKER:mizuki]“They've made up the little guest room for you,”[/SPEAKER] she says. [SPEAKER:mizuki]“The rest of us are sharing upstairs. I can show you after dinner, if you're hungry.”[/SPEAKER]\n\nBeyond her, the living room opens into the kitchen and dining area. A young man in a T-shirt has a baseball resting against his knee; beside the sofa, a woman closes a magazine over one finger and looks toward the door. At the table, the person counting plates finally seems satisfied. From upstairs comes the brief rush of a hairdryer, then quiet.\n\n[SPEAKER:mizuki]“Everyone's only just getting used to being here,”[/SPEAKER] Mizuki says, a little more softly. [SPEAKER:mizuki]“So you haven't missed much.”[/SPEAKER]\n\nShe leaves your suitcase beside the entry bench. The kettle clicks off behind her. Nobody calls for a speech, and nobody seems quite sure whether introductions should happen standing up or over dinner.\n\nMizuki stays beside you, one hand resting on the back of the bench.\n\n[SPEAKER:mizuki]“What should we call you? And — tea, coffee, or something cold?”[/SPEAKER]"
+    "text": "Evening light catches the windows as you reach the house with your suitcase. Through the glass, you can see a table set for six.\n\nYou ring the bell. A woman carrying a tea towel opens the door and smiles.\n\n[SPEAKER:mizuki]“Hi. You found it. I’m Mizuki. Come in — there’s space for your shoes here.”[/SPEAKER]\n\nShe steps aside and glances toward the stairs. [SPEAKER:mizuki]“Your bed is ready upstairs, in the shared bedroom. There are six of us now. I can show you around after dinner.”[/SPEAKER]\n\nBeyond her, the kitchen is warm with the sound of cooking. Your other housemates are settling in for the evening, each with a life and plans of their own.\n\n[SPEAKER:mizuki]“What should we call you? And — tea, coffee, or something cold?”[/SPEAKER]"
   },
   "world_context": [
     "An unofficial fictional adaptation of the original Boys & Girls in the City cast and the supplied Tokyo setting; all dialogue and inner lives here are invented.",
-    "The player joins six original members as a seventh resident. Preserve their independent work, studies, boundaries, and friendships; do not assume the player must pursue romance.",
+    "The player is one of six residents, alongside five active NPC housemates. Preserve their independent work, studies, boundaries, and friendships; do not assume the player must pursue romance.",
     "Introduce people through encounters rather than a cast roll call. Do not use later episode outcomes as foreknowledge or force a scripted replay.",
     "City venues and the detailed house floor plan are game inventions. Keep encounters grounded in established locations and travel rather than teleporting housemates to wherever the player is."
   ],
@@ -770,7 +773,7 @@
       "style": "Sparingly, between scene beats, offer a short, warm, wry studio-panel-style observation for the audience, then return to the house. Keep the panel unnamed and outside the world: housemates cannot hear it. Comment only on observable behavior, never disclose private thoughts, predict televised outcomes, or mock someone cruelly."
     },
     "daily_rhythm": [
-      "Six NPC residents are active at a time: three men and three women. The original six begin with the player as an additional seventh resident in a guest room; the remaining authored cast stays upcoming and unknown inside the house.",
+      "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. No imposed challenges, eliminations, prize, fixed romance, or win condition. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
       "A resident may leave only after clearly committing to that choice. On the next day, the next eligible resident in the same slot group arrives; chronology determines only arrival order, never relationships or outcomes.",
       "Mornings involve office hours, coffee shifts, salon appointments, baseball practice, dance rehearsal, modeling, and study. These are narrative commitments, not a mechanically enforced schedule.",
       "Evenings gather around the open kitchen and dining table: cooking, washing up, gentle teasing, questions about work, and silences that need not become confrontations.",

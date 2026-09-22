@@ -189,15 +189,11 @@ def build():
         locations[lid]["description"] += (
             " Knock and wait for an invitation before entering."
         )
-    # New arrival is an explicit game adaptation, retained from the existing game.
-    add(
-        "player_bedroom",
-        "Your Guest Room",
-        "A single-bed guest room with desk and suitcase space, added for the seventh resident.",
-        "house",
-        position=(90, 15),
-        tags=["home", "private", "bedroom"],
-    )
+    # No guest room: the house holds exactly six residents and the player
+    # occupies one of the six gendered resident slots, sharing boys_bedroom or
+    # girls_bedroom per cast_lifecycle.player_bedrooms. An "added for the
+    # seventh resident" room would contradict that invariant, so none is
+    # generated here.
     add(
         "neighborhood",
         "Higashi-Gotanda Streets",
@@ -298,7 +294,6 @@ def build():
         ("hallway", "boys_bedroom"),
         ("hallway", "girls_bedroom"),
         ("hallway", "washitsu"),
-        ("hallway", "player_bedroom"),
         ("hallway", "washroom"),
         ("washroom", "shared_bathroom"),
         ("hallway", "toilet"),

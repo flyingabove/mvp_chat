@@ -708,28 +708,6 @@
         "y": 90
       }
     },
-    "player_bedroom": {
-      "name": "Your Guest Room",
-      "description": "A single-bed guest room with desk and suitcase space, added for the seventh resident.",
-      "tags": [
-        "home",
-        "private",
-        "bedroom"
-      ],
-      "allows_phone": true,
-      "uuid": "default_user-six_strangers-1-player_bedroom",
-      "area_id": "house",
-      "research": {
-        "source_ids": [],
-        "status": "game_added",
-        "episodes": "",
-        "note": ""
-      },
-      "map_position": {
-        "x": 90,
-        "y": 15
-      }
-    },
     "neighborhood": {
       "name": "Higashi-Gotanda Streets",
       "description": "Residential streets linking the house, local shops and Gotanda Station.",
@@ -2443,22 +2421,6 @@
     },
     {
       "from": "washitsu",
-      "to": "hallway",
-      "minutes": 1,
-      "mode": "walk",
-      "is_transit": false,
-      "estimated": true
-    },
-    {
-      "from": "hallway",
-      "to": "player_bedroom",
-      "minutes": 1,
-      "mode": "walk",
-      "is_transit": false,
-      "estimated": true
-    },
-    {
-      "from": "player_bedroom",
       "to": "hallway",
       "minutes": 1,
       "mode": "walk",

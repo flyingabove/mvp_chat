@@ -175,7 +175,7 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
     )
     assert start.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert len(state.cast_lifecycle.active_ids()) == 6
+    assert len(state.cast_lifecycle.active_ids()) == 5
 
     response = client.post("/api/chat", json={"session_id": sid, "message": "[CAST]"})
     assert response.status_code == 200
@@ -183,7 +183,7 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
     assert payload["usage"]["total_tokens"] == 0
     assert payload["reply"] == ""
     assert {item["id"] for item in payload["cast_roster"]["active"]} == {
-        "makoto", "yuki", "uchi", "minori", "mizuki", "yuriko"
+        "player", "makoto", "yuki", "minori", "mizuki", "yuriko"
     }
     public_ids = {
         item.get("id") for group in ("active", "departed")
@@ -351,10 +351,10 @@ def test_cast_replacement_updates_world_location_and_focal_character(client):
         state, "makoto", reason="committed to leaving", event_id="test:replace:makoto"
     )
 
-    assert transition.arriving_id == "arman"
+    assert transition.arriving_id == "uchi"
     assert "makoto" not in state.character_locations
-    assert state.character_locations["arman"] == "front_entry"
-    assert state.main_character_id == "arman"
+    assert state.character_locations["uchi"] == "front_entry"
+    assert state.main_character_id == "uchi"
 
 
 def test_try_load_session_from_db_restores_persona_metadata(monkeypatch):
@@ -634,7 +634,7 @@ def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client
     keys = captured.get("character_key_to_name", {})
     assert keys, "turn extractor was never invoked with a character catalog"
     assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
-    for active_key in ("makoto", "yuki", "uchi", "minori", "mizuki", "yuriko"):
+    for active_key in ("makoto", "yuki", "minori", "mizuki", "yuriko"):
         assert active_key in keys, f"active character {active_key!r} unexpectedly missing from extractor catalog"
 
 
@@ -2125,7 +2125,7 @@ def test_newly_arrived_character_gets_introduction_and_seeded_relationships(clie
     assert "first scene" in scene_brief
 
 
-def test_empty_queue_departure_leaves_valid_vacancy_no_arrival(client):
+def test_empty_queue_departure_keeps_final_residents_and_no_vacancy(client):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.world_calendar import PendingEvent, day_number
 
@@ -2141,7 +2141,7 @@ def test_empty_queue_departure_leaves_valid_vacancy_no_arrival(client):
     # status rather than routing through activate()/deactivate(), which
     # enforce capacity and would reject filling an already-full slot group)
     # so replace() has no eligible successor when the scheduled departure
-    # fires - this must leave a valid vacancy (no crash, no arrival).
+    # fires - the final resident must stay (no crash, no vacancy).
     from backend.app.engine.cast_lifecycle import CastStatus
     lifecycle = state.cast_lifecycle
     for key, member in lifecycle.members.items():
@@ -2160,8 +2160,9 @@ def test_empty_queue_departure_leaves_valid_vacancy_no_arrival(client):
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "a new day begins"})
     assert r1.status_code == 200
 
-    assert state.pending_events[-1].status in ("applied", "cancelled")
-    assert "yuki" not in state.cast_lifecycle.active_ids()
+    assert state.pending_events[-1].status == "pending"
+    assert "yuki" in state.cast_lifecycle.active_ids()
+    assert state.cast_lifecycle.vacancies("men") == 0
 
 
 def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(client):
@@ -2178,9 +2179,9 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     opening = response.json()["reply"]
     assert "\n\n" in opening and "\\n" not in opening
     state = pe_mod.SESSIONS[sid]["state"]
-    active_keys = {"makoto", "minori", "yuki", "mizuki", "uchi", "yuriko"}
+    active_keys = {"makoto", "minori", "yuki", "mizuki", "yuriko"}
     keys = active_keys | {
-        "arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko",
+        "uchi", "arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko",
         "momoka", "hayato", "yuuki_byrnes", "masako",
     }
     assert "player" in state.characters
@@ -2190,7 +2191,7 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert state.location_id == "front_entry"
     assert {key: state.character_locations[key] for key in active_keys} == {
         "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
-        "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
+        "mizuki": "front_entry", "yuriko": "girls_bedroom",
     }
     for key in keys:
         assert state.characters[key].self_knowledge
@@ -4134,3 +4135,89 @@ def test_structured_dialogue_reaches_ui_and_preserves_memory(client, monkeypatch
     assert "[SPEAKER:" not in data["reply"]
     memory = pe.SESSIONS[sid]["log"][-1]["content"]
     assert data["segments"][0]["speaker_name"] + ": Hello." in memory
+
+
+@pytest.mark.parametrize("gender,group,displaced,bedroom", [
+    ("M", "men", "uchi", "boys_bedroom"),
+    ("F", "women", "yuriko", "girls_bedroom"),
+])
+def test_player_resident_slot_survives_restore_and_full_automatic_rotation(client, gender, group, displaced, bedroom):
+    import json
+    from backend.app.api import prompt_engine as pe
+    from backend.app.engine.gameplay import process_pending_events
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+    from backend.app.engine import prompt_builder
+
+    sid = f"resident_rotation_{gender}"
+    response = client.post("/api/chat", json={
+        "session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris",
+    })
+    assert response.status_code == 200
+    state = pe.SESSIONS[sid]["state"]
+    lifecycle = state.cast_lifecycle
+    assert lifecycle.player_slot_group == group
+    assert lifecycle.next_up(group) == displaced
+    assert displaced not in state.character_locations
+    assert state.character_graph.get_edge("player", displaced) is None
+    assert "player_bedroom" not in state.world_runtime.world_graph.locations
+    assert bedroom.replace("_", " ") in prompt_builder._storyteller_scene_section(state, "hello")
+    roster = pe._cast_roster_payload(state)
+    assert len(roster["active"]) == 6
+    assert next(item for item in roster["active"] if item["id"] == "player")["name"] == "Chris"
+    assert roster["vacancies"] == []
+
+    # Re-initializing from a save must never displace a second housemate.
+    snapshot = json.loads(pe._serialize_state(state, []))["cast_lifecycle"]
+    pe._initialize_cast_lifecycle(state, snapshot)
+    assert state.cast_lifecycle.to_dict() == snapshot
+    lifecycle = state.cast_lifecycle
+
+    seen = set(lifecycle.active_ids())
+    for slot in ("men", "women"):
+        while lifecycle.next_up(slot):
+            departing = lifecycle.active_ids(slot)[0]
+            arriving = lifecycle.next_up(slot)
+            event = PendingEvent(
+                event_id=f"rotate:{slot}:{arriving}", event_type="cast_departure_replacement",
+                scheduled_day=day_number(state.minute) + 1, payload={"departing_id": departing},
+            )
+            state.pending_events.append(event)
+            assert process_pending_events(state, apply_cast_replacement=pe._apply_cast_replacement) == []
+            assert departing in lifecycle.active_ids()
+            state.minute += 1440
+            fired = process_pending_events(state, apply_cast_replacement=pe._apply_cast_replacement)
+            assert len(fired) == 1 and fired[0][1].arriving_id == arriving
+            assert arriving not in seen
+            seen.add(arriving)
+            assert lifecycle.vacancies("men") == lifecycle.vacancies("women") == 0
+            assert len(lifecycle.active_ids("men")) + int(group == "men") == 3
+            assert len(lifecycle.active_ids("women")) + int(group == "women") == 3
+            assert process_pending_events(state, apply_cast_replacement=pe._apply_cast_replacement) == []
+        before = lifecycle.to_dict()
+        with pytest.raises(ValueError, match="no same-slot replacement"):
+            pe._apply_cast_replacement(state, lifecycle.active_ids(slot)[0], reason="finished", event_id=f"empty:{slot}")
+        assert lifecycle.to_dict() == before
+    assert seen == set(lifecycle.members)
+    assert len(seen) == 17
+
+
+@pytest.mark.parametrize("gender,bedroom", [("M", "boys_bedroom"), ("F", "girls_bedroom")])
+def test_old_seventh_resident_save_migrates_once(client, gender, bedroom):
+    from backend.app.api import prompt_engine as pe
+    sid = f"resident_migration_{gender}"
+    client.post("/api/chat", json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris"})
+    state = pe.SESSIONS[sid]["state"]
+    legacy = pe.CastLifecycleState.from_config(state.story_cfg["cast_lifecycle"]).to_dict()
+    legacy.pop("player_slot_group")
+    legacy.pop("require_replacement")
+    state.location_id = "player_bedroom"
+    state.character_locations = dict(state.story_cfg["world"]["character_start_locations"])
+    pe._initialize_cast_lifecycle(state, legacy)
+    pe._sync_resident_locations(state)
+    assert state.location_id == bedroom
+    assert len(state.cast_lifecycle.active_ids()) == 5
+    assert len(state.character_locations) == 5
+    assert state.cast_lifecycle.require_replacement
+    snapshot = state.cast_lifecycle.to_dict()
+    pe._initialize_cast_lifecycle(state, snapshot)
+    assert state.cast_lifecycle.to_dict() == snapshot

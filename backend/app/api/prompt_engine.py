@@ -401,6 +401,7 @@ def _initialize_cast_lifecycle(state: GameState, snapshot: dict | None = None) -
     config = (getattr(state, "story_cfg", None) or {}).get("cast_lifecycle") or {}
     if snapshot is not None:
         state.cast_lifecycle = CastLifecycleState.from_dict(snapshot)
+        _reserve_player_resident_slot(state, config)
         return
     if not config or not bool(config.get("enabled", False)):
         state.cast_lifecycle = None
@@ -414,6 +415,50 @@ def _initialize_cast_lifecycle(state: GameState, snapshot: dict | None = None) -
         character_ids=(getattr(state, "characters", None) or {}).keys(),
         location_ids=location_ids,
     )
+    _reserve_player_resident_slot(state, config)
+
+
+def _reserve_player_resident_slot(state: GameState, config: dict) -> None:
+    lifecycle = state.cast_lifecycle
+    if lifecycle is None or not lifecycle.enabled or config.get("player_mode") != "resident_slot":
+        return
+    group = config["player_slot_groups"][state.gender]
+    lifecycle.reserve_player_slot(group)
+    lifecycle.require_replacement = bool(config.get("require_replacement", False))
+
+
+def _sync_resident_locations(state: GameState) -> None:
+    lifecycle = state.cast_lifecycle
+    if lifecycle is None or not lifecycle.player_slot_group:
+        return
+    state.character_locations = {
+        key: location for key, location in state.character_locations.items()
+        if key == "player" or lifecycle.is_scene_eligible(key)
+    }
+    # Older saves can still point at the removed guest room.
+    config = state.story_cfg["cast_lifecycle"]
+    bedroom = config["player_bedrooms"][lifecycle.player_slot_group]
+    if state.location_id == "player_bedroom":
+        state.location_id = bedroom
+        if state.world_runtime:
+            location = state.world_runtime.world_graph.locations[bedroom]
+            state.location = location.name
+            state.location_uuid = location.uuid
+    for key, location in state.character_locations.items():
+        if location == "player_bedroom":
+            state.character_locations[key] = bedroom
+
+
+def _remove_upcoming_relationships(state: GameState) -> None:
+    lifecycle = state.cast_lifecycle
+    graph = state.character_graph
+    if lifecycle is None or not lifecycle.player_slot_group or graph is None:
+        return
+    upcoming = {key for key, member in lifecycle.members.items() if member.status is CastStatus.UPCOMING}
+    graph.edges = {
+        key: edge for key, edge in graph.edges.items()
+        if edge.from_id not in upcoming and edge.to_id not in upcoming
+    }
 
 
 def _cast_roster_payload(state: GameState) -> dict:
@@ -430,6 +475,8 @@ def _cast_roster_payload(state: GameState) -> dict:
     characters = getattr(state, "characters", {}) or {}
     active = []
     departed = []
+    if lifecycle.player_slot_group:
+        active.append({"id": "player", "name": state.user.display_name or state.player_name or "Player", "role": "Housemate (you)"})
     for key in lifecycle.active_ids():
         ch = characters.get(key)
         if ch is not None:
@@ -1583,6 +1630,8 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 if k and v
             }
 
+        _sync_resident_locations(restored)
+
         if (
             restored.cast_lifecycle is not None
             and restored.main_character_id
@@ -1594,6 +1643,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
             restored.character_graph = story_def.relationships
             _restore_character_graph(restored, saved.get("character_graph"))
+        _remove_upcoming_relationships(restored)
 
         # Fallback knowledge bundle
         if not restored.knowledge_character_id and main_char_def:
@@ -2318,9 +2368,12 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 if k and v
             }
 
+        _sync_resident_locations(new_state)
+
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
             new_state.character_graph = story_def.relationships
+        _remove_upcoming_relationships(new_state)
 
         # Fallback knowledge bundle for main
         if not new_state.knowledge_character_id and main_char_def:

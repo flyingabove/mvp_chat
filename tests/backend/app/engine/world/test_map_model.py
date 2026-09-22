@@ -33,11 +33,17 @@ def test_inventory_is_complete_atomic_and_deduplicated():
     }
     assert set(source_ids) == expected
     assert len(source_ids) == len(expected)
-    assert len(graph.locations) == 103
+    assert len(graph.locations) == 102
     assert set(graph.locations).isdisjoint(a.id for a in graph.world_map.areas)
     assert graph.get_location("swimming_pool").research.source_ids == ("H15", "O13")
     assert graph.get_location("terrace").name == "Terrace / Pool Deck"
-    assert graph.get_location("player_bedroom").research.status == "game_added"
+    # A purely game-authored location still round-trips its research status.
+    # (Was asserted via "player_bedroom" before the six-resident rule removed
+    # that guest room; "cafe" is the equivalent game addition that remains.)
+    assert graph.get_location("cafe").research.status == "game_added"
+    # Six-resident invariant: the player takes one of the six gendered slots
+    # and shares a bedroom, so no seventh-resident guest room may exist.
+    assert "player_bedroom" not in graph.locations
 
 
 def test_regional_distance_bands_and_directions():
@@ -100,7 +106,7 @@ def test_both_loaders_preserve_map_metadata_and_routes():
     )
     assert world_map_payload(graph) == world_map_payload(other)
     payload = world_map_payload(graph)
-    assert len(payload["locations"]) == 103
+    assert len(payload["locations"]) == 102
     assert all(e["estimated"] for e in payload["routes"])
 
 
@@ -164,7 +170,7 @@ def test_legacy_world_and_story_metadata_still_load():
     )
     assert old.world_graph.world_map.route_policy == "legacy"
     meta = get_story_meta("six_strangers")
-    assert len(meta["known_locations"]) == 103
+    assert len(meta["known_locations"]) == 102
     assert len(meta["world_map"]["areas"]) == 25
 
 

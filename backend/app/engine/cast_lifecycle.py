@@ -119,6 +119,8 @@ class CastLifecycleState:
     # that omits this field); "next_day" defers execution to a day boundary
     # via the pending-events scheduler (see world_calendar.py).
     replacement_timing: str = "immediate"
+    player_slot_group: str = ""
+    require_replacement: bool = False
 
     @classmethod
     def from_config(
@@ -200,6 +202,7 @@ class CastLifecycleState:
             slot_labels=labels,
             members=members,
             replacement_timing=replacement_timing,
+            require_replacement=bool(config.get("require_replacement", False)),
         )
         state._validate(location_ids=location_ids)
         return state
@@ -220,6 +223,8 @@ class CastLifecycleState:
             members={str(k): CastMemberState.from_dict(v) for k, v in raw_members.items()},
             history=[CastTransition.from_dict(item) for item in raw_history],
             replacement_timing=str(data.get("replacement_timing") or "immediate"),
+            player_slot_group=str(data.get("player_slot_group") or ""),
+            require_replacement=bool(data.get("require_replacement", False)),
         )
         state._validate()
         return state
@@ -235,7 +240,28 @@ class CastLifecycleState:
             "members": {key: member.to_dict() for key, member in self.members.items()},
             "history": [transition.to_dict() for transition in self.history],
             "replacement_timing": self.replacement_timing,
+            "player_slot_group": self.player_slot_group,
+            "require_replacement": self.require_replacement,
         }
+
+    def reserve_player_slot(self, slot_group: str) -> None:
+        """Count the player as a resident, returning one NPC to the entry queue.
+
+        Keep the player separate from NPC IDs so routines and dialogue never
+        control them. Reapplying this on save restoration is idempotent.
+        """
+        self._require_slot(slot_group)
+        if self.player_slot_group:
+            if self.player_slot_group != slot_group:
+                raise ValueError("player slot cannot change during a game")
+            return
+        active = self.active_ids(slot_group)
+        if len(active) >= self.slot_capacities[slot_group]:
+            displaced = self.members[active[-1]]
+            displaced.status = CastStatus.UPCOMING
+            displaced.activated_minute = None
+        self.player_slot_group = slot_group
+        self._validate()
 
     def active_ids(self, slot_group: Optional[str] = None) -> list[str]:
         if slot_group is not None:
@@ -259,7 +285,7 @@ class CastLifecycleState:
 
     def vacancies(self, slot_group: str) -> int:
         self._require_slot(slot_group)
-        return self.slot_capacities[slot_group] - len(self.active_ids(slot_group))
+        return self.slot_capacities[slot_group] - len(self.active_ids(slot_group)) - int(self.player_slot_group == slot_group)
 
     def next_up(self, slot_group: str) -> Optional[str]:
         self._require_slot(slot_group)
@@ -287,6 +313,8 @@ class CastLifecycleState:
         return self._record("activate", minute, member.slot_group, arriving_id=character_id)
 
     def deactivate(self, character_id: str, minute: int, reason: str = "") -> CastTransition:
+        if self.require_replacement:
+            raise ValueError("a resident must leave through an atomic replacement")
         minute = _non_negative_int(minute, "deactivation minute")
         member = self._require_member(character_id)
         if member.status is not CastStatus.ACTIVE:
@@ -326,6 +354,8 @@ class CastLifecycleState:
         )
 
     def depart(self, character_id: str, minute: int, reason: str = "") -> CastTransition:
+        if self.require_replacement:
+            raise ValueError("a resident must leave through an atomic replacement")
         minute = _non_negative_int(minute, "departure minute")
         member = self._require_member(character_id)
         if member.status is not CastStatus.ACTIVE:
@@ -365,6 +395,8 @@ class CastLifecycleState:
         self._require_slot(slot_group)
 
         chosen_id = str(arriving_id).strip() if arriving_id is not None else self.next_up(slot_group)
+        if not chosen_id and self.require_replacement:
+            raise ValueError("no same-slot replacement remains; resident stays in the house")
         chosen: Optional[CastMemberState] = None
         if chosen_id:
             chosen = self._require_member(chosen_id)
@@ -398,6 +430,8 @@ class CastLifecycleState:
         )
 
     def _validate(self, location_ids: Optional[Iterable[str]] = None) -> None:
+        if self.player_slot_group:
+            self._require_slot(self.player_slot_group)
         if self.enabled and not self.arrival_location_id:
             raise ValueError("enabled cast lifecycle requires arrival_location_id")
         if self.replacement_policy != "same_slot_next":
@@ -420,6 +454,7 @@ class CastLifecycleState:
                 member.status is CastStatus.ACTIVE and member.slot_group == slot_group
                 for member in self.members.values()
             )
+            active_count += int(self.player_slot_group == slot_group)
             if active_count > capacity:
                 raise ValueError(
                     f"slot group {slot_group!r} has {active_count} active members but capacity {capacity}"
