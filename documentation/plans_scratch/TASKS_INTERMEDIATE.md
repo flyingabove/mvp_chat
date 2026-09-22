@@ -4,15 +4,6 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
-### Single-bubble dominant-speaker presentation
-
-- [x] Start an isolated `codex/` branch from current `origin/beta` in `mvp_chat_for_codex_only`.
-- [x] Restore one bubble per AI reply and select its avatar from the speaker with the greatest total spoken text.
-- [x] Fall back to the game cover for narration, unknown/side characters, and characters without a dedicated portrait.
-- [x] Replace the Terrace in the City cover with a realistic Tokyo house asset.
-- [x] Run focused/full tests and verify desktop/mobile locally.
-- [ ] Rebase onto current beta, push to beta, then verify the hosted API and UI in desktop/mobile browsers.
-
 ### Six Strangers researched atlas and isolated Codex checkout
 
 - [x] Clone latest beta into `mvp_chat_for_codex_only`; create `codex/six-strangers-world-atlas`.
@@ -27,6 +18,13 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
+
+- 2026-09-21: Single-bubble dominant-speaker presentation completed and deployed to beta in `0043948` (Railway deployment `90f2b537-63d8-454f-a5b8-de17aab77f7f`).
+	- Restored one bubble per AI reply while retaining structured speaker metadata for reliable attribution.
+	- The canonical speaker with the greatest total spoken text supplies the avatar; ties use first appearance.
+	- Narration, unknown/side characters, and characters without dedicated art use the game cover.
+	- Replaced the Terrace in the City cover with an optimized, realistic Tokyo house image.
+	- Verification: `768 passed, 1 xfailed`; four Node renderer tests; local and hosted desktop/390×844 browser passes; hosted console clean; live health endpoint reported `0043948`.
 
 - 2026-03-21: Initialized canonical intermediate-task workflow file.
 - 2026-03-22: Save/resume hardening complete.

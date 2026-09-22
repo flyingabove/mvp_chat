@@ -59,6 +59,10 @@ serves both root and beta paths. The service worker cache version is bumped.
   and completion on interruption.
 - Local browser checks exercised a real multi-speaker model reply, portrait
   enlargement, Escape/focus restoration, and phone-width layout.
+- Beta deployment `90f2b537-63d8-454f-a5b8-de17aab77f7f` served commit
+  `0043948`. Hosted desktop and 390×844 checks confirmed one bubble, the IU
+  unknown-voice game-cover fallback, the centered picture viewer, and a clean
+  browser console.
 
 The game cover for Terrace in the City is a generated, optimized photograph-style
 asset of a believable Japanese house on a Tokyo residential street.
