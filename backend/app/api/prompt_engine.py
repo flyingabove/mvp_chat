@@ -465,6 +465,61 @@ def _remove_upcoming_relationships(state: GameState) -> None:
     }
 
 
+def player_visible_character_ids(state: GameState) -> set[str] | None:
+    """Phase 1.4: the ONE policy for which character IDs a player-facing view
+    (roster, journal, or any future public projection) may ever mention.
+
+    Returns None when cast lifecycle isn't enabled for this story - callers
+    should treat that as "no filtering; every authored character is visible"
+    (matches _cast_roster_payload's existing no-lifecycle fallback).
+
+    The audit's finding: "is this character currently active" is NOT
+    sufficient — a departed resident the player actually met must stay
+    visible (their journal history is legitimately learned), while an
+    unarrived UPCOMING resident must never appear at all, even though they
+    are fully authored in story content (goals, dialogue hooks, etc. for
+    characters the player hasn't met yet). The three lifecycle statuses that
+    mean "the player has, at some point, actually been in scene with this
+    character" are ACTIVE, INACTIVE (deactivated but not via the full
+    departure/replacement flow - still someone the player met), and
+    DEPARTED (replaced out through the normal flow). UPCOMING is the one
+    status that must never leak, in any view.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not lifecycle.enabled:
+        return None
+    visible = {
+        key for key, member in lifecycle.members.items()
+        if member.status is not CastStatus.UPCOMING
+    }
+    if lifecycle.player_slot_group:
+        visible.add("player")
+    return visible
+
+
+def player_visible_arrival_minute(state: GameState, character_id: str) -> int | None:
+    """Phase 1.4: earliest minute a player-facing view may show content
+    attributed to `character_id`, or None if there is no lower bound (no
+    lifecycle, or the character has no recorded activation - e.g. an
+    original day-one resident who was never activate()'d through the
+    lifecycle machinery because they started active).
+
+    Closes the second half of the audit's finding: a character's `goal` can
+    carry AUTHORED history entries (e.g. their starting motivation) whose
+    `timestamp_minute` may be 0 or otherwise predate the moment they actually
+    entered the scene as a mid-game arrival. A public view must not surface
+    that as something the player has "learned" before it was ever shown to
+    them in play.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not lifecycle.enabled:
+        return None
+    member = lifecycle.members.get(character_id)
+    if member is None:
+        return None
+    return member.activated_minute
+
+
 def _cast_roster_payload(state: GameState) -> dict:
     """Return the public roster without exposing upcoming character names."""
     lifecycle = getattr(state, "cast_lifecycle", None)

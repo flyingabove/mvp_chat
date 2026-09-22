@@ -193,6 +193,60 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
         assert future_id not in public_ids
 
 
+def test_player_visible_character_ids_excludes_upcoming_includes_player(client):
+    """Phase 1.4: player_visible_character_ids is the shared policy the
+    journal (and any future public view) filters through - unit-level check
+    against a real six_strangers session, independent of the journal
+    endpoint's own tests in test_user_sessions.py."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "player_visible_ids_check"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    visible = pe_mod.player_visible_character_ids(state)
+    assert visible is not None
+    assert "player" in visible
+    for active_id in state.cast_lifecycle.active_ids():
+        assert active_id in visible
+    for key, member in state.cast_lifecycle.members.items():
+        from backend.app.engine.cast_lifecycle import CastStatus
+        if member.status is CastStatus.UPCOMING:
+            assert key not in visible, f"UPCOMING character {key} must not be player-visible"
+
+
+def test_player_visible_character_ids_none_when_lifecycle_disabled():
+    """A story without cast_lifecycle enabled must return None (no
+    filtering), matching _cast_roster_payload's own no-lifecycle fallback -
+    not an empty set, which would hide everyone."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.state import init_state
+
+    state = init_state()
+    assert pe_mod.player_visible_character_ids(state) is None
+
+
+def test_player_visible_arrival_minute_reflects_activation():
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.state import init_state
+    from backend.app.engine.cast_lifecycle import CastLifecycleState, CastMemberState, CastStatus
+
+    state = init_state()
+    state.cast_lifecycle = CastLifecycleState(
+        enabled=True, arrival_location_id="living_room",
+        replacement_policy="same_slot_next", departure_policy="committed_intent",
+        slot_capacities={"men": 1}, slot_labels={"men": "Men"},
+        members={
+            "late_arrival": CastMemberState(status=CastStatus.ACTIVE, slot_group="men", sequence=1, activated_minute=500),
+        },
+    )
+    assert pe_mod.player_visible_arrival_minute(state, "late_arrival") == 500
+    assert pe_mod.player_visible_arrival_minute(state, "nonexistent_key") is None
+
+
 def test_time_skip_hours_advances_minute_and_narrates(client):
     from backend.app.api import prompt_engine as pe_mod
 
