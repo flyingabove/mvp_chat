@@ -145,8 +145,9 @@ members in season-entry order. Later episode outcomes are not a script for
 play. Dialogue, inner lives, local venues, and the detailed floor plan are
 fictional game content, identified as such in the story metadata.
 
-The opening takes place in September 2015. The player is a seventh arrival
-using a small guest room added for this adaptation; the six original residents
+The opening takes place in September 2015. The player is one of six residents
+as one of the six residents, sharing the gender-matched bedroom; the five NPC
+housemates
 remain NPCs (`mode.cast_size = 6`). This replaces the old four fictional
 housemates and empty-sixth-bedroom legend. Mizuki is the explicit focal NPC and
 greets the player at `front_entry`; other housemates are encountered naturally

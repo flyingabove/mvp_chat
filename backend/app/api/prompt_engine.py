@@ -21,6 +21,8 @@ import logging
 
 import re
 
+import secrets
+
 import time
 
 import uuid
@@ -419,6 +421,9 @@ def _initialize_cast_lifecycle(state: GameState, snapshot: dict | None = None) -
         character_ids=(getattr(state, "characters", None) or {}).keys(),
         location_ids=location_ids,
     )
+    if config.get("randomize_initial_roster"):
+        group = config["player_slot_groups"][state.gender]
+        state.cast_lifecycle.choose_initial_roster(group)
     _reserve_player_resident_slot(state, config)
 
 
@@ -463,6 +468,26 @@ def _remove_upcoming_relationships(state: GameState) -> None:
         key: edge for key, edge in graph.edges.items()
         if edge.from_id not in upcoming and edge.to_id not in upcoming
     }
+
+
+def _seed_initial_active_relationships(state: GameState) -> None:
+    """Give every randomized opening resident a real first-meeting edge.
+
+    Authored story graphs can describe a particular premiere cast, while a
+    lifecycle-enabled game may draw any eligible residents into its opening
+    roster.  Preserve authored edges where they exist and let the generic
+    graph first-meeting rule fill only the missing ones.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    graph = getattr(state, "character_graph", None)
+    if lifecycle is None or graph is None:
+        return
+    participant_ids = set(lifecycle.active_ids()) | {"player"}
+    for key in participant_ids:
+        character = (getattr(state, "characters", {}) or {}).get(key)
+        if character is not None and key not in graph.characters:
+            graph.add_character(character)
+    graph.process_first_meetings(participant_ids, state, int(getattr(state, "minute", 0) or 0), is_new_encounter=True)
 
 
 def player_visible_character_ids(state: GameState) -> set[str] | None:
@@ -1700,9 +1725,10 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
 
         # Character relationship graph
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
-            restored.character_graph = story_def.relationships
+            restored.character_graph = copy.deepcopy(story_def.relationships)
             _restore_character_graph(restored, saved.get("character_graph"))
         _remove_upcoming_relationships(restored)
+        _seed_initial_active_relationships(restored)
 
         # Fallback knowledge bundle
         if not restored.knowledge_character_id and main_char_def:
@@ -1816,10 +1842,38 @@ def apply_placeholders(text: str, state: GameState) -> str:
         lang = {}
     honorific_map = lang.get("honorifics", {}) or {}
     honorific = honorific_map.get(state.gender, "")
+    lifecycle_cfg = cfg.get("cast_lifecycle", {}) or {}
+    bedroom_id = (lifecycle_cfg.get("player_bedrooms", {}) or {}).get(
+        getattr(state, "cast_lifecycle", None).player_slot_group
+        if getattr(state, "cast_lifecycle", None) else "",
+        "",
+    )
+    bedroom = bedroom_id.replace("_", " ") if bedroom_id else "shared bedroom"
     return (
         text.replace("{{PLAYER_NAME}}", name)
             .replace("{{HONORIFIC}}", honorific)
+            .replace("{{PLAYER_BEDROOM}}", bedroom)
     )
+
+
+def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
+    """Choose an authored opening variant without making story text procedural.
+
+    Any story can provide ``opening.variants``; legacy stories retain their
+    single ``opening.text`` unchanged. Placeholders are resolved afterwards.
+    """
+    opening_cfg = story_def.get("opening", {}) or {}
+    variants = [str(item) for item in (opening_cfg.get("variants") or []) if str(item).strip()]
+    opening = secrets.choice(variants) if variants else str(
+        opening_cfg.get("text", "The room is quiet. A story begins.")
+    )
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    active_ids = lifecycle.active_ids() if lifecycle else []
+    if active_ids:
+        # The welcome belongs to a resident who is actually in this draw, not
+        # a fixed authored host who may be waiting in the replacement queue.
+        return f"{opening}\n\n[SPEAKER:{secrets.choice(active_ids)}]Welcome — we're glad you're here."
+    return opening
 
 
 # ---------------------------------------------------------------------------
@@ -2437,10 +2491,24 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         _sync_resident_locations(new_state)
 
+        # A randomly selected opening cast may not include the authored focal
+        # character. Keep the focal lens inside the current five-NPC roster.
+        if new_state.cast_lifecycle and not new_state.cast_lifecycle.is_scene_eligible(new_state.main_character_id):
+            new_state.main_character_id = next(iter(new_state.cast_lifecycle.active_ids()), None)
+
+        if new_state.cast_lifecycle:
+            default_location = str(
+                (new_state.story_cfg.get("cast_lifecycle", {}) or {}).get("initial_active_location_id")
+                or "living_room"
+            )
+            for key in new_state.cast_lifecycle.active_ids():
+                new_state.character_locations.setdefault(key, default_location)
+
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
-            new_state.character_graph = story_def.relationships
+            new_state.character_graph = copy.deepcopy(story_def.relationships)
         _remove_upcoming_relationships(new_state)
+        _seed_initial_active_relationships(new_state)
 
         # Fallback knowledge bundle for main
         if not new_state.knowledge_character_id and main_char_def:
@@ -2449,7 +2517,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         # Label all knowledge chunks with player visibility for debug player agent retrieval.
         _seed_player_visibility(new_state)
 
-        opening = story_def.get("opening", {}).get("text", "The room is quiet. A story begins.")
+        opening = _opening_for_new_game(story_def, new_state)
         opening = apply_placeholders(opening, new_state)
         opening, segments = present_dialogue(opening, new_state)
         opening = dialogue_transcript(segments)

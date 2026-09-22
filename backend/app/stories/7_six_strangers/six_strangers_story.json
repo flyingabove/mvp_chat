@@ -2,7 +2,7 @@
   "id": "six_strangers",
   "title": "Terrace in the City",
   "theme": "shared_house_city",
-  "description": "Tokyo, 2015. A fictional shared-house story with the original six members of Boys & Girls in the City. Work, dreams, awkward dinners, and pool-deck conversations — with you as a seventh arrival, life takes a new direction.",
+  "description": "Tokyo, 2015. A fictional shared-house story with six residents total, including you. Work, dreams, awkward dinners, and pool-deck conversations make each new chapter feel personal.",
   "genre": "Slice of Life / Ensemble Drama",
   "thumbnail_url": "/img/six_strangers_house.jpg",
   "featured": true,
@@ -364,6 +364,8 @@
     "player_mode": "resident_slot",
     "player_slot_groups": {"M": "men", "F": "women"},
     "player_bedrooms": {"men": "boys_bedroom", "women": "girls_bedroom"},
+    "randomize_initial_roster": true,
+    "initial_active_location_id": "living_room",
     "require_replacement": true,
     "rules_profile": "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. No imposed challenges, eliminations, prize, fixed romance, or win condition. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
     "slot_groups": {
@@ -853,7 +855,12 @@
     }
   },
   "opening": {
-    "text": "Evening light catches the windows as you reach the house with your suitcase. Through the glass, you can see a table set for six.\n\nYou ring the bell. A woman carrying a tea towel opens the door and smiles.\n\n[SPEAKER:mizuki]“Hi. You found it. I’m Mizuki. Come in — there’s space for your shoes here.”[/SPEAKER]\n\nShe steps aside and glances toward the stairs. [SPEAKER:mizuki]“Your bed is ready upstairs, in the shared bedroom. There are six of us now. I can show you around after dinner.”[/SPEAKER]\n\nBeyond her, the kitchen is warm with the sound of cooking. Your other housemates are settling in for the evening, each with a life and plans of their own.\n\n[SPEAKER:mizuki]“What should we call you? And — tea, coffee, or something cold?”[/SPEAKER]"
+    "text": "Evening light catches the windows as you reach the house with your suitcase. Through the glass, a table is laid for six residents — you and five new housemates. The bell brings someone to the door. They make room at the genkan, welcome you inside, and point upstairs: your place is in the shared {{PLAYER_BEDROOM}}. The kitchen is warm with dinner sounds. Everyone here is beginning with a clean slate, carrying work, studies, ambitions, friendships, and whatever they hope might grow. [SPEAKER:mizuki]\"What should we call you? Tea, coffee, or something cold?\"",
+    "variants": [
+      "Evening light catches the windows as you reach the house with your suitcase. Through the glass, a table is laid for six residents — you and five new housemates.\n\nThe bell brings someone to the door. They make room at the genkan, welcome you inside, and point upstairs: your place is in the shared {{PLAYER_BEDROOM}}.\n\nThe kitchen is warm with dinner sounds. Everyone here is beginning with a clean slate, carrying work, studies, ambitions, friendships, and whatever they hope might grow.\n\n“What should we call you? Tea, coffee, or something cold?”",
+      "You arrive at the glass-fronted house just as the lights come on. Inside, five housemates are settling around the open kitchen; with you, the house is complete at three men and three women.\n\nAt the door, a resident takes in your suitcase and smiles. “Come in. Your bed is upstairs in the shared {{PLAYER_BEDROOM}} — we saved you a spot.”\n\nShoes off, bag down, first evening underway. No one knows one another well yet, which makes even a simple introduction feel important.\n\n“Want to join us for dinner and tell us a little about yourself?”",
+      "A quiet residential street leads you to the house at dusk. Behind its windows, five people are moving through the small rituals of a first shared evening. You are not an extra arrival: you are one of the six residents.\n\nA housemate opens the door and gestures toward the stairs. “Welcome. You’ll share the {{PLAYER_BEDROOM}} with the other residents in your room.”\n\nFrom the dining table comes the soft clink of plates and a half-finished conversation. Workdays, studies, private goals, and new connections will make this house feel different every day.\n\n“Come meet everyone when you’re ready. What do you want us to call you?”"
+    ]
   },
   "world_context": [
     "An unofficial fictional adaptation of the original Boys & Girls in the City cast and the supplied Tokyo setting; all dialogue and inner lives here are invented.",

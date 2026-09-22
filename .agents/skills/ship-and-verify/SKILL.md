@@ -27,7 +27,7 @@ duplicating), and find the right doc to update for whatever you change.
 3. For a bug fix: write a test that reproduces the bug FIRST, confirm it
    fails, then fix, then confirm it passes. For a new feature: write tests
    that verify the new behavior. No exceptions — this is a hard project rule,
-   not a suggestion (`.claude/CLAUDE.md` §7).
+   not a suggestion (`.Codex/AGENTS.md` §7).
 4. If you're changing frontend JS in `frontend/index.html` or
    `frontend/debug.html`: there is no JS test harness in this repo. The
    precedent (see `tests/frontend/test_beta_api_base.py`, from the BL-03 fix)
@@ -39,8 +39,8 @@ duplicating), and find the right doc to update for whatever you change.
 4a. **Any UI-visible change (frontend/index.html, frontend/debug.html, CSS,
     manifest.json, sw.js) MUST be checked in a real browser against your
     local dev server BEFORE you commit** — not just before calling the task
-    done. Use the Playwright MCP tools (`playwright@claude-plugins-official`
-    — confirm with `claude plugin list` if tools aren't showing up) to run
+    done. Use the Playwright MCP tools (`playwright@Codex-plugins-official`
+    — confirm with `Codex plugin list` if tools aren't showing up) to run
     both of the following against `localhost`, using the exact procedure in
     Phase 3 step 12 below:
     - **Desktop Chromium** — default Playwright viewport/browser.
@@ -49,12 +49,7 @@ duplicating), and find the right doc to update for whatever you change.
       `browser_run_code_unsafe` (Playwright's `devices['iPhone 13']`
       descriptor), per the detailed steps in Phase 3 step 12.
     Check the console for JS errors in both, and actually click the golden
-    path for what you changed — don't just load and screenshot. **Always
-    inspect the resulting screenshots or live browser surface yourself before
-    committing**: evidence must visibly include the full top edge, the fixed
-    bottom navigation, and the safe-area region beneath it. This is mandatory
-    for iOS standalone/PWA work, where a technically successful load can
-    still leave clipped content or an empty black viewport band. If Playwright
+    path for what you changed — don't just load and screenshot. If Playwright
     tools are genuinely unavailable, say so explicitly and do not commit a
     UI-visible change without this check; escalate to the user instead of
     skipping it silently.
@@ -110,9 +105,9 @@ don't silently skip this phase because polling is slower than you'd like.
     that bug). Confirm the specific thing you changed actually behaves
     differently, not just that the server responds.
 12. **Drive it in a real browser** using the Playwright MCP tools (installed
-    via `claude plugin install playwright@claude-plugins-official` — if
+    via `Codex plugin install playwright@Codex-plugins-official` — if
     those tools aren't available in your current tool list, the plugin was
-    installed after this session started and needs a Claude Code
+    installed after this session started and needs a Codex
     restart/reconnect to load; say so explicitly rather than silently
     skipping this step). This project is primarily played as an iOS
     "Add to Home Screen" webapp, so **verify BOTH a standard desktop/website
@@ -150,9 +145,8 @@ don't silently skip this phase because polling is slower than you'd like.
     - Actually click through the golden path relevant to your change (pick a
       story card, send a chat message, navigate a menu — whatever you
       touched), not just load the page and screenshot it.
-    - Take at least one screenshot per mode as evidence, inspect both images
-      yourself for clipping, safe-area gaps, and bottom-bar placement, and
-      note both in your report.
+    - Take at least one screenshot per mode as evidence, and note both in
+      your report.
     - Check the Network tab / requests for which host API calls actually hit
       (this is how BL-03 would have been caught immediately instead of via
       manual curl comparison).

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import secrets
 from typing import Any, Iterable, Mapping, Optional
 
 
@@ -261,6 +262,38 @@ class CastLifecycleState:
             displaced.status = CastStatus.UPCOMING
             displaced.activated_minute = None
         self.player_slot_group = slot_group
+        self._validate()
+
+    def choose_initial_roster(self, player_slot_group: str) -> None:
+        """Randomly select a capacity-valid opening roster for a resident player.
+
+        This is a reusable lifecycle primitive: each configured slot group is
+        filled to capacity, except the player's group which reserves one of
+        those spaces for the player. All non-selected authored members remain
+        in the same-slot replacement queue.
+        """
+        self._require_slot(player_slot_group)
+        if self.player_slot_group:
+            raise ValueError("cannot choose an opening roster after reserving the player slot")
+        chooser = secrets.SystemRandom()
+        selected: set[str] = set()
+        for group, capacity in self.slot_capacities.items():
+            target = capacity - int(group == player_slot_group)
+            candidates = sorted(
+                key for key, member in self.members.items()
+                if member.slot_group == group and member.status is not CastStatus.DEPARTED
+            )
+            if len(candidates) < target:
+                raise ValueError(f"slot group {group!r} lacks enough members for its opening roster")
+            selected.update(chooser.sample(candidates, target))
+
+        for key, member in self.members.items():
+            if member.status is CastStatus.DEPARTED:
+                continue
+            member.status = CastStatus.ACTIVE if key in selected else CastStatus.UPCOMING
+            member.activated_minute = 0 if key in selected else None
+            member.departed_minute = None
+            member.departure_reason = ""
         self._validate()
 
     def active_ids(self, slot_group: Optional[str] = None) -> list[str]:

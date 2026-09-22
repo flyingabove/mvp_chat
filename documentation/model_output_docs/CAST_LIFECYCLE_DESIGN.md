@@ -231,8 +231,9 @@ The supplied Boys & Girls in the City dossier establishes these format rules:
 8. Housemates do not know private concerns, future entrants, or televised
    outcomes. Audience asides cannot leak that information.
 
-The current game adds the player in a separate guest room. Whether that player
-remains a permanent seventh resident or occupies a lifecycle slot is a product
+The current game makes the player one of the six residents, sharing the
+gender-matched bedroom. Whether that player
+occupies a lifecycle slot is a product
 decision recorded in the story's profile, not an engine assumption.
 
 ## 10. Verification contract

@@ -50,10 +50,14 @@
       --radius-sm:    8px;
       --radius-bubble:18px;
       --font:         -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      /* Updated by visualViewport below. Avoids iOS reserving a phantom area
+         below a standalone web-app's fixed tab bar. */
+      --app-height: 100dvh;
     }
 
     html, body {
-      height: 100%;
+      height: var(--app-height);
+      min-height: 100%;
       background: var(--bg);
       color: var(--text);
       font-family: var(--font);
@@ -67,7 +71,7 @@
        SCREENS (show/hide SPA routing)
     ══════════════════════════════════════════════ */
     .screen {
-      position: fixed; inset: 0;
+      position: fixed; top: 0; right: 0; left: 0; height: var(--app-height);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -1475,7 +1479,7 @@
         <div class="settings-row-icon">⌨</div>
         <div class="settings-row-label">Text Speed</div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <input type="range" class="settings-slider" id="typewriter-speed" min="0" max="3" step="1" value="1" />
+          <input type="range" class="settings-slider" id="typewriter-speed" min="0" max="2" step="1" value="1" />
           <span id="typewriter-speed-label" style="font-size:13px;color:var(--text-sub);min-width:50px;">Normal</span>
         </div>
       </div>
@@ -1523,6 +1527,10 @@
     <span class="tab-icon"><span style="font-size:20px">✚</span></span>
     <span>Create</span>
   </div>
+  <button class="tab-item" type="button" data-action="hard-reload" id="tab-update-app" aria-label="Update App: clear cached files and reload">
+    <span class="tab-icon">⟳</span>
+    <span>Update App</span>
+  </button>
   <div class="tab-item" data-screen="profile" id="tab-profile">
     <span class="tab-icon">👤</span>
     <span>Profile</span>
@@ -1782,9 +1790,10 @@ var GUEST_ID_KEY = "storieschat_guest_id";
 var SKIP_LOGIN_KEY = "storieschat_skip_login";
 var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
 
-// All reveal speeds are 3x faster; retain existing saved preference indices.
-var TYPEWRITER_SPEEDS = [0, 30 / 3, 55 / 3, 80 / 3];
-var TYPEWRITER_LABELS = ["Instant", "Normal", "Slow", "V. Slow"];
+// Slow preserves the former Normal pace. Normal is 2.5x faster and Fast is
+// 4x faster, so the default feels brisk without removing readable pacing.
+var TYPEWRITER_SPEEDS = [10, 4, 2.5];
+var TYPEWRITER_LABELS = ["Slow", "Normal", "Fast"];
 var CHARACTER_ASSET_MAP = {
   makoto: "/img/characters/Makoto_Hasegawa.png",
   minori: "/img/characters/Minori_Nakada.png",
@@ -3640,6 +3649,10 @@ $("profile-auth-btn").addEventListener("click", function(){
 /* ─── TAB BAR ───────────────────────────────────── */
 document.querySelectorAll(".tab-item").forEach(function(tab){
   tab.addEventListener("click", function(){
+    if (this.dataset.action === "hard-reload") {
+      hardReloadApp();
+      return;
+    }
     var screen = this.dataset.screen;
     if (screen) showScreen(screen);
   });
@@ -3693,6 +3706,10 @@ $("confirm-dialog").addEventListener("click", function(e){
 
   // Load saved value
   var saved = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
+  // Prior builds exposed four values; preserve the user's intent while
+  // collapsing them into the three deliberately supported choices.
+  if (saved === 0) saved = 1;
+  if (saved > 2) saved = 2;
   if (saved < 0 || saved >= TYPEWRITER_LABELS.length) saved = 1;
   slider.value = saved;
   label.textContent = TYPEWRITER_LABELS[saved];
@@ -3702,6 +3719,18 @@ $("confirm-dialog").addEventListener("click", function(e){
     label.textContent = TYPEWRITER_LABELS[val] || "Normal";
     localStorage.setItem(TYPEWRITER_SPEED_KEY, String(val));
   });
+})();
+
+/* ─── MOBILE VISUAL VIEWPORT ───────────────────── */
+(function(){
+  function syncAppHeight(){
+    var viewport = window.visualViewport;
+    var height = viewport && viewport.height ? viewport.height : window.innerHeight;
+    document.documentElement.style.setProperty("--app-height", Math.round(height) + "px");
+  }
+  syncAppHeight();
+  window.addEventListener("resize", syncAppHeight);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", syncAppHeight);
 })();
 
 /* ─── VERSION ───────────────────────────────────── */

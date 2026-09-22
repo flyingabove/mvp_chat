@@ -183,13 +183,13 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
     assert payload["usage"]["total_tokens"] == 0
     assert payload["reply"] == ""
     assert {item["id"] for item in payload["cast_roster"]["active"]} == {
-        "player", "makoto", "yuki", "minori", "mizuki", "yuriko"
+        "player", *state.cast_lifecycle.active_ids()
     }
     public_ids = {
         item.get("id") for group in ("active", "departed")
         for item in payload["cast_roster"][group]
     }
-    for future_id in ("arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko", "momoka", "hayato", "yuuki_byrnes", "masako"):
+    for future_id in set(state.characters) - {"player"} - set(state.cast_lifecycle.active_ids()):
         assert future_id not in public_ids
 
 
@@ -379,13 +379,15 @@ def test_six_strangers_lifecycle_round_trips_in_session_snapshot(client):
     )
     assert response.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing = state.cast_lifecycle.active_ids("men")[0]
+    arriving = state.cast_lifecycle.next_up("men")
     state.cast_lifecycle.replace(
-        "makoto", minute=state.minute, reason="committed to leaving", event_id="test:departure:1"
+        departing, minute=state.minute, reason="committed to leaving", event_id="test:departure:1"
     )
     saved = json.loads(pe_mod._serialize_state(state, []))
     restored = pe_mod.CastLifecycleState.from_dict(saved["cast_lifecycle"])
-    assert restored.members["makoto"].status.value == "departed"
-    assert restored.members["arman"].status.value == "active"
+    assert restored.members[departing].status.value == "departed"
+    assert restored.members[arriving].status.value == "active"
     assert restored.history[0].event_id == "test:departure:1"
 
 
@@ -399,16 +401,18 @@ def test_cast_replacement_updates_world_location_and_focal_character(client):
     )
     assert response.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    state.main_character_id = "makoto"
+    departing = state.cast_lifecycle.active_ids("men")[0]
+    arriving = state.cast_lifecycle.next_up("men")
+    state.main_character_id = departing
 
     transition = pe_mod._apply_cast_replacement(
-        state, "makoto", reason="committed to leaving", event_id="test:replace:makoto"
+        state, departing, reason="committed to leaving", event_id="test:replace:random-man"
     )
 
-    assert transition.arriving_id == "uchi"
-    assert "makoto" not in state.character_locations
-    assert state.character_locations["uchi"] == "front_entry"
-    assert state.main_character_id == "uchi"
+    assert transition.arriving_id == arriving
+    assert departing not in state.character_locations
+    assert state.character_locations[arriving] == "front_entry"
+    assert state.main_character_id == arriving
 
 
 def test_try_load_session_from_db_restores_persona_metadata(monkeypatch):
@@ -601,25 +605,31 @@ def test_upcoming_character_private_facts_excluded_from_canonical_stack(client):
     )
     assert r.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert state.cast_lifecycle.members["arman"].status.value == "upcoming"
+    upcoming_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
 
     # Speak as Arman's owner-only fact would only ever surface via known_by
     # containing "arman"; simulate the main character being Arman is not
     # required - the leak is that _knowledge_chunks_from_state renders ANY
     # canonical fact whose only owner is upcoming, regardless of speaker.
     chunks = _knowledge_chunks_from_state(state, [])
-    arman_chunk_texts = [c.text for c in chunks if c.id == "fact::arman_private_concern"]
-    assert arman_chunk_texts == [], (
-        "Arman's private concern rendered into the knowledge stack while he is still upcoming"
+    upcoming_chunk_texts = [c.text for c in chunks if c.id == f"fact::{upcoming_id}_private_concern"]
+    assert upcoming_chunk_texts == [], (
+        "An upcoming resident's private concern rendered into the knowledge stack"
     )
 
     # Also confirm the speaker-scoped variant excludes it when the speaker
     # happens to be flipped to Arman before he's actually active.
-    state.main_character_id = "arman"
+    state.main_character_id = upcoming_id
     facts = _canonical_facts_for_speaker(state)
-    assert not any("firefighter application" in f for f in facts), (
-        "Arman's private concern was exposed to the canonical-facts-for-speaker projection "
-        "while he is still an upcoming (not-yet-arrived) character"
+    private_content = next(
+        fact.content for fact in state.canonical_facts
+        if fact.id == f"{upcoming_id}_private_concern"
+    )
+    assert private_content not in facts, (
+        "An upcoming resident's private concern was exposed to the speaker projection"
     )
 
 
@@ -644,19 +654,24 @@ def test_scene_brief_closes_roster_against_upcoming_characters(client):
     )
     assert r.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    upcoming_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
+    upcoming_name = state.characters[upcoming_id].name
 
-    scene_brief = _storyteller_scene_section(state, "Who is Arman? Does he already live here?")
+    scene_brief = _storyteller_scene_section(state, f"Who is {upcoming_name}? Do they already live here?")
     assert "closed list" in scene_brief
 
     # The player's own line is legitimately echoed verbatim at the end of the
     # brief ("Current player line: ..."); strip it before checking that the
     # roster-closure text itself never names the upcoming character.
     closure_only = scene_brief.split("Current player line:")[0]
-    assert "arman" not in closure_only.lower(), (
-        "upcoming character 'arman' must not appear in the roster-closure text"
+    assert upcoming_name.lower() not in closure_only.lower(), (
+        "an upcoming character must not appear in the roster-closure text"
     )
-    for active_name_fragment in ("Makoto", "Yuki Adachi", "Mizuki"):
-        assert active_name_fragment in scene_brief
+    for active_key in state.cast_lifecycle.active_ids():
+        assert state.characters[active_key].name in scene_brief
 
 
 def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client):
@@ -687,8 +702,11 @@ def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client
 
     keys = captured.get("character_key_to_name", {})
     assert keys, "turn extractor was never invoked with a character catalog"
-    assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
-    for active_key in ("makoto", "yuki", "minori", "mizuki", "yuriko"):
+    active_keys = set(state.cast_lifecycle.active_ids())
+    assert not (set(state.characters) - {"player"} - active_keys) & set(keys), (
+        "an upcoming character leaked into the turn extractor catalog"
+    )
+    for active_key in active_keys:
         assert active_key in keys, f"active character {active_key!r} unexpectedly missing from extractor catalog"
 
 
@@ -721,7 +739,10 @@ def test_main_character_identity_not_injected_when_absent_from_scene(client):
         id="present-marker-other-only",
         namespace="test",
         scope="conversation",
-        text="__people_present_marker__:yuki",
+        text="__people_present_marker__:" + next(
+            key for key in state.cast_lifecycle.active_ids()
+            if key != state.main_character_id
+        ),
         expires_after_turns=10,
     )
 
@@ -770,7 +791,7 @@ def test_system_prompt_forbids_main_character_entering_solitary_scene(client):
         id="present-marker-other-only",
         namespace="test",
         scope="conversation",
-        text="__people_present_marker__:yuki",
+        text=f"__people_present_marker__:{next(key for key in state.cast_lifecycle.active_ids() if key != state.main_character_id)}",
         expires_after_turns=10,
     )
     absent_prompt = system_prompt(state, current_user_msg="I go to the rooftop alone.")
@@ -977,7 +998,10 @@ def test_turn_extractor_catalog_still_uses_scene_context_eligibility(client):
 
     keys = captured.get("character_key_to_name", {})
     assert keys, "turn extractor was never invoked with a character catalog"
-    assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
+    active_keys = set(pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids())
+    assert not (set(pe_mod.SESSIONS[sid]["state"].characters) - {"player"} - active_keys) & set(keys), (
+        "an upcoming character leaked into the turn extractor catalog"
+    )
 
 
 # ============================================================================
@@ -1004,6 +1028,7 @@ def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
         headers=guest_headers,
     )
     assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
 
     # Phase 1.1: `state` is re-fetched from SESSIONS after each call rather
     # than held across calls. The turn pipeline now clones state, mutates the
@@ -1711,14 +1736,15 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
+    subject_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
     # original_goal captured from the pre-turn state (safe to read before,
     # since we're not asserting on this SAME object after a mutating call).
-    original_goal = pe_mod.SESSIONS[sid]["state"].characters["makoto"].goal.current
-    assert len(pe_mod.SESSIONS[sid]["state"].characters["makoto"].goal.history) == 1
+    original_goal = pe_mod.SESSIONS[sid]["state"].characters[subject_id].goal.current
+    assert len(pe_mod.SESSIONS[sid]["state"].characters[subject_id].goal.history) == 1
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
-            certainty="SHIFT", scope="goal", subject_id="makoto",
+            certainty="SHIFT", scope="goal", subject_id=subject_id,
             new_value="No longer chasing romance - focused entirely on baseball now.",
             reason="repeated rejection across several turns",
         ))
@@ -1729,13 +1755,13 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
     assert r1.status_code == 200
 
     # Phase 1.1: fetch AFTER the mutating call — the handler publishes a
-    # fresh clone on success, so `makoto` must be re-derived from it here.
-    makoto = pe_mod.SESSIONS[sid]["state"].characters["makoto"]
-    assert makoto.goal.current == "No longer chasing romance - focused entirely on baseball now."
-    assert len(makoto.goal.history) == 2
+    # fresh clone on success, so the selected resident must be re-derived from it here.
+    subject = pe_mod.SESSIONS[sid]["state"].characters[subject_id]
+    assert subject.goal.current == "No longer chasing romance - focused entirely on baseball now."
+    assert len(subject.goal.history) == 2
     # Old value still readable - never overwritten.
-    assert makoto.goal.history[0].content == original_goal
-    assert makoto.goal.history[1].provenance == "repeated rejection across several turns"
+    assert subject.goal.history[0].content == original_goal
+    assert subject.goal.history[1].provenance == "repeated rejection across several turns"
 
 
 def test_social_shift_disposition_creates_new_history_entry(client):
@@ -1753,12 +1779,13 @@ def test_social_shift_disposition_creates_new_history_entry(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    assert pe_mod.SESSIONS[sid]["state"].character_graph.get_edge("player", "mizuki") is not None
+    target_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    assert pe_mod.SESSIONS[sid]["state"].character_graph.get_edge("player", target_id) is not None
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
-            certainty="SHIFT", scope="disposition", subject_id="player", target_id="mizuki",
-            new_value="growing genuinely fond of Mizuki", reason="repeated warmth over several turns",
+            certainty="SHIFT", scope="disposition", subject_id="player", target_id=target_id,
+            new_value="growing genuinely fond of a housemate", reason="repeated warmth over several turns",
         ))
 
     import unittest.mock as _mock
@@ -1768,10 +1795,10 @@ def test_social_shift_disposition_creates_new_history_entry(client):
 
     # Phase 1.1: fetch state AFTER the mutating call.
     state = pe_mod.SESSIONS[sid]["state"]
-    edge = state.character_graph.get_edge("player", "mizuki")
+    edge = state.character_graph.get_edge("player", target_id)
     assert edge is not None
     assert edge.disposition is not None
-    assert edge.disposition.current == "growing genuinely fond of Mizuki"
+    assert edge.disposition.current == "growing genuinely fond of a housemate"
     assert len(edge.disposition.history) == 1
 
 
@@ -1789,19 +1816,24 @@ def test_social_shift_disposition_no_edge_is_safe_noop(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert state.character_graph.get_edge("makoto", "mizuki") is None
+    active_id = state.cast_lifecycle.active_ids()[0]
+    inactive_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
+    assert state.character_graph.get_edge(active_id, inactive_id) is None
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
-            certainty="SHIFT", scope="disposition", subject_id="makoto", target_id="mizuki",
-            new_value="warming up to Mizuki", reason="softened",
+            certainty="SHIFT", scope="disposition", subject_id=active_id, target_id=inactive_id,
+            new_value="warming up", reason="softened",
         ))
 
     import unittest.mock as _mock
     with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
-    assert state.character_graph.get_edge("makoto", "mizuki") is None
+    assert state.character_graph.get_edge(active_id, inactive_id) is None
 
 
 def test_social_shift_goal_reflected_in_next_turn_prompt(client):
@@ -1815,10 +1847,11 @@ def test_social_shift_goal_reflected_in_next_turn_prompt(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
+    subject_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
-            certainty="SHIFT", scope="goal", subject_id="makoto",
+            certainty="SHIFT", scope="goal", subject_id=subject_id,
             new_value="No longer chasing romance - focused entirely on baseball now.",
             reason="repeated rejection",
         ))
@@ -1831,11 +1864,11 @@ def test_social_shift_goal_reflected_in_next_turn_prompt(client):
     # Phase 1.1: fetch AFTER the mutating call.
     state = pe_mod.SESSIONS[sid]["state"]
 
-    # Force makoto present so the identity block (and any goal line for him)
+    # Force the selected active resident present so the identity block (and any goal line)
     # would render if the game surfaces non-main present characters.
     state.add_transient_entry(
-        id="social_shift_makoto_present", namespace="test", scope="conversation",
-        text="__people_present_marker__:makoto", expires_after_turns=5,
+            id="social_shift_subject_present", namespace="test", scope="conversation",
+            text=f"__people_present_marker__:{subject_id}", expires_after_turns=5,
     )
     prompt = pb.system_prompt(state)
     assert "No longer chasing romance - focused entirely on baseball now." in prompt
@@ -1982,11 +2015,11 @@ def test_departure_wish_does_not_schedule_replacement(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert "makoto" in state.cast_lifecycle.active_ids()
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="makoto", certainty="WISH", reason="joked about leaving",
+            character_id=departing_id, certainty="WISH", reason="joked about leaving",
         ))
 
     import unittest.mock as _mock
@@ -1995,7 +2028,7 @@ def test_departure_wish_does_not_schedule_replacement(client):
     assert r1.status_code == 200
 
     assert state.pending_events == [], "a passing wish/joke must not schedule a replacement"
-    assert "makoto" in state.cast_lifecycle.active_ids(), "wish must not affect membership"
+    assert departing_id in state.cast_lifecycle.active_ids(), "wish must not affect membership"
 
 
 def test_departure_decision_schedules_pending_replacement_not_immediate(client):
@@ -2009,12 +2042,13 @@ def test_departure_decision_schedules_pending_replacement_not_immediate(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    assert "makoto" in pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()
-    minute_before = pe_mod.SESSIONS[sid]["state"].minute
+    initial_state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = initial_state.cast_lifecycle.active_ids("men")[0]
+    minute_before = initial_state.minute
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="makoto", certainty="DECISION", reason="moving out next week",
+            character_id=departing_id, certainty="DECISION", reason="moving out next week",
         ))
 
     import unittest.mock as _mock
@@ -2028,16 +2062,16 @@ def test_departure_decision_schedules_pending_replacement_not_immediate(client):
     event = state.pending_events[0]
     assert event.event_type == "cast_departure_replacement"
     assert event.status == "pending"
-    assert event.payload["departing_id"] == "makoto"
+    assert event.payload["departing_id"] == departing_id
     assert event.scheduled_day == day_number(minute_before) + 1, (
         "six_strangers' replacement_timing is 'next_day' - the replacement must be deferred, not immediate"
     )
     # Deferred, not immediate: departing character is STILL active right now.
-    assert "makoto" in state.cast_lifecycle.active_ids(), (
+    assert departing_id in state.cast_lifecycle.active_ids(), (
         "a player/character cannot evict somebody merely by a decision being stated - "
         "removal only happens when the scheduler later executes the pending event"
     )
-    assert state.cast_lifecycle.members["makoto"].status.value == "active"
+    assert state.cast_lifecycle.members[departing_id].status.value == "active"
 
 
 def test_departure_decision_for_inactive_character_is_ignored(client):
@@ -2056,11 +2090,14 @@ def test_departure_decision_for_inactive_character_is_ignored(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert "arman" not in state.cast_lifecycle.active_ids()
+    inactive_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="arman", certainty="DECISION", reason="hallucinated departure",
+            character_id=inactive_id, certainty="DECISION", reason="hallucinated departure",
         ))
 
     import unittest.mock as _mock
@@ -2084,10 +2121,11 @@ def test_departure_decision_does_not_duplicate_pending_event_across_turns(client
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
+    departing_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids("men")[0]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="makoto", certainty="DECISION", reason="reaffirmed",
+            character_id=departing_id, certainty="DECISION", reason="reaffirmed",
         ))
 
     import unittest.mock as _mock
@@ -2099,6 +2137,7 @@ def test_departure_decision_does_not_duplicate_pending_event_across_turns(client
 
     # Phase 1.1: fetch AFTER both mutating calls.
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
     assert len(state.pending_events) == 1, "reaffirming the same decision must not create a second pending event"
 
 
@@ -2119,16 +2158,17 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     # Manually schedule a departure (bypassing extraction) exactly as the
     # apply pipeline would, one day ahead of the current day.
     from backend.app.engine.world_calendar import PendingEvent, day_number
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_makoto",
+        event_id=f"test_departure_replace_{departing_id}",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "makoto", "reason": "moving out"},
+        payload={"departing_id": departing_id, "reason": "moving out"},
         created_minute=state.minute,
     ))
 
@@ -2139,7 +2179,7 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
     # handler's clone at request time (still visible), but the post-turn
     # assertions must read the PUBLISHED clone, not this stale local `state`.
     state = pe_mod.SESSIONS[sid]["state"]
-    assert "makoto" in state.cast_lifecycle.active_ids(), "event must not fire before its scheduled day"
+    assert departing_id in state.cast_lifecycle.active_ids(), "event must not fire before its scheduled day"
     assert state.pending_events[0].status == "pending"
 
     # Jump time past the day boundary, then take one more turn to let the
@@ -2150,12 +2190,12 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
 
     state = pe_mod.SESSIONS[sid]["state"]
     assert state.pending_events[0].status == "applied"
-    assert state.cast_lifecycle.members["makoto"].status.value == "departed"
+    assert state.cast_lifecycle.members[departing_id].status.value == "departed"
     successor = state.cast_lifecycle.history[-1].arriving_id
     assert successor is not None
     assert state.cast_lifecycle.members[successor].status.value == "active"
     assert state.character_locations.get(successor) == state.cast_lifecycle.arrival_location_id
-    assert "makoto" not in state.character_locations
+    assert departing_id not in state.character_locations
 
 
 def test_time_skip_day_crosses_scheduled_replacement_boundary(client):
@@ -2171,13 +2211,14 @@ def test_time_skip_day_crosses_scheduled_replacement_boundary(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_makoto_skip",
+        event_id=f"test_departure_replace_{departing_id}_skip",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "makoto", "reason": "moving out"},
+        payload={"departing_id": departing_id, "reason": "moving out"},
         created_minute=state.minute,
     ))
 
@@ -2186,7 +2227,7 @@ def test_time_skip_day_crosses_scheduled_replacement_boundary(client):
 
     state = pe_mod.SESSIONS[sid]["state"]
     assert state.pending_events[0].status == "applied"
-    assert state.cast_lifecycle.members["makoto"].status.value == "departed"
+    assert state.cast_lifecycle.members[departing_id].status.value == "departed"
 
 
 def test_pending_replacement_survives_restart_mid_vacancy(client):
@@ -2209,13 +2250,14 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_makoto_restart",
+        event_id=f"test_departure_replace_{departing_id}_restart",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "makoto", "reason": "moving out"},
+        payload={"departing_id": departing_id, "reason": "moving out"},
         created_minute=state.minute,
     ))
 
@@ -2236,7 +2278,7 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     restored_state = restored["state"]
     assert len(restored_state.pending_events) == 1
     assert restored_state.pending_events[0].status == "pending"
-    assert "makoto" in restored_state.cast_lifecycle.active_ids(), "restore mid-vacancy must not itself trigger the replacement"
+    assert departing_id in restored_state.cast_lifecycle.active_ids(), "restore mid-vacancy must not itself trigger the replacement"
 
     # Install the restored session (matching guest identity so the
     # ownership check in get_session doesn't discard it as a fresh session)
@@ -2255,7 +2297,7 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     # is the PRE-turn object; re-fetch to see the published, mutated state.
     restored_state = pe_mod.SESSIONS["scheduler_restart_restored"]["state"]
     assert restored_state.pending_events[0].status == "applied"
-    assert restored_state.cast_lifecycle.members["makoto"].status.value == "departed"
+    assert restored_state.cast_lifecycle.members[departing_id].status.value == "departed"
 
     # Idempotency: replaying the exact same event_id must not double-apply
     # even if somehow invoked again (e.g. a duplicated scheduler tick).
@@ -2282,13 +2324,14 @@ def test_newly_arrived_character_gets_introduction_and_seeded_relationships(clie
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_makoto_intro",
+        event_id=f"test_departure_replace_{departing_id}_intro",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "makoto", "reason": "moving out"},
+        payload={"departing_id": departing_id, "reason": "moving out"},
         created_minute=state.minute,
     ))
     state.minute += 1440
@@ -2334,24 +2377,26 @@ def test_empty_queue_departure_keeps_final_residents_and_no_vacancy(client):
     # fires - the final resident must stay (no crash, no vacancy).
     from backend.app.engine.cast_lifecycle import CastStatus
     lifecycle = state.cast_lifecycle
+    departing_id = lifecycle.active_ids("men")[0]
     for key, member in lifecycle.members.items():
         if member.slot_group == "men" and member.status is CastStatus.UPCOMING:
             member.status = CastStatus.INACTIVE
 
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_yuki_empty_queue",
+        event_id=f"test_departure_replace_{departing_id}_empty_queue",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "yuki", "reason": "moving out, no replacement available"},
+        payload={"departing_id": departing_id, "reason": "moving out, no replacement available"},
         created_minute=state.minute,
     ))
     state.minute += 1440
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "a new day begins"})
     assert r1.status_code == 200
 
+    state = pe_mod.SESSIONS[sid]["state"]
     assert state.pending_events[-1].status == "pending"
-    assert "yuki" in state.cast_lifecycle.active_ids()
+    assert departing_id in state.cast_lifecycle.active_ids()
     assert state.cast_lifecycle.vacancies("men") == 0
 
 
@@ -2369,20 +2414,19 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     opening = response.json()["reply"]
     assert "\n\n" in opening and "\\n" not in opening
     state = pe_mod.SESSIONS[sid]["state"]
-    active_keys = {"makoto", "minori", "yuki", "mizuki", "yuriko"}
-    keys = active_keys | {
-        "uchi", "arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko",
-        "momoka", "hayato", "yuuki_byrnes", "masako",
-    }
+    active_keys = set(state.cast_lifecycle.active_ids())
+    keys = set(state.cast_lifecycle.members)
     assert "player" in state.characters
     assert set(state.characters) == keys | {"player"}
     assert state.player_name == "Chris"
-    assert state.main_character_id == "mizuki"
+    assert state.main_character_id in active_keys
     assert state.location_id == "front_entry"
-    assert {key: state.character_locations[key] for key in active_keys} == {
-        "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
-        "mizuki": "front_entry", "yuriko": "girls_bedroom",
-    }
+    assert len(active_keys) == 5
+    assert len(state.cast_lifecycle.active_ids("men")) == 2
+    assert len(state.cast_lifecycle.active_ids("women")) == 3
+    assert {state.character_locations[key] for key in active_keys} <= set(
+        state.world_runtime.world_graph.locations
+    )
     for key in keys:
         assert state.characters[key].self_knowledge
         if key in active_keys:
@@ -2406,9 +2450,11 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert "6 recurring housemates/characters" in system_prompt
     assert "no fixed win condition" in system_prompt
     assert "Narrator aside device" in system_prompt
-    assert "### CHARACTER IDENTITY — Mizuki Shida" in system_prompt
-    for absent_key in keys - {"mizuki"}:
+    assert f"### CHARACTER IDENTITY — {state.characters[state.main_character_id].name}" in system_prompt
+    for absent_key in keys - {state.main_character_id}:
         assert f"### CHARACTER IDENTITY — {state.characters[absent_key].name}" not in system_prompt
+    assert "guest room" not in opening.lower()
+    assert "boys bedroom" in opening.lower()
 
 
 # ============================================================================
@@ -2515,7 +2561,11 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
         "/api/chat", headers=headers,
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     ).status_code == 200
-    original = "I walk to the living room and ask Makoto and Minori: what do you each do for work?"
+    opening_state = pe_mod.SESSIONS[sid]["state"]
+    first_id, second_id = opening_state.cast_lifecycle.active_ids("women")[:2]
+    first_name = opening_state.characters[first_id].name
+    second_name = opening_state.characters[second_id].name
+    original = f"I walk to the living room and ask {first_name.split()[0]} and {second_name.split()[0]}: what do you each do for work?"
     response = client.post(
         "/api/chat", headers=headers,
         json={"session_id": sid, "message": f"> {original}  "},
@@ -2532,8 +2582,8 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     assert {"role": "user", "content": original} in saved["log"]
     assert any(entry.text == f"Player said: {original}" for entry in state.transient_entries)
     system_prompt = messages[0]["content"]
-    assert "### CHARACTER IDENTITY — Makoto Hasegawa" in system_prompt
-    assert "### CHARACTER IDENTITY — Minori Nakada" in system_prompt
+    assert first_name in system_prompt
+    assert second_name in system_prompt
 
     # Leaving an occupied room must also clear its FIFO presence fallback when
     # the destination is empty and consequently has no people-present markers.
@@ -2546,7 +2596,7 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     state = pe_mod.SESSIONS[sid]["state"]
     assert state.location_id == "terrace"
     terrace_prompt = rendered_messages[-1][0]["content"]
-    for key in ("makoto", "minori", "yuki", "uchi", "yuriko"):
+    for key in opening_state.cast_lifecycle.active_ids():
         assert f"### CHARACTER IDENTITY — {state.characters[key].name}" not in terrace_prompt
     # Six Strangers audit fix (2026-09-19): a genuinely empty destination
     # (people_present == []) means the main character (Mizuki, a separate
@@ -2555,7 +2605,7 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     # character. Previously this asserted the opposite, which is exactly the
     # live-reproduced bug where the focal NPC kept narrating as present in a
     # scene the player explicitly went to alone.
-    assert "### CHARACTER IDENTITY — Mizuki Shida" not in terrace_prompt
+    assert f"### CHARACTER IDENTITY — {opening_state.main_character.name}" not in terrace_prompt
     assert state.latest_scene_knowledge().location_id == "terrace"
     assert state.latest_scene_knowledge().people_present == []
 
@@ -4307,6 +4357,8 @@ def test_structured_dialogue_reaches_ui_and_preserves_memory(client, monkeypatch
     start = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + story_id + "|M|Chris"})
     assert start.status_code == 200
     assert any(s["kind"] == "dialogue" for s in start.json()["segments"])
+    if story_id == "six_strangers":
+        speaker_ids = pe.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[:2]
 
     async def respond(self, url, **kwargs):
         schema = kwargs["json"]["response_format"]["json_schema"]
@@ -4349,9 +4401,10 @@ def test_player_resident_slot_survives_restore_and_full_automatic_rotation(clien
     state = pe.SESSIONS[sid]["state"]
     lifecycle = state.cast_lifecycle
     assert lifecycle.player_slot_group == group
-    assert lifecycle.next_up(group) == displaced
-    assert displaced not in state.character_locations
-    assert state.character_graph.get_edge("player", displaced) is None
+    displaced_id = lifecycle.next_up(group)
+    assert displaced_id is not None
+    assert displaced_id not in state.character_locations
+    assert state.character_graph.get_edge("player", displaced_id) is None
     assert "player_bedroom" not in state.world_runtime.world_graph.locations
     assert bedroom.replace("_", " ") in prompt_builder._storyteller_scene_section(state, "hello")
     roster = pe._cast_roster_payload(state)

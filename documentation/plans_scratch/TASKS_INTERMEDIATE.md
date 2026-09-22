@@ -4,6 +4,13 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### Terrace in the City mobile/PWA and six-resident correctness
+
+- [ ] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
+- [ ] Eliminate iOS standalone safe-area gap and inspect desktop/mobile screenshots before shipping.
+- [ ] Randomize valid starting five-NPC roster, enforce player-bedroom opening variants, and retain atomic same-gender replacements.
+- [ ] Regenerate the world-map artwork without any guest-room representation; run full verification, deploy beta, and live-test.
+
 ### Six Strangers researched atlas and isolated Codex checkout
 
 - [x] Clone latest beta into `mvp_chat_for_codex_only`; create `codex/six-strangers-world-atlas`.

@@ -267,7 +267,7 @@
       "Regional offsets follow the supplied approximate straight-line distance table, not private addresses.",
       "East is +x; north is +y; origin is the house. Indoor positions use a separate 0–100 functional layout.",
       "All route minutes are gameplay estimates, not researched journey times; the engine adds its departure cost.",
-      "The house is scene-derived, not a verified floor plan. Guest room and local cafe are game additions.",
+      "The house is scene-derived, not a verified floor plan. The local cafe is a game addition.",
       "Unverified venues have no regional coordinates; named historical venues are not claims of current operation.",
       "O13 aliases H15. Other unnamed scene types remain placeholders pending direct episode review."
     ]

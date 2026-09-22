@@ -208,9 +208,10 @@ def test_six_strangers_content_references_and_private_concerns_are_consistent():
     ), "Upcoming residents must not leak through seeded relationships"
     assert any(source in keys and target in keys for source, target in pairs)
 
-    opening = cfg["opening"]["text"]
+    opening = "\n".join(cfg["opening"].get("variants") or [cfg["opening"]["text"]])
     assert "\n\n" in opening
     assert "\\n" not in opening, "Opening paragraphs must use actual newlines"
+    assert "guest room" not in opening.lower()
     content = json.dumps(cfg, ensure_ascii=False)
     assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", content, re.I)
     assert cfg["mode"]["type"] == "social_sim"
@@ -232,6 +233,7 @@ def test_six_strangers_cast_lifecycle_catalog_and_queue_are_consistent():
     assert lifecycle["departure_policy"] == "committed_intent"
     assert lifecycle["replacement_timing"] == "next_day"
     assert lifecycle["player_mode"] == "resident_slot"
+    assert lifecycle["randomize_initial_roster"] is True
     assert lifecycle["slot_groups"] == {
         "men": {"capacity": 3, "label": "Men's resident slots"},
         "women": {"capacity": 3, "label": "Women's resident slots"},
@@ -384,7 +386,10 @@ def test_six_strangers_house_holds_exactly_six_residents_with_no_guest_room():
     assert len(world_cfg["character_start_locations"]) == 6
     for gender, group in lifecycle["player_slot_groups"].items():
         built = CastLifecycleState.from_config(lifecycle)
-        assert len(built.active_ids()) == 6
+        built.choose_initial_roster(group)
+        assert len(built.active_ids(group)) == capacities[group] - 1
+        other_group = "women" if group == "men" else "men"
+        assert len(built.active_ids(other_group)) == capacities[other_group]
         built.reserve_player_slot(group)
         active = built.active_ids()
         assert len(active) == 5, f"{gender}: player + {len(active)} NPCs != 6 residents"

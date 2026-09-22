@@ -48,3 +48,19 @@ def test_hard_reload_handler_clears_service_worker_and_cache_storage():
     assert "location.replace" in fn_body or "location.reload" in fn_body, (
         "hardReloadApp() must actually navigate/reload after clearing caches."
     )
+
+
+def test_update_app_tab_reuses_the_cache_busting_hard_reload_action():
+    html = _read_index_html()
+    assert 'id="tab-update-app"' in html
+    assert ">Update App<" in html
+    assert 'data-action="hard-reload"' in html
+    assert 'this.dataset.action === "hard-reload"' in html
+    assert "hardReloadApp();" in html
+
+
+def test_text_speed_has_only_slow_normal_and_fast_at_requested_rates():
+    html = _read_index_html()
+    assert 'id="typewriter-speed" min="0" max="2"' in html
+    assert 'var TYPEWRITER_SPEEDS = [10, 4, 2.5];' in html
+    assert 'var TYPEWRITER_LABELS = ["Slow", "Normal", "Fast"];' in html

@@ -44,7 +44,7 @@ The world contains 103 visitable places, 25 region/venue containers, and 270
 directed edges (135 bidirectional links). All H01–H18, E01–E67 and O01–O15
 inventory IDs are represented. O13 points to H15, the house swimming pool, so it
 does not create a duplicate location. Four existing game additions remain: the
-guest room, neighborhood streets, Gotanda Station and fictional local cafe.
+gender-matched shared bedrooms, neighborhood streets, Gotanda Station and fictional local cafe.
 Existing location IDs, including `terrace`, `salon`, and `dance_studio`, stay
 stable for character positions and saved sessions.
 
