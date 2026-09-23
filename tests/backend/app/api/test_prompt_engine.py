@@ -4752,3 +4752,86 @@ def test_retry_after_failed_turn_reprocesses_from_correct_pre_turn_state(client,
     # Exactly ONE successful advance, from the correct pre-turn baseline -
     # not a double-advance from state the failed attempt might have mutated.
     assert pe_mod.SESSIONS[sid]["state"].turns == turns_at_start + 1
+
+
+# ============================================================================
+# Jev provider architecture, step 1: the per-turn stage ledger must include an
+# `extraction` stage. Before this, retrieval/storyteller/commit were
+# instrumented but extraction was not, so production extractor latency was an
+# inference rather than a recorded fact - and the Jev design's ~17x speedup
+# ratio could not be validated against production without it.
+# ============================================================================
+
+def _capture_ledger(client, monkeypatch, sid, guest_headers):
+    """Drive one real turn and return the turn_stage_ledger dict it logged."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    captured = []
+    real_log = pe_mod._log
+
+    def _spy(event):
+        if isinstance(event, dict) and event.get("kind") == "turn_stage_ledger":
+            captured.append(dict(event))
+        return real_log(event)
+
+    monkeypatch.setattr(pe_mod, "_log", _spy)
+
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": "hello there"},
+    ).status_code == 200
+
+    assert captured, "no turn_stage_ledger line was emitted for a normal turn"
+    return captured[-1]
+
+
+def test_stage_ledger_includes_extraction_stage(client, monkeypatch):
+    """The actual step-1 deliverable: extraction is a named, timed stage."""
+    ledger = _capture_ledger(
+        client, monkeypatch, "stage_ledger_extraction_check",
+        {"X-Guest-Id": "30000000-0000-4000-8000-000000000001"},
+    )
+    stage_ms = ledger.get("stage_ms") or {}
+    assert "extraction" in stage_ms, (
+        f"extraction stage missing from the ledger; got stages: {sorted(stage_ms)}"
+    )
+    assert ledger.get("stage_calls", {}).get("extraction") == 1, (
+        "extraction should be entered exactly once per normal turn"
+    )
+
+
+def test_stage_ledger_covers_all_four_turn_stages(client, monkeypatch):
+    """Guard against a stage being silently dropped by a future refactor.
+
+    These four are the turn's expensive, externally-bound segments. If one
+    disappears from the ledger, before/after measurement for Phases 3 and 4
+    silently loses its denominator - which is exactly the failure this test
+    exists to prevent.
+    """
+    ledger = _capture_ledger(
+        client, monkeypatch, "stage_ledger_all_stages_check",
+        {"X-Guest-Id": "30000000-0000-4000-8000-000000000002"},
+    )
+    stage_ms = ledger.get("stage_ms") or {}
+    # commit only runs for non-anon sessions; this test uses a guest, so it applies.
+    for required in ("retrieval", "extraction", "storyteller", "commit"):
+        assert required in stage_ms, (
+            f"stage {required!r} missing; got {sorted(stage_ms)}"
+        )
+
+
+def test_stage_ledger_durations_are_non_negative(client, monkeypatch):
+    """A negative or absent duration would corrupt any percentile computed
+    from these lines."""
+    ledger = _capture_ledger(
+        client, monkeypatch, "stage_ledger_durations_check",
+        {"X-Guest-Id": "30000000-0000-4000-8000-000000000003"},
+    )
+    for name, ms in (ledger.get("stage_ms") or {}).items():
+        assert isinstance(ms, (int, float)), f"{name} duration is not numeric: {ms!r}"
+        assert ms >= 0.0, f"{name} duration is negative: {ms}"
+    assert ledger.get("total_ms", -1) >= 0.0

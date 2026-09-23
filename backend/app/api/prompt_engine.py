@@ -2737,16 +2737,27 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 "current_location_id": state.location_id,
                 "current_location_name": state.location,
             })
-            extraction = await _TURN_EXTRACTOR.extract(
-                user_msg=msg,
-                world_locations=world_locations,
-                character_key_to_name=character_key_to_name,
-                previous_turn_user_msg=str(getattr(state, "last_turn_user_msg", "") or ""),
-                previous_turn_assistant_reply=str(getattr(state, "last_turn_assistant_reply", "") or ""),
-                previous_turn_candidate_chunks=previous_candidate_chunks,
-                conversation_log=log,
-                behavior_window=_behavior_window,
-            )
+            # Step 1 of the Jev provider architecture (see
+            # documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §1): the
+            # stage ledger instrumented retrieval/storyteller/commit but NOT
+            # extraction, so production extractor latency was an inference
+            # rather than a recorded fact. Locally this call measured ~3.6s
+            # p50, which is NOT reconcilable with Phase 0B's measured 3.1-3.9s
+            # TOTAL turn time - meaning production is faster than the local
+            # measurement and the real number was unknown. This stage makes it
+            # observable before anyone quotes a Jev speedup ratio as a
+            # production figure.
+            with stage_timer.stage("extraction"):
+                extraction = await _TURN_EXTRACTOR.extract(
+                    user_msg=msg,
+                    world_locations=world_locations,
+                    character_key_to_name=character_key_to_name,
+                    previous_turn_user_msg=str(getattr(state, "last_turn_user_msg", "") or ""),
+                    previous_turn_assistant_reply=str(getattr(state, "last_turn_assistant_reply", "") or ""),
+                    previous_turn_candidate_chunks=previous_candidate_chunks,
+                    conversation_log=log,
+                    behavior_window=_behavior_window,
+                )
             
             _log({
                 "kind": "turn_extraction_complete",

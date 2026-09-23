@@ -379,16 +379,34 @@ resolve(batches, legacy_request):
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| `JEV_TIMEOUT_MS` | **1500** | ~7× measured p50 (210 ms) and ~5× measured max (285 ms). Generous for a real slow response, far below the legacy path's own latency. |
+| `JEV_TIMEOUT_MS` | **1000** | ~4.8× measured p50 (210 ms) and ~3.5× measured max (285 ms). Chosen over a looser 1500 ms to cap the failure-path regression at 1.0 s. See the flapping caveat below. |
 | `JEV_CONNECT_TIMEOUT_MS` | 500 | A connect failure is not a slow answer; fail fast. |
 | retries within a turn | **0** | Do not retry Jev inside a turn. A retry costs another timeout window before fallback. The circuit breaker is the retry mechanism, across requests. |
 
-**Worst case, stated plainly:** Jev hangs to the full 1,500 ms, then legacy runs
-normally. That turn costs `1500 ms + legacy`, i.e. a ~1.5 s regression versus not
+**Worst case, stated plainly:** Jev hangs to the full 1,000 ms, then legacy runs
+normally. That turn costs `1000 ms + legacy`, i.e. a ~1.0 s regression versus not
 using Jev at all. This is acceptable **only** because the circuit breaker (§6)
 caps how many requests can pay it: after 3 consecutive failures the breaker
 opens and subsequent requests skip Jev entirely at zero latency cost. A sustained
 Jev outage therefore costs ~3 slow turns, then nothing.
+
+**The tradeoff this timeout makes, and how to validate it.** 1,000 ms is 3.5×
+the highest latency observed across the measurement runs (285 ms), which is
+comfortable but tighter than the 1,500 ms originally proposed. Two consequences
+to watch:
+
+- A genuinely slow-but-valid Jev response between 1,000 and 1,500 ms would be
+  discarded and pay for a legacy call it did not need. Cheap (correctness is
+  unaffected — the legacy answer is used) but wasteful.
+- Repeated latency spikes near the cut-off could trip the breaker on *timeouts*
+  rather than real outages, flapping CLOSED → OPEN → CLOSED.
+
+Both are measurable before going live: **shadow mode records real Jev latency
+per turn without applying its answers** (§7). The concrete validation step is to
+read the observed **p99** from shadow telemetry and confirm it sits well under
+1,000 ms before promoting any task from shadow to live. If p99 turns out to
+approach the cut-off, raise the timeout rather than accept the flapping — and
+note that raising it is a one-env-var change, no deploy.
 
 If that 1.5 s worst case is judged unacceptable for the critical path, the
 documented alternative is **hedging**: start the legacy call at `t=400 ms` if
@@ -552,7 +570,7 @@ exactly like every other config value, so Railway env vars override `.env.test`.
 | `JEV_ENABLED_TASKS` | csv | `""` | per-task allowlist. `""` = none, `*` = all. |
 | `JEV_SHADOW_TASKS` | csv | `""` | run Jev, log it, **use legacy**. |
 | `JEV_SHADOW_SAMPLE_RATE` | float | `0.0` | 0.0–1.0 fraction of turns shadowed (shadow costs both calls). |
-| `JEV_TIMEOUT_MS` | int | `1500` | §4 |
+| `JEV_TIMEOUT_MS` | int | `1000` | §4. Validate against shadow-mode p99 before going live. |
 | `JEV_MAX_QUESTIONS_PER_BATCH` | int | `60` | §5 |
 
 Task ids (the `Decision.task` values), matching the redesign doc's abilities:
