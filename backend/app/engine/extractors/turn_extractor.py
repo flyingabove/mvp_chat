@@ -10,6 +10,7 @@ from backend.app.engine.extractors.decision_registry import (
     REL_HISTORY_FIELDS,
     REL_STATE_DIMENSIONS,
     REL_STATE_SYMMETRIC,
+    behavior_tag_batch_decisions,
     departure_batch_decisions,
     knowledge_batch_decisions,
     movement_destination_decision,
@@ -18,6 +19,7 @@ from backend.app.engine.extractors.decision_registry import (
     relationship_history_batch_decisions,
     relationship_state_batch_decisions,
     rel_state_score_to_delta,
+    social_shift_certainty_decision,
 )
 from backend.app.llm.decisions.types import DecisionBatch, DecisionOutcome, Provider
 from backend.app.llm.protocols import DecisionProvider, LegacyExtractionRequest
@@ -195,7 +197,10 @@ class TurnExtractor:
         )
 
     @staticmethod
-    def _parse_json(content: str, allowed_location_ids: set[str], allowed_character_keys: set[str]) -> TurnExtraction:
+    def _parse_json(
+        content: str, allowed_location_ids: set[str], allowed_character_keys: set[str],
+        allowed_behavior_tags: set[str] | None = None,
+    ) -> TurnExtraction:
         """UNCHANGED public entry point: parses a raw JSON string. Delegates
         to _parse_dict, which is the piece the assembler (extract(), below)
         also calls directly with an already-parsed dict — avoids
@@ -206,16 +211,23 @@ class TurnExtractor:
             return TurnExtraction()
         if not isinstance(obj, dict):
             return TurnExtraction()
-        return TurnExtractor._parse_dict(obj, allowed_location_ids, allowed_character_keys)
+        return TurnExtractor._parse_dict(obj, allowed_location_ids, allowed_character_keys, allowed_behavior_tags)
 
     @staticmethod
-    def _parse_dict(obj: dict, allowed_location_ids: set[str], allowed_character_keys: set[str]) -> TurnExtraction:
+    def _parse_dict(
+        obj: dict, allowed_location_ids: set[str], allowed_character_keys: set[str],
+        allowed_behavior_tags: set[str] | None = None,
+    ) -> TurnExtraction:
         """The exact body _parse_json always had, unchanged — every
         existing validation rule (unknown location -> NONE, from_id must be
         'player', departure/shift coercion rules, etc.) is retained here,
         untouched by the Jev integration. Jev choosing something never
         bypasses this — see JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9's
-        'Two invariants that are code's job, not Jev's'."""
+        'Two invariants that are code's job, not Jev's'.
+
+        BL-16 fix: `allowed_behavior_tags` is the story's closed vocabulary
+        (default/empty = accept-anything, matching pre-fix behavior
+        byte-for-byte for every story that hasn't authored one yet)."""
         movement = obj.get("movement") if isinstance(obj.get("movement"), dict) else {}
         previous_scene = obj.get("previous_scene") if isinstance(obj.get("previous_scene"), dict) else {}
 
@@ -355,6 +367,13 @@ class TurnExtractor:
                     reason=str(raw_departure.get("reason") or "").strip(),
                 )
 
+        # BL-16 fix: lowercase-keyed lookup onto the vocabulary's canonical
+        # casing, so an LLM that returns "Warm" still matches "warm" in the
+        # authored list. Empty vocabulary => accept-anything (unchanged).
+        _tag_vocab_lookup = {
+            str(t).strip().lower(): str(t).strip() for t in (allowed_behavior_tags or ())
+        }
+
         raw_tags = obj.get("behavior_tags")
         behavior_tags: List[BehaviorTagUpdate] = []
         if isinstance(raw_tags, list):
@@ -371,6 +390,14 @@ class TurnExtractor:
                         continue
                     if t_to not in allowed_character_keys and t_to != "player":
                         continue
+                if _tag_vocab_lookup:
+                    canonical = _tag_vocab_lookup.get(tag.lower())
+                    if canonical is None:
+                        # Not in the authored vocabulary - omit rather than
+                        # guess a nearest match, matching every other
+                        # "unknown -> drop" rule in this parser.
+                        continue
+                    tag = canonical
                 behavior_tags.append(BehaviorTagUpdate(from_id=t_from, to_id=t_to, tag=tag))
 
         raw_shift = obj.get("social_shift_signal") if isinstance(obj.get("social_shift_signal"), dict) else {}
@@ -429,18 +456,19 @@ class TurnExtractor:
         previous_turn_assistant_reply: str,
         character_key_to_name: Dict[str, str] | None = None,
         previous_turn_candidate_chunks: List[Dict[str, str]] | None = None,
+        allowed_behavior_tags: List[str] | None = None,
+        behavior_window: Dict[str, Any] | None = None,
     ) -> List[DecisionBatch]:
-        """Step 3/5/6 batch builder — pure, no I/O. Builds DecisionBatches for
-        the Jev-eligible abilities: movement_intent, movement_destination,
-        prev_scene_location (step 5), plus knowledge and departure fan-outs
-        (step 6). relationship_*, behavior_tags, social_shift_signal still
-        have no Decision registered — see extract()'s "legacy_raw is None"
-        branch below for why that keeps the legacy call unconditional for
-        those regardless of Jev's outcome here, until they're registered too
-        (steps 7-9) and/or the legacy prompt is shrunk to stop asking for
-        what Jev already answered (a deliberately separate, NOT-yet-done
-        optimization — see JEV_EXTRACTOR_REDESIGN_2026_09_22.md's "hybrid
-        trap" warning; today this only lets Jev's answer override legacy's)."""
+        """Step 3/5/6/7/8/9 batch builder — pure, no I/O. All 11 of the 12
+        abilities are now Jev-eligible (ability 12's `new_value` free text
+        still needs legacy — see social_shift_certainty_decision's
+        docstring). NOTE the still-unresolved "hybrid trap"
+        (JEV_EXTRACTOR_REDESIGN_2026_09_22.md): extract()'s "legacy_raw is
+        None" branch below still unconditionally calls legacy whenever the
+        resolver itself didn't need to (e.g. a sparse turn where every
+        registered decision resolved via Jev) — shrinking the legacy prompt
+        once that's safe is deliberately out of scope here, same as when
+        this note was first written for steps 1-5."""
         batches: List[DecisionBatch] = [
             DecisionBatch(
                 name="current_message",
@@ -495,10 +523,37 @@ class TurnExtractor:
                 name="rel_history", state=context_state, decisions=rel_history_decisions,
             ))
 
+        # Step 8. BL-16-gated: only registered once the story has authored
+        # a closed behavior_tag_vocabulary (a free-text tag has no fixed
+        # option set for Jev's `choice` kind).
+        behavior_tag_decisions = behavior_tag_batch_decisions(
+            (character_key_to_name or {}).keys(), allowed_behavior_tags or [],
+        )
+        if behavior_tag_decisions:
+            batches.append(DecisionBatch(
+                name="behavior_tag", state=context_state, decisions=behavior_tag_decisions,
+            ))
+
+        # Step 9. Gated on behavior_window being present - matches the
+        # legacy prompt's own rule 10 ("only produce this when a BEHAVIOR
+        # PATTERN TO EVALUATE block is present"); at most one ripe pair is
+        # ever evaluated per turn (prompt_engine.py's _ripe_behavior_pairs),
+        # so this is a single decision, not a fan-out.
+        if behavior_window and "->" in str(behavior_window.get("pair") or ""):
+            subject_id, target_id = str(behavior_window["pair"]).split("->", 1)
+            batches.append(DecisionBatch(
+                name="social_shift",
+                state="CURRENT PLAYER MESSAGE:\n" + str(user_msg or "").strip(),
+                decisions=(social_shift_certainty_decision(
+                    subject_id, target_id, behavior_window.get("tags") or [],
+                ),),
+            ))
+
         return batches
 
     def _apply_decision_overrides(
         self, base: TurnExtraction, outcome: DecisionOutcome, allowed_location_ids: set[str],
+        behavior_window: Dict[str, Any] | None = None,
     ) -> TurnExtraction:
         """The assembler's override step. Only applies a Jev answer when the
         resolver actually used Jev for it (Provider.JEV) — in shadow mode,
@@ -541,6 +596,8 @@ class TurnExtractor:
         departure_signal = self._apply_departure_override(base.departure_signal, outcome)
         relationship_state_updates = self._apply_rel_state_overrides(base.relationship_state_updates, outcome)
         relationship_history_updates = self._apply_rel_history_overrides(base.relationship_history_updates, outcome)
+        behavior_tags = self._apply_behavior_tag_overrides(base.behavior_tags, outcome)
+        social_shift_signal = self._apply_social_shift_override(base.social_shift_signal, outcome, behavior_window)
 
         return _dataclass_replace(
             base, movement_intent=intent, destination_id=destination_id,
@@ -548,6 +605,7 @@ class TurnExtractor:
             knowledge_updates=knowledge_updates, departure_signal=departure_signal,
             relationship_state_updates=relationship_state_updates,
             relationship_history_updates=relationship_history_updates,
+            behavior_tags=behavior_tags, social_shift_signal=social_shift_signal,
         )
 
     @staticmethod
@@ -699,6 +757,85 @@ class TurnExtractor:
             ))
         return result
 
+    @staticmethod
+    def _apply_behavior_tag_overrides(
+        base_tags: List[BehaviorTagUpdate], outcome: DecisionOutcome,
+    ) -> List[BehaviorTagUpdate]:
+        """Ability 11 override. Decision ids are `behtag_<from>_<to>`. A
+        usable Jev NONE for a pair means "keep whatever legacy had for that
+        pair" is WRONG to assume - Jev's NONE is itself an answer (no
+        behavior shown), so a Jev-covered pair with NONE must NOT keep a
+        stale legacy tag for that same pair. Only pairs Jev never usably
+        answered keep their legacy value."""
+        jev_by_pair: dict[tuple[str, str], str] = {}
+        for decision_id, answer in outcome.answers.items():
+            if not decision_id.startswith("behtag_"):
+                continue
+            if not (answer.usable and answer.provider is Provider.JEV):
+                continue
+            rest = decision_id[len("behtag_"):]
+            parts = rest.split("_", 1)
+            if len(parts) != 2:
+                continue
+            from_id, to_id = parts
+            jev_by_pair[(from_id, to_id)] = answer.choice or "NONE"
+
+        if not jev_by_pair:
+            return base_tags
+
+        result: List[BehaviorTagUpdate] = [
+            u for u in base_tags if (u.from_id, u.to_id) not in jev_by_pair
+        ]
+        for (from_id, to_id), tag in jev_by_pair.items():
+            if tag == "NONE":
+                continue
+            result.append(BehaviorTagUpdate(from_id=from_id, to_id=to_id, tag=tag))
+        return result
+
+    @staticmethod
+    def _apply_social_shift_override(
+        base_signal: Optional[SocialShiftSignal], outcome: DecisionOutcome,
+        behavior_window: Dict[str, Any] | None,
+    ) -> Optional[SocialShiftSignal]:
+        """Ability 12 override. Jev only judges `certainty` - `new_value`
+        (free text, required when certainty="SHIFT") can only come from the
+        legacy generative call. NONE/WISH need no new_value and can be
+        fully Jev-sourced; a Jev SHIFT can only be applied when legacy's
+        OWN social_shift_signal already corroborates the same (subject,
+        target) pair with a non-empty new_value - otherwise this degrades
+        to `base_signal` unchanged rather than ever writing a SHIFT with no
+        description of the new state."""
+        if not behavior_window or "->" not in str(behavior_window.get("pair") or ""):
+            return base_signal
+        subject_id, target_id = str(behavior_window["pair"]).split("->", 1)
+        subject_id = subject_id.strip().lower()
+        target_id = target_id.strip().lower()
+
+        answer = outcome.answers.get("social_shift_certainty")
+        if answer is None or not (answer.usable and answer.provider is Provider.JEV):
+            return base_signal
+
+        certainty = answer.choice or "NONE"
+        base_matches = (
+            base_signal is not None and base_signal.scope == "disposition"
+            and base_signal.subject_id == subject_id and base_signal.target_id == target_id
+        )
+
+        if certainty == "NONE":
+            return None
+        if certainty == "WISH":
+            return SocialShiftSignal(
+                certainty="WISH", scope="disposition", subject_id=subject_id, target_id=target_id,
+                new_value="", reason=base_signal.reason if base_matches else "",
+            )
+        # certainty == "SHIFT"
+        if base_matches and base_signal.new_value:
+            return SocialShiftSignal(
+                certainty="SHIFT", scope="disposition", subject_id=subject_id, target_id=target_id,
+                new_value=base_signal.new_value, reason=base_signal.reason,
+            )
+        return base_signal
+
     async def _call_legacy_raw(self, request: "LegacyExtractionRequest") -> Dict[str, Any] | None:
         """The legacy one-shot LLM call. Matches LegacyExtractionCallable's
         signature exactly — this IS the `legacy` callable injected into
@@ -719,6 +856,34 @@ class TurnExtractor:
         previous_turn_candidate_chunks = request.previous_turn_candidate_chunks
         conversation_log = request.conversation_log
         behavior_window = request.behavior_window
+        allowed_behavior_tags = [str(t).strip() for t in (request.allowed_behavior_tags or ()) if str(t or "").strip()]
+
+        # BL-16 fix: a closed vocabulary makes behavior_tags a strict-choice
+        # extraction instead of free text, which is what makes
+        # _ripe_behavior_pairs' exact-string majority vote meaningful. A
+        # story that hasn't authored one yet keeps the original free-text
+        # rule (accept-anything), byte-for-byte.
+        if allowed_behavior_tags:
+            vocab_list = ", ".join(f'"{t}"' for t in allowed_behavior_tags)
+            behavior_tag_rule = (
+                "9) behavior_tags: ALWAYS extract, cheaply, for any character (including player) whose\n"
+                "   words or actions THIS TURN showed an observable attitude/behavior toward another\n"
+                f"   character present in the scene. tag MUST be exactly one of: {vocab_list}.\n"
+                "   Pick the closest matching tag from that list - never invent a new word. Omit if no\n"
+                "   clear behavior toward a specific other character is shown, or if none of the allowed\n"
+                "   tags fit. This is NOT a judgment about whether anything has changed - just a raw\n"
+                "   observation of this turn."
+            )
+        else:
+            behavior_tag_rule = (
+                "9) behavior_tags: ALWAYS extract, cheaply, for any character (including player) whose\n"
+                "   words or actions THIS TURN showed an observable attitude/behavior toward another\n"
+                "   character present in the scene. tag is a short free-text phrase (1-3 words, e.g.\n"
+                "   \"aggressive\", \"warm\", \"evasive\", \"protective\", \"dismissive\") describing how\n"
+                "   from_id behaved toward to_id in this single turn only. Omit if no clear behavior\n"
+                "   toward a specific other character is shown. This is NOT a judgment about whether\n"
+                "   anything has changed - just a raw observation of this turn."
+            )
 
         location_lines = []
         for loc_id, loc_name in (world_locations or {}).items():
@@ -775,13 +940,7 @@ class TurnExtractor:
             "   character_id must be the character who is leaving, from allowed character keys.\n"
             "   Never infer DECISION (or WISH) from the player's speech, or from another\n"
             "   character's speech ABOUT someone else leaving - only from that character's own words.\n"
-            "9) behavior_tags: ALWAYS extract, cheaply, for any character (including player) whose\n"
-            "   words or actions THIS TURN showed an observable attitude/behavior toward another\n"
-            "   character present in the scene. tag is a short free-text phrase (1-3 words, e.g.\n"
-            "   \"aggressive\", \"warm\", \"evasive\", \"protective\", \"dismissive\") describing how\n"
-            "   from_id behaved toward to_id in this single turn only. Omit if no clear behavior\n"
-            "   toward a specific other character is shown. This is NOT a judgment about whether\n"
-            "   anything has changed - just a raw observation of this turn.\n"
+            f"{behavior_tag_rule}\n"
             "10) social_shift_signal: ONLY produce this when a \"BEHAVIOR PATTERN TO EVALUATE\"\n"
             "    block is present below. If that block is absent, omit social_shift_signal entirely\n"
             "    (or set certainty=\"NONE\"). When the block IS present, judge whether the pattern shown\n"
@@ -867,10 +1026,12 @@ class TurnExtractor:
         previous_turn_candidate_chunks: List[Dict[str, str]] | None = None,
         conversation_log: List[Dict[str, str]] | None = None,
         behavior_window: Dict[str, Any] | None = None,
+        allowed_behavior_tags: List[str] | None = None,
     ) -> TurnExtraction:
-        """UNCHANGED signature and return type. Internally: batch builder ->
-        resolver -> assembler (see class docstring and
-        JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12 step 3)."""
+        """Internally: batch builder -> resolver -> assembler (see class
+        docstring and JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12 step 3).
+        `allowed_behavior_tags` is new (BL-16 fix) and optional/keyword-only
+        with an empty default, so every existing caller is unaffected."""
         allowed_location_ids = set((world_locations or {}).keys())
         allowed_character_keys = {
             str(k).strip().lower() for k in (character_key_to_name or {}).keys() if str(k).strip()
@@ -895,6 +1056,7 @@ class TurnExtractor:
             previous_turn_candidate_chunks=tuple(previous_turn_candidate_chunks or []),
             conversation_log=tuple(conversation_log or []),
             behavior_window=behavior_window,
+            allowed_behavior_tags=tuple(allowed_behavior_tags or ()),
             invoke=_invoke,
         )
 
@@ -903,20 +1065,24 @@ class TurnExtractor:
             previous_turn_assistant_reply=previous_turn_assistant_reply,
             character_key_to_name=character_key_to_name,
             previous_turn_candidate_chunks=previous_turn_candidate_chunks,
+            allowed_behavior_tags=allowed_behavior_tags,
+            behavior_window=behavior_window,
         )
 
         outcome = await self._resolver.resolve(batches, legacy_request)
 
         legacy_raw = outcome.legacy_raw
         if legacy_raw is None:
-            # See _build_batches' docstring: 9 of 12 TurnExtraction fields
-            # have no Decision registered yet, so the resolver's own
-            # "did I need legacy" bookkeeping (scoped to the 3 registered
-            # decisions) can't know they still need an answer. This is
-            # TurnExtractor's responsibility, not the resolver's — ensure a
-            # legacy call always happens so those 9 fields are never
-            # silently empty.
+            # See _build_batches' docstring: ability 12's new_value free
+            # text always needs legacy, so a legacy call is still always
+            # required somewhere ("hybrid trap", not yet closed) - ensure
+            # it happens even when the resolver itself didn't need to call
+            # it for any of the now fully-registered choice/score/noul
+            # decisions.
             legacy_raw = await legacy_request.invoke()
 
-        base = self._parse_dict(legacy_raw or {}, allowed_location_ids, allowed_character_keys)
-        return self._apply_decision_overrides(base, outcome, allowed_location_ids)
+        base = self._parse_dict(
+            legacy_raw or {}, allowed_location_ids, allowed_character_keys,
+            set(allowed_behavior_tags or ()),
+        )
+        return self._apply_decision_overrides(base, outcome, allowed_location_ids, behavior_window)

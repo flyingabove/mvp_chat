@@ -386,6 +386,13 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "win_detection": src.get("win_detection") or {},
         "epistemic_seed": src.get("epistemic_seed") or {},
         "canonical_truth": src.get("canonical_truth") or [],
+        # BL-16 fix: a closed, story-authored vocabulary for behavior_tags
+        # (see turn_extractor.py's BehaviorTagUpdate and
+        # _ripe_behavior_pairs' docstring in this file). Empty list for
+        # every pre-existing story until authored - the extractor and
+        # _ripe_behavior_pairs both treat an empty vocabulary as "accept
+        # anything", so this is a strictly additive, opt-in change.
+        "behavior_tag_vocabulary": [str(t).strip() for t in (src.get("behavior_tag_vocabulary") or []) if str(t or "").strip()],
         "characters": characters,
         "relationships": src.get("relationships") or {},
         # Optional ensemble/slice-of-life mode context (see
@@ -1326,6 +1333,25 @@ def _restore_behavior_log(saved: dict | None) -> dict:
     return {str(k): [str(t) for t in (v or []) if isinstance(v, list)] for k, v in saved.items() if isinstance(v, list)}
 
 
+def _migrate_behavior_log_to_vocabulary(log: dict, vocabulary: list[str]) -> dict:
+    """BL-16 fix: a session saved BEFORE a story authored a
+    behavior_tag_vocabulary may hold free-text tags that no longer match
+    it. Dropping unknown tags (rather than fuzzy-mapping them) is the
+    simplest correct choice - the window is capped at
+    BEHAVIOR_LOG_WINDOW_SIZE entries per pair, so a few stale entries lost
+    on the first load after authoring a vocabulary is a small, one-time
+    cost. A pair left with zero matching tags is dropped entirely."""
+    if not vocabulary:
+        return log
+    allowed = {str(t).strip().lower() for t in vocabulary}
+    migrated: dict[str, list[str]] = {}
+    for pair_key, tags in (log or {}).items():
+        kept = [t for t in tags if str(t).strip().lower() in allowed]
+        if kept:
+            migrated[pair_key] = kept
+    return migrated
+
+
 def _ripe_behavior_pairs(state: GameState) -> dict[str, list[str]]:
     """Phase 3 'Social life': pure function, no LLM. Decides which pairs in
     state.recent_behavior_log have accumulated enough tags to be worth an
@@ -1759,7 +1785,10 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         if saved_pending_events:
             restored.pending_events = _restore_pending_events(saved_pending_events)
         _restore_character_goals(restored, saved.get("character_goals"))
-        restored.recent_behavior_log = _restore_behavior_log(saved.get("recent_behavior_log"))
+        restored.recent_behavior_log = _migrate_behavior_log_to_vocabulary(
+            _restore_behavior_log(saved.get("recent_behavior_log")),
+            (restored.story_cfg or {}).get("behavior_tag_vocabulary") or [],
+        )
         restored.clear_all_transient_entries()
         _seed_noncanonical_story_details_to_transient(story_def, restored)
 
@@ -2757,6 +2786,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     previous_turn_candidate_chunks=previous_candidate_chunks,
                     conversation_log=log,
                     behavior_window=_behavior_window,
+                    allowed_behavior_tags=(state.story_cfg or {}).get("behavior_tag_vocabulary") or [],
                 )
             
             _log({

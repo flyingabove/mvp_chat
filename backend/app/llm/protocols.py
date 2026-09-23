@@ -40,6 +40,10 @@ class LegacyExtractionRequest:
     previous_turn_candidate_chunks: Sequence[Mapping[str, str]] = ()
     conversation_log: Sequence[Mapping[str, str]] = ()
     behavior_window: Mapping[str, Any] | None = None
+    # BL-16 fix: story-authored closed vocabulary for behavior_tags. Empty
+    # for stories that haven't authored one yet (accept-anything, matching
+    # current behavior byte-for-byte).
+    allowed_behavior_tags: Sequence[str] = ()
     # The actual legacy call, injected so DecisionResolver never imports
     # TurnExtractor (would create an engine <-> llm import cycle). Returns
     # the legacy call's raw parsed JSON dict (pre-TurnExtraction-assembly),

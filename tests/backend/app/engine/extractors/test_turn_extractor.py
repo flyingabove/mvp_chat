@@ -221,3 +221,55 @@ def test_social_shift_signal_truncates_long_new_value_and_reason():
     })
     assert len(out.social_shift_signal.new_value) == 200
     assert len(out.social_shift_signal.reason) == 200
+
+
+# ============================================================================
+# BL-16 fix: closed, story-authored behavior_tag_vocabulary. Empty
+# vocabulary (the default for every pre-existing story) must be byte-for-
+# byte identical to the original free-text behavior - covered above. These
+# cases cover what changes once a story authors one.
+# ============================================================================
+
+VOCAB = {"warm", "evasive", "aggressive"}
+
+
+def _parse_tags_with_vocab(tags, vocab=VOCAB):
+    raw = json.dumps({"behavior_tags": tags})
+    return TurnExtractor._parse_json(raw, ALLOWED_LOCATIONS, ALLOWED_CHARACTERS, vocab)
+
+
+def test_behavior_tag_in_vocabulary_is_kept():
+    out = _parse_tags_with_vocab([{"from_id": "makoto", "to_id": "mizuki", "tag": "warm"}])
+    assert len(out.behavior_tags) == 1
+    assert out.behavior_tags[0].tag == "warm"
+
+
+def test_behavior_tag_outside_vocabulary_is_dropped():
+    """The exact bug BL-16 targets: a synonym the LLM chooses on its own
+    (here "friendly", not in VOCAB) must not silently pollute
+    recent_behavior_log with a value that will never exact-match anything
+    else - it must be dropped, not passed through."""
+    out = _parse_tags_with_vocab([{"from_id": "makoto", "to_id": "mizuki", "tag": "friendly"}])
+    assert out.behavior_tags == []
+
+
+def test_behavior_tag_vocabulary_match_is_case_insensitive_but_canonicalizes():
+    out = _parse_tags_with_vocab([{"from_id": "makoto", "to_id": "mizuki", "tag": "WARM"}])
+    assert out.behavior_tags[0].tag == "warm", "must canonicalize to the vocabulary's own casing"
+
+
+def test_behavior_tag_vocabulary_mixed_batch_keeps_only_matching():
+    out = _parse_tags_with_vocab([
+        {"from_id": "makoto", "to_id": "mizuki", "tag": "warm"},
+        {"from_id": "player", "to_id": "makoto", "tag": "nonsense_word"},
+        {"from_id": "mizuki", "to_id": "player", "tag": "evasive"},
+    ])
+    tags = {u.tag for u in out.behavior_tags}
+    assert tags == {"warm", "evasive"}
+
+
+def test_behavior_tag_empty_vocabulary_accepts_anything():
+    """Regression guard: an empty/unset vocabulary (every story that
+    hasn't authored one) must behave exactly like before this fix."""
+    out = _parse_tags_with_vocab([{"from_id": "makoto", "to_id": "mizuki", "tag": "any_free_text"}], vocab=set())
+    assert out.behavior_tags[0].tag == "any_free_text"

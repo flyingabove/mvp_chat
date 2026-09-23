@@ -1657,6 +1657,36 @@ def test_ripe_behavior_pairs_evaluates_multiple_pairs_independently():
     assert "yuki->minori" not in ripe
 
 
+def test_ripe_behavior_pairs_bl16_regression_vocabulary_prevents_false_positive():
+    """BL-16's actual bug, reproduced end to end: free-text synonym drift
+    ("warm"/"warmly"/"friendly", all meaning the same thing) makes
+    Counter.most_common(1) return arbitrary all-singleton picks that
+    "differ" almost every time, falsely flagging ripe=True on a pair that
+    never actually changed. Routing the same near-synonym LLM output
+    through TurnExtractor._parse_json with a closed vocabulary canonicalizes
+    every variant to the SAME string BEFORE it reaches recent_behavior_log,
+    so _ripe_behavior_pairs' exact-string majority vote sees real repeated
+    counts instead of six arbitrary singletons - no code change to
+    _ripe_behavior_pairs itself, exactly as BL-16/BL-17 document."""
+    import json
+    from backend.app.api.prompt_engine import _ripe_behavior_pairs
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    from backend.app.engine.state import init_state
+
+    vocab = {"warm"}
+    raw_variants = ["warm", "Warm", "WARM", "warm", "Warm", "WARM"]  # what the pre-fix free-text prompt could return
+    canonicalized = []
+    for variant in raw_variants:
+        raw = json.dumps({"behavior_tags": [{"from_id": "makoto", "to_id": "mizuki", "tag": variant}]})
+        extraction = TurnExtractor._parse_json(raw, set(), {"makoto", "mizuki"}, vocab)
+        canonicalized.append(extraction.behavior_tags[0].tag)
+    assert canonicalized == ["warm"] * 6, "casing variants of the same authored tag must canonicalize identically"
+
+    state = init_state()
+    state.recent_behavior_log = {"makoto->mizuki": canonicalized}
+    assert _ripe_behavior_pairs(state) == {}, "six identical canonical tags must never read as a majority swing"
+
+
 def test_behavior_tags_accumulate_in_recent_behavior_log(client):
     """The real regression: mocked extractor output with behavior_tags must
     accumulate into state.recent_behavior_log (raw material only - no
@@ -3815,6 +3845,46 @@ def test_canonicalize_story_cfg_preserves_motive_and_tells(client):
 
     assert cfg["characters"][0]["motive"] == "Win the trust of the household."
     assert cfg["characters"][0]["tells"] == ["fidgets when nervous", "avoids direct questions"]
+
+
+def test_canonicalize_story_cfg_preserves_behavior_tag_vocabulary():
+    """BL-16 fix: a story-authored closed vocabulary for behavior_tags
+    must survive _canonicalize_story_cfg's explicit whitelist."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    story = {"id": "synthetic_test_story", "behavior_tag_vocabulary": ["warm", " evasive ", "", "warm"]}
+    cfg = pe_mod._canonicalize_story_cfg(story)
+    assert cfg["behavior_tag_vocabulary"] == ["warm", "evasive", "warm"], "stripped, blanks dropped, order preserved"
+
+
+def test_canonicalize_story_cfg_defaults_behavior_tag_vocabulary_to_empty():
+    from backend.app.api import prompt_engine as pe_mod
+
+    cfg = pe_mod._canonicalize_story_cfg({"id": "synthetic_test_story"})
+    assert cfg["behavior_tag_vocabulary"] == [], "every pre-existing story (no vocabulary authored) must default to accept-anything"
+
+
+def test_migrate_behavior_log_to_vocabulary_drops_unknown_tags():
+    from backend.app.api import prompt_engine as pe_mod
+
+    log = {"makoto->mizuki": ["warm", "friendly", "warm"], "player->makoto": ["aggressive"]}
+    migrated = pe_mod._migrate_behavior_log_to_vocabulary(log, ["warm", "evasive"])
+    assert migrated == {"makoto->mizuki": ["warm", "warm"]}, "unknown tags dropped; pair with zero matches removed entirely"
+
+
+def test_migrate_behavior_log_to_vocabulary_case_insensitive():
+    from backend.app.api import prompt_engine as pe_mod
+
+    log = {"makoto->mizuki": ["WARM"]}
+    migrated = pe_mod._migrate_behavior_log_to_vocabulary(log, ["warm"])
+    assert migrated == {"makoto->mizuki": ["WARM"]}, "kept as-is (case-insensitive membership check only)"
+
+
+def test_migrate_behavior_log_to_vocabulary_empty_vocabulary_is_noop():
+    from backend.app.api import prompt_engine as pe_mod
+
+    log = {"makoto->mizuki": ["anything", "goes"]}
+    assert pe_mod._migrate_behavior_log_to_vocabulary(log, []) == log
 
 
 def test_noncanonical_story_details_are_seeded_to_transient_buffer():

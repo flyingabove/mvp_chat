@@ -575,3 +575,156 @@ def test_apply_overrides_rel_history_all_unconfirmed_omits_entry():
     })
     result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
     assert result.relationship_history_updates == []
+
+
+# --- _build_batches: behavior_tag + social_shift (step 8/9) --------------
+
+def test_build_batches_behavior_tag_batch_gated_on_vocabulary():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    no_vocab = ex._build_batches(
+        user_msg="hi", world_locations={}, previous_turn_assistant_reply="",
+        character_key_to_name={"makoto": "Makoto", "mizuki": "Mizuki"},
+    )
+    assert not any(b.name == "behavior_tag" for b in no_vocab), "no vocabulary -> no behavior_tag batch at all"
+
+    with_vocab = ex._build_batches(
+        user_msg="hi", world_locations={}, previous_turn_assistant_reply="",
+        character_key_to_name={"makoto": "Makoto", "mizuki": "Mizuki"},
+        allowed_behavior_tags=["warm", "evasive"],
+    )
+    bt = next(b for b in with_vocab if b.name == "behavior_tag")
+    ids = {d.id for d in bt.decisions}
+    assert ids == {"behtag_makoto_mizuki", "behtag_mizuki_makoto"}, "every ordered pair, self-pairs excluded"
+
+
+def test_build_batches_social_shift_batch_gated_on_behavior_window():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    no_window = ex._build_batches(user_msg="hi", world_locations={}, previous_turn_assistant_reply="")
+    assert not any(b.name == "social_shift" for b in no_window)
+
+    with_window = ex._build_batches(
+        user_msg="hi", world_locations={}, previous_turn_assistant_reply="",
+        behavior_window={"pair": "makoto->mizuki", "tags": ["warm", "warm", "evasive"]},
+    )
+    ss = next(b for b in with_window if b.name == "social_shift")
+    assert {d.id for d in ss.decisions} == {"social_shift_certainty"}
+
+
+# --- _apply_decision_overrides: behavior_tag fan-out ----------------------
+
+def test_apply_overrides_behavior_tag_jev_answer_overrides_pair():
+    from backend.app.engine.extractors.turn_extractor import BehaviorTagUpdate
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(behavior_tags=[BehaviorTagUpdate(from_id="makoto", to_id="mizuki", tag="aggressive")])
+    outcome = _default_outcome(answers={
+        "behtag_makoto_mizuki": DecisionAnswer(decision_id="behtag_makoto_mizuki", provider=Provider.JEV, choice="warm"),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert len(result.behavior_tags) == 1
+    assert result.behavior_tags[0].tag == "warm"
+
+
+def test_apply_overrides_behavior_tag_jev_none_removes_stale_legacy_tag():
+    """A usable Jev NONE is itself an answer for that pair - it must not
+    leave a stale legacy tag in place."""
+    from backend.app.engine.extractors.turn_extractor import BehaviorTagUpdate
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(behavior_tags=[BehaviorTagUpdate(from_id="makoto", to_id="mizuki", tag="aggressive")])
+    outcome = _default_outcome(answers={
+        "behtag_makoto_mizuki": DecisionAnswer(decision_id="behtag_makoto_mizuki", provider=Provider.JEV, choice="NONE"),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.behavior_tags == []
+
+
+def test_apply_overrides_behavior_tag_preserves_pairs_jev_never_answered():
+    from backend.app.engine.extractors.turn_extractor import BehaviorTagUpdate
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(behavior_tags=[
+        BehaviorTagUpdate(from_id="makoto", to_id="mizuki", tag="aggressive"),
+        BehaviorTagUpdate(from_id="player", to_id="makoto", tag="warm"),
+    ])
+    outcome = _default_outcome(answers={
+        "behtag_makoto_mizuki": DecisionAnswer(decision_id="behtag_makoto_mizuki", provider=Provider.JEV, choice="evasive"),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    pairs = {(u.from_id, u.to_id): u.tag for u in result.behavior_tags}
+    assert pairs == {("makoto", "mizuki"): "evasive", ("player", "makoto"): "warm"}
+
+
+# --- _apply_decision_overrides: social_shift ------------------------------
+
+def test_apply_overrides_social_shift_jev_none_clears_signal():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(social_shift_signal=None)
+    outcome = _default_outcome(answers={
+        "social_shift_certainty": DecisionAnswer(decision_id="social_shift_certainty", provider=Provider.JEV, choice="NONE"),
+    })
+    result = ex._apply_decision_overrides(
+        base, outcome, allowed_location_ids=set(),
+        behavior_window={"pair": "makoto->mizuki", "tags": ["warm"]},
+    )
+    assert result.social_shift_signal is None
+
+
+def test_apply_overrides_social_shift_jev_wish_applies_without_new_value():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(social_shift_signal=None)
+    outcome = _default_outcome(answers={
+        "social_shift_certainty": DecisionAnswer(decision_id="social_shift_certainty", provider=Provider.JEV, choice="WISH"),
+    })
+    result = ex._apply_decision_overrides(
+        base, outcome, allowed_location_ids=set(),
+        behavior_window={"pair": "makoto->mizuki", "tags": ["warm"]},
+    )
+    assert result.social_shift_signal is not None
+    assert result.social_shift_signal.certainty == "WISH"
+    assert result.social_shift_signal.subject_id == "makoto"
+    assert result.social_shift_signal.target_id == "mizuki"
+
+
+def test_apply_overrides_social_shift_jev_shift_uses_legacy_new_value_when_corroborated():
+    from backend.app.engine.extractors.turn_extractor import SocialShiftSignal
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(social_shift_signal=SocialShiftSignal(
+        certainty="SHIFT", scope="disposition", subject_id="makoto", target_id="mizuki",
+        new_value="grown distant", reason="legacy reason",
+    ))
+    outcome = _default_outcome(answers={
+        "social_shift_certainty": DecisionAnswer(decision_id="social_shift_certainty", provider=Provider.JEV, choice="SHIFT"),
+    })
+    result = ex._apply_decision_overrides(
+        base, outcome, allowed_location_ids=set(),
+        behavior_window={"pair": "makoto->mizuki", "tags": ["warm"]},
+    )
+    assert result.social_shift_signal.certainty == "SHIFT"
+    assert result.social_shift_signal.new_value == "grown distant"
+
+
+def test_apply_overrides_social_shift_jev_shift_without_legacy_corroboration_keeps_base():
+    """Jev says SHIFT but legacy's own social_shift_signal didn't produce a
+    matching, non-empty new_value for this pair - must NOT fabricate a
+    SHIFT with no description; falls back to whatever base already was."""
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(social_shift_signal=None)  # legacy said NONE
+    outcome = _default_outcome(answers={
+        "social_shift_certainty": DecisionAnswer(decision_id="social_shift_certainty", provider=Provider.JEV, choice="SHIFT"),
+    })
+    result = ex._apply_decision_overrides(
+        base, outcome, allowed_location_ids=set(),
+        behavior_window={"pair": "makoto->mizuki", "tags": ["warm"]},
+    )
+    assert result.social_shift_signal is None, "must degrade to base rather than write an empty-new_value SHIFT"
+
+
+def test_apply_overrides_social_shift_no_behavior_window_is_noop():
+    from backend.app.engine.extractors.turn_extractor import SocialShiftSignal
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(social_shift_signal=SocialShiftSignal(
+        certainty="WISH", scope="disposition", subject_id="makoto", target_id="mizuki",
+    ))
+    outcome = _default_outcome(answers={
+        "social_shift_certainty": DecisionAnswer(decision_id="social_shift_certainty", provider=Provider.JEV, choice="NONE"),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set(), behavior_window=None)
+    assert result.social_shift_signal == base.social_shift_signal, "no behavior_window -> no pair to match, no-op"

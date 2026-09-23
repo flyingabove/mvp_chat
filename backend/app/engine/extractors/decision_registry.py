@@ -45,9 +45,13 @@ KNOWLEDGE_TASK = "knowledge"
 DEPARTURE_TASK = "departure"
 REL_STATE_TASK = "rel_state"
 REL_HISTORY_TASK = "rel_history"
+BEHAVIOR_TAG_TASK = "behavior_tag"
+SOCIAL_SHIFT_TASK = "social_shift"
 
 NONE_OF_THESE = "none_of_these"
 DEPARTURE_CERTAINTIES = frozenset({"NONE", "WISH", "DECISION"})
+BEHAVIOR_TAG_NONE = "NONE"
+SOCIAL_SHIFT_CERTAINTIES = frozenset({"NONE", "WISH", "SHIFT"})
 
 # Ability 9 (step 7): each relationship-state dimension's legacy delta range,
 # per turn_extractor.py's _clamp_delta bounds. Jev answers a "score" kind
@@ -398,3 +402,116 @@ def relationship_history_batch_decisions(target_character_keys: Sequence[str]) -
         for field_name in REL_HISTORY_FIELDS:
             decisions.append(relationship_history_decision(key, field_name))
     return tuple(decisions)
+
+
+def behavior_tag_decision(from_id: str, to_id: str, vocabulary: Sequence[str]) -> Decision:
+    """Ability 11 (fan-out, step 8 - BL-16-gated). One `choice` question
+    per ordered (from, to) character pair, over the story's closed
+    behavior_tag_vocabulary plus a NONE option. Only meaningful once a
+    vocabulary exists (see decision_registry callers: this is never
+    registered for a vocabulary-less story) - a free-text tag has no fixed
+    option set for Jev's `choice` kind to select from."""
+    from_id = str(from_id).strip().lower()
+    to_id = str(to_id).strip().lower()
+    vocab = [str(t).strip() for t in vocabulary if str(t or "").strip()]
+    criteria = {t: f'from_id behaved "{t}" toward to_id this turn' for t in vocab}
+    criteria[BEHAVIOR_TAG_NONE] = "no clear behavior from from_id toward to_id this turn"
+    vocab_lookup = {t.lower(): t for t in vocab}
+
+    def _resolver(raw):
+        for item in (raw or {}).get("behavior_tags") or []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("from_id") or "").strip().lower() != from_id:
+                continue
+            if str(item.get("to_id") or "").strip().lower() != to_id:
+                continue
+            canonical = vocab_lookup.get(str(item.get("tag") or "").strip().lower())
+            return canonical if canonical is not None else BEHAVIOR_TAG_NONE
+        return BEHAVIOR_TAG_NONE
+
+    return Decision(
+        id=f"behtag_{from_id}_{to_id}",
+        task=BEHAVIOR_TAG_TASK,
+        kind="choice",
+        instructions=(
+            f"Did {from_id}'s words or actions THIS TURN show an observable attitude/behavior "
+            f"toward {to_id}? Pick the closest matching tag from the allowed list, or NONE if no "
+            "clear behavior toward this specific character is shown. This is a raw observation of "
+            "this turn only, not a judgment about whether anything has changed."
+        ),
+        criteria=criteria,
+        criticality=Criticality.DEGRADABLE,
+        allowed=frozenset(criteria.keys()),
+        none_option=BEHAVIOR_TAG_NONE,
+        legacy_resolver=_resolver,
+    )
+
+
+def behavior_tag_batch_decisions(
+    character_keys: Sequence[str], vocabulary: Sequence[str],
+) -> tuple[Decision, ...]:
+    """Every ordered (from, to) pair over the known characters (self-pairs
+    excluded) - O(n^2), matching ability 8/9's documented NPC-pair scope
+    limitation, times a vocabulary the story must have authored (empty
+    vocabulary -> no decisions at all; caller should not even build this
+    batch in that case, but this returns () defensively either way)."""
+    vocab = [str(t).strip() for t in (vocabulary or []) if str(t or "").strip()]
+    if not vocab:
+        return ()
+    keys = sorted({str(k).strip().lower() for k in (character_keys or []) if str(k or "").strip()})
+    decisions: list[Decision] = []
+    for from_id in keys:
+        for to_id in keys:
+            if from_id == to_id:
+                continue
+            decisions.append(behavior_tag_decision(from_id, to_id, vocab))
+    return tuple(decisions)
+
+
+def social_shift_certainty_decision(subject_id: str, target_id: str, pair_tags: Sequence[str]) -> Decision:
+    """Ability 12 (step 9). A SINGLE decision, not a fan-out - matches the
+    legacy design's own scope: at most one ripe pair is ever evaluated per
+    turn (see prompt_engine.py's _ripe_behavior_pairs), so there is only
+    ever one (subject, target) pair worth asking about. Jev only judges
+    `certainty` (NONE/WISH/SHIFT); it cannot generate `new_value`'s free
+    text, so a SHIFT answer still needs legacy's own new_value to be
+    usable - see TurnExtractor._apply_social_shift_override for how that
+    gap is closed without ever writing a SHIFT with an empty description."""
+    subject_id = str(subject_id).strip().lower()
+    target_id = str(target_id).strip().lower()
+
+    def _resolver(raw):
+        signal = (raw or {}).get("social_shift_signal")
+        if not isinstance(signal, dict):
+            return "NONE"
+        if str(signal.get("scope") or "").strip().lower() != "disposition":
+            return "NONE"
+        if str(signal.get("subject_id") or "").strip().lower() != subject_id:
+            return "NONE"
+        if str(signal.get("target_id") or "").strip().lower() != target_id:
+            return "NONE"
+        certainty = str(signal.get("certainty") or "NONE").strip().upper()
+        return certainty if certainty in SOCIAL_SHIFT_CERTAINTIES else "NONE"
+
+    pattern = ", ".join(str(t) for t in (pair_tags or []))
+    return Decision(
+        id="social_shift_certainty",
+        task=SOCIAL_SHIFT_TASK,
+        kind="choice",
+        instructions=(
+            f"{subject_id} has shown this behavior pattern toward {target_id} (oldest -> newest): "
+            f"{pattern}. Has {subject_id}'s disposition toward {target_id} genuinely, settledly "
+            "shifted (SHIFT), or is this still a momentary/mixed pattern not yet a real change "
+            "(WISH), or is there no real pattern here at all (NONE)?"
+        ),
+        criteria={
+            "NONE": "no genuine pattern / still too noisy to judge",
+            "WISH": "a momentary flicker or one-off outlier, not a real change",
+            "SHIFT": "the accumulated pattern shows a real, settled change",
+        },
+        criticality=Criticality.DEGRADABLE,
+        allowed=frozenset(SOCIAL_SHIFT_CERTAINTIES),
+        none_option="NONE",
+        legacy_resolver=_resolver,
+    )
