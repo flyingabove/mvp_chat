@@ -129,6 +129,10 @@ Update that document when map metadata, coordinates, routes or map UI behavior c
 | [CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md](CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md) | ...never — source audit, read-only input to the engineering plan above. |
 | [JEV_EXTRACTOR_REDESIGN_2026_09_22.md](JEV_EXTRACTOR_REDESIGN_2026_09_22.md) | ...the Jev/`TurnExtractor` ability mapping, call structure, cost model, or per-ability test cases change. **Refines Phase 4 of the engineering plan; every Jev result in it is a real live `jev-1.13.0` response, not a projection.** |
 | [JEV_PROVIDER_ARCHITECTURE_2026_09_22.md](JEV_PROVIDER_ARCHITECTURE_2026_09_22.md) | ...the Jev provider/fallback machinery changes: the `resolve()` contract, circuit-breaker parameters, flags/rollout modes, `backend/app/llm/` layout, or the implementation order. **Implementation-level design; read `JEV_EXTRACTOR_REDESIGN` first for WHICH abilities move.** |
+| [PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md](PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md) | ...the `SessionFactory`/`SnapshotCodec`/`TurnService`/`PlayerView`/`StoryDefinition.validate()` contracts, the `application/` package layout, or the handler decomposition order change. |
+| [PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md](PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md) | ...any of the 11 optimization rows' design, measurement method, or ship/drop threshold changes. |
+| [PHASE_5_FRONTEND_MODULARIZATION_DESIGN_2026_09_22.md](PHASE_5_FRONTEND_MODULARIZATION_DESIGN_2026_09_22.md) | ...the frontend module extraction order, the asset-manifest schema, or the motion-settings design changes. **Corrects the original plan's stale map-integration claim.** |
+| [PHASE_6_DELIVERY_CI_DESIGN_2026_09_22.md](PHASE_6_DELIVERY_CI_DESIGN_2026_09_22.md) | ...the Dockerfile/CI/dependency-lock design, the startup-readiness fix, or the index-fingerprint mechanism changes. |
 
 ## Verification Ledger
 
