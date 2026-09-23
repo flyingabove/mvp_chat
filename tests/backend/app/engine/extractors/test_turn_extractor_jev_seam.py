@@ -338,3 +338,240 @@ async def test_call_legacy_raw_returns_none_on_non_dict_json(monkeypatch):
 
     result = await ex._call_legacy_raw(req)
     assert result is None
+
+
+# --- _build_batches: knowledge + departure fan-outs (step 6) ------------
+
+def test_build_batches_knowledge_batch_only_when_candidates_present():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    no_chunks = ex._build_batches(user_msg="hi", world_locations={}, previous_turn_assistant_reply="")
+    assert not any(b.name == "knowledge" for b in no_chunks)
+
+    with_chunks = ex._build_batches(
+        user_msg="hi", world_locations={}, previous_turn_assistant_reply="",
+        previous_turn_candidate_chunks=[{"chunk_id": "c1", "text": "Makoto's secret."}],
+    )
+    kb = next(b for b in with_chunks if b.name == "knowledge")
+    assert {d.id for d in kb.decisions} == {"knows_c1"}
+
+
+def test_build_batches_departure_batch_only_when_residents_present():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    no_residents = ex._build_batches(user_msg="hi", world_locations={}, previous_turn_assistant_reply="")
+    assert not any(b.name == "departure_check" for b in no_residents)
+
+    with_residents = ex._build_batches(
+        user_msg="hi", world_locations={}, previous_turn_assistant_reply="",
+        character_key_to_name={"makoto": "Makoto", "player": "You"},
+    )
+    dep = next(b for b in with_residents if b.name == "departure_check")
+    assert {d.id for d in dep.decisions} == {"departure_makoto"}, "player must be excluded from departure fan-out"
+
+
+# --- _apply_decision_overrides: knowledge fan-out ------------------------
+
+def test_apply_overrides_knowledge_jev_answer_overrides_matching_chunk():
+    from backend.app.engine.extractors.turn_extractor import TurnKnowledgeResolution
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(knowledge_updates=[TurnKnowledgeResolution(chunk_id="c1", knows=False, confidence=0.2)])
+    outcome = _default_outcome(answers={
+        "knows_c1": DecisionAnswer(decision_id="knows_c1", provider=Provider.JEV, probability=0.91),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert len(result.knowledge_updates) == 1
+    assert result.knowledge_updates[0].knows is True
+    assert result.knowledge_updates[0].confidence == 0.91
+
+
+def test_apply_overrides_knowledge_jev_answer_below_threshold_is_knows_false():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(knowledge_updates=[])
+    outcome = _default_outcome(answers={
+        "knows_c1": DecisionAnswer(decision_id="knows_c1", provider=Provider.JEV, probability=0.1),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.knowledge_updates[0].knows is False
+
+
+def test_apply_overrides_knowledge_unusable_jev_answer_leaves_legacy_value():
+    from backend.app.engine.extractors.turn_extractor import TurnKnowledgeResolution
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(knowledge_updates=[TurnKnowledgeResolution(chunk_id="c1", knows=True, confidence=0.8)])
+    from backend.app.llm.decisions.types import FallbackReason
+    outcome = _default_outcome(answers={
+        "knows_c1": DecisionAnswer(decision_id="knows_c1", provider=Provider.JEV, probability=0.1,
+                                    fallback_reason=FallbackReason.BELOW_THRESHOLD),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.knowledge_updates[0].knows is True, "unusable answer must not override legacy value"
+
+
+def test_apply_overrides_knowledge_preserves_chunks_jev_never_answered():
+    from backend.app.engine.extractors.turn_extractor import TurnKnowledgeResolution
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(knowledge_updates=[
+        TurnKnowledgeResolution(chunk_id="c1", knows=True, confidence=0.9),
+        TurnKnowledgeResolution(chunk_id="c2", knows=False, confidence=0.4),
+    ])
+    outcome = _default_outcome(answers={
+        "knows_c1": DecisionAnswer(decision_id="knows_c1", provider=Provider.JEV, probability=0.95),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    ids = {u.chunk_id for u in result.knowledge_updates}
+    assert ids == {"c1", "c2"}
+    c2 = next(u for u in result.knowledge_updates if u.chunk_id == "c2")
+    assert c2.knows is False and c2.confidence == 0.4
+
+
+# --- _apply_decision_overrides: departure fan-out -------------------------
+
+def test_apply_overrides_departure_jev_full_coverage_no_signal_is_none():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(departure_signal=None)
+    outcome = _default_outcome(answers={
+        "departure_makoto": DecisionAnswer(decision_id="departure_makoto", provider=Provider.JEV, choice="NONE"),
+        "departure_mizuki": DecisionAnswer(decision_id="departure_mizuki", provider=Provider.JEV, choice="NONE"),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.departure_signal is None
+
+
+def test_apply_overrides_departure_jev_finds_the_signaling_resident():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(departure_signal=None)
+    outcome = _default_outcome(answers={
+        "departure_makoto": DecisionAnswer(decision_id="departure_makoto", provider=Provider.JEV, choice="NONE"),
+        "departure_mizuki": DecisionAnswer(decision_id="departure_mizuki", provider=Provider.JEV, choice="DECISION"),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.departure_signal is not None
+    assert result.departure_signal.character_id == "mizuki"
+    assert result.departure_signal.certainty == "DECISION"
+
+
+def test_apply_overrides_departure_no_jev_answers_leaves_legacy_signal():
+    from backend.app.engine.extractors.turn_extractor import DepartureSignal
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(departure_signal=DepartureSignal(character_id="makoto", certainty="WISH", reason="joked"))
+    outcome = _default_outcome(answers={})
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.departure_signal == base.departure_signal
+
+
+# --- extract() orchestration: fan-outs wired end to end -------------------
+
+@pytest.mark.asyncio
+async def test_extract_wires_candidate_chunks_and_characters_into_batches():
+    outcome = _default_outcome(legacy_raw={"movement": {"intent": "NONE"}})
+    ex, resolver = _extractor_with_fake_resolver(outcome)
+
+    await ex.extract(
+        user_msg="hi", world_locations={}, character_key_to_name={"makoto": "Makoto"},
+        previous_turn_candidate_chunks=[{"chunk_id": "c1", "text": "a fact"}],
+    )
+
+    batches, _ = resolver.calls[0]
+    batch_names = {b.name for b in batches}
+    assert "knowledge" in batch_names
+    assert "departure_check" in batch_names
+
+
+# --- _build_batches: rel_state + rel_history fan-outs (step 7) -----------
+
+def test_build_batches_rel_state_batch_dimensions_x_targets():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    batches = ex._build_batches(
+        user_msg="hi", world_locations={}, previous_turn_assistant_reply="",
+        character_key_to_name={"makoto": "Makoto", "player": "You"},
+    )
+    rs = next(b for b in batches if b.name == "rel_state")
+    ids = {d.id for d in rs.decisions}
+    assert ids == {
+        "relstate_trust_makoto", "relstate_affection_makoto", "relstate_fear_makoto",
+        "relstate_suspicion_makoto", "relstate_jealousy_makoto",
+    }
+
+
+def test_build_batches_rel_history_batch_fields_x_targets():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    batches = ex._build_batches(
+        user_msg="hi", world_locations={}, previous_turn_assistant_reply="",
+        character_key_to_name={"makoto": "Makoto"},
+    )
+    rh = next(b for b in batches if b.name == "rel_history")
+    ids = {d.id for d in rh.decisions}
+    assert ids == {
+        "relhist_prior_relationship_makoto", "relhist_prior_intimacy_makoto", "relhist_in_relationship_makoto",
+    }
+
+
+# --- _apply_decision_overrides: rel_state fan-out -------------------------
+
+def test_apply_overrides_rel_state_jev_score_overrides_one_dimension():
+    from backend.app.engine.extractors.turn_extractor import RelationshipStateUpdate
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(relationship_state_updates=[
+        RelationshipStateUpdate(from_id="player", to_id="makoto", trust_delta=0.05, reason="legacy"),
+    ])
+    outcome = _default_outcome(answers={
+        "relstate_trust_makoto": DecisionAnswer(decision_id="relstate_trust_makoto", provider=Provider.JEV, score=1.0),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert len(result.relationship_state_updates) == 1
+    u = result.relationship_state_updates[0]
+    assert u.to_id == "makoto"
+    assert round(u.trust_delta, 4) == 0.10, "score=1.0 (max positive) must map to +max_abs"
+    assert u.reason == "legacy", "untouched fields (reason) must be preserved from the legacy entry"
+
+
+def test_apply_overrides_rel_state_all_neutral_omits_entry():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(relationship_state_updates=[])
+    outcome = _default_outcome(answers={
+        "relstate_trust_makoto": DecisionAnswer(decision_id="relstate_trust_makoto", provider=Provider.JEV, score=0.5),
+        "relstate_affection_makoto": DecisionAnswer(decision_id="relstate_affection_makoto", provider=Provider.JEV, score=0.5),
+        "relstate_fear_makoto": DecisionAnswer(decision_id="relstate_fear_makoto", provider=Provider.JEV, score=0.0),
+        "relstate_suspicion_makoto": DecisionAnswer(decision_id="relstate_suspicion_makoto", provider=Provider.JEV, score=0.0),
+        "relstate_jealousy_makoto": DecisionAnswer(decision_id="relstate_jealousy_makoto", provider=Provider.JEV, score=0.0),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.relationship_state_updates == [], "an all-neutral target must be omitted, matching legacy's own rule"
+
+
+def test_apply_overrides_rel_state_no_jev_answers_leaves_legacy_untouched():
+    from backend.app.engine.extractors.turn_extractor import RelationshipStateUpdate
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(relationship_state_updates=[
+        RelationshipStateUpdate(from_id="player", to_id="makoto", trust_delta=0.08),
+    ])
+    result = ex._apply_decision_overrides(base, _default_outcome(answers={}), allowed_location_ids=set())
+    assert result.relationship_state_updates == base.relationship_state_updates
+
+
+# --- _apply_decision_overrides: rel_history fan-out -----------------------
+
+def test_apply_overrides_rel_history_jev_confirms_one_field():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(relationship_history_updates=[])
+    outcome = _default_outcome(answers={
+        "relhist_in_relationship_makoto": DecisionAnswer(
+            decision_id="relhist_in_relationship_makoto", provider=Provider.JEV, probability=0.9),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert len(result.relationship_history_updates) == 1
+    u = result.relationship_history_updates[0]
+    assert u.to_id == "makoto"
+    assert u.in_relationship is True
+    assert u.prior_relationship is None
+    assert u.prior_intimacy is None
+
+
+def test_apply_overrides_rel_history_all_unconfirmed_omits_entry():
+    ex = TurnExtractor(resolver=_FakeResolver(_default_outcome()))
+    base = TurnExtraction(relationship_history_updates=[])
+    outcome = _default_outcome(answers={
+        "relhist_in_relationship_makoto": DecisionAnswer(
+            decision_id="relhist_in_relationship_makoto", provider=Provider.JEV, probability=None),
+    })
+    result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set())
+    assert result.relationship_history_updates == []

@@ -7,9 +7,17 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL, EXTRACTOR_TURNS
 from backend.app.engine.extractors.decision_registry import (
     NONE_OF_THESE,
+    REL_HISTORY_FIELDS,
+    REL_STATE_DIMENSIONS,
+    REL_STATE_SYMMETRIC,
+    departure_batch_decisions,
+    knowledge_batch_decisions,
     movement_destination_decision,
     movement_intent_decision,
     prev_scene_location_decision,
+    relationship_history_batch_decisions,
+    relationship_state_batch_decisions,
+    rel_state_score_to_delta,
 )
 from backend.app.llm.decisions.types import DecisionBatch, DecisionOutcome, Provider
 from backend.app.llm.protocols import DecisionProvider, LegacyExtractionRequest
@@ -414,21 +422,25 @@ class TurnExtractor:
         )
 
     def _build_batches(
-        self, *, user_msg: str, world_locations: Dict[str, str], previous_turn_assistant_reply: str,
+        self,
+        *,
+        user_msg: str,
+        world_locations: Dict[str, str],
+        previous_turn_assistant_reply: str,
+        character_key_to_name: Dict[str, str] | None = None,
+        previous_turn_candidate_chunks: List[Dict[str, str]] | None = None,
     ) -> List[DecisionBatch]:
-        """Step 3/5 batch builder — pure, no I/O. Builds DecisionBatches for
-        the Jev-eligible abilities only (movement_intent, movement_destination,
-        prev_scene_location). Every other field (knowledge_updates,
-        relationship_*, departure_signal, behavior_tags, social_shift_signal)
-        has no Decision registered yet and always comes from the legacy call
-        — see extract()'s "legacy_raw is None" branch below for why that
-        makes the legacy call unconditional regardless of Jev's outcome for
-        these 3, until more abilities are registered (steps 6-9) and/or the
-        legacy prompt itself is shrunk to stop asking for what Jev already
-        answered (a deliberately separate, NOT-yet-done optimization —
-        enabling movement/prev_scene live today does not yet reduce cost,
-        exactly the "hybrid trap" JEV_EXTRACTOR_REDESIGN_2026_09_22.md warns
-        against; it only lets Jev's answer override the legacy one)."""
+        """Step 3/5/6 batch builder — pure, no I/O. Builds DecisionBatches for
+        the Jev-eligible abilities: movement_intent, movement_destination,
+        prev_scene_location (step 5), plus knowledge and departure fan-outs
+        (step 6). relationship_*, behavior_tags, social_shift_signal still
+        have no Decision registered — see extract()'s "legacy_raw is None"
+        branch below for why that keeps the legacy call unconditional for
+        those regardless of Jev's outcome here, until they're registered too
+        (steps 7-9) and/or the legacy prompt is shrunk to stop asking for
+        what Jev already answered (a deliberately separate, NOT-yet-done
+        optimization — see JEV_EXTRACTOR_REDESIGN_2026_09_22.md's "hybrid
+        trap" warning; today this only lets Jev's answer override legacy's)."""
         batches: List[DecisionBatch] = [
             DecisionBatch(
                 name="current_message",
@@ -445,6 +457,44 @@ class TurnExtractor:
                 state="PREVIOUS TURN ASSISTANT REPLY:\n" + str(previous_turn_assistant_reply).strip(),
                 decisions=(prev_scene_location_decision(world_locations or {}),),
             ))
+
+        # Both fan-outs share the same "what just happened" context: current
+        # message + previous reply, since either can carry the signal
+        # (a resident's departure line, or a fact revealed in either turn).
+        context_state = (
+            "CURRENT PLAYER MESSAGE:\n" + str(user_msg or "").strip()
+            + "\n\nPREVIOUS TURN ASSISTANT REPLY:\n" + str(previous_turn_assistant_reply or "").strip()
+        )
+
+        knowledge_decisions = knowledge_batch_decisions(previous_turn_candidate_chunks or [])
+        if knowledge_decisions:
+            batches.append(DecisionBatch(
+                name="knowledge", state=context_state, decisions=knowledge_decisions,
+            ))
+
+        departure_decisions = departure_batch_decisions((character_key_to_name or {}).keys())
+        if departure_decisions:
+            batches.append(DecisionBatch(
+                name="departure_check", state=context_state, decisions=departure_decisions,
+            ))
+
+        # Step 7. Gated on character_key_to_name (every known character),
+        # anchored to the player per both abilities' legacy-schema scope —
+        # see relationship_state_decision/relationship_history_decision's
+        # docstrings for the NPC-to-NPC limitation this carries forward.
+        rel_state_decisions = relationship_state_batch_decisions((character_key_to_name or {}).keys())
+        if rel_state_decisions:
+            batches.append(DecisionBatch(
+                name="rel_state", state="CURRENT PLAYER MESSAGE:\n" + str(user_msg or "").strip(),
+                decisions=rel_state_decisions,
+            ))
+
+        rel_history_decisions = relationship_history_batch_decisions((character_key_to_name or {}).keys())
+        if rel_history_decisions:
+            batches.append(DecisionBatch(
+                name="rel_history", state=context_state, decisions=rel_history_decisions,
+            ))
+
         return batches
 
     def _apply_decision_overrides(
@@ -487,10 +537,167 @@ class TurnExtractor:
             chosen = psl.choice
             previous_loc = chosen if (chosen and chosen != NONE_OF_THESE and chosen in allowed_location_ids) else ""
 
+        knowledge_updates = self._apply_knowledge_overrides(base.knowledge_updates, outcome)
+        departure_signal = self._apply_departure_override(base.departure_signal, outcome)
+        relationship_state_updates = self._apply_rel_state_overrides(base.relationship_state_updates, outcome)
+        relationship_history_updates = self._apply_rel_history_overrides(base.relationship_history_updates, outcome)
+
         return _dataclass_replace(
             base, movement_intent=intent, destination_id=destination_id,
             confidence=confidence, previous_reply_location_id=previous_loc,
+            knowledge_updates=knowledge_updates, departure_signal=departure_signal,
+            relationship_state_updates=relationship_state_updates,
+            relationship_history_updates=relationship_history_updates,
         )
+
+    @staticmethod
+    def _apply_knowledge_overrides(
+        base_updates: List[TurnKnowledgeResolution], outcome: DecisionOutcome,
+    ) -> List[TurnKnowledgeResolution]:
+        """Ability 7 override. Only chunks Jev actually, usably answered are
+        replaced; every other chunk keeps whatever the legacy call produced
+        (including chunks Jev was never asked about, e.g. no candidates)."""
+        by_chunk: dict[str, TurnKnowledgeResolution] = {u.chunk_id: u for u in base_updates}
+        order: List[str] = [u.chunk_id for u in base_updates]
+        for decision_id, answer in outcome.answers.items():
+            if not decision_id.startswith("knows_"):
+                continue
+            if not (answer.usable and answer.provider is Provider.JEV):
+                continue
+            chunk_id = decision_id[len("knows_"):]
+            probability = answer.probability if answer.probability is not None else 0.0
+            by_chunk[chunk_id] = TurnKnowledgeResolution(
+                chunk_id=chunk_id, knows=probability >= 0.5, confidence=probability,
+                reason=by_chunk.get(chunk_id).reason if chunk_id in by_chunk else "",
+            )
+            if chunk_id not in order:
+                order.append(chunk_id)
+        return [by_chunk[cid] for cid in order]
+
+    @staticmethod
+    def _apply_departure_override(
+        base_signal: Optional[DepartureSignal], outcome: DecisionOutcome,
+    ) -> Optional[DepartureSignal]:
+        """Ability 10 override. Jev covers this ability only when EVERY
+        resident's departure_<key> decision was usably answered by Jev
+        (the fan-out batch is all-or-nothing per turn — a partial batch
+        means the resolver already fell back that batch to legacy, so
+        `provider is Provider.JEV` will simply be false for all its
+        decisions and this is a no-op). Among a fully-Jev-covered batch, at
+        most one resident should answer non-NONE (matches the legacy
+        prompt's own single-object shape); the first non-NONE wins."""
+        jev_departure_answers = {
+            decision_id: answer for decision_id, answer in outcome.answers.items()
+            if decision_id.startswith("departure_") and answer.usable and answer.provider is Provider.JEV
+        }
+        if not jev_departure_answers:
+            return base_signal
+        for decision_id, answer in jev_departure_answers.items():
+            certainty = answer.choice or "NONE"
+            if certainty != "NONE":
+                return DepartureSignal(
+                    character_id=decision_id[len("departure_"):], certainty=certainty, reason="",
+                )
+        return None
+
+    @staticmethod
+    def _apply_rel_state_overrides(
+        base_updates: List[RelationshipStateUpdate], outcome: DecisionOutcome,
+    ) -> List[RelationshipStateUpdate]:
+        """Ability 9 override. Decision ids are `relstate_<dimension>_<target>`
+        — one per (dimension, target) pair. Per-dimension: a usable Jev
+        score overrides that one dimension's delta; every other dimension
+        for that target keeps its legacy value. A target left with all 5
+        deltas at 0.0 is OMITTED entirely, matching the legacy prompt's own
+        "omit the entry if neutral" rule (rule 7) rather than emitting a
+        no-op entry Jev never would have."""
+        jev_deltas: dict[str, dict[str, float]] = {}
+        for decision_id, answer in outcome.answers.items():
+            if not decision_id.startswith("relstate_"):
+                continue
+            if not (answer.usable and answer.provider is Provider.JEV):
+                continue
+            rest = decision_id[len("relstate_"):]
+            dimension = next((d for d in REL_STATE_DIMENSIONS if rest.startswith(d + "_")), None)
+            if dimension is None:
+                continue
+            target_id = rest[len(dimension) + 1:]
+            score = answer.score if answer.score is not None else (0.5 if dimension in REL_STATE_SYMMETRIC else 0.0)
+            jev_deltas.setdefault(target_id, {})[dimension] = rel_state_score_to_delta(dimension, score)
+
+        if not jev_deltas:
+            return base_updates
+
+        by_target = {u.to_id: u for u in base_updates if u.from_id == "player"}
+        ordered_targets = [u.to_id for u in base_updates if u.from_id == "player"]
+        for target_id in jev_deltas:
+            if target_id not in ordered_targets:
+                ordered_targets.append(target_id)
+
+        result: List[RelationshipStateUpdate] = [u for u in base_updates if u.from_id != "player"]
+        for target_id in ordered_targets:
+            existing = by_target.get(target_id)
+            deltas = jev_deltas.get(target_id, {})
+            trust = deltas.get("trust", existing.trust_delta if existing else 0.0)
+            affection = deltas.get("affection", existing.affection_delta if existing else 0.0)
+            fear = deltas.get("fear", existing.fear_delta if existing else 0.0)
+            suspicion = deltas.get("suspicion", existing.suspicion_delta if existing else 0.0)
+            jealousy = deltas.get("jealousy", existing.jealousy_delta if existing else 0.0)
+            if trust == 0.0 and affection == 0.0 and fear == 0.0 and suspicion == 0.0 and jealousy == 0.0:
+                continue
+            result.append(RelationshipStateUpdate(
+                from_id="player", to_id=target_id, trust_delta=trust, fear_delta=fear,
+                affection_delta=affection, suspicion_delta=suspicion, jealousy_delta=jealousy,
+                reason=existing.reason if existing else "",
+            ))
+        return result
+
+    @staticmethod
+    def _apply_rel_history_overrides(
+        base_updates: List[RelationshipHistoryUpdate], outcome: DecisionOutcome,
+    ) -> List[RelationshipHistoryUpdate]:
+        """Ability 8 override. Decision ids are `relhist_<field>_<target>`.
+        A field Jev never usably answered keeps its legacy value (including
+        None = "not addressed" — never coerced to False). A target left
+        with all 3 fields at None is OMITTED, matching the legacy prompt's
+        own omission rule for ambiguous/unaddressed facts."""
+        jev_fields: dict[str, dict[str, Optional[bool]]] = {}
+        for decision_id, answer in outcome.answers.items():
+            if not decision_id.startswith("relhist_"):
+                continue
+            if not (answer.usable and answer.provider is Provider.JEV):
+                continue
+            rest = decision_id[len("relhist_"):]
+            field_name = next((f for f in REL_HISTORY_FIELDS if rest.startswith(f + "_")), None)
+            if field_name is None:
+                continue
+            target_id = rest[len(field_name) + 1:]
+            value = None if answer.probability is None else (answer.probability >= 0.5)
+            jev_fields.setdefault(target_id, {})[field_name] = value
+
+        if not jev_fields:
+            return base_updates
+
+        by_target = {u.to_id: u for u in base_updates if u.from_id == "player"}
+        ordered_targets = [u.to_id for u in base_updates if u.from_id == "player"]
+        for target_id in jev_fields:
+            if target_id not in ordered_targets:
+                ordered_targets.append(target_id)
+
+        result: List[RelationshipHistoryUpdate] = [u for u in base_updates if u.from_id != "player"]
+        for target_id in ordered_targets:
+            existing = by_target.get(target_id)
+            fields = jev_fields.get(target_id, {})
+            prior_relationship = fields.get("prior_relationship", existing.prior_relationship if existing else None)
+            prior_intimacy = fields.get("prior_intimacy", existing.prior_intimacy if existing else None)
+            in_relationship = fields.get("in_relationship", existing.in_relationship if existing else None)
+            if prior_relationship is None and prior_intimacy is None and in_relationship is None:
+                continue
+            result.append(RelationshipHistoryUpdate(
+                from_id="player", to_id=target_id, prior_relationship=prior_relationship,
+                prior_intimacy=prior_intimacy, in_relationship=in_relationship,
+            ))
+        return result
 
     async def _call_legacy_raw(self, request: "LegacyExtractionRequest") -> Dict[str, Any] | None:
         """The legacy one-shot LLM call. Matches LegacyExtractionCallable's
@@ -694,6 +901,8 @@ class TurnExtractor:
         batches = self._build_batches(
             user_msg=user_msg, world_locations=world_locations,
             previous_turn_assistant_reply=previous_turn_assistant_reply,
+            character_key_to_name=character_key_to_name,
+            previous_turn_candidate_chunks=previous_turn_candidate_chunks,
         )
 
         outcome = await self._resolver.resolve(batches, legacy_request)

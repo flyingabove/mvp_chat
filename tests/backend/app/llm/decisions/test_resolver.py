@@ -484,3 +484,54 @@ def test_legacy_answer_score_kind_from_number():
                 criticality=Criticality.DEGRADABLE, legacy_path=("level",))
     assert _legacy_answer(d, {"level": 1.5}).score == 1.5
     assert _legacy_answer(d, {"level": "not_a_number"}).score is None
+
+
+# --- legacy_resolver: the fan-out mapping mechanism (steps 6+) --------------
+
+def test_legacy_answer_prefers_resolver_over_path_when_both_set():
+    d = Decision(id="q", task="t", kind="choice", instructions="i", criteria={},
+                criticality=Criticality.DEGRADABLE, legacy_path=("wrong", "path"),
+                legacy_resolver=lambda raw: "from_resolver")
+    assert _legacy_answer(d, {"wrong": {"path": "from_path"}}).choice == "from_resolver"
+
+
+def test_legacy_answer_resolver_list_search_pattern():
+    """Ability 7 (knowledge fan-out): search a list of dicts for a
+    matching chunk_id, read its `knows` field."""
+    def resolver(raw):
+        for item in (raw or {}).get("knowledge_updates", []):
+            if item.get("chunk_id") == "usr-abc-0":
+                return item.get("knows")
+        return None
+    d = Decision(id="knows_usr-abc-0", task="knowledge", kind="noul", instructions="i",
+                criteria={}, criticality=Criticality.DEGRADABLE, legacy_resolver=resolver)
+    raw = {"knowledge_updates": [{"chunk_id": "usr-abc-0", "knows": True}]}
+    assert _legacy_answer(d, raw).probability == 1.0
+    assert _legacy_answer(d, {"knowledge_updates": []}).probability is None
+
+
+def test_legacy_answer_resolver_conditional_match_pattern():
+    """Ability 10 (departure fan-out): a single object names AT MOST one
+    character; every OTHER character defaults to NONE, not None/missing."""
+    def resolver_for(resident_id):
+        def _r(raw):
+            sig = (raw or {}).get("departure_signal") or {}
+            return sig.get("certainty") if sig.get("character_id") == resident_id else "NONE"
+        return _r
+    raw = {"departure_signal": {"character_id": "makoto", "certainty": "DECISION"}}
+    d_makoto = Decision(id="departure_makoto", task="departure", kind="choice", instructions="i",
+                        criteria={}, criticality=Criticality.CRITICAL, legacy_resolver=resolver_for("makoto"))
+    d_yuki = Decision(id="departure_yuki", task="departure", kind="choice", instructions="i",
+                      criteria={}, criticality=Criticality.CRITICAL, legacy_resolver=resolver_for("yuki"))
+    assert _legacy_answer(d_makoto, raw).choice == "DECISION"
+    assert _legacy_answer(d_yuki, raw).choice == "NONE", "an unnamed resident must default to NONE, not None"
+
+
+def test_legacy_answer_resolver_exception_degrades_to_none_not_crash():
+    def _broken(raw):
+        raise RuntimeError("bug in the resolver closure")
+    d = Decision(id="q", task="t", kind="choice", instructions="i", criteria={},
+                criticality=Criticality.DEGRADABLE, legacy_resolver=_broken)
+    answer = _legacy_answer(d, {"anything": "here"})
+    assert answer.choice is None
+    assert answer.usable is True, "a legacy answer is always usable (last resort), even when empty"

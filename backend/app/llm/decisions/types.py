@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Callable, Literal, Mapping, Sequence
 
 
 class Criticality(Enum):
@@ -63,7 +63,31 @@ class Decision:
     true_threshold: float | None = None       # noul: p >= this means True
 
     # --- how the legacy LLM answer maps onto this decision ---
-    legacy_path: tuple[str, ...] = ()         # e.g. ("movement", "intent")
+    # `legacy_path`: for a SCALAR field reachable by walking nested dicts,
+    # e.g. ("movement", "intent") -> legacy_raw["movement"]["intent"].
+    # Sufficient for abilities 1/2/5 (step 5) where the legacy JSON's shape
+    # already matches one decision one field.
+    legacy_path: tuple[str, ...] = ()
+
+    # `legacy_resolver`: for anything legacy_path can't express - steps 6+
+    # abilities are fan-outs (one Decision per chunk/resident/pair) over a
+    # legacy field that is a LIST of objects (knowledge_updates: search for
+    # a matching chunk_id) or a single object naming AT MOST ONE match
+    # (departure_signal: check character_id, default to NONE for every
+    # other resident). Both patterns need real search/matching logic, not a
+    # static path - a small deterministic closure is simpler and more
+    # honest than inventing a path-matching mini-language for two shapes.
+    # Still "pure data" in the sense that matters here: zero I/O, built
+    # fresh per turn in decision_registry.py's factory functions (which
+    # already build Decision objects dynamically, e.g.
+    # movement_destination_decision() takes world_locations per call) - not
+    # a violation of the "no I/O" purity rule, which is about network/
+    # filesystem access, not about being JSON-serializable.
+    # Takes the full legacy_raw dict (or None), returns the raw value this
+    # decision's `kind` expects (str for choice, float for score, bool for
+    # noul) or None if not found. When set, `legacy_resolver` takes
+    # precedence over `legacy_path` for the same Decision.
+    legacy_resolver: Callable[[dict[str, Any] | None], Any] | None = None
 
 
 @dataclass(frozen=True)

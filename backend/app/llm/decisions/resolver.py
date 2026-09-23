@@ -105,10 +105,21 @@ def _get_by_path(raw: dict[str, Any] | None, path: tuple[str, ...]) -> Any:
 
 def _legacy_answer(decision: Decision, legacy_raw: dict[str, Any] | None) -> DecisionAnswer:
     """Builds a DecisionAnswer from the legacy call's raw JSON via
-    Decision.legacy_path. A legacy answer is always considered "usable" —
-    it's the fallback of last resort, there is nothing further to fall
-    back to, so it never carries a FallbackReason other than NONE."""
-    value = _get_by_path(legacy_raw, decision.legacy_path)
+    Decision.legacy_path (simple nested-dict walk) or, if set,
+    Decision.legacy_resolver (a closure for fan-out lookups a static path
+    can't express — see types.py's field docstring). A legacy answer is
+    always considered "usable" — it's the fallback of last resort, there
+    is nothing further to fall back to, so it never carries a
+    FallbackReason other than NONE."""
+    if decision.legacy_resolver is not None:
+        try:
+            value = decision.legacy_resolver(legacy_raw)
+        except Exception:
+            # A resolver closure is caller-provided code; a bug in it must
+            # degrade to "no value found" (None), not crash turn assembly.
+            value = None
+    else:
+        value = _get_by_path(legacy_raw, decision.legacy_path)
     if decision.kind == "choice":
         return DecisionAnswer(decision_id=decision.id, provider=Provider.LEGACY_LLM,
                                choice=str(value) if value is not None else None)
