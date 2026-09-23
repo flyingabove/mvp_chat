@@ -99,6 +99,24 @@ TYPESAFE_API_KEY: str = get_typesafe_api_key()
 TYPESAFE_MODEL: str = get_typesafe_model()
 TYPESAFE_ENABLED: bool = is_typesafe_enabled()
 
+# --- Jev rollout flags and tuning knobs (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §7) ---
+# Plain os.getenv tunables, not secrets - same pattern as STORY_MASTER_BASE_URL
+# above. Per-task allowlists are CSV strings parsed at the call site, not here,
+# so a "*" wildcard and an empty string both stay simple string comparisons
+# rather than needing a parsed-list constant that's easy to get stale.
+JEV_ENABLED_TASKS: str = _os.getenv("JEV_ENABLED_TASKS", "")       # "" = no task live
+JEV_SHADOW_TASKS: str = _os.getenv("JEV_SHADOW_TASKS", "")         # "" = no task shadowed
+JEV_SHADOW_SAMPLE_RATE: float = float(_os.getenv("JEV_SHADOW_SAMPLE_RATE", "0.0"))
+JEV_TIMEOUT_MS: int = int(_os.getenv("JEV_TIMEOUT_MS", "1000"))
+JEV_MAX_QUESTIONS_PER_BATCH: int = int(_os.getenv("JEV_MAX_QUESTIONS_PER_BATCH", "60"))
+
+# --- Jev circuit breaker parameters (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6) ---
+JEV_BREAKER_FAIL_THRESHOLD: int = int(_os.getenv("JEV_BREAKER_FAIL_THRESHOLD", "3"))
+JEV_BREAKER_FAIL_WINDOW_S: float = float(_os.getenv("JEV_BREAKER_FAIL_WINDOW_S", "60"))
+JEV_BREAKER_FAIL_RATE_COUNT: int = int(_os.getenv("JEV_BREAKER_FAIL_RATE_COUNT", "5"))
+JEV_BREAKER_COOLDOWN_S: float = float(_os.getenv("JEV_BREAKER_COOLDOWN_S", "30"))
+JEV_BREAKER_COOLDOWN_MAX_S: float = float(_os.getenv("JEV_BREAKER_COOLDOWN_MAX_S", "300"))
+
 # --- Integration test run counts (used by multi-run scenarios via _integ_run_count()) ---
 # X: number of runs per multi-run scenario when running locally (no RAILWAY_* env vars)
 # Y: number of runs per multi-run scenario when running on Railway

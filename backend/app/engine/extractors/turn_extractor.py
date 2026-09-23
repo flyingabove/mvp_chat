@@ -1,12 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dataclass_replace
 import json
-from typing import Any, Dict, List, Optional
-
-import httpx
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL, EXTRACTOR_TURNS
+from backend.app.engine.extractors.decision_registry import (
+    NONE_OF_THESE,
+    movement_destination_decision,
+    movement_intent_decision,
+    prev_scene_location_decision,
+)
+from backend.app.llm.decisions.types import DecisionBatch, DecisionOutcome, Provider
+from backend.app.llm.protocols import DecisionProvider, LegacyExtractionRequest
+
+# Step 3 of documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12:
+# httpx is NO LONGER imported here. The legacy HTTP call moved to
+# TurnExtractor._call_legacy_raw, which is injected into the resolver as a
+# LegacyExtractionCallable rather than living inline in extract(). This is
+# what makes the import-direction test in test_engine_purity.py pass for
+# this file (location_extractor.py and knowledge_resolution_extractor.py
+# still import httpx directly and remain on that test's documented
+# allowlist — see JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §2).
 
 
 @dataclass(frozen=True)
@@ -142,21 +157,57 @@ class TurnExtraction:
 
 
 class TurnExtractor:
-    """Single-call extractor for movement, previous-scene signals, and knowledge updates."""
+    """Single-call extractor for movement, previous-scene signals, and knowledge updates.
 
-    def __init__(self, model: str | None = None):
+    Step 3 of JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12: internally
+    restructured into batch builder (_build_batches) -> resolver
+    (DecisionResolver, injected via `resolver`) -> assembler
+    (_parse_dict + _apply_decision_overrides). extract()'s signature and
+    return type are UNCHANGED — every existing caller and all 30 existing
+    extraction tests in test_prompt_engine.py continue to work unmodified.
+    With TYPESAFE_ENABLED=false (the shipped default), behaviour is
+    byte-identical to before this refactor: the resolver's own routing
+    logic (JevConfig.routing_for) resolves every registered decision via
+    the legacy path alone.
+    """
+
+    def __init__(self, model: str | None = None, resolver: "DecisionProvider | None" = None):
         self.model = model or OPENAI_MODEL
+        # Deferred imports: avoids constructing network clients / reading
+        # settings at MODULE import time (matters for test collection and
+        # for any process that imports turn_extractor.py without needing
+        # Jev at all).
+        from backend.app.llm.factory import build_default_resolver, get_shared_httpx_client
+        from backend.app.llm.providers.openai_chat import OpenAIChatClient
+        self._legacy_client = OpenAIChatClient(
+            get_shared_httpx_client(), base_url="https://api.openai.com/v1", api_key=OPENAI_API_KEY,
+        )
+        self._resolver: DecisionProvider = (
+            resolver if resolver is not None else build_default_resolver(self._call_legacy_raw)
+        )
 
     @staticmethod
     def _parse_json(content: str, allowed_location_ids: set[str], allowed_character_keys: set[str]) -> TurnExtraction:
+        """UNCHANGED public entry point: parses a raw JSON string. Delegates
+        to _parse_dict, which is the piece the assembler (extract(), below)
+        also calls directly with an already-parsed dict — avoids
+        re-serializing/re-parsing JSON that the legacy call already parsed."""
         try:
             obj = json.loads(content)
         except Exception:
             return TurnExtraction()
-
         if not isinstance(obj, dict):
             return TurnExtraction()
+        return TurnExtractor._parse_dict(obj, allowed_location_ids, allowed_character_keys)
 
+    @staticmethod
+    def _parse_dict(obj: dict, allowed_location_ids: set[str], allowed_character_keys: set[str]) -> TurnExtraction:
+        """The exact body _parse_json always had, unchanged — every
+        existing validation rule (unknown location -> NONE, from_id must be
+        'player', departure/shift coercion rules, etc.) is retained here,
+        untouched by the Jev integration. Jev choosing something never
+        bypasses this — see JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9's
+        'Two invariants that are code's job, not Jev's'."""
         movement = obj.get("movement") if isinstance(obj.get("movement"), dict) else {}
         previous_scene = obj.get("previous_scene") if isinstance(obj.get("previous_scene"), dict) else {}
 
@@ -362,20 +413,105 @@ class TurnExtractor:
             social_shift_signal=social_shift_signal,
         )
 
-    async def extract(
-        self,
-        *,
-        user_msg: str,
-        world_locations: Dict[str, str],
-        character_key_to_name: Dict[str, str],
-        previous_turn_user_msg: str = "",
-        previous_turn_assistant_reply: str = "",
-        previous_turn_candidate_chunks: List[Dict[str, str]] | None = None,
-        conversation_log: List[Dict[str, str]] | None = None,
-        behavior_window: Dict[str, Any] | None = None,
+    def _build_batches(
+        self, *, user_msg: str, world_locations: Dict[str, str], previous_turn_assistant_reply: str,
+    ) -> List[DecisionBatch]:
+        """Step 3/5 batch builder — pure, no I/O. Builds DecisionBatches for
+        the Jev-eligible abilities only (movement_intent, movement_destination,
+        prev_scene_location). Every other field (knowledge_updates,
+        relationship_*, departure_signal, behavior_tags, social_shift_signal)
+        has no Decision registered yet and always comes from the legacy call
+        — see extract()'s "legacy_raw is None" branch below for why that
+        makes the legacy call unconditional regardless of Jev's outcome for
+        these 3, until more abilities are registered (steps 6-9) and/or the
+        legacy prompt itself is shrunk to stop asking for what Jev already
+        answered (a deliberately separate, NOT-yet-done optimization —
+        enabling movement/prev_scene live today does not yet reduce cost,
+        exactly the "hybrid trap" JEV_EXTRACTOR_REDESIGN_2026_09_22.md warns
+        against; it only lets Jev's answer override the legacy one)."""
+        batches: List[DecisionBatch] = [
+            DecisionBatch(
+                name="current_message",
+                state="CURRENT PLAYER MESSAGE:\n" + str(user_msg or "").strip(),
+                decisions=(
+                    movement_intent_decision(),
+                    movement_destination_decision(world_locations or {}),
+                ),
+            ),
+        ]
+        if str(previous_turn_assistant_reply or "").strip():
+            batches.append(DecisionBatch(
+                name="previous_reply",
+                state="PREVIOUS TURN ASSISTANT REPLY:\n" + str(previous_turn_assistant_reply).strip(),
+                decisions=(prev_scene_location_decision(world_locations or {}),),
+            ))
+        return batches
+
+    def _apply_decision_overrides(
+        self, base: TurnExtraction, outcome: DecisionOutcome, allowed_location_ids: set[str],
     ) -> TurnExtraction:
-        allowed_location_ids = set((world_locations or {}).keys())
-        allowed_character_keys = {str(k).strip().lower() for k in (character_key_to_name or {}).keys() if str(k).strip()}
+        """The assembler's override step. Only applies a Jev answer when the
+        resolver actually used Jev for it (Provider.JEV) — in shadow mode,
+        legacy-only mode, or any fallback, `base` (already built from
+        legacy_raw) is left exactly as-is, so this is a strict no-op in
+        every state except a genuinely live, successful Jev answer.
+
+        Every existing validation from _parse_dict is re-applied here, not
+        bypassed: an out-of-range/none_of_these destination coerces intent
+        back to NONE, matching _parse_dict's own
+        `if destination_id and allowed_location_ids and destination_id not
+        in allowed_location_ids: destination_id = ""; intent = "NONE"` rule
+        exactly (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9 invariant #2)."""
+        intent = base.movement_intent
+        destination_id = base.destination_id
+        confidence = base.confidence
+        previous_loc = base.previous_reply_location_id
+
+        mi = outcome.answers.get("movement_intent")
+        if mi is not None and mi.usable and mi.provider is Provider.JEV:
+            intent = mi.choice or "NONE"
+            if mi.confidence is not None:
+                confidence = mi.confidence
+
+        md = outcome.answers.get("movement_destination")
+        if md is not None and md.usable and md.provider is Provider.JEV:
+            chosen = md.choice
+            if chosen and chosen != NONE_OF_THESE and chosen in allowed_location_ids:
+                destination_id = chosen
+            else:
+                destination_id = ""
+                intent = "NONE"
+
+        psl = outcome.answers.get("prev_scene_location")
+        if psl is not None and psl.usable and psl.provider is Provider.JEV:
+            chosen = psl.choice
+            previous_loc = chosen if (chosen and chosen != NONE_OF_THESE and chosen in allowed_location_ids) else ""
+
+        return _dataclass_replace(
+            base, movement_intent=intent, destination_id=destination_id,
+            confidence=confidence, previous_reply_location_id=previous_loc,
+        )
+
+    async def _call_legacy_raw(self, request: "LegacyExtractionRequest") -> Dict[str, Any] | None:
+        """The legacy one-shot LLM call. Matches LegacyExtractionCallable's
+        signature exactly — this IS the `legacy` callable injected into
+        DecisionResolver's constructor (see __init__). Returns the parsed
+        JSON dict (matching the schema _parse_dict expects), or None on any
+        failure — the SAME never-raises contract extract() always had.
+
+        Prompt-building logic is otherwise byte-for-byte identical to what
+        used to live inline in extract() before this refactor — only the
+        transport changed (OpenAIChatClient via the shared httpx client,
+        replacing a per-call httpx.AsyncClient(...) construction; no
+        httpx import remains in this file)."""
+        user_msg = request.user_msg
+        world_locations = request.world_locations
+        character_key_to_name = request.character_key_to_name
+        previous_turn_user_msg = request.previous_turn_user_msg
+        previous_turn_assistant_reply = request.previous_turn_assistant_reply
+        previous_turn_candidate_chunks = request.previous_turn_candidate_chunks
+        conversation_log = request.conversation_log
+        behavior_window = request.behavior_window
 
         location_lines = []
         for loc_id, loc_name in (world_locations or {}).items():
@@ -485,36 +621,93 @@ class TurnExtractor:
             + behavior_window_block
         )
 
-        messages: List[Dict[str, str]] = [{"role": "system", "content": system}]
+        # OpenAIChatClient.generate() prepends the system message itself
+        # (see backend/app/llm/providers/openai_chat.py), so `messages` here
+        # is history + the final user turn only — matching every other
+        # TextProvider call site's convention, not a behavior change (the
+        # combined [system, *history, user] sequence sent over the wire is
+        # byte-identical to before this refactor).
+        messages: List[Dict[str, str]] = []
         history = [m for m in (conversation_log or []) if m.get("role") in {"user", "assistant"}]
         history = history[-EXTRACTOR_TURNS:] if len(history) > EXTRACTOR_TURNS else history
         messages.extend({"role": str(m.get("role")), "content": str(m.get("content", ""))} for m in history)
         messages.append({"role": "user", "content": user_content})
 
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0,
-            "max_tokens": 700,
+        try:
+            result = await self._legacy_client.generate(
+                model=self.model, system=system, messages=messages,
+                max_tokens=700, temperature=0,
+            )
+        except Exception:
+            return None
+
+        try:
+            obj = json.loads(result.text)
+        except Exception:
+            return None
+        if not isinstance(obj, dict):
+            return None
+        return obj
+
+    async def extract(
+        self,
+        *,
+        user_msg: str,
+        world_locations: Dict[str, str],
+        character_key_to_name: Dict[str, str],
+        previous_turn_user_msg: str = "",
+        previous_turn_assistant_reply: str = "",
+        previous_turn_candidate_chunks: List[Dict[str, str]] | None = None,
+        conversation_log: List[Dict[str, str]] | None = None,
+        behavior_window: Dict[str, Any] | None = None,
+    ) -> TurnExtraction:
+        """UNCHANGED signature and return type. Internally: batch builder ->
+        resolver -> assembler (see class docstring and
+        JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12 step 3)."""
+        allowed_location_ids = set((world_locations or {}).keys())
+        allowed_character_keys = {
+            str(k).strip().lower() for k in (character_key_to_name or {}).keys() if str(k).strip()
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                r = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-                    json=payload,
-                )
-        except Exception:
-            return TurnExtraction()
+        # `_invoke` closes over `legacy_request`, which is defined below it —
+        # safe via ordinary Python closure late-binding: `_invoke` is only
+        # ever CALLED after `legacy_request` has been assigned, never at
+        # definition time. Used by extract()'s own fallback path below when
+        # the resolver decides it didn't need to call legacy (see that
+        # branch's comment for why that can still happen and needs covering
+        # here for the 9 not-yet-Jev-eligible fields).
+        async def _invoke() -> Dict[str, Any] | None:
+            return await self._call_legacy_raw(legacy_request)
 
-        if r.status_code < 200 or r.status_code >= 300:
-            return TurnExtraction()
+        legacy_request = LegacyExtractionRequest(
+            user_msg=user_msg,
+            world_locations=world_locations or {},
+            character_key_to_name=character_key_to_name or {},
+            previous_turn_user_msg=previous_turn_user_msg,
+            previous_turn_assistant_reply=previous_turn_assistant_reply,
+            previous_turn_candidate_chunks=tuple(previous_turn_candidate_chunks or []),
+            conversation_log=tuple(conversation_log or []),
+            behavior_window=behavior_window,
+            invoke=_invoke,
+        )
 
-        try:
-            data = r.json()
-            content = str(data["choices"][0]["message"]["content"]).strip()
-        except Exception:
-            return TurnExtraction()
+        batches = self._build_batches(
+            user_msg=user_msg, world_locations=world_locations,
+            previous_turn_assistant_reply=previous_turn_assistant_reply,
+        )
 
-        return self._parse_json(content, allowed_location_ids, allowed_character_keys)
+        outcome = await self._resolver.resolve(batches, legacy_request)
+
+        legacy_raw = outcome.legacy_raw
+        if legacy_raw is None:
+            # See _build_batches' docstring: 9 of 12 TurnExtraction fields
+            # have no Decision registered yet, so the resolver's own
+            # "did I need legacy" bookkeeping (scoped to the 3 registered
+            # decisions) can't know they still need an answer. This is
+            # TurnExtractor's responsibility, not the resolver's — ensure a
+            # legacy call always happens so those 9 fields are never
+            # silently empty.
+            legacy_raw = await legacy_request.invoke()
+
+        base = self._parse_dict(legacy_raw or {}, allowed_location_ids, allowed_character_keys)
+        return self._apply_decision_overrides(base, outcome, allowed_location_ids)

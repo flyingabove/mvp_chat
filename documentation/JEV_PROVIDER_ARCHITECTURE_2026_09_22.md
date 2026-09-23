@@ -3,7 +3,11 @@
 September 22, 2026. Implementation-level design for routing bounded decisions to
 Jev with automatic, per-request fallback to the existing generative path.
 
-**Status: design only. Nothing here is implemented.**
+**Status: implementation started 2026-09-22.** Steps 1–5 of §12's
+implementation order are shipped (see that section for exact commits and
+live-verification evidence). Steps 6–9 (the remaining abilities) are not
+started. `TYPESAFE_ENABLED=false` remains the shipped default — nothing here
+is live in production regardless of what's implemented.
 
 Companion to:
 - `JEV_EXTRACTOR_REDESIGN_2026_09_22.md` — *which* abilities move to Jev (the
@@ -788,17 +792,41 @@ use a fake `JevClient` — no network.
 Each step is independently shippable and independently revertible. Steps 1–3
 contain **no** Jev call at all, so they are safe to ship before any pilot.
 
-| Step | Deliverable | Ships behind |
-| --- | --- | --- |
-| **1** | `extraction` stage added to `stage_timer`; extractor latency visible in production | nothing — pure observability |
-| **2** | `backend/app/llm/` skeleton: types, `JevClient`, `OpenAIChatClient` (extracted from the existing inline sites), `UsageLedger`. No call sites changed. | nothing — dead code until wired |
-| **3** | `TurnExtractor` refactored into *batch builder → resolver → assembler*, with a resolver whose only provider is the **existing legacy call**. `httpx` import removed from `turn_extractor.py`; the missing import-direction test added (with the documented allowlist from §2). **Behaviour byte-identical; all existing tests must pass unmodified.** | nothing — this is the seam, no Jev |
-| **4** | `JevCircuitBreaker` + flags + telemetry. Still no task enabled. | `TYPESAFE_ENABLED=false` |
-| **5** | Register + enable abilities **1, 2, 3, 5** (`movement`, `prev_scene`) — pure `choice`, no fan-out, no vocabulary, no arithmetic. Also lands the reachable-location prefilter. | `JEV_SHADOW_TASKS=movement,prev_scene` first, then `JEV_ENABLED_TASKS` |
-| **6** | Fan-outs: `knowledge`, `departure` (abilities 7, 10) | shadow → live, per task |
-| **7** | `rel_state` (ability 9, level→delta mapping) and `rel_history` (ability 8, gated fan-out) | shadow → live |
-| **8** | `behavior_tags` (ability 11). **Requires BL-16's story-authored vocabulary first.** | shadow → live |
-| **9** | `social_shift` (ability 12) + the conditional generative `new_value` call | shadow → live |
+| Step | Deliverable | Ships behind | Status |
+| --- | --- | --- | --- |
+| **1** | `extraction` stage added to `stage_timer`; extractor latency visible in production | nothing — pure observability | ✅ Shipped `da0ab43`, live-verified on beta |
+| **2** | `backend/app/llm/` skeleton: types, `JevClient`, `OpenAIChatClient` (extracted from the existing inline sites), `UsageLedger`. No call sites changed. | nothing — dead code until wired | ✅ Shipped `1bbc10c`, 57 tests, live-verified |
+| **3** | `TurnExtractor` refactored into *batch builder → resolver → assembler*, with a resolver whose only provider is the **existing legacy call**. `httpx` import removed from `turn_extractor.py`; the missing import-direction test added (with the documented allowlist from §2). **Behaviour byte-identical; all existing tests must pass unmodified.** | nothing — this is the seam, no Jev | ✅ Shipped 2026-09-22. All 30 pre-existing extraction tests in `test_prompt_engine.py` and all 27 in `test_turn_extractor.py` pass **unmodified**. |
+| **4** | `JevCircuitBreaker` + flags + telemetry. Still no task enabled. | `TYPESAFE_ENABLED=false` | ✅ Shipped 2026-09-22. `/api/health` gains the `jev` block from §6. |
+| **5** | Register + enable abilities **1, 2, 5** (`movement`, `prev_scene`) — pure `choice`, no fan-out, no vocabulary, no arithmetic. | `JEV_SHADOW_TASKS=movement,prev_scene` first, then `JEV_ENABLED_TASKS` | ✅ Shipped 2026-09-22 — **default OFF** (`TYPESAFE_ENABLED=false`), verified end-to-end against the **live Jev API** in both shadow and live mode (see below). **Correction: the reachable-location prefilter was NOT landed** — `TurnExtractor.extract()`'s existing signature has no current-location/world-graph access, and adding it would have meant a signature change beyond this step's "behaviour byte-identical" scope. `movement_destination` uses the full location list, documented as a known limitation in `decision_registry.py`. |
+| **6** | Fan-outs: `knowledge`, `departure` (abilities 7, 10) | shadow → live, per task | Not started |
+| **7** | `rel_state` (ability 9, level→delta mapping) and `rel_history` (ability 8, gated fan-out) | shadow → live | Not started |
+| **8** | `behavior_tags` (ability 11). **Requires BL-16's story-authored vocabulary first.** | shadow → live | Not started |
+| **9** | `social_shift` (ability 12) + the conditional generative `new_value` call | shadow → live | Not started |
+
+**Step 5's real caveat, stated plainly:** with only abilities 1/2/5 registered,
+the legacy call still runs on **every** turn regardless of Jev's outcome — 9 of
+12 `TurnExtraction` fields have no Decision registered yet, so `extract()`
+explicitly calls `legacy_request.invoke()` whenever the resolver didn't already
+need it (see `turn_extractor.py`'s `extract()` method and its inline comment).
+This means **enabling `movement`/`prev_scene` live today does not yet reduce
+cost** — it only lets Jev's answer override the legacy one. This is exactly the
+"hybrid trap" `JEV_EXTRACTOR_REDESIGN_2026_09_22.md` warns against, and is
+unavoidable until either more abilities are registered (steps 6–9) or the legacy
+prompt itself is shrunk to stop asking for what Jev already answers — the
+latter is deliberately not done in this pass. `TYPESAFE_ENABLED=false` (shipped
+default) means none of this is live in production regardless.
+
+**Live-API verification performed while building step 5** (not committed as
+tests — no network in CI, but real evidence this integration works, not just
+mocks):
+- Shadow mode: a real Jev call for "I'm heading to the terrace right now to
+  cool off" correctly answered `MOVE`/`terrace`; `shadow_disagreements` recorded
+  `('MOVE', 'NONE')` against a deliberately-wrong fake legacy answer, and the
+  final `TurnExtraction` correctly used the legacy value, never the shadow one.
+- Live mode: the same real Jev call's answer was correctly **applied**
+  (`provider_used=JEV`, legacy never called), overriding what the fake legacy
+  answer would have said.
 
 Out of scope here, tracked separately: the **offline grader** pilot and the
 **memory-extraction gate** (both in the redesign doc's Table B). Both are better

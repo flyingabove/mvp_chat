@@ -196,6 +196,58 @@ def test_health_endpoint(client):
     assert isinstance(data["content_schema_version"], int)
 
 
+def test_health_endpoint_includes_jev_block(client):
+    """JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6's exposure requirement:
+    confirming a Jev rollback took effect without reading logs."""
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    jev = r.json()["jev"]
+    assert "enabled" in jev
+    assert "state" in jev
+    assert jev["state"] in {"closed", "open", "half_open", "unknown"}
+    assert "model" in jev
+
+
+def test_health_jev_block_reflects_disabled_by_default(client, monkeypatch):
+    from backend.app.config import settings
+    monkeypatch.setattr(settings, "TYPESAFE_ENABLED", False)
+    r = client.get("/api/health")
+    assert r.json()["jev"]["enabled"] is False
+
+
+def test_health_jev_block_never_triggers_a_network_call(client, monkeypatch):
+    """Calling /api/health must never itself make a Jev API call - it only
+    reads the breaker's in-memory snapshot."""
+    called = {"n": 0}
+
+    class _ExplodingClient:
+        async def ask(self, *a, **k):
+            called["n"] += 1
+            raise AssertionError("‌/api/health must never call Jev")
+
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    assert called["n"] == 0
+
+
+def test_health_jev_block_survives_breaker_construction_failure(client, monkeypatch):
+    """/api/health must return 200 even if the Jev bookkeeping itself is
+    broken - this endpoint is what uptime checks and ship-and-verify depend
+    on, and must not become a new single point of failure."""
+    import backend.app.api.health as health_mod
+
+    def _broken_get_shared_breaker():
+        raise RuntimeError("breaker construction exploded")
+
+    monkeypatch.setattr(
+        "backend.app.llm.factory.get_shared_breaker", _broken_get_shared_breaker,
+    )
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    assert r.json()["jev"]["state"] == "unknown"
+
+
 def test_echo_endpoint(client):
     r = client.post("/api/echo", json={"x": 1})
     assert r.status_code == 200
