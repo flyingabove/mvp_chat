@@ -728,3 +728,61 @@ def test_apply_overrides_social_shift_no_behavior_window_is_noop():
     })
     result = ex._apply_decision_overrides(base, outcome, allowed_location_ids=set(), behavior_window=None)
     assert result.social_shift_signal == base.social_shift_signal, "no behavior_window -> no pair to match, no-op"
+
+
+# --- _log_jev_outcome: shadow-mode/live telemetry visibility -------------
+
+def test_log_jev_outcome_silent_when_jev_never_attempted(monkeypatch):
+    """The default-off case (TYPESAFE_ENABLED=false, or a sparse turn with
+    no registered decisions) must produce zero log volume."""
+    from backend.app.llm.decisions.types import FallbackReason
+    calls = []
+    monkeypatch.setattr("backend.app.engine.extractors.turn_extractor.jlog", lambda e: calls.append(e))
+    outcome = _default_outcome(provider_used=Provider.LEGACY_LLM, fallback_reasons={
+        "movement_intent": FallbackReason.FLAG_DISABLED,
+    })
+    TurnExtractor._log_jev_outcome(outcome)
+    assert calls == []
+
+
+def test_log_jev_outcome_logs_when_provider_used_is_jev(monkeypatch):
+    calls = []
+    monkeypatch.setattr("backend.app.engine.extractors.turn_extractor.jlog", lambda e: calls.append(e))
+    outcome = _default_outcome(provider_used=Provider.JEV, jev_latency_ms=180.0, jev_usage={"input_tokens": 50})
+    TurnExtractor._log_jev_outcome(outcome)
+    assert len(calls) == 1
+    assert calls[0]["kind"] == "jev_turn_outcome"
+    assert calls[0]["provider_used"] == "jev"
+    assert calls[0]["jev_latency_ms"] == 180.0
+
+
+def test_log_jev_outcome_logs_shadow_disagreements():
+    """The actual comparison-data path: shadow mode ran, Jev and legacy
+    disagreed on at least one decision - this must be visible in the log,
+    not silently discarded (the gap this method exists to close)."""
+    calls = []
+    outcome = _default_outcome(
+        provider_used=Provider.LEGACY_LLM,
+        shadow_disagreements={"movement_intent": ("MOVE", "NONE")},
+    )
+    import backend.app.engine.extractors.turn_extractor as te_mod
+    original_jlog = te_mod.jlog
+    te_mod.jlog = lambda e: calls.append(e)
+    try:
+        TurnExtractor._log_jev_outcome(outcome)
+    finally:
+        te_mod.jlog = original_jlog
+    assert len(calls) == 1
+    assert calls[0]["shadow_disagreement_count"] == 1
+    assert calls[0]["shadow_disagreements"]["movement_intent"] == ["MOVE", "NONE"]
+
+
+def test_log_jev_outcome_never_raises_on_bad_data():
+    """jlog itself already swallows exceptions (logging_utils.py), but this
+    method's own try/except is the belt-and-suspenders guarantee that a
+    telemetry call can never break a real turn."""
+    class _Unserializable:
+        def __repr__(self):
+            raise RuntimeError("boom")
+    outcome = _default_outcome(provider_used=Provider.JEV, jev_usage={"bad": _Unserializable()})
+    TurnExtractor._log_jev_outcome(outcome)  # must not raise

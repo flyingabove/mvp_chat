@@ -5,6 +5,7 @@ import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL, EXTRACTOR_TURNS
+from backend.app.utils.logging_utils import jlog
 from backend.app.engine.extractors.decision_registry import (
     NONE_OF_THESE,
     REL_HISTORY_FIELDS,
@@ -21,7 +22,7 @@ from backend.app.engine.extractors.decision_registry import (
     rel_state_score_to_delta,
     social_shift_certainty_decision,
 )
-from backend.app.llm.decisions.types import DecisionBatch, DecisionOutcome, Provider
+from backend.app.llm.decisions.types import DecisionBatch, DecisionOutcome, FallbackReason, Provider
 from backend.app.llm.protocols import DecisionProvider, LegacyExtractionRequest
 
 # Step 3 of documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12:
@@ -836,6 +837,42 @@ class TurnExtractor:
             )
         return base_signal
 
+    @staticmethod
+    def _log_jev_outcome(outcome: DecisionOutcome) -> None:
+        """Surfaces the resolver's telemetry (provider_used,
+        shadow_disagreements, latencies, usage) to Railway deploy logs via
+        jlog - this is the ONLY thing that makes "gather comparison data"
+        (shadow mode: Jev runs alongside legacy, doesn't affect output,
+        just compares) actually observable. Before this, DecisionOutcome's
+        telemetry fields were computed by resolve() and then silently
+        discarded by extract() - shadow mode ran for nothing. Logs nothing
+        when Jev was never attempted at all (flag off, or every decision
+        skipped for lack of registered decisions in a sparse turn) to keep
+        default-off production log volume at zero, matching the shipped
+        default of TYPESAFE_ENABLED=false."""
+        attempted = outcome.provider_used is Provider.JEV or bool(outcome.shadow_disagreements) or any(
+            reason not in (FallbackReason.NONE, FallbackReason.FLAG_DISABLED)
+            for reason in outcome.fallback_reasons.values()
+        )
+        if not attempted:
+            return
+        try:
+            jlog({
+                "kind": "jev_turn_outcome",
+                "provider_used": outcome.provider_used.value,
+                "jev_latency_ms": outcome.jev_latency_ms,
+                "legacy_latency_ms": outcome.legacy_latency_ms,
+                "jev_usage": dict(outcome.jev_usage) if outcome.jev_usage else None,
+                "fallback_reasons": {k: v.value for k, v in outcome.fallback_reasons.items()},
+                "shadow_disagreement_count": len(outcome.shadow_disagreements),
+                "shadow_disagreements": {
+                    k: [str(jev_v), str(legacy_v)] for k, (jev_v, legacy_v) in outcome.shadow_disagreements.items()
+                },
+                "answer_count": len(outcome.answers),
+            })
+        except Exception:
+            pass
+
     async def _call_legacy_raw(self, request: "LegacyExtractionRequest") -> Dict[str, Any] | None:
         """The legacy one-shot LLM call. Matches LegacyExtractionCallable's
         signature exactly — this IS the `legacy` callable injected into
@@ -1070,6 +1107,7 @@ class TurnExtractor:
         )
 
         outcome = await self._resolver.resolve(batches, legacy_request)
+        self._log_jev_outcome(outcome)
 
         legacy_raw = outcome.legacy_raw
         if legacy_raw is None:
