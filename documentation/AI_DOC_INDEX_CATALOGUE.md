@@ -128,6 +128,7 @@ Update that document when map metadata, coordinates, routes or map UI behavior c
 | [ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md](ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md) | ...a phase of the reuse/correctness/performance/Jev initiative is started, completed, re-scoped, or its measurements are re-run. **Verified against code + measured on 2026-09-21; supersedes the raw audit's priorities where they conflict.** |
 | [CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md](CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md) | ...never — source audit, read-only input to the engineering plan above. |
 | [JEV_EXTRACTOR_REDESIGN_2026_09_22.md](JEV_EXTRACTOR_REDESIGN_2026_09_22.md) | ...the Jev/`TurnExtractor` ability mapping, call structure, cost model, or per-ability test cases change. **Refines Phase 4 of the engineering plan; every Jev result in it is a real live `jev-1.13.0` response, not a projection.** |
+| [JEV_PROVIDER_ARCHITECTURE_2026_09_22.md](JEV_PROVIDER_ARCHITECTURE_2026_09_22.md) | ...the Jev provider/fallback machinery changes: the `resolve()` contract, circuit-breaker parameters, flags/rollout modes, `backend/app/llm/` layout, or the implementation order. **Implementation-level design; read `JEV_EXTRACTOR_REDESIGN` first for WHICH abilities move.** |
 
 ## Verification Ledger
 
