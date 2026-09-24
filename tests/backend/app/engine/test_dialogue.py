@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
-from backend.app.engine.dialogue import dialogue_prompt, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo
+from backend.app.engine.dialogue import dialogue_prompt, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, clean_spoken_text
 from backend.app.engine.state import Character, extract_state_tag
 
 
@@ -153,3 +153,27 @@ def test_player_attributed_echo_and_short_or_original_npc_lines_are_kept():
 
 def test_contract_forbids_echoing_the_player():
     assert "Never repeat the player's own message" in dialogue_prompt(state())
+
+
+# --- BL-22: markdown/quote wrappers leaked into dialogue segments on beta -----
+
+@pytest.mark.parametrize("raw,expected", [
+    ("**Great! We could use a little excitement.**", "Great! We could use a little excitement."),
+    ('"Tea it is!"', "Tea it is!"),
+    ("**“Tea it is!”**", "Tea it is!"),
+    ("*Laughter echoes from the dining area.*", "*Laughter echoes from the dining area.*"),
+    ("I said **never**, okay?", "I said **never**, okay?"),
+])
+def test_clean_spoken_text_strips_only_whole_line_wrappers(raw, expected):
+    assert clean_spoken_text(raw) == expected
+
+
+def test_structured_dialogue_segments_are_cleaned_on_decode():
+    raw = json.dumps({"segments": [{"kind": "dialogue", "speaker_id": "mizuki", "text": "**Welcome home!**"}],
+                      "state": {"emotion": "warm", "rel_delta": 0}})
+    _, blocks = present_dialogue(extract_state_tag(decode_dialogue_response(raw, state()))[0], state())
+    assert blocks[0]["text"] == "Welcome home!"
+
+
+def test_contract_says_segment_text_is_plain_speech():
+    assert "no quotation marks" in dialogue_prompt(state())

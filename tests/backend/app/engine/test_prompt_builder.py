@@ -1216,3 +1216,35 @@ def test_pacing_section_in_return_layers():
     _, layers = pb.system_prompt(st, current_user_msg="hello", return_layers=True)
     assert "pacing_and_initiative" in layers
     assert "### PACING AND INITIATIVE" in layers["pacing_and_initiative"]
+
+
+# ============================================================================
+# BL-22 (arena pilot 2026-09-23): Six Strangers scenes collapsed onto one
+# housemate on beta. Ensemble stories must invite a natural spread of present
+# speakers within the same length cap; non-ensemble stories are unchanged.
+# ============================================================================
+
+def _ensemble_state(mode: dict | None):
+    st = init_state()
+    st.story_cfg = {"meta": {"disclaimer": "fiction"}, **({"mode": mode} if mode else {})}
+    st.characters["mizuki"] = Character(key="mizuki", name="Mizuki", role="housemate")
+    st.main_character_id = "mizuki"
+    return st
+
+
+def test_ensemble_pacing_spreads_voices_for_social_sim_stories():
+    from backend.app.engine import prompt_builder as pb
+
+    for msg in ("hi there", "That sounds amazing. Do you all cook together usually?"):
+        sysmsg = pb.system_prompt(_ensemble_state({"type": "social_sim"}), current_user_msg=msg)
+        assert "ENSEMBLE VOICES" in sysmsg
+        assert "not always the same housemate" in sysmsg
+    # the BL-12 length cap still applies to short messages
+    assert "HARD LIMIT: 3-4 sentences" in pb.system_prompt(_ensemble_state({"type": "social_sim"}),
+                                                           current_user_msg="hi there")
+
+
+def test_ensemble_pacing_absent_for_non_ensemble_stories():
+    from backend.app.engine import prompt_builder as pb
+
+    assert "ENSEMBLE VOICES" not in pb.system_prompt(_ensemble_state(None), current_user_msg="hi there")

@@ -22,7 +22,10 @@ def dialogue_prompt(state) -> str:
         "contains the scene in reading order. Each segment has kind (narration or "
         "dialogue), speaker_id (null for narration, a cast ID for dialogue), and text. "
         "EVERY spoken passage MUST be a dialogue segment. Split at every change of "
-        "speaker, including within one paragraph. Keep actions and narration in "
+        "speaker, including within one paragraph. Dialogue text contains only the "
+        "spoken words: no quotation marks and no ** or other markdown, because the "
+        "interface displays speech itself (this overrides any bold-quote formatting "
+        "rule for prose). Keep actions and narration in "
         "narration segments. Do not add name prefixes inside spoken text. Never "
         "invent the player's dialogue. Never repeat the player's own message as anyone's "
         "dialogue; the player already sees what they wrote. Use speaker_id unknown for an unidentified "
@@ -57,6 +60,32 @@ def dialogue_response_format(state) -> dict:
                                  }},
                    }},
     }}
+
+
+QUOTE_PAIRS = (('"', '"'), ("“", "”"), ("‘", "’"))
+
+
+def clean_spoken_text(text: str) -> str:
+    """Strip whole-line presentation wrappers from spoken dialogue.
+
+    The prose-era storyteller rule "spoken lines must appear as **bold
+    quotes**" leaks literal ``**...**`` / quotes into structured dialogue
+    segments (BL-22, arena pilot 2026-09-23). Only a wrapper around the WHOLE
+    line is removed; inner emphasis and single-asterisk actions are kept.
+    """
+    out = (text or "").strip()
+    changed = True
+    while changed and len(out) >= 2:
+        changed = False
+        if out.startswith("**") and out.endswith("**") and len(out) > 4 and "**" not in out[2:-2]:
+            out, changed = out[2:-2].strip(), True
+            continue
+        for open_q, close_q in QUOTE_PAIRS:
+            inner = out[1:-1]
+            if out.startswith(open_q) and out.endswith(close_q) and open_q not in inner and close_q not in inner:
+                out, changed = inner.strip(), True
+                break
+    return out
 
 
 def _explicit_speaker_parts(text: str, state) -> list[tuple[str, str | None]]:
@@ -112,6 +141,7 @@ def decode_dialogue_response(raw: str, state=None) -> str:
         text = MARKER.sub("", segment["text"])
         text = re.sub(r"\[\[STATE\]\].*?(?:\[\[/STATE\]\]|$)", "", text, flags=re.S)
         if segment.get("kind") == "dialogue":
+            text = clean_spoken_text(text)
             speaker = segment.get("speaker_id") or "unknown"
             if not isinstance(speaker, str) or not re.fullmatch(r"[\w.-]+", speaker):
                 speaker = "unknown"
