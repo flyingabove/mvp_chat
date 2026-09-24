@@ -93,16 +93,20 @@ class PairwiseJudge(Protocol):
     async def judge(self, packet: EvidencePacket, *, orientation: str) -> JudgeCall: ...
 
 
-def build_decisions(rubric: Rubric, packet: EvidencePacket) -> tuple[Decision, ...]:
+def build_decisions(rubric: Rubric, packet: EvidencePacket, *, compact: bool = False) -> tuple[Decision, ...]:
+    """Full set (Jev): per dimension a comparison, two diagnostic scores and an
+    evidence span, plus per-side critical probes (28 questions). compact
+    (generative judges): comparisons + probes only (10 questions) - an 8B
+    model skipped 252 of 28x24 answers on the full set (2026-09-24)."""
     decisions: list[Decision] = []
-    span_options = list(packet.span_ids[:MAX_EVIDENCE_OPTIONS])
+    span_options = [] if compact else list(packet.span_ids[:MAX_EVIDENCE_OPTIONS])
     for dim in rubric.dimensions:
         decisions.append(Decision(
             id=cmp_id(dim.id), task=JUDGE_TASK, kind="choice",
             instructions=dim.choice_instructions(), criteria=dim.choice_criteria(),
             criticality=Criticality.CRITICAL, allowed=frozenset(CHOICE_OPTIONS),
         ))
-        for side in ("A", "B"):
+        for side in (() if compact else ("A", "B")):
             decisions.append(Decision(
                 id=score_id(side, dim.id), task=JUDGE_TASK, kind="score",
                 instructions=dim.score_instructions(side), criteria=list(dim.bands),
@@ -178,7 +182,9 @@ class JevPairwiseJudge:
     the judge policy above."""
 
     def __init__(self, client, rubric: Rubric, *, model: str = DEFAULT_JUDGE_MODEL,
-                 timeout_ms: int = 120_000, max_attempts: int = 3, backoff_s: float = 2.0) -> None:
+                 timeout_ms: int = 120_000, max_attempts: int = 3, backoff_s: float = 2.0,
+                 compact: bool = False) -> None:
+        self.compact = compact
         self.client = client
         self.rubric = rubric
         self.model = model
@@ -187,7 +193,7 @@ class JevPairwiseJudge:
         self.backoff_s = backoff_s
 
     async def judge(self, packet: EvidencePacket, *, orientation: str) -> JudgeCall:
-        decisions = build_decisions(self.rubric, packet)
+        decisions = build_decisions(self.rubric, packet, compact=self.compact)
         batch = DecisionBatch(name=f"arena_w{packet.window_index}", state=packet.state, decisions=decisions)
         call = JudgeCall(window_index=packet.window_index, orientation=orientation, answers={},
                          estimated_state_tokens=packet.estimated_tokens)

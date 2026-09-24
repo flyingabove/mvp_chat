@@ -86,7 +86,7 @@ class ArenaConfig:
     max_pairs: int = 0
     seed: int = 20260923
     concurrency: int = 2
-    judge_concurrency: int = 4
+    judge_concurrency: int = 2          # 4 overloaded the OpenAI judge (transient failures)
     max_game_turns: int = 0
     max_wall_seconds: int = 5400
     calibration_arms: int = 0
@@ -236,7 +236,7 @@ def make_judge(spec: JudgeSpec, client: httpx.AsyncClient) -> JevPairwiseJudge:
 
     ep = spec.endpoint
     return JevPairwiseJudge(LLMDecisionClient(client, base_url=ep.base_url, api_key=ep.api_key, model=ep.model),
-                            DEFAULT_RUBRIC, model=ep.model, timeout_ms=300_000)
+                            DEFAULT_RUBRIC, model=ep.model, timeout_ms=300_000, compact=True)
 
 
 async def judge(cfg: ArenaConfig, client: httpx.AsyncClient, log: Log, *, force: bool = False) -> dict[str, list]:
@@ -247,8 +247,11 @@ async def judge(cfg: ArenaConfig, client: httpx.AsyncClient, log: Log, *, force:
     out = {}
     for spec in cfg.judges:
         window = manifest.judges.get(spec.name, {}).get("window_turns") or spec.window_turns or manifest.window_turns
+        # A local Ollama model serves one request at a time; parallel calls only
+        # queue up and time out (the first tiered run lost all 12 that way).
+        concurrency = 1 if spec.name == "ollama" else cfg.judge_concurrency
         pipe = JudgePipeline(store=store, bundles=bundles, judge=make_judge(spec, client), rubric=DEFAULT_RUBRIC,
-                             window_turns=window, concurrency=cfg.judge_concurrency, judge_name=spec.namespace,
+                             window_turns=window, concurrency=concurrency, judge_name=spec.namespace,
                              max_judge_input_tokens=manifest.budget.get("max_judge_input_tokens", 5_000_000))
         results = await pipe.run(pairs, force=force)
         counts: dict[str, int] = {}

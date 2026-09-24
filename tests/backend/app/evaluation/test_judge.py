@@ -109,3 +109,12 @@ async def test_resolved_model_other_than_pinned_is_flagged():
     judge = JevPairwiseJudge(FakeJevClient(model="jev-2.0.0"), DEFAULT_RUBRIC, model="jev-1.13.0")
     call = await judge.judge(packet(), orientation="beta_as_A")
     assert call.error.startswith("model_mismatch")
+
+
+def test_compact_question_set_for_generative_judges():
+    """Comparisons + critical probes only: 6 + 2x2 = 10 questions (vs 28)."""
+    full = build_decisions(DEFAULT_RUBRIC, packet())
+    compact = build_decisions(DEFAULT_RUBRIC, packet(), compact=True)
+    assert len(full) == 28 and len(compact) == 10
+    assert {d.kind for d in compact} == {"choice", "noul"}
+    assert all(d.id.startswith(("cmp_", "probe_")) for d in compact)

@@ -183,7 +183,7 @@ def parser() -> argparse.ArgumentParser:
     # Players and both releases' storytellers share provider rate limits (and real
     # users' capacity); keep paired-arm concurrency low. See design §10.
     ap.add_argument("--concurrency", type=int, default=2)
-    ap.add_argument("--judge-concurrency", type=int, default=4)
+    ap.add_argument("--judge-concurrency", type=int, default=2, help="cloud judges; ollama always runs 1")
     ap.add_argument("--max-game-turns", type=int, default=0, help="0 = full horizon for every pair")
     ap.add_argument("--max-wall-seconds", type=int, default=5400)
     ap.add_argument("--player-model", default="gpt-4o-mini")

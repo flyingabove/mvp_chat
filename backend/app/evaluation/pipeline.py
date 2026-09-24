@@ -227,8 +227,14 @@ class JudgePipeline:
             } for c in judged.calls],
         }
         # Judge infra failures stay unresolved and are never cached as final,
-        # so a rerun retries them against the same stored transcripts.
-        if not any(c.failed for c in judged.calls):
+        # so a rerun retries them against the same stored transcripts. Log
+        # them: an uncached failure is otherwise invisible in the report.
+        failed = [c for c in judged.calls if c.failed]
+        for c in failed:
+            self.store.log("judge_call_failed", judge=self.judge_name or "jev", pair_id=pair.pair_id,
+                           window=c.window_index, orientation=c.orientation, attempts=c.attempts,
+                           error=c.error[:300])
+        if not failed:
             self.store.save_judgment(pair.pair_id, result, self.judge_name)
         return result
 
