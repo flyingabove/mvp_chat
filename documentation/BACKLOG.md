@@ -12,7 +12,7 @@
 **What:** Calibration's `shorten` control (same meaning, fewer words) lost to the longer original in 3/3 resolved cases (1 unresolved) although every question says not to prefer length. Previously miscounted as a pass; the expectation is now `original_not_win`, so reports show it failing, and every report carries a per-game "longer side won" table (`report.py` `length_confound`).
 **Why deferred:** Needs a design decision on mitigation, not a quick patch.
 **What's needed:** Options, in order of preference: (1) length-matched evidence (judge windows on equal word budgets per side, e.g. clipping both arms to the shorter side per turn, with the clip disclosed in the packet); (2) a length covariate in aggregation (report quality conditional on length difference); (3) human labels (BL-20) to measure how much of the bias humans share. Re-run the Six Strangers comparison afterwards (BL-22).
-**Touches:** `backend/app/evaluation/evidence.py`, `aggregate.py`, `calibration.py`.
+**Touches:** `.claude/skills/promote-to-prod/arena/evidence.py`, `aggregate.py`, `calibration.py`.
 
 ### BL-22 — Six Strangers scene quality regressed on beta vs prod: one NPC monopolizes, generic voices (source: Jev game arena pilot `arena_pilot_20260923b`, 2026-09-23)
 **What:** 40-pair pilot, beta `2aba92c` vs prod `e8664ec`: Six Strangers beta 2 wins / prod 9 (6 unresolved), -261 Elo-equivalent, 95% interval -inf to -70; IU Murder Mystery beta 10 / prod 4 (+159, interval 0 to +inf). Weakest beta dimension overall is character distinction (beta share 0.25 of resolved votes). Transcripts show beta Six Strangers scenes carried by a single housemate with generic lines and `**bold**` markdown inside dialogue, where prod stages several housemates with distinct voices. Likely tied to the structured speaker-segment output (`engine/dialogue.py` contract) and/or single-bubble dominant-speaker presentation. The judge is uncalibrated (BL-20), so treat as advisory but consistent across personas.
@@ -36,18 +36,16 @@
 **What:** The arena runs in observational mode: public `/api/chat` + the player-facing `[D]` debug box. Not yet built: server-side per-turn receipts (applied events, pre/post state hashes, component versions), seeded/controlled initialization (roster, RNG streams), snapshot export/restore, and the identical-state response-fork track (design §5B). Checks needing them (`cast_capacity`, `rng_stream_parity`, `state_transition_legality`, `snapshot_round_trip`) are reported as not measured.
 **Why deferred:** These belong with the Phase 2 `SessionFactory`/`SnapshotCodec`/`TurnService` restructure (`PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md`) rather than being bolted onto the HTTP handler; prod also needs them deployed before controlled hosted parity is possible (explicit release decision).
 **What's needed:** Implement receipts + controlled init + snapshot codec behind operator auth, flip the flags in `api/eval_capabilities.py`, then add a `ResponseForkRunner` and the unsupported checks.
-**Touches:** `backend/app/api/prompt_engine.py` (via Phase 2 services), `backend/app/api/eval_capabilities.py`, `backend/app/evaluation/`.
+**Touches:** `backend/app/api/prompt_engine.py` (via Phase 2 services), `backend/app/api/eval_capabilities.py`, `.claude/skills/promote-to-prod/arena/`.
 
 ### BL-20 — Arena judge needs human calibration before any verdict is more than advisory (source: Jev game arena, 2026-09-23; owner action)
 **What:** Rubric weights, the episode margin (0.55) and the critical-probe threshold (0.5) are the design's proposals, not calibrated values. Mutation sensitivity + A/A are implemented, but agreement with human judgment is unmeasured, so every report is labeled "uncalibrated: advisory only".
 **Why deferred:** Requires ~200 human-labeled pairs (two labelers on ambiguous cases, adjudicated) — an owner action, not code.
-**What's needed:** Label pairs from real arena artifacts using `evaluation/calibration.py` `HUMAN_LABEL_FIELDS` (JSONL), add an agreement report (per-dimension agreement, severe-error recall/precision, order sensitivity), then freeze weights/thresholds and bump `calibration_version`.
-**Touches:** `backend/app/evaluation/calibration.py`, `rubric.py`.
+**What's needed:** Label pairs from real arena artifacts using `.claude/skills/promote-to-prod/arena/calibration.py` `HUMAN_LABEL_FIELDS` (JSONL), add an agreement report (per-dimension agreement, severe-error recall/precision, order sensitivity), then freeze weights/thresholds and bump `calibration_version`.
+**Touches:** `.claude/skills/promote-to-prod/arena/calibration.py`, `rubric.py`.
 
-### BL-21 — Arena on Railway: enable the operator routes (owner action); optional scheduling (source: Jev game arena, 2026-09-23; updated 2026-09-24)
-**Done 2026-09-24:** opt-in runs on the beta service: operator-only `POST /api/eval/runs` (+ status, HTML report, cancel), same code as the CLI (`service.run_experiment`), artifacts on `/data/eval_arena`, CLI `python -m scripts.eval.arena kickoff|status`. Deliberately NOT tied to deploys.
-**Remaining:** (1) owner action: set `DEBUG_TOOLS_ENABLED=true` and a long random `OPERATOR_TOKEN` on the beta service (routes fail closed until then; note this also unlocks the existing debug tools for token holders); (2) optional: a scheduled/cron trigger if periodic runs are wanted; (3) a run is killed by any beta redeploy (reported `interrupted`); a separate Railway worker service would avoid that.
-**Touches:** Railway beta variables; optionally a new Railway service.
+### BL-21 — Arena runs on Railway: WITHDRAWN by owner decision (2026-09-24)
+The operator-only `/api/eval/runs` endpoints were built and then removed at the user's request: evaluation is local-only tooling in `.claude/skills/promote-to-prod/` and must never run inside (or on every) deployment. The app keeps only `deployment_id` in `/api/health` and the read-only `/api/eval/capabilities`. `DEBUG_TOOLS_ENABLED`/`OPERATOR_TOKEN` stay unset. No remaining action; reopen only if the owner wants service-side runs again.
 
 ### BL-15 — Workload harness needs the full matrix run (source: Phase 0B, 2026-09-22)
 **What:** `scripts/bench/turn_workload_harness.py` (Phase 0B) is proven working against live beta but was only run at a small scale: one story, concurrency 1/3, 2 sessions per level. The plan specifies both stories, cold/warm start, short/long conversations, movement, time skip, queue exhaustion, provider errors, and concurrency 1/10/50.

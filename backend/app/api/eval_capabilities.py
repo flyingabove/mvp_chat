@@ -25,7 +25,6 @@ def eval_capabilities() -> dict:
             "request_id_idempotency": True,      # BL-02 replay of a retried turn
             "debug_box_observation": True,       # player-facing [D]: clock, location, speakers
             "build_identity": True,              # commit + deployment_id in /api/health
-            "arena_runs": True,                  # operator-only POST /api/eval/runs (service-side runs)
             "turn_receipts": False,              # server-side per-turn receipts (planned)
             "controlled_initialization": False,  # seeded roster/RNG fixtures (planned)
             "snapshot_export": False,

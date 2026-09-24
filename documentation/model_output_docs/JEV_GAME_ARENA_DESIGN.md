@@ -239,7 +239,7 @@ Defaults proposed for implementation: both games equally weighted; common qualit
 
 ## 13. Implementation status (2026-09-23)
 
-Implemented in `backend/app/evaluation/` (CLI: `python -m scripts.eval.arena all --experiment-id <id>`; artifacts under `data/eval_arena/<id>/`). Tests: `tests/backend/app/evaluation/`.
+Implemented in `backend/app/evaluation/` (CLI: `python .claude/skills/promote-to-prod/arena_cli.py all --experiment-id <id>`; artifacts under `data/eval_arena/<id>/`). Tests: `tests/backend/app/evaluation/`.
 
 | Design element | Module / class | Status |
 | --- | --- | --- |
@@ -275,9 +275,9 @@ All modes call `backend/app/evaluation/service.py` `run_experiment()`; games are
 
 | Mode | Where it runs | Command | Judges |
 | --- | --- | --- | --- |
-| Hosted | this machine plays hosted beta vs prod | `python -m scripts.eval.arena all --profile gate` | `jev`, `llm` (OpenAI) |
-| Railway | the beta service runs it itself, results on `/data/eval_arena` | `python -m scripts.eval.arena kickoff --profile gate` then `status --experiment-id <id>`; report at `GET /api/eval/runs/<id>/report?operator_token=...` | `jev`, `llm` |
-| Offline | two local uvicorn servers (checkout vs `--baseline-ref`, default `origin/prod`) on Ollama | `python -m scripts.eval.arena local --ollama-model llama3.1:8b` | `llm` (Ollama); Jev is cloud-only |
+| Hosted | this machine plays hosted beta vs prod | `python .claude/skills/promote-to-prod/arena_cli.py all --profile gate` | `jev`, `llm` (OpenAI) |
+| Railway | the beta service runs it itself, results on `/data/eval_arena` | `python .claude/skills/promote-to-prod/arena_cli.py kickoff --profile gate` then `status --experiment-id <id>`; report at `GET /api/eval/runs/<id>/report?operator_token=...` | `jev`, `llm` |
+| Offline | two local uvicorn servers (checkout vs `--baseline-ref`, default `origin/prod`) on Ollama | `python .claude/skills/promote-to-prod/arena_cli.py local --ollama-model llama3.1:8b` | `llm` (Ollama); Jev is cloud-only |
 
 * **Never mandatory.** Nothing runs on deploy or in the Docker build; runs are opt-in. Railway runs need `DEBUG_TOOLS_ENABLED=true` + `OPERATOR_TOKEN` on beta (operator routes fail closed otherwise), one run at a time, refused on the prod service. A redeploy mid-run marks it `interrupted`; start a new experiment id (the pinned release is gone).
 * **LLM judge** = `llm/providers/llm_decisions.py` `LLMDecisionClient`: same `ask(batch)` contract as `JevClient`, one JSON request per batch, so `JevPairwiseJudge`, fail-closed validation, order swap, aggregation and report are reused unchanged. It judges each episode in one window (2 calls per pair). Its choice "distribution" is synthesized from stated confidence and is not calibrated.
@@ -291,3 +291,13 @@ All modes call `backend/app/evaluation/service.py` `run_experiment()`; games are
 * **Gate rule** (user decision): per game, beta's match score **>= 50% - ties count**, because not every change touches the engine - under at least one counted judge (`jev`, `llm`). Blocks: a counted judge showing the game significantly worse (95% interval below zero with at least 5 resolved episodes; a single lost episode is not significance) or any critical regression.
 * **`/promote-to-prod` skill** (`.claude/skills/promote-to-prod/SKILL.md`) is the release procedure: verify deployed beta -> `precheck` (free, offline) -> `all --profile gate --judges jev llm ollama` -> merge/push -> `wait-deploy` + `smoke` on prod. `release.py` provides `wait_for_commit` and `smoke` (reusing `HostedTargetAdapter`).
 * First real tiered run (beta `0418972` vs prod `76a0652`, 12 pairs): gate PASS under the tie rule - IU beta 2-0 under Jev, Six Strangers tied under OpenAI (5 ties), Jev resolved only one Six episode.
+
+### 14.3 Local-only skill tooling (owner decision 2026-09-24)
+
+The arena is **not part of the deployed app**. All of it lives in the `/promote-to-prod` skill folder and runs only on a developer machine:
+
+* Code: `.claude/skills/promote-to-prod/arena/` (package `arena`), entry point `python .claude/skills/promote-to-prod/arena_cli.py <command>` (works from any directory; it puts the skill folder and the repo root on `sys.path` so the arena can import the game's own modules).
+* Tests: `.claude/skills/promote-to-prod/tests/`, run with `python -m pytest .claude/skills/promote-to-prod/tests -q`. They are deliberately **outside `tests/`**, so the Docker build's test gate (every deploy) never runs them.
+* Artifacts: `data/eval_arena/` in the repo (gitignored).
+* The Railway run endpoints described in §14 were removed (BACKLOG BL-21 withdrawn); the "Railway" row and `kickoff`/`status` commands no longer exist. Nothing evaluation-related runs on deploy.
+* The app keeps only generic support: `deployment_id` in `/api/health`, the read-only `/api/eval/capabilities`, and the `OPENAI_BASE_URL`/`OPENAI_MODEL` routing that lets offline releases run on Ollama (production defaults unchanged).

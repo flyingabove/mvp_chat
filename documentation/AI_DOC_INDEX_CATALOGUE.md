@@ -86,12 +86,12 @@ The proposed controlled beta/prod evaluation system is documented in
 [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md).
 Update it when paired-game controls, Jev judge calibration, evidence contracts,
 rating statistics or the arena implementation plan change. Status: implemented in observational mode
-(`backend/app/evaluation/`, see its §13); server receipts/snapshots and human calibration are BACKLOG BL-19/BL-20.
+(local-only tooling in `.claude/skills/promote-to-prod/`, see its §13-14); server receipts/snapshots and human calibration are BACKLOG BL-19/BL-20.
 
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [AI_SCORER_SYSTEM.md](ai_learnings_mistakes/AI_SCORER_SYSTEM.md) | ...the debug system, scoring, player-agent loop, or grader changes. |
-| [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md) | ...the beta-vs-prod arena changes: rubric/weights, judge policy, pairing, rating math, checks, CLI, or its §13 implementation status. Code: `backend/app/evaluation/`, CLI `python -m scripts.eval.arena`. |
+| [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md) | ...the beta-vs-prod arena changes: rubric/weights, judge policy, pairing, rating math, checks, CLI, or its §13 implementation status. Code: `.claude/skills/promote-to-prod/arena/` (local-only, never deployed), CLI `python .claude/skills/promote-to-prod/arena_cli.py`, release procedure `/promote-to-prod`. |
 
 ## Data Models
 
