@@ -239,3 +239,22 @@ async def test_player_gives_up_after_bounded_attempts():
         player = LLMPlayer(client, api_key="k", backoff_s=0, max_attempts=3)
         move = await player.next_move(PlayerObservation("b", PERSONAS["impatient_player"], "o", [], 1, 8), seed=1)
     assert move.error.startswith("gave up after 3") and len(seen) == 3
+
+
+@pytest.mark.asyncio
+async def test_player_brief_includes_own_character_name(tmp_path):
+    """A human knows the name they typed at game start; the arena player must
+    too (the pilot's player wrote '[Your Name]')."""
+    seen = []
+
+    class Recording(ScriptedPlayer):
+        async def next_move(self, obs, *, seed):
+            seen.append(obs.brief)
+            return await super().next_move(obs, seed=seed)
+
+    targets = {BETA: FakeTarget(BETA), PROD: FakeTarget(PROD)}
+    store, r = await make_runner(tmp_path, targets)
+    r.player = Recording(["hi"])
+    await r.run(build_pairs([ScenarioSpec("s.a", "tiny", player_name="Jamie", max_player_turns=1)],
+                            personas()[:1], 1, seed=1))
+    assert seen and all("Your name: Jamie" in b for b in seen)

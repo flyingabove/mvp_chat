@@ -136,7 +136,8 @@ class ArenaRunner:
         if opening.error:
             return finish(ArmStatus.TARGET_FAILURE, f"new game failed: {opening.error}")
 
-        brief = await self.brief_for(side, sc.story_id)
+        # The player typed this name at game start, so a human knows it.
+        brief = (await self.brief_for(side, sc.story_id)) + f"\nYour name: {sc.player_name}"
         turns: list[TurnRecord] = []
         history: list[tuple[str, str]] = []
         status, detail = ArmStatus.COMPLETE, ""

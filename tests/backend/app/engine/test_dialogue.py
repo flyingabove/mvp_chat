@@ -177,3 +177,13 @@ def test_structured_dialogue_segments_are_cleaned_on_decode():
 
 def test_contract_says_segment_text_is_plain_speech():
     assert "no quotation marks" in dialogue_prompt(state())
+
+
+# --- BL-22: beta narrated from the focal housemate's POV and gave her the player's
+# lines ("Mizuki Shida: You can just call me Mizuki. I'm really looking forward
+# to settling in...", "her family's pasta recipe" - the player's pasta).
+
+def test_contract_fixes_second_person_player_point_of_view():
+    prompt = dialogue_prompt(state())
+    assert "second person" in prompt
+    assert "The player is not a cast member" in prompt
