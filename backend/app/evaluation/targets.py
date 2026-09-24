@@ -20,8 +20,10 @@ import httpx
 
 from backend.app.evaluation.contracts import ObservedState, TargetIdentity
 
+# "please try again" = the game's own retry advice (e.g. an incomplete
+# structured scene from a small local model); a player would resend.
 TRANSIENT_ERROR_MARKERS = ("429", "rate limit", "unavailable right now", "try that again in a moment",
-                           "timed out", "overloaded")
+                           "timed out", "overloaded", "please try again")
 GAME_END_MARKER = "END GAME YOU WIN"     # emitted by the engine itself (prompt_engine win path)
 DEBUG_TOGGLE = "[D]"                     # player-facing toggle; returns the observational debug box
 

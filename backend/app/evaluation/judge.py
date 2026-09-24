@@ -206,7 +206,9 @@ class JevPairwiseJudge:
             call.input_tokens = int((result.usage or {}).get("input_tokens") or 0)
             call.latency_ms = float(result.latency_ms)
             call.answers = {d.id: validate_answer(d, result.answers.get(d.id)) for d in decisions}
-            if result.model and result.model != self.model:
+            # Providers may resolve a family name to a dated build
+            # (gpt-4o-mini -> gpt-4o-mini-2024-07-18); a different family is a mismatch.
+            if result.model and not result.model.startswith(self.model):
                 call.error = f"model_mismatch:{result.model}"
             return call
         call.error = last_error or "judge_failed"

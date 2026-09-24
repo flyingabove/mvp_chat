@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import httpx
 
-from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL, EXTRACTOR_TURNS
+from backend.app.config.settings import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, EXTRACTOR_TURNS
 
 
 @dataclass(frozen=True)
@@ -128,7 +128,7 @@ class KnowledgeResolutionExtractor:
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
+                    f"{OPENAI_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
                     json=payload,
                 )

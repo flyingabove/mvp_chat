@@ -44,11 +44,10 @@
 **What's needed:** Label pairs from real arena artifacts using `evaluation/calibration.py` `HUMAN_LABEL_FIELDS` (JSONL), add an agreement report (per-dimension agreement, severe-error recall/precision, order sensitivity), then freeze weights/thresholds and bump `calibration_version`.
 **Touches:** `backend/app/evaluation/calibration.py`, `rubric.py`.
 
-### BL-21 — Arena post-deploy trigger and hosted results view (source: Jev game arena, 2026-09-23)
-**What:** Arena runs are launched manually from the CLI and produce `report.json`/`report.html` locally. Design §11 step 5 wants an opt-in run after each beta deploy and an operator results page.
-**Why deferred:** Needs a durable worker/queue on Railway and an operator-only page; the CLI + report cover the first useful milestone.
-**What's needed:** Operator-only endpoint/page serving stored reports; opt-in post-deploy job with the manifest budget ceilings.
-**Touches:** `backend/app/evaluation/`, new operator route, `frontend/`.
+### BL-21 — Arena on Railway: enable the operator routes (owner action); optional scheduling (source: Jev game arena, 2026-09-23; updated 2026-09-24)
+**Done 2026-09-24:** opt-in runs on the beta service: operator-only `POST /api/eval/runs` (+ status, HTML report, cancel), same code as the CLI (`service.run_experiment`), artifacts on `/data/eval_arena`, CLI `python -m scripts.eval.arena kickoff|status`. Deliberately NOT tied to deploys.
+**Remaining:** (1) owner action: set `DEBUG_TOOLS_ENABLED=true` and a long random `OPERATOR_TOKEN` on the beta service (routes fail closed until then; note this also unlocks the existing debug tools for token holders); (2) optional: a scheduled/cron trigger if periodic runs are wanted; (3) a run is killed by any beta redeploy (reported `interrupted`); a separate Railway worker service would avoid that.
+**Touches:** Railway beta variables; optionally a new Railway service.
 
 ### BL-15 — Workload harness needs the full matrix run (source: Phase 0B, 2026-09-22)
 **What:** `scripts/bench/turn_workload_harness.py` (Phase 0B) is proven working against live beta but was only run at a small scale: one story, concurrency 1/3, 2 sessions per level. The plan specifies both stories, cold/warm start, short/long conversations, movement, time skip, queue exhaustion, provider errors, and concurrency 1/10/50.

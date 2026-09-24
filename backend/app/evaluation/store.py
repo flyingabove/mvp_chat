@@ -4,7 +4,8 @@
 Layout under <root>/<experiment_id>/:
   manifest.json            immutable; re-opening with a different hash fails
   arms/<arm_id>.json       one file per finished arm (written atomically)
-  judgments/<pair_id>.json one file per judged pair
+  judgments/<pair_id>.json one file per judged pair (default judge)
+  judgments/<judge>/<pair_id>.json  same, per additional judge (e.g. "llm")
   events.jsonl             append-only progress log
   report.json / report.html
   STOP                     create this file to cancel a running batch
@@ -83,14 +84,15 @@ class ArtifactStore:
             self.log("arm_discarded", arm_id=arm_id, reason=reason)
 
     # ---- judgments ----
-    def judgment_path(self, pair_id: str) -> Path:
-        return self.dir / "judgments" / f"{pair_id}.json"
+    def judgment_path(self, pair_id: str, judge: str = "") -> Path:
+        base = self.dir / "judgments"
+        return (base / judge if judge else base) / f"{pair_id}.json"
 
-    def save_judgment(self, pair_id: str, payload: dict[str, Any]) -> None:
-        write_json_atomic(self.judgment_path(pair_id), payload)
+    def save_judgment(self, pair_id: str, payload: dict[str, Any], judge: str = "") -> None:
+        write_json_atomic(self.judgment_path(pair_id, judge), payload)
 
-    def load_judgment(self, pair_id: str) -> dict[str, Any] | None:
-        p = self.judgment_path(pair_id)
+    def load_judgment(self, pair_id: str, judge: str = "") -> dict[str, Any] | None:
+        p = self.judgment_path(pair_id, judge)
         return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
     # ---- reports / events / cancel ----

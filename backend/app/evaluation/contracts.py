@@ -251,6 +251,7 @@ class ExperimentManifest:
     window_turns: int
     budget: dict[str, int]
     capabilities: dict[str, dict[str, Any]] = field(default_factory=dict)  # side -> /api/eval/capabilities
+    judges: dict[str, dict[str, Any]] = field(default_factory=dict)        # name -> {kind, model, window_turns}
     calibration_version: str = "uncalibrated"
     observational: bool = True                 # no server receipts/snapshots yet
     schema_version: str = ARENA_SCHEMA_VERSION

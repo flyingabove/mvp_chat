@@ -67,3 +67,12 @@ condition locally with: `python -m pytest <path> -c /dev/null --rootdir .`
   event loop and cancels extraction before the poll starts. Preserve the real
   background task and database transition; do not skip the test or force-mark
   the outbox row done.
+
+## The Docker build image has no `git` binary (2026-09-24)
+
+Tests that shell out to `git` (e.g. `git init` in a tmp repo) pass locally and fail
+the Railway build-time test gate with `FileNotFoundError: 'git'`, blocking the
+deploy. Skips are banned, so inject a fake instead (see
+`tests/backend/app/evaluation/test_local_release.py` `fake_git`). Reproduce the
+build conditions locally (no git, no pytest.ini) with:
+`PATH="$(echo "$PATH" | tr ':' '\n' | grep -vi git | paste -sd:)" python -m pytest <path> -c /dev/null --rootdir .`

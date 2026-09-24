@@ -50,7 +50,7 @@ from backend.app.utils.logging_utils import jlog as _log, truncate as _truncate
 
 from backend.app.config.settings import (
 
-    OPENAI_API_KEY, OPENAI_MODEL,
+    OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL,
     STORY_MASTER_BASE_URL, STORY_MASTER_API_KEY, STORY_MASTER_MODEL,
 
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
@@ -1178,7 +1178,7 @@ async def _translate_to_chinese(text: str) -> str:
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
+                f"{OPENAI_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
                 json=payload,
             )
