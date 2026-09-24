@@ -12,6 +12,7 @@ import re
 from backend.app.engine.character_assets import resolve_character_avatar_url, DEFAULT_PERSONA_AVATAR
 
 MARKER = re.compile(r"\[SPEAKER:([^\]\n]+)\]|\[/SPEAKER\]", re.I)
+QUOTED_SPEECH = re.compile(r'“([^”\n]{2,})”|"([^"\n]{2,})"')
 
 
 def dialogue_prompt(state) -> str:
@@ -22,7 +23,10 @@ def dialogue_prompt(state) -> str:
         "contains the scene in reading order. Each segment has kind (narration or "
         "dialogue), speaker_id (null for narration, a cast ID for dialogue), and text. "
         "EVERY spoken passage MUST be a dialogue segment. Split at every change of "
-        "speaker, including within one paragraph. Dialogue text contains only the "
+        "speaker, including within one paragraph. Break longer narration and a "
+        "speaker's longer turn into readable scene beats of about 1-3 sentences "
+        "each; keep their order and label EVERY dialogue beat with its speaker_id, "
+        "even if the same person just spoke. Dialogue text contains only the "
         "spoken words: no quotation marks and no ** or other markdown, because the "
         "interface displays speech itself (this overrides any bold-quote formatting "
         "rule for prose). Keep actions and narration in "
@@ -112,7 +116,7 @@ def _explicit_speaker_parts(text: str, state) -> list[tuple[str, str | None]]:
     if not names:
         return [(text, None)]
     alternatives = "|".join(re.escape(name) for name, _ in names)
-    pattern = re.compile(rf"^\s*({alternatives})\s*:\s*(?=[\"“‘'])", re.I)
+    pattern = re.compile(rf"^\s*({alternatives})\s*:\s*(?=\S)", re.I)
     ids = {name.casefold(): key for name, key in names}
     parts: list[tuple[str, str | None]] = []
     for paragraph in re.split(r"\n\s*\n", text):
@@ -218,15 +222,79 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
         resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
         segments.append(_segment(body, resolved or speaker, characters))
     clean = MARKER.sub("", text).strip()
-    grouped = []
-    for segment in segments:
-        if (grouped and segment["kind"] == "dialogue" and grouped[-1]["kind"] == "dialogue"
-                and segment.get("speaker_id") is not None
-                and segment.get("speaker_id") == grouped[-1].get("speaker_id")):
-            grouped[-1]["text"] += "\n\n" + segment["text"]
-        else:
-            grouped.append(segment)
-    return clean, grouped
+    # Each authored/model segment is a readable scene beat, even when one
+    # character speaks twice. Coalescing them recreated the giant bubble.
+    return clean, segments
+
+
+def _unmarked_quotes(text: str) -> list[tuple[int, int, str]]:
+    """Find quoted passages outside trusted storyteller speaker markers."""
+    found: list[tuple[int, int, str]] = []
+    inside_speech = False
+    offset = 0
+    for marker in MARKER.finditer(text):
+        if not inside_speech:
+            for quote in QUOTED_SPEECH.finditer(text, offset, marker.start()):
+                found.append((quote.start(), quote.end(), quote.group(1) or quote.group(2)))
+        inside_speech = marker.group(1) is not None
+        offset = marker.end()
+    if not inside_speech:
+        for quote in QUOTED_SPEECH.finditer(text, offset):
+            found.append((quote.start(), quote.end(), quote.group(1) or quote.group(2)))
+    return found[:20]
+
+
+def has_unmarked_quotes(text: str) -> bool:
+    """Whether a structured reply still contains speech Jev may need to label."""
+    return bool(_unmarked_quotes(text))
+
+
+async def attribute_unmarked_quotes(text: str, state, jev, *, timeout_ms: int = 1000) -> str:
+    """Use one bounded Jev choice batch for quoted speech missed by JSON tags.
+
+    Jev chooses among cast IDs, an unknown voice, and non-spoken quotation.
+    Low-confidence or failed decisions leave the original prose untouched;
+    this fallback must never invent a confident speaker or delay a turn for
+    more than one short provider timeout.
+    """
+    from backend.app.llm.decisions.types import Criticality, Decision, DecisionBatch
+
+    quotes = _unmarked_quotes(text)
+    if not quotes:
+        return text
+    characters = getattr(state, "characters", {}) or {}
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    active = set(lifecycle.active_ids()) if lifecycle else set(characters)
+    cast = {key: str(ch.name) for key, ch in characters.items()
+            if key != "player" and key in active}
+    criteria = {"narration": "Quoted words are not spoken aloud in this scene",
+                "unknown": "Spoken aloud, but the speaker cannot be identified reliably"}
+    criteria.update({key: f"Spoken aloud by {name}" for key, name in cast.items()})
+    decisions = tuple(Decision(
+        id=f"quote_{i}", task="speaker_attribution", kind="choice",
+        instructions=f"Classify quoted passage {i}: {quote!r}. Use the surrounding scene. "
+                     "Choose a named speaker only when the scene clearly attributes the words; "
+                     "otherwise choose unknown or narration.",
+        criteria=criteria, criticality=Criticality.DEGRADABLE,
+        allowed=frozenset(criteria), none_option="narration", min_confidence=.8,
+    ) for i, (_, _, quote) in enumerate(quotes))
+    batch = DecisionBatch(name="speaker_attribution", state=text[:6000], decisions=decisions)
+    try:
+        result = await jev.ask(batch, timeout_ms=timeout_ms)
+    except Exception:
+        return text
+    replacements = []
+    for i, (start, end, quote) in enumerate(quotes):
+        answer = result.answers.get(f"quote_{i}")
+        choice = getattr(answer, "choice", None)
+        confidence = getattr(answer, "confidence", None)
+        if (getattr(answer, "kind", None) == "choice" and choice in criteria
+                and choice != "narration" and isinstance(confidence, (int, float))
+                and confidence >= .8):
+            replacements.append((start, end, f"[SPEAKER:{choice}]{clean_spoken_text(quote)}[/SPEAKER]"))
+    for start, end, replacement in reversed(replacements):
+        text = text[:start] + replacement + text[end:]
+    return text
 
 
 SENTENCE = re.compile(r"[^.!?…]+[.!?…]*[\"'”’]*")

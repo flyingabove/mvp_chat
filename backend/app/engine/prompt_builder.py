@@ -1490,17 +1490,20 @@ narration in clear English and never force Japanese terms into it.
             "every sentence should carry new information, character, or consequence, not "
             "restate what was just said."
         )
-    # BL-22 (arena pilot 2026-09-23): in ensemble stories the length cap plus
-    # the focal framing collapsed whole scenes onto one housemate. Spread the
-    # voices WITHIN the same limit rather than lengthening replies.
+    # Ensemble scenes need room for several voices when the moment warrants it;
+    # the single-paragraph cap above was flattening ordinary shared-house life.
     _mode_cfg = story_cfg.get("mode") if isinstance(story_cfg, dict) else None
     if isinstance(_mode_cfg, dict) and str(_mode_cfg.get("type") or "").strip() == "social_sim":
-        pacing_line += (
-            "\n\nENSEMBLE VOICES: this is an ensemble story. Within the same length limit, let the "
-            "reply come from whoever present would naturally respond, usually one or two different "
-            "housemates, not always the same housemate or the focal character. Each speaker should "
-            "sound like themselves (their own speech style, concerns, and opinions), including mild "
-            "disagreement with each other."
+        pacing_line = (
+            "ENSEMBLE PACING: let the scene earn its length. A plain greeting can be short, "
+            "but a shared meal, arrival, disagreement, discovery, or meaningful question may "
+            "take several vivid beats and more than one character. Do not obey a fixed "
+            "sentence or paragraph cap for this ensemble. Use concrete setting and action "
+            "without repeating the player's words or padding the scene. Let whichever "
+            "present housemates would naturally respond speak, often two or three in a "
+            "group scene, without forcing a roll call. Give each a distinct voice and "
+            "independent opinion. Keep narration and each person's speech in separate "
+            "ordered segments, with an exact speaker ID on every spoken beat."
         )
     pacing_and_initiative_contract = f"""
 ────────────────────────────────────────

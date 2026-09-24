@@ -1237,14 +1237,13 @@ def test_ensemble_pacing_spreads_voices_for_social_sim_stories():
 
     for msg in ("hi there", "That sounds amazing. Do you all cook together usually?"):
         sysmsg = pb.system_prompt(_ensemble_state({"type": "social_sim"}), current_user_msg=msg)
-        assert "ENSEMBLE VOICES" in sysmsg
-        assert "not always the same housemate" in sysmsg
-    # the BL-12 length cap still applies to short messages
-    assert "HARD LIMIT: 3-4 sentences" in pb.system_prompt(_ensemble_state({"type": "social_sim"}),
-                                                           current_user_msg="hi there")
+        assert "ENSEMBLE PACING" in sysmsg
+        assert "two or three" in sysmsg
+        assert "exact speaker ID on every spoken beat" in sysmsg
+        assert "HARD LIMIT: 3-4 sentences" not in sysmsg
 
 
 def test_ensemble_pacing_absent_for_non_ensemble_stories():
     from backend.app.engine import prompt_builder as pb
 
-    assert "ENSEMBLE VOICES" not in pb.system_prompt(_ensemble_state(None), current_user_msg="hi there")
+    assert "ENSEMBLE PACING" not in pb.system_prompt(_ensemble_state(None), current_user_msg="hi there")

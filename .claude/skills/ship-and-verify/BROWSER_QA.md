@@ -30,11 +30,22 @@ Store screenshots outside the repository so runtime data is never staged:
 & $py scripts/verify_mobile_pwa_browser.py --url http://127.0.0.1:8899/ --output "$env:TEMP\storieschat-ui-qa\local-feature" --expected-api-host 127.0.0.1:8899
 ```
 
-`verify_ui_browser.py` is a baseline: it saves `desktop-home.png`,
-`iphone-home.png`, `standalone-home.png`, and `report.json`. It checks page and
-console errors, API failures, API host, and the fixed tab bar's bottom edge.
+`verify_ui_browser.py` is a baseline: it saves desktop Chromium, iPhone 14
+Safari WebKit, and iPhone 14/15/16 standalone WebKit home screenshots plus
+`report.json`. Its iPhone 14 short-viewport case deliberately gives WebKit a
+664px visual viewport and an 844px device screen. This reproduces the
+installed-app height discrepancy reported on a physical iPhone. Verify the
+standalone app shell and tab bar reach the 844px screen bottom while ordinary
+Safari ends at its 664px visible viewport. The script also checks console
+errors, failed requests, and API hosts.
 The feature script clicks through gameplay, map enlargement and pinch zoom,
 speaker portrait popout, swipe/resume/delete confirmation, and Refresh Cache.
+It verifies the authored opening's separate narration/speaker beats, portrait
+and map image dimensions, the map close target, and a simulated keyboard
+viewport transition in standalone mode. Its keyboard screenshot shows a blank
+area where the native iOS keyboard would be; it tests composer placement, not
+the keyboard's appearance. Inspect the screenshots, especially header overlap,
+top safe area, bottom navigation, and composer position.
 Use it when those flows are relevant. For other changes, copy its Playwright
 pattern and add interactions and assertions for the changed feature. A home
 page load alone is never a feature test.

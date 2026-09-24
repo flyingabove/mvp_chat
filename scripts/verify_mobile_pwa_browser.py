@@ -21,11 +21,18 @@ def main():
         modes = ('desktop', 'iphone', 'standalone') if args.mode == 'all' else (args.mode,)
         for mode in modes:
             browser = (p.chromium if mode == 'desktop' else p.webkit).launch()
-            device = {'viewport': {'width': 1440, 'height': 1000}} if mode == 'desktop' else p.devices['iPhone 13']
+            device = {'viewport': {'width': 1440, 'height': 1000}} if mode == 'desktop' else dict(p.devices['iPhone 14'])
+            if mode != 'desktop':
+                device['viewport'] = {'width': 390, 'height': 844 if mode == 'standalone' else 664}
+                device['screen'] = {'width': 390, 'height': 844}
             context = browser.new_context(**device, service_workers='block' if args.mock_chat_reply else 'allow')
             context.add_init_script("localStorage.setItem('storieschat_ios_install_dismissed','1');")
             if mode == 'standalone':
-                context.add_init_script("Object.defineProperty(navigator, 'standalone', {value:true});")
+                context.add_init_script("""Object.defineProperty(navigator, 'standalone', {value:true});
+                  document.addEventListener('DOMContentLoaded', () => {
+                    document.documentElement.style.setProperty('--safe-top','47px');
+                    document.documentElement.style.setProperty('--safe-bottom','34px');
+                  });""")
             page = context.new_page()
             errors, hosts, failed_api, http_api_errors = [], set(), [], []
             page.on('pageerror', lambda e: errors.append(str(e)))
@@ -42,7 +49,12 @@ def main():
                 opener = page.locator('#chat-messages .msg-bubble.npc').first
                 opener.wait_for(timeout=120000)
                 page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)
-                assert len(opener.inner_text()) < 260
+                assert 400 < len(opener.inner_text()) < 1400
+                assert opener.locator('.scene-speech').count() == 2
+                assert opener.locator('.scene-narration').count() >= 3
+                assert len(set(opener.locator('.speaker-name').all_inner_texts())) == 2
+                opener.evaluate("e=>e.scrollIntoView({block:'start'})")
+                page.screenshot(path=str(output / f'{mode}-opening.png'))
                 assert page.locator('#chat-image-btn').count() == 0
                 assert page.locator('#chat-avatar img').get_attribute('src').endswith('six_strangers_house.jpg')
                 assert page.locator('.atlas-host').count() == 0
@@ -50,6 +62,9 @@ def main():
                 inline.click()
                 assert page.locator('#map-modal').evaluate('(e)=>e.classList.contains("fullscreen")')
                 assert page.locator('.atlas-host').count() == 0
+                close_box = page.locator('#map-modal-close').bounding_box()
+                assert close_box['width'] >= 56 and close_box['y'] >= (47 if mode == 'standalone' else 0)
+                assert page.locator('#map-modal-img').evaluate('(e)=>e.naturalWidth') >= 1536
                 page.locator('#map-modal-img').evaluate("""e=>{
                   const touch=(type, points)=>{const ev=new Event(type,{bubbles:true,cancelable:true});
                     Object.defineProperty(ev,'touches',{value:points.map(([clientX,clientY])=>({clientX,clientY}))});e.dispatchEvent(ev)};
@@ -58,6 +73,14 @@ def main():
                   touch('touchend',[]);
                 }""")
                 assert 'scale(1.6)' in page.locator('#map-modal-img').get_attribute('style')
+                page.locator('#map-modal-img').evaluate("""e=>{
+                  const touch=(type, points)=>{const ev=new Event(type,{bubbles:true,cancelable:true});
+                    Object.defineProperty(ev,'touches',{value:points.map(([clientX,clientY])=>({clientX,clientY}))});e.dispatchEvent(ev)};
+                  touch('touchstart',[[90,300],[250,300]]);
+                  touch('touchmove',[[120,300],[220,300]]);
+                  touch('touchend',[]);
+                }""")
+                assert 'scale(1)' in page.locator('#map-modal-img').get_attribute('style')
                 page.screenshot(path=str(output / f'{mode}-map.png'))
                 page.locator('#map-modal-close').click()
                 page.locator('#chat-text-input').fill('[MAP]')
@@ -95,16 +118,36 @@ def main():
                 page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)
                 assert page.locator('#chat-messages .msg-bubble.npc').last.locator('.scene-speech').count() >= 1
                 portrait = page.locator('#chat-messages .msg-bubble.npc').last.locator('.scene-speech .speaker-portrait:has(img)').first
+                assert portrait.bounding_box()['width'] >= 68
                 portrait.click()
                 assert page.locator('#portrait-viewer').evaluate('(e)=>e.open')
                 assert page.locator('#portrait-viewer .portrait-full img').count() == 1
+                page.wait_for_function("document.querySelector('#portrait-viewer .portrait-full img').naturalWidth >= 1254")
+                assert portrait.locator('img').evaluate('(e)=>e.naturalWidth') >= 288
                 page.screenshot(path=str(output / f'{mode}-portrait.png'))
                 page.locator('#portrait-viewer .portrait-close').click()
                 page.locator('#chat-messages').evaluate('(e)=>e.scrollTop=e.scrollHeight')
                 page.screenshot(path=str(output / f'{mode}-chat.png'))
                 nav = page.locator('#tab-update-app').evaluate('(e)=>e.parentElement.getBoundingClientRect().bottom')
-                height = page.evaluate('innerHeight')
+                height = page.evaluate('screen.height' if mode == 'standalone' else 'innerHeight')
                 assert abs(nav - height) < 2, (nav, height)
+                if mode == 'standalone':
+                    page.locator('#chat-text-input').focus()
+                    page.evaluate("""() => {
+                      Object.defineProperty(visualViewport,'height',{configurable:true,get:()=>500});
+                      visualViewport.dispatchEvent(new Event('resize'));
+                    }""")
+                    page.wait_for_function("document.documentElement.classList.contains('keyboard-open')")
+                    assert not page.locator('#tab-bar').is_visible()
+                    composer_bottom = page.locator('#chat-input-area').bounding_box()['y'] + page.locator('#chat-input-area').bounding_box()['height']
+                    assert composer_bottom <= 510, composer_bottom
+                    page.screenshot(path=str(output / 'standalone-keyboard-simulated.png'))
+                    page.evaluate("""() => {
+                      delete visualViewport.height;
+                      document.querySelector('#chat-text-input').blur();
+                      visualViewport.dispatchEvent(new Event('resize'));
+                    }""")
+                    page.wait_for_function("!document.documentElement.classList.contains('keyboard-open')")
                 page.locator('#chat-back-btn').click()
                 content = page.locator('.item-content').first
                 box = content.bounding_box()

@@ -4,6 +4,14 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### 2026-09-24 iPhone PWA and speaker-aware story UI follow-up
+
+- [ ] Reproduce the supplied physical-iPhone screenshot issues in WebKit simulation and fix status-bar, keyboard, and bottom safe-area layout.
+- [ ] Keep long story replies readable as ordered narration and named speaker chunks; enlarge and improve portrait delivery.
+- [ ] Remove the obsolete image action, make map close and pinch zoom usable, and adjust the three text-speed choices.
+- [ ] Rewrite opening scenes and restore appropriate multi-character pacing without losing speaker attribution.
+- [ ] Test locally, integrate latest beta, push, then verify deployed beta in Chromium and WebKit; record the physical-device check separately.
+
 ### Terrace in the City mobile/PWA and six-resident correctness
 
 - [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.

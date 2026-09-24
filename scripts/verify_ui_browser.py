@@ -1,8 +1,10 @@
-"""Baseline UI browser check in desktop Chromium and iPhone WebKit.
+"""Baseline UI browser check in Chromium and iPhone Safari/Home Screen WebKit.
 
 Run this before the feature-specific browser flow. It checks real browser
-loading, records console/network evidence, and saves one viewport screenshot
-per mode. It does not replace clicking through the feature being changed.
+loading, records console/network evidence, and saves one screenshot per mode.
+The short-viewport standalone mode simulates a Home Screen webview reporting
+Safari's shorter innerHeight while the physical iPhone screen remains taller.
+It does not replace clicking through the feature being changed.
 """
 
 import argparse
@@ -31,14 +33,29 @@ def main():
     results = []
 
     with sync_playwright() as playwright:
-        for mode in ("desktop", "iphone", "standalone"):
+        modes = [
+            ("desktop", None, (1440, 1000), (1440, 1000), False),
+            ("iphone14_safari", "iPhone 14", (390, 664), (390, 844), False),
+            ("iphone14_standalone_short", "iPhone 14", (390, 664), (390, 844), True),
+            ("iphone14_standalone", "iPhone 14", (390, 844), (390, 844), True),
+            ("iphone15_standalone", "iPhone 15", (393, 852), (393, 852), True),
+            ("iphone16_standalone", "iPhone 16", (393, 852), (393, 852), True),
+            ("iphone16pro_standalone", "iPhone 16 Pro", (402, 874), (402, 874), True),
+        ]
+        for mode, phone, viewport, screen, standalone in modes:
             engine = playwright.chromium if mode == "desktop" else playwright.webkit
             browser = engine.launch()
-            device = {"viewport": {"width": 1440, "height": 1000}} if mode == "desktop" else playwright.devices["iPhone 13"]
+            device = {} if phone is None else dict(playwright.devices[phone])
+            device["viewport"] = {"width": viewport[0], "height": viewport[1]}
+            device["screen"] = {"width": screen[0], "height": screen[1]}
             context = browser.new_context(**device)
             context.add_init_script("localStorage.setItem('storieschat_ios_install_dismissed', '1')")
-            if mode == "standalone":
-                context.add_init_script("Object.defineProperty(navigator, 'standalone', {value: true})")
+            if standalone:
+                context.add_init_script("""Object.defineProperty(navigator, 'standalone', {value: true});
+                  document.addEventListener('DOMContentLoaded', () => {
+                    document.documentElement.style.setProperty('--safe-top', '47px');
+                    document.documentElement.style.setProperty('--safe-bottom', '34px');
+                  });""")
             page = context.new_page()
             errors, failures, http_errors, api_hosts = [], [], [], set()
             page.on("pageerror", lambda error: errors.append(f"page: {error}"))
@@ -53,10 +70,14 @@ def main():
                     page.wait_for_load_state("networkidle", timeout=10000)
                 except PlaywrightTimeoutError:
                     pass  # A polling PWA need not become idle; the ready selector is authoritative.
-                page.screenshot(path=str(output / f"{mode}-home.png"))
+                page.screenshot(path=str(output / f"{mode}-home.png"), full_page=standalone)
                 metrics = page.evaluate("""() => ({
                   width: innerWidth, height: innerHeight, dpr: devicePixelRatio,
                   userAgent: navigator.userAgent, standalone: navigator.standalone === true,
+                  screenHeight: screen.height,
+                  appHeight: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--app-height')),
+                  bodyHeight: document.body.getBoundingClientRect().height,
+                  topBarPadding: parseFloat(getComputedStyle(document.querySelector('#screen-home .top-bar')).paddingTop),
                   navBottom: document.querySelector('#tab-update-app')?.parentElement?.getBoundingClientRect().bottom
                 })""")
                 result = {
@@ -72,9 +93,14 @@ def main():
                 assert not [path for path in failures if "/api/" in path], failures
                 if args.expected_api_host:
                     assert api_hosts == {args.expected_api_host}, api_hosts
-                assert metrics["navBottom"] is not None and abs(metrics["navBottom"] - metrics["height"]) < 2, metrics
+                expected_bottom = screen[1] if standalone else viewport[1]
+                assert abs(metrics["appHeight"] - expected_bottom) < 2, metrics
+                assert metrics["bodyHeight"] >= expected_bottom - 2, metrics
+                assert metrics["navBottom"] is not None and abs(metrics["navBottom"] - expected_bottom) < 2, metrics
+                if standalone:
+                    assert metrics["topBarPadding"] >= 47, metrics
             except Exception:
-                page.screenshot(path=str(output / f"{mode}-failure.png"))
+                page.screenshot(path=str(output / f"{mode}-failure.png"), full_page=standalone)
                 raise
             finally:
                 context.close()

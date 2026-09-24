@@ -70,8 +70,8 @@ def test_refresh_cache_clears_saved_browser_state_too():
     assert "document.cookie" in fn_body
 
 
-def test_text_speed_has_only_slow_normal_and_fast_at_requested_rates():
+def test_text_speed_has_slower_normal_fast_and_instant():
     html = _read_index_html()
     assert 'id="typewriter-speed" min="0" max="2"' in html
-    assert 'var TYPEWRITER_SPEEDS = [10, 4, 10 / 3.5];' in html
-    assert 'var TYPEWRITER_LABELS = ["Slow", "Normal", "Fast"];' in html
+    assert 'var TYPEWRITER_SPEEDS = [4 / 0.6, (10 / 3.5) / 0.7, 0];' in html
+    assert 'var TYPEWRITER_LABELS = ["Normal", "Fast", "Instant"];' in html

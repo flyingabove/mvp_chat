@@ -15,6 +15,11 @@ function isUsablePortrait(src) {
     src.indexOf("..") < 0 && src !== "/img/avatars/persona_default.svg";
 }
 
+function hdPortraitSource(src) {
+  var match = /^\/img\/characters\/([^/]+)\.png$/.exec(src || "");
+  return match ? "/img/characters/hd/" + match[1] + ".webp" : src;
+}
+
 function portraitButton(name, src, compact) {
   var button = document.createElement("button");
   button.type = "button";
@@ -51,12 +56,38 @@ function openPortrait(name, src, opener) {
   var full = dialog.querySelector(".portrait-full");
   full.textContent = "";
   if (src) {
-    var image = renderAvatarImage(full, src, name);
-    image.onerror = function(){ full.textContent = speakerInitials(name); };
+    var image = renderAvatarImage(full, hdPortraitSource(src), name);
+    image.onerror = function(){
+      if (hdPortraitSource(src) !== src) {
+        image = renderAvatarImage(full, src, name);
+        image.onerror = function(){ full.textContent = speakerInitials(name); };
+      } else full.textContent = speakerInitials(name);
+    };
   } else {
     full.textContent = speakerInitials(name);
   }
   dialog.showModal();
+}
+
+function readableChunks(value) {
+  var paragraphs = String(value || "").replace(/\\n/g, "\n").split(/\n\s*\n/);
+  var chunks = [];
+  paragraphs.forEach(function(paragraph){
+    paragraph = paragraph.trim();
+    if (!paragraph) return;
+    var sentences = paragraph.match(/[^.!?…]+[.!?…]*[”"']?/g) || [paragraph];
+    var current = "";
+    sentences.forEach(function(sentence){
+      sentence = sentence.trim();
+      if (current && current.length + sentence.length > 240) {
+        chunks.push(current);
+        current = "";
+      }
+      current += (current ? " " : "") + sentence;
+    });
+    if (current) chunks.push(current);
+  });
+  return chunks;
 }
 
 // Keep one stable game identity around the scene; each spoken passage owns
@@ -72,6 +103,7 @@ function renderDialogueTurn(row, text, segments, animate, fallback) {
   var blocks = [];
   parts.forEach(function(segment){
     if (!segment || typeof segment.text !== "string" || !segment.text.trim()) return;
+    readableChunks(segment.text).forEach(function(chunk){
     var container = document.createElement("div");
     var body = document.createElement("div");
     if (segment.kind === "dialogue") {
@@ -91,7 +123,8 @@ function renderDialogueTurn(row, text, segments, animate, fallback) {
       container.appendChild(body);
     }
     bubble.appendChild(container);
-    blocks.push({container: container, body: body, text: segment.text});
+    blocks.push({container: container, body: body, text: chunk});
+    });
   });
   if (animate) revealBlocks(row, bubble, blocks, helpers.getTypewriterDelay());
   else blocks.forEach(function(block){ block.body.innerHTML = formatMsgText(block.text); });

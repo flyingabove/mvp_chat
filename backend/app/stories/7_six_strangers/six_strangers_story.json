@@ -855,11 +855,13 @@
     }
   },
   "opening": {
-    "text": "You arrive at the house at dusk. Five housemates are inside. One opens the door and shows you the shared {{PLAYER_BEDROOM}}.",
-    "variants": [
-      "You reach the house at dusk. Five housemates are inside. One opens the door and points you toward the shared {{PLAYER_BEDROOM}}.",
-      "The house lights are on when you arrive. A housemate meets you at the door and shows you the shared {{PLAYER_BEDROOM}}.",
-      "You step into the house with your bag. The others are near the kitchen; a housemate shows you the shared {{PLAYER_BEDROOM}}."
+    "text": "Evening rain has just stopped in Higashi-Gotanda. The house is bright, dinner is underway, and your shared {{PLAYER_BEDROOM}} waits beyond the hall.",
+    "segments": [
+      {"kind": "narration", "text": "The evening rain has just stopped in Higashi-Gotanda. Bicycle tires hiss over the wet lane as you step out with your bag and find the house lit from within. Through a half-open window come the clatter of dishes and the tail end of a laugh. For a moment, you can stand outside and be nobody here yet."},
+      {"kind": "dialogue", "speaker_id": "@greeter", "text": "You found it. Come in; we're just setting the table."},
+      {"kind": "narration", "text": "Warm kitchen air meets you at the door. A second housemate looks up from a stack of plates, and someone nudges an empty chair into place. Beyond the hall is the shared {{PLAYER_BEDROOM}}, where your bag will go; the voices in this room are still strangers."},
+      {"kind": "dialogue", "speaker_id": "@second", "text": "There's enough for one more. Are you hungry?"},
+      {"kind": "narration", "text": "The door closes softly behind you. Dinner keeps moving, and for the first time tonight the next moment is yours."}
     ]
   },
   "world_context": [

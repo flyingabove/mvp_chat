@@ -70,3 +70,18 @@ test('unknown speech has its own initials, never a borrowed character portrait',
   assert.equal(portrait.title, 'Unknown speaker');
   assert.equal(portrait.textContent, 'US');
 });
+
+test('long narration and speech split into readable named beats', () => {
+  const {api, row} = setup();
+  const scene = row();
+  const long = 'A small detail changes the room. '.repeat(12);
+  api.render(scene, long, [
+    {kind:'narration', text:long},
+    {kind:'dialogue', speaker_name:'Mizuki', portrait_url:'/img/characters/Mizuki_Shida.png', text:long}
+  ], false, {name:'Terrace'});
+  const blocks = scene.children[1].children;
+  assert.ok(blocks.filter(b => b.className === 'scene-narration').length >= 2);
+  const speeches = blocks.filter(b => b.className === 'scene-speech');
+  assert.ok(speeches.length >= 2);
+  assert.ok(speeches.every(b => b.children[1].children[0].textContent === 'Mizuki'));
+});

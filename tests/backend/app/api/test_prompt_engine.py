@@ -2447,7 +2447,10 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert response.status_code == 200
     opening = response.json()["reply"]
     assert "\n\n" in opening and "\\n" not in opening
-    assert len(opening) < 260
+    assert 400 <= len(opening) <= 1000
+    segments = response.json()["segments"]
+    assert sum(segment["kind"] == "dialogue" for segment in segments) == 2
+    assert len({segment["speaker_id"] for segment in segments if segment["kind"] == "dialogue"}) == 2
     assert "World Map" not in opening
     state = pe_mod.SESSIONS[sid]["state"]
     active_keys = set(state.cast_lifecycle.active_ids())
