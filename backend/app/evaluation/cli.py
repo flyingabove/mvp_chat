@@ -15,6 +15,11 @@ Cheapest first:
   tiered     precheck (free, offline); only if it passes, the hosted gate
              run (Jev + OpenAI judges; add `ollama` for a free third judge)
 
+Release (used by .claude/skills/promote-to-prod/SKILL.md):
+  wait-deploy  poll --url /api/health until it runs --commit (exit 1 on timeout)
+  smoke        exercise --url like a player: health, capabilities, home page,
+               new game + one turn per story (exit 1 on any failure)
+
 Railway (the beta service runs the experiment itself):
   kickoff    POST /api/eval/runs on beta (operator token required)
   status     GET  /api/eval/runs/<id> on beta
@@ -43,7 +48,7 @@ from backend.app.evaluation.service import (
     OPENAI_V1, STAGES, ArenaConfig, ModelEndpoint, judge_specs, run_experiment,
 )
 from backend.app.evaluation.store import default_root
-from backend.app.evaluation.suite import PROFILES
+from backend.app.evaluation.suite import MIN_TURNS, PROFILES
 
 DEFAULT_URLS = {BETA: "https://beta-api.storieschat.ai", PROD: "https://storieschat.ai"}
 REPO = Path(__file__).resolve().parents[3]
@@ -164,7 +169,10 @@ def status(args) -> None:
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="arena", description="StoriesChat game arena: beta vs prod")
     ap.add_argument("command", choices=["run", "judge", "calibrate", "report", "all", "local", "precheck", "tiered",
-                                        "kickoff", "status"])
+                                        "kickoff", "status", "wait-deploy", "smoke"])
+    ap.add_argument("--url", default=DEFAULT_URLS[BETA], help="wait-deploy/smoke: service base URL")
+    ap.add_argument("--commit", default="", help="wait-deploy: commit sha (prefix) to wait for")
+    ap.add_argument("--timeout", type=int, default=1500, help="wait-deploy: seconds")
     ap.add_argument("--experiment-id", default=time.strftime("arena_%Y%m%d_%H%M"))
     ap.add_argument("--root", type=Path, default=default_root())
     ap.add_argument("--profile", choices=list(PROFILES), default="gate")
@@ -204,6 +212,8 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     args = parser().parse_args(argv)
+    if args.turns is not None and args.turns < MIN_TURNS:
+        raise SystemExit(f"--turns must be at least {MIN_TURNS}: shorter games barely leave the opening scene")
     if args.command in ("local", "precheck"):
         if args.command == "precheck" or "--profile" not in (argv or sys.argv):
             args.profile = "smoke"          # local models are slow; smoke unless asked otherwise
@@ -213,6 +223,20 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "tiered":
         sys.exit(0 if asyncio.run(tiered(args)) else 1)
+    if args.command == "wait-deploy":
+        from backend.app.evaluation.release import wait_for_commit
+
+        if not args.commit:
+            raise SystemExit("--commit is required")
+        result = asyncio.run(wait_for_commit(args.url, args.commit, timeout_s=args.timeout))
+        say(json.dumps(result))
+        sys.exit(0 if result["live"] else 1)
+    if args.command == "smoke":
+        from backend.app.evaluation.release import smoke
+
+        result = asyncio.run(smoke(args.url))
+        print(json.dumps(result, indent=2))
+        sys.exit(0 if result["passed"] else 1)
     if args.command == "kickoff":
         return kickoff(args)
     if args.command == "status":

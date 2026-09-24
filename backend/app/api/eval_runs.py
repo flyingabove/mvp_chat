@@ -50,7 +50,7 @@ class RunRequest(BaseModel):
     stories: list[str] | None = None
     personas: list[str] | None = None
     replicates: int | None = Field(default=None, ge=1, le=4)
-    turns: int | None = Field(default=None, ge=1, le=12)
+    turns: int | None = Field(default=None, ge=10, le=16)          # suite.MIN_TURNS
     max_pairs: int = Field(default=0, ge=0, le=60)
     calibration_arms: int = Field(default=0, ge=0, le=3)
 

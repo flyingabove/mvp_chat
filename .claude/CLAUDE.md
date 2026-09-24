@@ -79,6 +79,7 @@ If instructions every conflict with what is designed in the doc, always update t
 - After pushing to `beta`, inform the user and wait for them to confirm before merging to `prod`.
 - The `prod` branch is production (Railway auto-deploys from it). Treat it as sacred.
 - Only merge `beta` → `prod` when the user explicitly says to push to prod.
+- **Promotions always use `/promote-to-prod`** (`.claude/skills/promote-to-prod/SKILL.md`): verify the deployed beta, free offline Ollama precheck, hosted arena gate (each game beta ≥ prod under Jev or OpenAI, ties count, no significant/critical regression), then merge + push + live smoke of prod.
 - There is NO `main` branch. It was deleted. Do NOT create or reference `main`.
 
 ### 9. ALWAYS use the `/ship-and-verify` skill for shipping changes

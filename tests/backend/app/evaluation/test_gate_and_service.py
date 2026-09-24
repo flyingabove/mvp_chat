@@ -26,10 +26,24 @@ def test_gate_passes_when_each_game_is_won_under_at_least_one_judge():
     assert gate["per_game"][GAMES[1]]["beta_wins_under"] == ["llm"]
 
 
-def test_gate_fails_when_a_game_is_lost_under_every_judge():
-    gate = release_gate({"jev": {GAMES[0]: 0.9, GAMES[1]: 0.5}, "llm": {GAMES[0]: 0.9, GAMES[1]: None}}, GAMES)
+def test_gate_fails_when_a_game_is_below_prod_under_every_judge():
+    gate = release_gate({"jev": {GAMES[0]: 0.9, GAMES[1]: 0.4}, "llm": {GAMES[0]: 0.9, GAMES[1]: None}}, GAMES)
     assert not gate["passed"]
     assert any("six_strangers" in r for r in gate["reasons"])
+
+
+def test_a_tie_is_enough_not_every_change_touches_the_engine():
+    """User decision 2026-09-24: ties count (Six Strangers was 5 ties under OpenAI)."""
+    gate = release_gate({"jev": {GAMES[0]: 1.0, GAMES[1]: 0.0}, "llm": {GAMES[0]: 0.5, GAMES[1]: 0.5}}, GAMES)
+    assert gate["passed"]
+    assert gate["per_game"][GAMES[1]]["beta_wins_under"] == ["llm"]
+
+
+def test_significant_regression_under_any_counted_judge_blocks():
+    gate = release_gate({"jev": {g: 0.5 for g in GAMES}, "llm": {g: 0.6 for g in GAMES}}, GAMES,
+                        significantly_worse={GAMES[1]: ["jev"]})
+    assert not gate["passed"]
+    assert gate["per_game"][GAMES[1]]["significantly_worse_under"] == ["jev"]
 
 
 def test_gate_blocks_on_critical_regression_even_when_all_games_won():
@@ -44,7 +58,7 @@ def test_gate_with_no_games_fails_closed():
 # ---- profiles / specs ----------------------------------------------------------
 
 def test_profiles_bound_api_usage():
-    assert len(profile_scenarios("smoke")) == 2 and PROFILES["smoke"]["turns"] == 3
+    assert len(profile_scenarios("smoke")) == 2 and PROFILES["smoke"]["turns"] == 10
     gate_pairs = len(profile_scenarios("gate")) * len(PROFILES["gate"]["personas"]) * PROFILES["gate"]["replicates"]
     assert gate_pairs == 12
 
@@ -62,8 +76,8 @@ def test_llm_judge_uses_one_window_per_episode_to_limit_calls():
 
 @pytest.mark.asyncio
 async def test_run_experiment_plays_once_and_judges_with_every_judge(tmp_path, monkeypatch):
-    """Both releases give identical fake replies, so every judge sees ties:
-    a tie is not a win, so the gate must FAIL for both games."""
+    """Both releases give identical fake replies, so every judge sees ties,
+    and ties pass the gate (a release that changes nothing is not blocked)."""
     targets = {BETA: FakeTarget(BETA), PROD: FakeTarget(PROD)}
     monkeypatch.setattr(service, "targets_for", lambda cfg, client: targets)
     monkeypatch.setattr(service, "LLMPlayer", lambda client, **kw: ScriptedPlayer(["hi", "look", "ok"]))
@@ -83,15 +97,15 @@ async def test_run_experiment_plays_once_and_judges_with_every_judge(tmp_path, m
     arena = await service.run_experiment(cfg, lambda m: None)
     store = cfg.store
     assert calls == {"jev": 1, "llm": 1}
-    # games played exactly once: 2 smoke pairs x 2 arms x 3 turns
-    assert len(targets[BETA].request_ids) == 6 and len(targets[PROD].request_ids) == 6
+    # games played exactly once: 2 smoke pairs x 10 turns per arm
+    assert len(targets[BETA].request_ids) == 20 and len(targets[PROD].request_ids) == 20
     # judgments stored per judge namespace
     assert len(list((store.dir / "judgments").glob("*.json"))) == 2
     assert len(list((store.dir / "judgments" / "llm").glob("*.json"))) == 2
     assert set(arena["judges"]) == {"jev", "llm"}
     gate = json.loads((store.dir / "gate.json").read_text())
     assert gate == arena["gate"] and set(gate["per_game"]) == set(GAMES)
-    assert not gate["passed"] and all(g["beta_wins_under"] == [] for g in gate["per_game"].values())
+    assert gate["passed"] and all(g["beta_wins_under"] == ["jev", "llm"] for g in gate["per_game"].values())
     html = (store.dir / "report.html").read_text(encoding="utf-8")
     assert "Release gate" in html and "Judge: llm" in html
     assert (store.dir / "report_fragment.html").read_text(encoding="utf-8").startswith("<title>")
@@ -158,3 +172,35 @@ def test_precheck_verdict_is_about_reliability_not_local_quality():
                                                 checks={"route_legality (major)": {BETA: 2, PROD: 0}})}}
     verdict = precheck_verdict(broken)
     assert not verdict["passed"] and len(verdict["reasons"]) == 3
+
+
+def test_one_resolved_loss_is_not_called_significant(monkeypatch):
+    """Real case 2026-09-24: Jev resolved a single Six Strangers episode (a prod
+    win) -> bootstrap interval -inf..-inf; that must not block the gate."""
+    single_loss = _fake_report({GAMES[0]: 1.0, GAMES[1]: 0.0})
+    single_loss["strata"][GAMES[1]].update(counts={"beta_win": 0, "prod_win": 1, "tie": 0}, elo_interval=["-inf", "-inf"])
+    ties = _fake_report({GAMES[0]: 0.5, GAMES[1]: 0.5})
+    arena = _arena_with(monkeypatch, {"jev": single_loss, "llm": ties}, ("jev", "llm"))
+    assert arena["gate"]["passed"]
+    assert arena["gate"]["per_game"][GAMES[1]]["significantly_worse_under"] == []
+
+    many_losses = _fake_report({GAMES[0]: 1.0, GAMES[1]: 0.0})
+    many_losses["strata"][GAMES[1]].update(counts={"beta_win": 0, "prod_win": 6, "tie": 0}, elo_interval=["-inf", -240.0])
+    arena = _arena_with(monkeypatch, {"jev": many_losses, "llm": ties}, ("jev", "llm"))
+    assert not arena["gate"]["passed"]
+
+
+def test_every_profile_plays_at_least_ten_turns():
+    """User decision 2026-09-24: games must be at least 10 player turns."""
+    from backend.app.evaluation.suite import MIN_TURNS
+
+    assert MIN_TURNS == 10
+    assert all(spec["turns"] >= MIN_TURNS for spec in PROFILES.values())
+    assert all(s.max_player_turns >= MIN_TURNS for s in profile_scenarios("gate"))
+
+
+def test_cli_rejects_games_shorter_than_ten_turns():
+    from backend.app.evaluation.cli import main
+
+    with pytest.raises(SystemExit, match="at least 10"):
+        main(["all", "--turns", "6"])
