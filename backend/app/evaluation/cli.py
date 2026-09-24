@@ -6,8 +6,14 @@ Hosted (this machine plays the deployed beta and prod releases):
 
 Offline (nothing leaves this machine; needs a local Ollama):
   local      start the current checkout (beta slot) and --baseline-ref
-             (prod slot, default origin/prod) as local servers on Ollama,
-             play + judge with the Ollama LLM judge, report + gate
+             (prod slot, default origin/beta) as local servers on Ollama,
+             play + judge with the Ollama judge, report + gate
+  precheck   `local` with the smoke profile, then a pass/fail verdict on
+             reliability + deterministic checks (exit code 1 on fail)
+
+Cheapest first:
+  tiered     precheck (free, offline); only if it passes, the hosted gate
+             run (Jev + OpenAI judges; add `ollama` for a free third judge)
 
 Railway (the beta service runs the experiment itself):
   kickoff    POST /api/eval/runs on beta (operator token required)
@@ -32,6 +38,7 @@ import httpx
 from backend.app.evaluation.contracts import BETA, PROD
 from backend.app.evaluation.local_release import OLLAMA_V1, LocalRelease, ensure_context_model, ollama_models
 from backend.app.evaluation.players import PERSONAS
+from backend.app.evaluation.report import precheck_verdict
 from backend.app.evaluation.service import (
     OPENAI_V1, STAGES, ArenaConfig, ModelEndpoint, judge_specs, run_experiment,
 )
@@ -46,17 +53,18 @@ def say(msg: str) -> None:
     print(f"[arena {time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def hosted_config(args) -> ArenaConfig:
+def hosted_config(args, ollama_model: str | None = None) -> ArenaConfig:
     from backend.app.config.settings import OPENAI_API_KEY, TYPESAFE_API_KEY
 
     player = ModelEndpoint(OPENAI_V1, OPENAI_API_KEY, args.player_model)
     llm = ModelEndpoint(OPENAI_V1, OPENAI_API_KEY, args.llm_judge_model)
+    ollama = ModelEndpoint(args.ollama_url, "ollama", ollama_model) if ollama_model else None
     turns = args.turns or PROFILES[args.profile]["turns"]
     return ArenaConfig(
         experiment_id=args.experiment_id, root=args.root, beta_url=args.beta_url, prod_url=args.prod_url,
         player=player,
         judges=judge_specs(args.judges, turns=turns, llm=llm, jev_api_key=TYPESAFE_API_KEY,
-                           jev_model=args.judge_model, jev_window_turns=args.window_turns),
+                           jev_model=args.judge_model, jev_window_turns=args.window_turns, ollama=ollama),
         profile=args.profile, stories=args.stories, personas=args.personas, replicates=args.replicates,
         turns=args.turns, max_pairs=args.max_pairs, seed=args.seed, concurrency=args.concurrency,
         judge_concurrency=args.judge_concurrency, max_game_turns=args.max_game_turns,
@@ -64,7 +72,14 @@ def hosted_config(args) -> ArenaConfig:
     )
 
 
-async def run_local(args) -> None:
+async def run_hosted(args, stages) -> dict | None:
+    ollama_model = None
+    if "ollama" in args.judges:
+        ollama_model = await ensure_context_model(args.ollama_model, args.ollama_url)
+    return await run_experiment(hosted_config(args, ollama_model), say, stages=stages, force_judge=args.force)
+
+
+async def run_local(args) -> dict | None:
     models = await ollama_models(args.ollama_url)
     if args.ollama_model not in models:
         raise SystemExit(f"Ollama model {args.ollama_model!r} not available at {args.ollama_url} "
@@ -87,7 +102,9 @@ async def run_local(args) -> None:
         turns = args.turns or PROFILES[args.profile]["turns"]
         cfg = ArenaConfig(
             experiment_id=args.experiment_id, root=args.root, beta_url=releases[0].url, prod_url=releases[1].url,
-            player=endpoint, judges=judge_specs(["llm"], turns=turns, llm=endpoint),
+            # offline: only the local judge (Jev and OpenAI are cloud services)
+            player=endpoint, judges=judge_specs(["ollama"], turns=turns, llm=None, ollama=endpoint),
+            gate_judges=("ollama",),
             profile=args.profile, stories=args.stories, personas=args.personas, replicates=args.replicates,
             turns=args.turns, max_pairs=args.max_pairs, seed=args.seed, concurrency=1, judge_concurrency=1,
             max_wall_seconds=args.max_wall_seconds, calibration_arms=args.calibration_arms,
@@ -95,10 +112,30 @@ async def run_local(args) -> None:
             extra_notes=(f"offline: both releases served locally on Ollama {model}; "
                          "no Jev judge (cloud); quality numbers reflect the local model, not production",),
         )
-        await run_experiment(cfg, say, stages=STAGES if args.calibration_arms else ("play", "judge", "report"))
+        return await run_experiment(cfg, say, stages=STAGES if args.calibration_arms else ("play", "judge", "report"))
     finally:
         for rel in releases:
             rel.stop()
+
+
+async def precheck(args) -> bool:
+    arena = await run_local(args)
+    verdict = precheck_verdict(arena)
+    (args.root / args.experiment_id / "precheck.json").write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+    say(f"PRECHECK {'PASS' if verdict['passed'] else 'FAIL'}: {verdict['reasons'] or verdict['rule']}")
+    return verdict["passed"]
+
+
+async def tiered(args) -> bool:
+    """Cheapest first: free offline precheck, then the paid hosted gate."""
+    base_id = args.experiment_id
+    args.experiment_id, args.profile = f"{base_id}_precheck", "smoke"
+    if not await precheck(args):
+        say("stopping before the hosted run: fix the precheck findings first (no cloud calls were made)")
+        return False
+    args.experiment_id, args.profile = f"{base_id}_gate", args.hosted_profile
+    arena = await run_hosted(args, STAGES)
+    return bool(arena and arena["gate"]["passed"])
 
 
 def operator_headers() -> dict[str, str]:
@@ -126,11 +163,14 @@ def status(args) -> None:
 
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="arena", description="StoriesChat game arena: beta vs prod")
-    ap.add_argument("command", choices=["run", "judge", "calibrate", "report", "all", "local", "kickoff", "status"])
+    ap.add_argument("command", choices=["run", "judge", "calibrate", "report", "all", "local", "precheck", "tiered",
+                                        "kickoff", "status"])
     ap.add_argument("--experiment-id", default=time.strftime("arena_%Y%m%d_%H%M"))
     ap.add_argument("--root", type=Path, default=default_root())
     ap.add_argument("--profile", choices=list(PROFILES), default="gate")
-    ap.add_argument("--judges", nargs="+", choices=["jev", "llm"], default=["jev", "llm"])
+    ap.add_argument("--judges", nargs="+", choices=["jev", "llm", "ollama"], default=["jev", "llm"],
+                    help="jev = TypeSafe Jev, llm = OpenAI, ollama = local model (free, advisory in the gate)")
+    ap.add_argument("--hosted-profile", choices=list(PROFILES), default="gate", help="tiered: hosted stage size")
     ap.add_argument("--beta-url", default=DEFAULT_URLS[BETA])
     ap.add_argument("--prod-url", default=DEFAULT_URLS[PROD])
     ap.add_argument("--stories", nargs="*")
@@ -152,7 +192,8 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--calibration-arms", type=int, default=0, help="recorded arms per story to mutate (0 = skip)")
     ap.add_argument("--force", action="store_true", help="re-judge pairs even if cached")
     # offline local mode
-    ap.add_argument("--baseline-ref", default="origin/prod", help="local mode: git ref for the prod slot")
+    ap.add_argument("--baseline-ref", default="origin/beta",
+                    help="local/precheck: git ref for the baseline slot (default: what is deployed on beta)")
     ap.add_argument("--candidate-ref", default=None, help="local mode: git ref for the beta slot (default: checkout)")
     ap.add_argument("--ollama-model", default="llama3.1:8b")
     ap.add_argument("--ollama-url", default=OLLAMA_V1)
@@ -163,18 +204,22 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     args = parser().parse_args(argv)
-    if args.command == "local":
-        if args.profile == "gate" and "--profile" not in (argv or sys.argv):
+    if args.command in ("local", "precheck"):
+        if args.command == "precheck" or "--profile" not in (argv or sys.argv):
             args.profile = "smoke"          # local models are slow; smoke unless asked otherwise
+        if args.command == "precheck":
+            sys.exit(0 if asyncio.run(precheck(args)) else 1)
         asyncio.run(run_local(args))
         return
+    if args.command == "tiered":
+        sys.exit(0 if asyncio.run(tiered(args)) else 1)
     if args.command == "kickoff":
         return kickoff(args)
     if args.command == "status":
         return status(args)
     stages = STAGES if args.command == "all" else (
         ("play",) if args.command == "run" else (args.command,))
-    asyncio.run(run_experiment(hosted_config(args), say, stages=stages, force_judge=args.force))
+    asyncio.run(run_hosted(args, stages))
 
 
 if __name__ == "__main__":
