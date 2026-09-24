@@ -11,10 +11,14 @@ from __future__ import annotations
 
 from backend.app.evaluation.contracts import ScenarioSpec
 
-SUITE_VERSION = "arena-suite-0.1"
+SUITE_VERSION = "arena-suite-0.2"
+
+# Every game (episode) is at least MIN_TURNS player actions: shorter games
+# barely get past the opening scene (user decision 2026-09-24).
+MIN_TURNS = 10
 
 
-def default_scenarios(max_player_turns: int = 8) -> list[ScenarioSpec]:
+def default_scenarios(max_player_turns: int = MIN_TURNS) -> list[ScenarioSpec]:
     return [
         ScenarioSpec("iu.opening_m", "iu_murder_mystery", "M", "Alex", max_player_turns),
         ScenarioSpec("iu.opening_f", "iu_murder_mystery", "F", "Jamie", max_player_turns),
@@ -29,10 +33,10 @@ def default_scenarios(max_player_turns: int = 8) -> list[ScenarioSpec]:
 # `smoke` checks the plumbing (and is the only size practical on local Ollama).
 PROFILES: dict[str, dict] = {
     "smoke": {"scenarios": ("iu.opening_m", "six.opening_m"), "personas": ("direct_investigator",),
-              "replicates": 1, "turns": 3},
+              "replicates": 1, "turns": MIN_TURNS},
     "gate": {"scenarios": None, "personas": ("exploratory_newcomer", "direct_investigator", "boundary_tester"),
-             "replicates": 1, "turns": 6},
-    "pilot": {"scenarios": None, "personas": None, "replicates": 2, "turns": 8},
+             "replicates": 1, "turns": MIN_TURNS},
+    "pilot": {"scenarios": None, "personas": None, "replicates": 2, "turns": 12},
 }
 
 

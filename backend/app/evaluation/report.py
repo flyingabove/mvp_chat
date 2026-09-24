@@ -372,6 +372,9 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *,
 
 # --------------------------------------------------------------------------- multi-judge
 
+MIN_RESOLVED_FOR_SIGNIFICANCE = 5
+
+
 def build_arena_report(manifest: ExperimentManifest, arms: Mapping[str, ArmTranscript],
                        judgments_by_judge: Mapping[str, Sequence[Mapping[str, Any]]], rubric: Rubric, *,
                        calibration: Mapping[str, Any] | None = None, iterations: int = 2000,
@@ -386,9 +389,20 @@ def build_arena_report(manifest: ExperimentManifest, arms: Mapping[str, ArmTrans
     games = sorted({j["story_id"] for js in judgments_by_judge.values() for j in js})
     regressions = sorted({f"[{name}] {r}" for name, rep in per_judge.items() for r in rep["critical"]["regressions"]})
     counted = [n for n in per_judge if gate_judges is None or n in gate_judges] or list(per_judge)
+    def significantly_worse(name: str, game: str) -> bool:
+        # A bootstrap over one or two resolved episodes gives degenerate
+        # intervals (-inf..-inf from a single loss); require real evidence.
+        stratum = per_judge[name]["strata"].get(game, {})
+        counts = stratum.get("counts") or {}
+        resolved = sum(counts.get(k, 0) for k in ("beta_win", "prod_win", "tie"))
+        hi = (stratum.get("elo_interval") or [None, None])[1]
+        return resolved >= MIN_RESOLVED_FOR_SIGNIFICANCE and (
+            hi == "-inf" or (isinstance(hi, (int, float)) and hi < 0))
+
     gate = release_gate({name: {g: per_judge[name]["strata"].get(g, {}).get("p") for g in games}
                          for name in counted}, games,
-                        [r for r in regressions if any(r.startswith(f"[{n}]") for n in counted)])
+                        [r for r in regressions if any(r.startswith(f"[{n}]") for n in counted)],
+                        {g: [n for n in counted if significantly_worse(n, g)] for g in games})
     gate["judges_counted"] = counted
     gate["advisory_judges"] = [n for n in per_judge if n not in counted]
     return {"experiment_id": manifest.experiment_id, "judges": per_judge, "gate": gate}
@@ -405,7 +419,7 @@ def gate_panel(gate: Mapping[str, Any]) -> str:
             f"<p class=muted>{esc(gate['rule'])}. Counted: {esc(', '.join(gate.get('judges_counted', [])))}"
             f"{'; advisory: ' + esc(', '.join(gate['advisory_judges'])) if gate.get('advisory_judges') else ''}</p>"
             f"<div class=scroll><table><tr><th>Game</th>"
-            f"<th>Beta match score by judge</th><th>Beta wins under</th></tr>{rows}</table></div>" +
+            f"<th>Beta match score by judge</th><th>Beta &ge; prod under</th></tr>{rows}</table></div>" +
             "".join(f"<p class=bad>{esc(r)}</p>" for r in gate["reasons"]) + "</div>")
 
 

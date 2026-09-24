@@ -98,3 +98,8 @@ def test_report_and_cancel(client, tmp_path):
     assert client.post("/api/eval/runs/done_run/cancel", headers=auth()).status_code == 200
     assert (exp / "STOP").exists()
     assert client.get("/api/eval/runs/missing/report", headers=auth()).status_code == 404
+
+
+def test_runs_shorter_than_ten_turns_are_rejected(client):
+    r = client.post("/api/eval/runs", json={"profile": "smoke", "turns": 6}, headers=auth())
+    assert r.status_code == 422
