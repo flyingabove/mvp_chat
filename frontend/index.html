@@ -1855,6 +1855,9 @@ function getCharacterAvatarSrc(characterId, characterName){
 function resolveAssetUrl(src){
   var value = String(src || "");
   if (value.indexOf("/img/") === 0) {
+    // Portrait filenames are stable across releases. Give the 3x replacements
+    // a new URL so browser/CDN caches cannot keep serving the old 96px files.
+    if (/^\/img\/characters\/[^/]+\.png$/.test(value)) value += "?v=portrait-288-20260924";
     return BACKEND_ORIGIN.replace(/\/$/, "") + value;
   }
   return value;

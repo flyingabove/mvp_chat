@@ -123,7 +123,8 @@ def main():
                 assert page.locator('#portrait-viewer').evaluate('(e)=>e.open')
                 assert page.locator('#portrait-viewer .portrait-full img').count() == 1
                 page.wait_for_function("document.querySelector('#portrait-viewer .portrait-full img').naturalWidth >= 1254")
-                assert portrait.locator('img').evaluate('(e)=>e.naturalWidth') >= 288
+                assert portrait.locator('img').evaluate('(e)=>e.decode().then(()=>e.naturalWidth)') >= 288
+                assert '?v=portrait-288-20260924' in portrait.locator('img').get_attribute('src')
                 page.screenshot(path=str(output / f'{mode}-portrait.png'))
                 page.locator('#portrait-viewer .portrait-close').click()
                 page.locator('#chat-messages').evaluate('(e)=>e.scrollTop=e.scrollHeight')

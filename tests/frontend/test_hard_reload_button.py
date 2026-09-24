@@ -75,3 +75,8 @@ def test_text_speed_has_slower_normal_fast_and_instant():
     assert 'id="typewriter-speed" min="0" max="2"' in html
     assert 'var TYPEWRITER_SPEEDS = [4 / 0.6, (10 / 3.5) / 0.7, 0];' in html
     assert 'var TYPEWRITER_LABELS = ["Normal", "Fast", "Instant"];' in html
+
+
+def test_replaced_portraits_get_fresh_asset_urls():
+    html = _read_index_html()
+    assert 'value += "?v=portrait-288-20260924"' in html
