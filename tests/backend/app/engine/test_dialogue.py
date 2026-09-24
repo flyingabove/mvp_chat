@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
-from backend.app.engine.dialogue import dialogue_prompt, present_dialogue, encode_dialogue, decode_dialogue_response
+from backend.app.engine.dialogue import dialogue_prompt, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo
 from backend.app.engine.state import Character, extract_state_tag
 
 
@@ -109,3 +109,47 @@ def test_bare_quotes_in_narration_are_not_guessed():
     assert present_dialogue(prose, state())[1] == [
         {'kind': 'narration', 'text': 'Someone says “hello.”'}
     ]
+
+
+# --- Player-line echo (found by the Jev game arena on beta, 2026-09-23) -------
+# Live beta rendered "Natsumi Saito: That sounds amazing. Do you all cook
+# together usually?" - the PLAYER's exact message - as an NPC's dialogue.
+
+def test_npc_segment_repeating_the_players_exact_line_is_dropped():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]That sounds amazing. Do you all cook together usually?[/SPEAKER]", state())
+    assert drop_player_echo(blocks, "That sounds amazing. Do you all cook together usually?") == []
+
+
+def test_echoed_prefix_is_stripped_and_the_npcs_own_reply_kept():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]That sounds amazing. Do you all cook together usually?\n\n"
+        "Yeah, we try to. Tonight is stir-fry.[/SPEAKER]", state())
+    out = drop_player_echo(blocks, "That sounds amazing. Do you all cook together usually?")
+    assert [b["text"] for b in out] == ["Yeah, we try to. Tonight is stir-fry."]
+    assert out[0]["speaker_id"] == "mizuki"
+
+
+def test_echo_of_quoted_speech_inside_a_mixed_player_action_is_dropped():
+    player = "Hey, I'm glad to be here! Coffee sounds great, thanks.\" I set my suitcase down. \"So, what’s for dinner?"
+    _, blocks = present_dialogue(
+        "The hallway is warm. [SPEAKER:iu]Hey, I'm glad to be here! Coffee sounds great, thanks.[/SPEAKER] "
+        "[SPEAKER:iu]Dinner is stir-fry tonight.[/SPEAKER]", state())
+    out = drop_player_echo(blocks, player)
+    assert [b["kind"] for b in out] == ["narration", "dialogue"]
+    assert out[1]["text"] == "Dinner is stir-fry tonight."
+
+
+def test_player_attributed_echo_and_short_or_original_npc_lines_are_kept():
+    player = "Yes. Do you all cook together usually?"
+    state_with_player = state()
+    state_with_player.characters["player"] = Character(key="player", name="Alex")
+    _, blocks = present_dialogue(
+        "[SPEAKER:player]Do you all cook together usually?[/SPEAKER]"
+        "[SPEAKER:mizuki]Yes.[/SPEAKER]"
+        "[SPEAKER:iu]We cook together on Sundays.[/SPEAKER]", state_with_player)
+    assert drop_player_echo(blocks, player) == blocks
+
+
+def test_contract_forbids_echoing_the_player():
+    assert "Never repeat the player's own message" in dialogue_prompt(state())

@@ -195,6 +195,8 @@ def cmd_report(args) -> dict:
     calibration = json.loads(cal_path.read_text(encoding="utf-8")) if cal_path.exists() else None
     report = build_report(manifest, arms, judgments, DEFAULT_RUBRIC, calibration=calibration)
     store.save_report(report, render_html(report, arms))
+    # Skeleton-less variant for hosts that wrap pages themselves (shareable artifact pages).
+    (store.dir / "report_fragment.html").write_text(render_html(report, arms, fragment=True), encoding="utf-8")
     say(report["headline"])
     say(f"report: {store.dir / 'report.html'}")
     return report

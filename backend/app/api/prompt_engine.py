@@ -78,7 +78,7 @@ from backend.app.engine.state import (
 
 )
 from backend.app.engine.dialogue import (
-    present_dialogue, encode_dialogue, dialogue_transcript,
+    present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo,
     dialogue_response_format, decode_dialogue_response,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
@@ -3195,6 +3195,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
     clean, segments = present_dialogue(clean, state)
+    # The player already sees their own message; never let the scene hand it
+    # to an NPC (arena-found beta regression, 2026-09-23).
+    segments = drop_player_echo(segments, msg)
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]
