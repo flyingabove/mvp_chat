@@ -4,38 +4,6 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
-### Jev game arena implementation (design: `model_output_docs/JEV_GAME_ARENA_DESIGN.md`)
-
-Package: `backend/app/evaluation/` (pure core, I/O at the edges). CLI: `scripts/eval/arena.py`.
-
-- [x] **P1 Judge foundation (offline, no network in tests)**
-  - [x] `contracts.py` — frozen dataclasses: `TargetIdentity`, `PersonaSpec`, `ScenarioSpec`, `ExperimentManifest` (+ `manifest_hash`), `TurnRecord`, `ArmTranscript`, `EpisodePair`, `DimensionVerdict`, `EpisodeVerdict`, `JudgeCallRecord`.
-  - [x] `rubric.py` — `Dimension` (id, weight, critical, instructions, A/B/tie/insufficient_evidence criteria, 0-4 bands), `Rubric` (+ `rubric_hash`), `DEFAULT_RUBRIC` (6 dims, weights 25/20/20/15/15/5).
-  - [x] `knowledge.py` — `GameKnowledgeBundle.from_story(story_id)` (canon facts w/ IDs + known_by, characters, rules/goal, world atlas nodes/edges) + `bundle_hash`.
-  - [x] `evidence.py` — `EvidencePacketBuilder`: numbered spans, relevant-fact selection (entity mention match), blinding (strip URLs/SHAs/model names), quoted-text fencing, token-budget guard (< 32k state).
-  - [x] `judge.py` — `PairwiseJudge` protocol; `JevPairwiseJudge` (A/B + B/A separate requests via `JevClient`, bounded transport retry on same input, strict validation fail-closed -> unresolved, order reconciliation); `FakeJudge` for tests.
-  - [x] `aggregate.py` — pure stats: dimension vote -> episode vote (0.55/0.45 margin), unresolved-could-flip check, stratified p, Elo delta (unbounded at 0/1), seeded cluster bootstrap CI, pessimistic/optimistic sensitivity, `AdvisoryDecision`.
-  - [x] `checks.py` — `CorrectnessCheck` protocol + deterministic checks usable from observational data: target error/empty reply, secret-leak (unearned canonical-fact phrase in reply), version drift, repetition stall.
-  - [x] Tests for every module (order remap, malformed Jev answers, Elo math p=0.6 -> +70.4, bootstrap determinism, injection text stays quoted).
-- [ ] **P2 Control & observability (server side, minimal)**
-  - [x] Beta pin identity: `deployment_id` (RAILWAY_DEPLOYMENT_ID) in build info, since CLI deploys carry no SHA.
-  - [x] `GET /api/eval/capabilities` (versioned contract; operator-only).
-  - [ ] (moved to BACKLOG BL-19) Per-turn receipt fields in `/api/chat` for operator requests (build commit, turn index, world clock, location, cast) so drift + state checks work.
-  - [x] BACKLOG: controlled init / snapshot export-restore / idempotency keys (belongs with PHASE_2 SessionFactory/SnapshotCodec).
-- [x] **P3 Matched runner**
-  - [x] `targets.py` — `TargetAdapter` protocol; `HostedTargetAdapter` (guest-id sessions, `/api/chat`, version pin check each turn); `FakeTarget` for tests.
-  - [x] `players.py` — `PlayerPolicy` protocol; `LLMPlayer` (public brief only, reuses debug_engine brief/persona conventions), `ScriptedPlayer`; 5 personas from the design.
-  - [x] `store.py` — `ArtifactStore`: atomic JSON/JSONL writes under `data/eval_arena/<experiment_id>/`, resume by completed arm IDs.
-  - [x] `runner.py` — `ArenaRunner`: pair generation, balanced randomized order, equal budgets, spend/turn/wall-clock ceilings, cancellation, timeout classification.
-  - [x] `scripts/eval/arena.py` CLI: `run`, `judge`, `report`.
-- [ ] **P4 Validate measurement**
-  - [x] `calibration.py` — mutation generators (secret leak, fabricated player action, speaker swap, shortened reply, injected judge instruction), A/A identical-transcript tie check, sensitivity report.
-  - [x] Human-label file format + agreement report; BACKLOG the ~200 human labels (owner action).
-  - [ ] Pilot: small paired run beta vs prod (observational), report cost/variance.
-- [ ] **P5 Report & results view**
-  - [x] `report.py` — JSON + self-contained HTML report (SHAs, headline Elo/CI, per-story/persona, critical regressions, unresolved coverage, cost, latency, blinded transcript drill-down).
-  - [x] Docs: index entry, AI_SCORER_SYSTEM cross-link, DATA_MODEL_INVENTORY.
-
 ### Terrace in the City mobile/PWA and six-resident correctness
 
 - [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
@@ -57,6 +25,8 @@ Package: `backend/app/evaluation/` (pure core, I/O at the edges). CLI: `scripts/
 - [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
+
+- 2026-09-24: Jev game arena implemented, measured and released. `backend/app/evaluation/` (contracts, rubric, knowledge bundle, blinded evidence, fail-closed Jev judge with order swap, deterministic checks, paired hosted runner with rate-limit resilience, Elo/bootstrap aggregation, mutation + A/A calibration with verbosity probe, JSON/HTML report), CLI `python -m scripts.eval.arena`, `/api/eval/capabilities`, `deployment_id` pinning. Arena-found fixes shipped: NPC echo of the player's lines, markdown in dialogue, third-person/POV confusion. Pilot `arena_pilot_20260923b` (40 pairs): IU beta 10-4; Six Strangers verdict confounded by judge verbosity bias (BL-22/BL-23). Promoted beta `15ce6a8` to prod as `76a0652` (user-approved); prod verified live (health, capabilities, both stories). Open: BL-18..BL-23.
 
 - 2026-09-23: Implemented dynamic optional-memory selection on current beta: source-balanced broad authored/session retrieval, per-candidate Jev relevance Noul scoring, visibility filtering, deterministic anchor plus seeded no-replacement power sampling, and configurable `JEV_CONTEXT_SELECTION_ALPHA` defaulting to 1.5. The path is gated behind `TYPESAFE_ENABLED=true` and `JEV_ENABLED_TASKS=context_selection`; deterministic fallback preserves game turns if Jev is unavailable. Verification: 24 relevant post-merge tests pass. The full suite stops at existing `test_extraction_outbox_row_marked_done_after_successful_extraction`, which leaves its background outbox row pending; it reproduced before the feature test and is outside this change. Beta push and remote branch verification completed; hosted Railway deployment was still serving pre-feature commit `0c9eca7` while polling.
 

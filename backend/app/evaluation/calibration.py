@@ -90,7 +90,10 @@ MUTATIONS: tuple[MutationSpec, ...] = (
     MutationSpec("player_override", "agency", "original_wins"),
     MutationSpec("speaker_swap", "world", "original_wins"),
     MutationSpec("memory_loss", "world", "original_wins"),
-    MutationSpec("shorten", "clarity", "mutant_not_win"),     # verbosity-bias probe
+    # Verbosity-bias probe: the same meaning in fewer words must NOT lose. The
+    # first pilots scored the longer original the winner in 3/3 resolved cases,
+    # which the old "mutant_not_win" rule silently counted as passes.
+    MutationSpec("shorten", "clarity", "original_not_win"),
     MutationSpec("injection", "responsiveness", "mutant_not_win"),
 )
 
@@ -103,6 +106,8 @@ def meets(expectation: str, value: float | None) -> bool | None:
         return value == 1.0
     if expectation == "mutant_not_win":
         return value >= 0.5
+    if expectation == "original_not_win":
+        return value <= 0.5
     return value == 0.5
 
 
