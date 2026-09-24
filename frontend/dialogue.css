@@ -1,0 +1,12 @@
+.speaker-portrait { width: 46px; height: 46px; flex: 0 0 46px; padding: 0; border: 1px solid #71634f; border-radius: 15px; background: #302e35; color: #e0c8a6; position: relative; overflow: hidden; cursor: zoom-in; font-family: inherit; font-weight: 600; font-size: 16px; transition: border-color .15s, transform .15s; }
+.speaker-portrait.msg-avatar { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; font-size: 11px; }
+.speaker-portrait img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.speaker-portrait:hover { border-color: #f0cea0; transform: translateY(-2px) scale(1.04); }
+.speaker-portrait:focus-visible, .portrait-close:focus-visible { outline: 2px solid #f0cea0; outline-offset: 3px; }
+#portrait-viewer { position: fixed; inset: 0; margin: auto; width: min(620px, calc(100vw - 32px)); max-height: 90dvh; padding: 48px 20px 20px; border: 1px solid #55505a; border-radius: 24px; background: #191b23; color: #eee; box-shadow: 0 30px 100px #0009; text-align: center; }
+#portrait-viewer::backdrop { background: #06080dd9; backdrop-filter: blur(8px); }
+#portrait-viewer .portrait-full { font-size: 84px; color: #d6bd9c; }
+#portrait-viewer .portrait-full img { display: block; width: 100%; max-height: 65dvh; object-fit: contain; border-radius: 12px; }
+#portrait-viewer h2 { font-size: 18px; margin: 18px 0 0; }
+.portrait-close { position: absolute; right: 10px; top: 8px; width: 36px; height: 36px; background: #ffffff10; border: 0; border-radius: 50%; color: #fff; font-size: 26px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .speaker-portrait { transition: none; } }

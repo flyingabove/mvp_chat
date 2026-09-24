@@ -20,6 +20,8 @@ class PathEdge:
 
     is_transit: bool = False
     blocked: bool = False
+    mode: str = "walk"
+    estimated: bool = True
 
     def __post_init__(self) -> None:
         if isinstance(self.from_id, str):

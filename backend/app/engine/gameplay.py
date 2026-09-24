@@ -161,6 +161,29 @@ def advance_time(state, player_text: str):
     setattr(state, "minute", getattr(state, "minute", 0) + delta)
 
 
+def advance_time_by(state, minutes: int):
+    """
+    Jump the world clock forward by an arbitrary number of minutes, e.g. for
+    a player-triggered time-skip ("skip to tomorrow morning"). Unlike
+    advance_time(), this never touches location/travel - a skip is a pure
+    clock jump, not a movement command.
+    """
+    minutes = max(0, int(minutes or 0))
+    if minutes == 0:
+        return
+
+    runtime = getattr(state, "world_runtime", None)
+    if runtime is not None:
+        try:
+            runtime.world_clock.advance(minutes)
+            state.minute = runtime.world_clock.minute
+            return
+        except Exception:
+            pass
+
+    setattr(state, "minute", getattr(state, "minute", 0) + minutes)
+
+
 def _normalize_token(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
@@ -220,6 +243,14 @@ def process_pending_events(state, *, apply_cast_replacement) -> list:
         if ev.status != "pending" or ev.scheduled_day > current_day:
             continue
         if ev.event_type == "cast_departure_replacement":
+            lifecycle = getattr(state, "cast_lifecycle", None)
+            member = lifecycle.members.get(ev.payload.get("departing_id")) if lifecycle else None
+            if (lifecycle and lifecycle.require_replacement and member
+                    and lifecycle.is_scene_eligible(ev.payload.get("departing_id"))
+                    and lifecycle.next_up(member.slot_group) is None):
+                # The final cast stays together once this group's queue is spent.
+                # Keep the intention pending without narrating a vacant slot.
+                continue
             try:
                 transition = apply_cast_replacement(
                     state,

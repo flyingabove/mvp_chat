@@ -219,8 +219,8 @@ scripts/saves/scores.csv
 .kiro/
 mcp_docs/
 
-# Local runtime DB artifact
-data/storieschat.db
+# Local runtime data (db, debug runs, per-user sessions)
+data/
 
 # Legacy transient task folder (use documentation/plans_scratch/TASKS_INTERMEDIATE.md instead)
 tasks/

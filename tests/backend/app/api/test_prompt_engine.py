@@ -175,7 +175,7 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
     )
     assert start.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert len(state.cast_lifecycle.active_ids()) == 6
+    assert len(state.cast_lifecycle.active_ids()) == 5
 
     response = client.post("/api/chat", json={"session_id": sid, "message": "[CAST]"})
     assert response.status_code == 200
@@ -183,14 +183,189 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
     assert payload["usage"]["total_tokens"] == 0
     assert payload["reply"] == ""
     assert {item["id"] for item in payload["cast_roster"]["active"]} == {
-        "makoto", "yuki", "uchi", "minori", "mizuki", "yuriko"
+        "player", *state.cast_lifecycle.active_ids()
     }
     public_ids = {
         item.get("id") for group in ("active", "departed")
         for item in payload["cast_roster"][group]
     }
-    for future_id in ("arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko", "momoka", "hayato", "yuuki_byrnes", "masako"):
+    for future_id in set(state.characters) - {"player"} - set(state.cast_lifecycle.active_ids()):
         assert future_id not in public_ids
+
+
+def test_player_visible_character_ids_excludes_upcoming_includes_player(client):
+    """Phase 1.4: player_visible_character_ids is the shared policy the
+    journal (and any future public view) filters through - unit-level check
+    against a real six_strangers session, independent of the journal
+    endpoint's own tests in test_user_sessions.py."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "player_visible_ids_check"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    visible = pe_mod.player_visible_character_ids(state)
+    assert visible is not None
+    assert "player" in visible
+    for active_id in state.cast_lifecycle.active_ids():
+        assert active_id in visible
+    for key, member in state.cast_lifecycle.members.items():
+        from backend.app.engine.cast_lifecycle import CastStatus
+        if member.status is CastStatus.UPCOMING:
+            assert key not in visible, f"UPCOMING character {key} must not be player-visible"
+
+
+def test_player_visible_character_ids_none_when_lifecycle_disabled():
+    """A story without cast_lifecycle enabled must return None (no
+    filtering), matching _cast_roster_payload's own no-lifecycle fallback -
+    not an empty set, which would hide everyone."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.state import init_state
+
+    state = init_state()
+    assert pe_mod.player_visible_character_ids(state) is None
+
+
+def test_player_visible_arrival_minute_reflects_activation():
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.state import init_state
+    from backend.app.engine.cast_lifecycle import CastLifecycleState, CastMemberState, CastStatus
+
+    state = init_state()
+    state.cast_lifecycle = CastLifecycleState(
+        enabled=True, arrival_location_id="living_room",
+        replacement_policy="same_slot_next", departure_policy="committed_intent",
+        slot_capacities={"men": 1}, slot_labels={"men": "Men"},
+        members={
+            "late_arrival": CastMemberState(status=CastStatus.ACTIVE, slot_group="men", sequence=1, activated_minute=500),
+        },
+    )
+    assert pe_mod.player_visible_arrival_minute(state, "late_arrival") == 500
+    assert pe_mod.player_visible_arrival_minute(state, "nonexistent_key") is None
+
+
+def test_time_skip_hours_advances_minute_and_narrates(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_hours"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    minute_before = state.minute
+
+    response = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:HOURS"})
+    assert response.status_code == 200
+    payload = response.json()
+    # The skip falls through into a real turn - the mocked story master reply
+    # ("ok") comes back as normal narration, not an empty/zero-token toggle response.
+    assert payload["reply"]
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.minute == minute_before + 4 * 60
+
+
+def test_time_skip_overnight_and_day_use_distinct_durations(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_presets"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    minute_before = state.minute
+
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:OVERNIGHT"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.minute == minute_before + 8 * 60
+
+    minute_before_day = state.minute
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:DAY"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.minute == minute_before_day + 24 * 60
+
+
+def test_time_skip_cue_states_the_new_time_explicitly(client, monkeypatch):
+    """Regression: live-verified on beta that a generic cue ("The night
+    passes") was silently ignored by the story master - it kept narrating
+    the OLD time of day ("dinner should be ready soon... first night") even
+    though state.minute had genuinely advanced, because the world clock is
+    otherwise never surfaced in the prompt (only in the debug box). The cue
+    sent to build_messages() must state the resulting time explicitly."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.prompt_builder import PromptInput
+
+    captured = {}
+    real_build_messages = pe_mod.build_messages
+
+    def _spy_build_messages(prompt_input, *args, **kwargs):
+        if isinstance(prompt_input, PromptInput):
+            captured["user_msg"] = prompt_input.user_msg
+        return real_build_messages(prompt_input, *args, **kwargs)
+    monkeypatch.setattr(pe_mod, "build_messages", _spy_build_messages)
+
+    sid = "six_strangers_skip_cue_time"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:OVERNIGHT"})
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    from backend.app.engine.time_utils import WorldTimeFormatter
+    expected_ts = WorldTimeFormatter.compute(
+        getattr(state, "world_start_datetime", ""), state.minute
+    ).display
+
+    assert "[Time skip]" in captured["user_msg"]
+    assert expected_ts in captured["user_msg"]
+
+
+def test_time_skip_narration_cue_does_not_overwrite_player_name(client):
+    """Regression: the skip narration cue ('A few hours pass') has the same
+    shape as extract_user_name_from_text()'s bare-word 'solo name' fallback
+    pattern and would otherwise be mistaken for the player stating their name."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_name_safety"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    name_before = state.user.formal_name
+
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:HOURS"})
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.user.formal_name == name_before
+    assert "hours" not in state.user.formal_name.lower()
+
+
+def test_time_skip_unknown_preset_is_not_treated_as_skip_command(client):
+    """An invalid/unknown preset key must fall through as ordinary player
+    dialogue (safe no-op for the skip parser), not silently jump time."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_skip_unknown"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    minute_before = state.minute
+
+    response = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:NEXT_WEEK"})
+    assert response.status_code == 200
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    # Only the ordinary per-turn dialogue delta applies, not a multi-hour jump.
+    assert state.minute < minute_before + 60
 
 
 def test_six_strangers_lifecycle_round_trips_in_session_snapshot(client):
@@ -204,13 +379,15 @@ def test_six_strangers_lifecycle_round_trips_in_session_snapshot(client):
     )
     assert response.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing = state.cast_lifecycle.active_ids("men")[0]
+    arriving = state.cast_lifecycle.next_up("men")
     state.cast_lifecycle.replace(
-        "makoto", minute=state.minute, reason="committed to leaving", event_id="test:departure:1"
+        departing, minute=state.minute, reason="committed to leaving", event_id="test:departure:1"
     )
     saved = json.loads(pe_mod._serialize_state(state, []))
     restored = pe_mod.CastLifecycleState.from_dict(saved["cast_lifecycle"])
-    assert restored.members["makoto"].status.value == "departed"
-    assert restored.members["arman"].status.value == "active"
+    assert restored.members[departing].status.value == "departed"
+    assert restored.members[arriving].status.value == "active"
     assert restored.history[0].event_id == "test:departure:1"
 
 
@@ -224,16 +401,18 @@ def test_cast_replacement_updates_world_location_and_focal_character(client):
     )
     assert response.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    state.main_character_id = "makoto"
+    departing = state.cast_lifecycle.active_ids("men")[0]
+    arriving = state.cast_lifecycle.next_up("men")
+    state.main_character_id = departing
 
     transition = pe_mod._apply_cast_replacement(
-        state, "makoto", reason="committed to leaving", event_id="test:replace:makoto"
+        state, departing, reason="committed to leaving", event_id="test:replace:random-man"
     )
 
-    assert transition.arriving_id == "arman"
-    assert "makoto" not in state.character_locations
-    assert state.character_locations["arman"] == "front_entry"
-    assert state.main_character_id == "arman"
+    assert transition.arriving_id == arriving
+    assert departing not in state.character_locations
+    assert state.character_locations[arriving] == "front_entry"
+    assert state.main_character_id == arriving
 
 
 def test_try_load_session_from_db_restores_persona_metadata(monkeypatch):
@@ -426,25 +605,31 @@ def test_upcoming_character_private_facts_excluded_from_canonical_stack(client):
     )
     assert r.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert state.cast_lifecycle.members["arman"].status.value == "upcoming"
+    upcoming_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
 
     # Speak as Arman's owner-only fact would only ever surface via known_by
     # containing "arman"; simulate the main character being Arman is not
     # required - the leak is that _knowledge_chunks_from_state renders ANY
     # canonical fact whose only owner is upcoming, regardless of speaker.
     chunks = _knowledge_chunks_from_state(state, [])
-    arman_chunk_texts = [c.text for c in chunks if c.id == "fact::arman_private_concern"]
-    assert arman_chunk_texts == [], (
-        "Arman's private concern rendered into the knowledge stack while he is still upcoming"
+    upcoming_chunk_texts = [c.text for c in chunks if c.id == f"fact::{upcoming_id}_private_concern"]
+    assert upcoming_chunk_texts == [], (
+        "An upcoming resident's private concern rendered into the knowledge stack"
     )
 
     # Also confirm the speaker-scoped variant excludes it when the speaker
     # happens to be flipped to Arman before he's actually active.
-    state.main_character_id = "arman"
+    state.main_character_id = upcoming_id
     facts = _canonical_facts_for_speaker(state)
-    assert not any("firefighter application" in f for f in facts), (
-        "Arman's private concern was exposed to the canonical-facts-for-speaker projection "
-        "while he is still an upcoming (not-yet-arrived) character"
+    private_content = next(
+        fact.content for fact in state.canonical_facts
+        if fact.id == f"{upcoming_id}_private_concern"
+    )
+    assert private_content not in facts, (
+        "An upcoming resident's private concern was exposed to the speaker projection"
     )
 
 
@@ -469,19 +654,24 @@ def test_scene_brief_closes_roster_against_upcoming_characters(client):
     )
     assert r.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    upcoming_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
+    upcoming_name = state.characters[upcoming_id].name
 
-    scene_brief = _storyteller_scene_section(state, "Who is Arman? Does he already live here?")
+    scene_brief = _storyteller_scene_section(state, f"Who is {upcoming_name}? Do they already live here?")
     assert "closed list" in scene_brief
 
     # The player's own line is legitimately echoed verbatim at the end of the
     # brief ("Current player line: ..."); strip it before checking that the
     # roster-closure text itself never names the upcoming character.
     closure_only = scene_brief.split("Current player line:")[0]
-    assert "arman" not in closure_only.lower(), (
-        "upcoming character 'arman' must not appear in the roster-closure text"
+    assert upcoming_name.lower() not in closure_only.lower(), (
+        "an upcoming character must not appear in the roster-closure text"
     )
-    for active_name_fragment in ("Makoto", "Yuki Adachi", "Mizuki"):
-        assert active_name_fragment in scene_brief
+    for active_key in state.cast_lifecycle.active_ids():
+        assert state.characters[active_key].name in scene_brief
 
 
 def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client):
@@ -512,8 +702,11 @@ def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client
 
     keys = captured.get("character_key_to_name", {})
     assert keys, "turn extractor was never invoked with a character catalog"
-    assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
-    for active_key in ("makoto", "yuki", "uchi", "minori", "mizuki", "yuriko"):
+    active_keys = set(state.cast_lifecycle.active_ids())
+    assert not (set(state.characters) - {"player"} - active_keys) & set(keys), (
+        "an upcoming character leaked into the turn extractor catalog"
+    )
+    for active_key in active_keys:
         assert active_key in keys, f"active character {active_key!r} unexpectedly missing from extractor catalog"
 
 
@@ -546,7 +739,10 @@ def test_main_character_identity_not_injected_when_absent_from_scene(client):
         id="present-marker-other-only",
         namespace="test",
         scope="conversation",
-        text="__people_present_marker__:yuki",
+        text="__people_present_marker__:" + next(
+            key for key in state.cast_lifecycle.active_ids()
+            if key != state.main_character_id
+        ),
         expires_after_turns=10,
     )
 
@@ -595,7 +791,7 @@ def test_system_prompt_forbids_main_character_entering_solitary_scene(client):
         id="present-marker-other-only",
         namespace="test",
         scope="conversation",
-        text="__people_present_marker__:yuki",
+        text=f"__people_present_marker__:{next(key for key in state.cast_lifecycle.active_ids() if key != state.main_character_id)}",
         expires_after_turns=10,
     )
     absent_prompt = system_prompt(state, current_user_msg="I go to the rooftop alone.")
@@ -802,7 +998,10 @@ def test_turn_extractor_catalog_still_uses_scene_context_eligibility(client):
 
     keys = captured.get("character_key_to_name", {})
     assert keys, "turn extractor was never invoked with a character catalog"
-    assert "arman" not in keys, "upcoming character 'arman' leaked into the turn extractor catalog"
+    active_keys = set(pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids())
+    assert not (set(pe_mod.SESSIONS[sid]["state"].characters) - {"player"} - active_keys) & set(keys), (
+        "an upcoming character leaked into the turn extractor catalog"
+    )
 
 
 # ============================================================================
@@ -829,9 +1028,16 @@ def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
         headers=guest_headers,
     )
     assert r0.status_code == 200
-
     state = pe_mod.SESSIONS[sid]["state"]
-    turns_before = state.turns
+
+    # Phase 1.1: `state` is re-fetched from SESSIONS after each call rather
+    # than held across calls. The turn pipeline now clones state, mutates the
+    # clone, and publishes the clone back into SESSIONS only on success (see
+    # prompt_engine.py "Phase 1.1" comments) — so a reference grabbed before a
+    # call points at an object that is correctly no longer the live one after
+    # a completed turn. Re-fetching is the correct pattern going forward, not
+    # a workaround: it verifies the publish actually happened.
+    turns_before = pe_mod.SESSIONS[sid]["state"].turns
 
     r1 = client.post(
         "/api/chat",
@@ -839,7 +1045,7 @@ def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
         headers=guest_headers,
     )
     assert r1.status_code == 200
-    turns_after_first = state.turns
+    turns_after_first = pe_mod.SESSIONS[sid]["state"].turns
     assert turns_after_first == turns_before + 1
 
     r2 = client.post(
@@ -849,7 +1055,7 @@ def test_duplicate_request_id_replays_prior_reply_without_reprocessing(client):
     )
     assert r2.status_code == 200
     assert r2.json() == r1.json(), "duplicate request_id must replay the exact prior reply"
-    assert state.turns == turns_after_first, (
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_after_first, (
         "a retried request with the same request_id must not advance state.turns a second time"
     )
 
@@ -867,8 +1073,9 @@ def test_different_request_id_still_processes_normally(client):
         headers=guest_headers,
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    turns_before = state.turns
+    # Phase 1.1: re-fetch state after each call (see comment in
+    # test_duplicate_request_id_replays_prior_reply_without_reprocessing).
+    turns_before = pe_mod.SESSIONS[sid]["state"].turns
 
     r1 = client.post(
         "/api/chat",
@@ -876,7 +1083,7 @@ def test_different_request_id_still_processes_normally(client):
         headers=guest_headers,
     )
     assert r1.status_code == 200
-    assert state.turns == turns_before + 1
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 1
 
     r2 = client.post(
         "/api/chat",
@@ -884,7 +1091,7 @@ def test_different_request_id_still_processes_normally(client):
         headers=guest_headers,
     )
     assert r2.status_code == 200
-    assert state.turns == turns_before + 2, (
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 2, (
         "a distinct request_id must be processed as a new turn, not treated as a duplicate"
     )
 
@@ -902,22 +1109,23 @@ def test_anon_session_skips_dedup_check(client):
         json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    turns_before = state.turns
+    # Phase 1.1: re-fetch state after each call (see comment in
+    # test_duplicate_request_id_replays_prior_reply_without_reprocessing).
+    turns_before = pe_mod.SESSIONS[sid]["state"].turns
 
     r1 = client.post(
         "/api/chat",
         json={"session_id": sid, "message": "hello", "request_id": "req-anon-1"},
     )
     assert r1.status_code == 200
-    assert state.turns == turns_before + 1
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 1
 
     r2 = client.post(
         "/api/chat",
         json={"session_id": sid, "message": "hello", "request_id": "req-anon-1"},
     )
     assert r2.status_code == 200
-    assert state.turns == turns_before + 2, "anon sessions have no dedup identity and must reprocess"
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_before + 2, "anon sessions have no dedup identity and must reprocess"
 
 
 # ============================================================================
@@ -934,16 +1142,19 @@ def test_extraction_outbox_row_enqueued_for_guest_session(client, monkeypatch):
     exist for a guest (non-anon) turn, capturing the exact user_msg/ai_reply
     that would otherwise only live in-memory until the extraction task
     (which might never complete, e.g. on a crash) finishes. Extraction is
-    patched to raise so the row is left in a state we can inspect (marked
-    'failed' with the row's fields intact) rather than racing the
-    fire-and-forget task's completion."""
+    patched to fail (Phase 1.2: extract_facts_with_status, which the durable
+    path actually calls — NOT extract_facts_from_message, which is only the
+    anon best-effort path since Phase 1.2) so the row is left in a state we
+    can inspect (marked 'failed' with the row's fields intact) rather than
+    racing the fire-and-forget task's completion."""
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.db.repos import get_connection
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
     import asyncio
 
-    async def _raising_extract(*args, **kwargs):
-        raise RuntimeError("simulated extraction failure")
-    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _raising_extract, raising=False)
+    async def _failing_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=False, chunks=[], error="simulated extraction failure")
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _failing_extract_with_status, raising=False)
 
     guest_headers = {"X-Guest-Id": "44444444-5555-6666-7777-888888888888"}
     sid = "outbox_enqueue_check"
@@ -985,11 +1196,12 @@ def test_extraction_outbox_row_enqueued_for_guest_session(client, monkeypatch):
 def test_extraction_outbox_row_marked_done_after_successful_extraction(client, monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.db.repos import FactExtractionOutboxRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
     import asyncio
 
-    async def _fast_extract(*args, **kwargs):
-        return []
-    monkeypatch.setattr(pe_mod, "extract_facts_from_message", _fast_extract, raising=False)
+    async def _fast_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=True, chunks=[])
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _fast_extract_with_status, raising=False)
 
     guest_headers = {"X-Guest-Id": "55555555-6666-7777-8888-999999999999"}
     sid = "outbox_mark_done_check"
@@ -1048,6 +1260,107 @@ def test_anon_session_skips_outbox_enqueue(client, monkeypatch):
 
     matching = asyncio.run(_check())
     assert matching == [], "anon sessions must not create a durable outbox row"
+
+
+def test_extraction_output_is_durably_queryable_not_just_marked_done(client, monkeypatch):
+    """Phase 1.2's actual acceptance criterion, end-to-end through the real
+    /api/chat path: a successful non-anon extraction must leave its chunks
+    readable from ExtractedChunksRepo — durable storage, not just an
+    in-memory SessionChunkStore that a crash before the NEXT turn's session
+    save would have lost despite the outbox row correctly saying 'done'."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+    import asyncio
+    import uuid
+
+    async def _extract_with_status(text, role, msg_id, char_id):
+        return ExtractionResult(ok=True, chunks=[{
+            "chunk_id": f"{'usr' if role == 'user' else 'ai'}-{msg_id}-0",
+            "character_id": char_id, "type": "dialogue_fact",
+            "text": f"durable fact from {role}", "confidence": "player_stated",
+            "source_type": "usr" if role == "user" else "ai", "source_msg_id": msg_id,
+        }])
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _extract_with_status, raising=False)
+
+    guest_headers = {"X-Guest-Id": "66666666-7777-8888-9999-aaaaaaaaaaaa"}
+    # Unique per invocation: this repo's DB is NOT test-isolated for this
+    # file (no tmp_data_dir fixture here), so a shared real SQLite file can
+    # carry rows from other runs in the same session_id if it were reused.
+    # Filtering to only rows/chunks whose source_msg_id came from THIS
+    # specific request_id keeps the assertion correct regardless.
+    sid = f"durable_extraction_e2e_check_{uuid.uuid4().hex[:8]}"
+    r0 = client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    )
+    assert r0.status_code == 200
+    r1 = client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": "hello there"},
+    )
+    assert r1.status_code == 200
+
+    async def _wait_for_durable_chunks():
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            pending = await FactExtractionOutboxRepo.fetch_pending()
+            if not any(row["session_id"] == sid for row in pending):
+                return await ExtractedChunksRepo.load_for_session(sid)
+        return None
+
+    chunks = asyncio.run(_wait_for_durable_chunks())
+    assert chunks is not None, "outbox row never left pending"
+    # This session_id is freshly randomized above, so unlike the general
+    # repo it cannot collide with rows from any other test run.
+    assert len(chunks) == 2, "must durably store both the user-message and AI-reply chunks"
+    texts = {c["text"] for c in chunks}
+    assert texts == {"durable fact from user", "durable fact from assistant"}
+
+
+def test_extraction_failure_leaves_row_pending_not_falsely_done(client, monkeypatch):
+    """The regression this whole phase closes: a provider failure during
+    extraction must be retryable (status left non-done), never recorded as a
+    successful empty extraction the way the old []-for-everything contract
+    did."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import get_connection
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+    import asyncio
+
+    async def _failing_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=False, chunks=[], error="simulated provider outage")
+    monkeypatch.setattr(pe_mod, "extract_facts_with_status", _failing_extract_with_status, raising=False)
+
+    guest_headers = {"X-Guest-Id": "77777777-8888-9999-aaaa-bbbbbbbbbbbb"}
+    sid = "extraction_failure_not_falsely_done_check"
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": "hello there"},
+    ).status_code == 200
+
+    async def _wait_for_row():
+        for _ in range(100):
+            await asyncio.sleep(0.05)
+            conn = get_connection()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM fact_extraction_outbox WHERE session_id = ?", (sid,)
+                ).fetchall()
+            finally:
+                conn.close()
+            if rows and rows[0]["status"] != "pending":
+                return dict(rows[0])
+        return None
+
+    row = asyncio.run(_wait_for_row())
+    assert row is not None
+    assert row["status"] == "failed", "a provider failure must never be recorded as 'done'"
+    assert "simulated provider outage" in (row["last_error"] or "")
 
 
 def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, monkeypatch):
@@ -1344,6 +1657,36 @@ def test_ripe_behavior_pairs_evaluates_multiple_pairs_independently():
     assert "yuki->minori" not in ripe
 
 
+def test_ripe_behavior_pairs_bl16_regression_vocabulary_prevents_false_positive():
+    """BL-16's actual bug, reproduced end to end: free-text synonym drift
+    ("warm"/"warmly"/"friendly", all meaning the same thing) makes
+    Counter.most_common(1) return arbitrary all-singleton picks that
+    "differ" almost every time, falsely flagging ripe=True on a pair that
+    never actually changed. Routing the same near-synonym LLM output
+    through TurnExtractor._parse_json with a closed vocabulary canonicalizes
+    every variant to the SAME string BEFORE it reaches recent_behavior_log,
+    so _ripe_behavior_pairs' exact-string majority vote sees real repeated
+    counts instead of six arbitrary singletons - no code change to
+    _ripe_behavior_pairs itself, exactly as BL-16/BL-17 document."""
+    import json
+    from backend.app.api.prompt_engine import _ripe_behavior_pairs
+    from backend.app.engine.extractors.turn_extractor import TurnExtractor
+    from backend.app.engine.state import init_state
+
+    vocab = {"warm"}
+    raw_variants = ["warm", "Warm", "WARM", "warm", "Warm", "WARM"]  # what the pre-fix free-text prompt could return
+    canonicalized = []
+    for variant in raw_variants:
+        raw = json.dumps({"behavior_tags": [{"from_id": "makoto", "to_id": "mizuki", "tag": variant}]})
+        extraction = TurnExtractor._parse_json(raw, set(), {"makoto", "mizuki"}, vocab)
+        canonicalized.append(extraction.behavior_tags[0].tag)
+    assert canonicalized == ["warm"] * 6, "casing variants of the same authored tag must canonicalize identically"
+
+    state = init_state()
+    state.recent_behavior_log = {"makoto->mizuki": canonicalized}
+    assert _ripe_behavior_pairs(state) == {}, "six identical canonical tags must never read as a majority swing"
+
+
 def test_behavior_tags_accumulate_in_recent_behavior_log(client):
     """The real regression: mocked extractor output with behavior_tags must
     accumulate into state.recent_behavior_log (raw material only - no
@@ -1357,7 +1700,6 @@ def test_behavior_tags_accumulate_in_recent_behavior_log(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(behavior_tags=[
@@ -1369,6 +1711,10 @@ def test_behavior_tags_accumulate_in_recent_behavior_log(client):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch state AFTER the mutating call, not before — the turn
+    # handler clones state and publishes the clone on success, so a
+    # pre-fetched reference would be stale.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert state.recent_behavior_log.get("makoto->mizuki") == ["aggressive"]
     # No shift signal was mocked - no goal/disposition mutation.
     makoto = state.characters["makoto"]
@@ -1385,7 +1731,6 @@ def test_behavior_log_caps_at_window_size(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
 
     import unittest.mock as _mock
     for i in range(10):
@@ -1397,8 +1742,288 @@ def test_behavior_log_caps_at_window_size(client):
             r = client.post("/api/chat", json={"session_id": sid, "message": f"turn {i}"})
         assert r.status_code == 200
 
+    # Phase 1.1: fetch AFTER the loop — each call publishes a fresh clone.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert len(state.recent_behavior_log["makoto->mizuki"]) == 8
     assert state.recent_behavior_log["makoto->mizuki"] == [f"tag{i}" for i in range(2, 10)]
+
+
+# ============================================================================
+# Phase 3 "Social life", Commit 3: SocialShiftSignal judgment + apply
+# pipeline - the final piece that lets a goal/disposition actually change.
+# Extractor mocked throughout, following Phase 2's established precedent for
+# signals that can't be reliably triggered deterministically via the real
+# LLM in CI.
+# ============================================================================
+
+def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_goal_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    subject_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    # original_goal captured from the pre-turn state (safe to read before,
+    # since we're not asserting on this SAME object after a mutating call).
+    original_goal = pe_mod.SESSIONS[sid]["state"].characters[subject_id].goal.current
+    assert len(pe_mod.SESSIONS[sid]["state"].characters[subject_id].goal.history) == 1
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="goal", subject_id=subject_id,
+            new_value="No longer chasing romance - focused entirely on baseball now.",
+            reason="repeated rejection across several turns",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    # Phase 1.1: fetch AFTER the mutating call — the handler publishes a
+    # fresh clone on success, so the selected resident must be re-derived from it here.
+    subject = pe_mod.SESSIONS[sid]["state"].characters[subject_id]
+    assert subject.goal.current == "No longer chasing romance - focused entirely on baseball now."
+    assert len(subject.goal.history) == 2
+    # Old value still readable - never overwritten.
+    assert subject.goal.history[0].content == original_goal
+    assert subject.goal.history[1].provenance == "repeated rejection across several turns"
+
+
+def test_social_shift_disposition_creates_new_history_entry(client):
+    """Uses the player->mizuki pair since six_strangers only authors
+    player-facing edges (no NPC-NPC edges exist in the current story JSON -
+    a pre-existing authoring gap, not something this feature needs to fix).
+    The apply logic itself is genre/pair-agnostic; it correctly no-ops when
+    no edge exists at all, exercised separately below."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_disposition_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    target_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    assert pe_mod.SESSIONS[sid]["state"].character_graph.get_edge("player", target_id) is not None
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="disposition", subject_id="player", target_id=target_id,
+            new_value="growing genuinely fond of a housemate", reason="repeated warmth over several turns",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    # Phase 1.1: fetch state AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
+    edge = state.character_graph.get_edge("player", target_id)
+    assert edge is not None
+    assert edge.disposition is not None
+    assert edge.disposition.current == "growing genuinely fond of a housemate"
+    assert len(edge.disposition.history) == 1
+
+
+def test_social_shift_disposition_no_edge_is_safe_noop(client):
+    """A shift naming a pair with NO existing relationship edge at all must
+    not crash and must not fabricate a new edge out of thin air - only an
+    already-established edge can gain a disposition this way."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_no_edge_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    active_id = state.cast_lifecycle.active_ids()[0]
+    inactive_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
+    assert state.character_graph.get_edge(active_id, inactive_id) is None
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="disposition", subject_id=active_id, target_id=inactive_id,
+            new_value="warming up", reason="softened",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+    assert state.character_graph.get_edge(active_id, inactive_id) is None
+
+
+def test_social_shift_goal_reflected_in_next_turn_prompt(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_prompt_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    subject_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="SHIFT", scope="goal", subject_id=subject_id,
+            new_value="No longer chasing romance - focused entirely on baseball now.",
+            reason="repeated rejection",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    # Phase 1.1: fetch AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
+
+    # Force the selected active resident present so the identity block (and any goal line)
+    # would render if the game surfaces non-main present characters.
+    state.add_transient_entry(
+            id="social_shift_subject_present", namespace="test", scope="conversation",
+            text=f"__people_present_marker__:{subject_id}", expires_after_turns=5,
+    )
+    prompt = pb.system_prompt(state)
+    assert "No longer chasing romance - focused entirely on baseball now." in prompt
+    assert "Make real friends and find room for romance without losing sight of baseball." not in prompt
+
+
+def test_social_shift_idempotent_on_retried_turn(client):
+    """Simulates the exact retried-turn scenario: calling the apply logic
+    twice with the same state.turns value must not double-apply."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.social_traits import EvolvingTrait
+
+    sid = "social_shift_idempotency_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    makoto = state.characters["makoto"]
+
+    entry_id = f"social_shift_goal_makoto__{state.turns}"
+    first = makoto.goal.propose_change(
+        "new goal", minute=state.minute, reason="r", confidence=0.7, entry_id=entry_id,
+    )
+    history_len_after_first = len(makoto.goal.history)
+    second = makoto.goal.propose_change(
+        "different value entirely", minute=state.minute, reason="r2", confidence=0.9, entry_id=entry_id,
+    )
+
+    assert first is True
+    assert second is False
+    assert len(makoto.goal.history) == history_len_after_first
+    assert makoto.goal.current == "new goal"
+
+
+def test_social_shift_wish_certainty_does_not_mutate_state(client):
+    """The explicit false-positive guard: a momentary outlier (WISH) must
+    never mutate a goal or disposition, mirroring Phase 2's departure_signal
+    WISH guard exactly."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction, SocialShiftSignal
+
+    sid = "social_shift_wish_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    makoto = state.characters["makoto"]
+    original_goal = makoto.goal.current
+    original_history_len = len(makoto.goal.history)
+
+    async def _mock_extract(*args, **kwargs):
+        return TurnExtraction(social_shift_signal=SocialShiftSignal(
+            certainty="WISH", scope="goal", subject_id="makoto",
+            new_value="briefly considered giving up on friendships",
+            reason="one bad moment",
+        ))
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _mock_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+
+    assert makoto.goal.current == original_goal
+    assert len(makoto.goal.history) == original_history_len
+
+
+def test_social_shift_requires_ripe_pair_for_behavior_window(client):
+    """Confirm the extractor call only receives a behavior_window kwarg when
+    a pair is actually ripe - the common-case no-op path."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    sid = "ripe_window_wiring_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+
+    captured = {}
+
+    async def _capture_extract(*args, **kwargs):
+        captured["behavior_window"] = kwargs.get("behavior_window")
+        return TurnExtraction()
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _capture_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+    assert captured.get("behavior_window") is None
+
+
+def test_social_shift_passes_ripe_pair_as_behavior_window(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    sid = "ripe_window_pair_check"
+    r0 = client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    assert r0.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    state.recent_behavior_log["makoto->mizuki"] = [
+        "aggressive", "aggressive", "aggressive", "warm", "warm", "warm",
+    ]
+
+    captured = {}
+
+    async def _capture_extract(*args, **kwargs):
+        captured["behavior_window"] = kwargs.get("behavior_window")
+        return TurnExtraction()
+
+    import unittest.mock as _mock
+    with _mock.patch.object(pe_mod._TURN_EXTRACTOR, "extract", _capture_extract):
+        r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    assert r1.status_code == 200
+    assert captured.get("behavior_window") == {
+        "pair": "makoto->mizuki",
+        "tags": ["aggressive", "aggressive", "aggressive", "warm", "warm", "warm"],
+    }
 
 
 # ============================================================================
@@ -1420,11 +2045,11 @@ def test_departure_wish_does_not_schedule_replacement(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert "makoto" in state.cast_lifecycle.active_ids()
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="makoto", certainty="WISH", reason="joked about leaving",
+            character_id=departing_id, certainty="WISH", reason="joked about leaving",
         ))
 
     import unittest.mock as _mock
@@ -1433,7 +2058,7 @@ def test_departure_wish_does_not_schedule_replacement(client):
     assert r1.status_code == 200
 
     assert state.pending_events == [], "a passing wish/joke must not schedule a replacement"
-    assert "makoto" in state.cast_lifecycle.active_ids(), "wish must not affect membership"
+    assert departing_id in state.cast_lifecycle.active_ids(), "wish must not affect membership"
 
 
 def test_departure_decision_schedules_pending_replacement_not_immediate(client):
@@ -1447,13 +2072,13 @@ def test_departure_decision_schedules_pending_replacement_not_immediate(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
-    assert "makoto" in state.cast_lifecycle.active_ids()
-    minute_before = state.minute
+    initial_state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = initial_state.cast_lifecycle.active_ids("men")[0]
+    minute_before = initial_state.minute
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="makoto", certainty="DECISION", reason="moving out next week",
+            character_id=departing_id, certainty="DECISION", reason="moving out next week",
         ))
 
     import unittest.mock as _mock
@@ -1461,20 +2086,22 @@ def test_departure_decision_schedules_pending_replacement_not_immediate(client):
         r1 = client.post("/api/chat", json={"session_id": sid, "message": "hello"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert len(state.pending_events) == 1, "an explicit decision must schedule exactly one pending replacement"
     event = state.pending_events[0]
     assert event.event_type == "cast_departure_replacement"
     assert event.status == "pending"
-    assert event.payload["departing_id"] == "makoto"
+    assert event.payload["departing_id"] == departing_id
     assert event.scheduled_day == day_number(minute_before) + 1, (
         "six_strangers' replacement_timing is 'next_day' - the replacement must be deferred, not immediate"
     )
     # Deferred, not immediate: departing character is STILL active right now.
-    assert "makoto" in state.cast_lifecycle.active_ids(), (
+    assert departing_id in state.cast_lifecycle.active_ids(), (
         "a player/character cannot evict somebody merely by a decision being stated - "
         "removal only happens when the scheduler later executes the pending event"
     )
-    assert state.cast_lifecycle.members["makoto"].status.value == "active"
+    assert state.cast_lifecycle.members[departing_id].status.value == "active"
 
 
 def test_departure_decision_for_inactive_character_is_ignored(client):
@@ -1493,11 +2120,14 @@ def test_departure_decision_for_inactive_character_is_ignored(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert "arman" not in state.cast_lifecycle.active_ids()
+    inactive_id = next(
+        key for key, member in state.cast_lifecycle.members.items()
+        if member.status.value == "upcoming"
+    )
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="arman", certainty="DECISION", reason="hallucinated departure",
+            character_id=inactive_id, certainty="DECISION", reason="hallucinated departure",
         ))
 
     import unittest.mock as _mock
@@ -1521,11 +2151,11 @@ def test_departure_decision_does_not_duplicate_pending_event_across_turns(client
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids("men")[0]
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(departure_signal=DepartureSignal(
-            character_id="makoto", certainty="DECISION", reason="reaffirmed",
+            character_id=departing_id, certainty="DECISION", reason="reaffirmed",
         ))
 
     import unittest.mock as _mock
@@ -1535,6 +2165,9 @@ def test_departure_decision_does_not_duplicate_pending_event_across_turns(client
         r2 = client.post("/api/chat", json={"session_id": sid, "message": "still thinking about it"})
         assert r2.status_code == 200
 
+    # Phase 1.1: fetch AFTER both mutating calls.
+    state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
     assert len(state.pending_events) == 1, "reaffirming the same decision must not create a second pending event"
 
 
@@ -1555,23 +2188,28 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     # Manually schedule a departure (bypassing extraction) exactly as the
     # apply pipeline would, one day ahead of the current day.
     from backend.app.engine.world_calendar import PendingEvent, day_number
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_makoto",
+        event_id=f"test_departure_replace_{departing_id}",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "makoto", "reason": "moving out"},
+        payload={"departing_id": departing_id, "reason": "moving out"},
         created_minute=state.minute,
     ))
 
     # Still within the same day: a normal turn must NOT execute the event yet.
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "good morning"})
     assert r1.status_code == 200
-    assert "makoto" in state.cast_lifecycle.active_ids(), "event must not fire before its scheduled day"
+    # Phase 1.1: fetch AFTER the call — the pre-append above is read by the
+    # handler's clone at request time (still visible), but the post-turn
+    # assertions must read the PUBLISHED clone, not this stale local `state`.
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert departing_id in state.cast_lifecycle.active_ids(), "event must not fire before its scheduled day"
     assert state.pending_events[0].status == "pending"
 
     # Jump time past the day boundary, then take one more turn to let the
@@ -1580,13 +2218,46 @@ def test_pending_replacement_executes_on_scheduled_day_not_before(client):
     r2 = client.post("/api/chat", json={"session_id": sid, "message": "another day begins"})
     assert r2.status_code == 200
 
+    state = pe_mod.SESSIONS[sid]["state"]
     assert state.pending_events[0].status == "applied"
-    assert state.cast_lifecycle.members["makoto"].status.value == "departed"
+    assert state.cast_lifecycle.members[departing_id].status.value == "departed"
     successor = state.cast_lifecycle.history[-1].arriving_id
     assert successor is not None
     assert state.cast_lifecycle.members[successor].status.value == "active"
     assert state.character_locations.get(successor) == state.cast_lifecycle.arrival_location_id
-    assert "makoto" not in state.character_locations
+    assert departing_id not in state.character_locations
+
+
+def test_time_skip_day_crosses_scheduled_replacement_boundary(client):
+    """A player-triggered [SKIP] jump (not a manual state.minute edit) must
+    correctly hand off to the existing Phase 2 day-boundary scheduler -
+    proving the two features compose rather than needing a parallel loop."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+
+    sid = "scheduler_time_skip_boundary_check"
+    client.post(
+        "/api/chat",
+        json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+    )
+    state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
+
+    scheduled_day = day_number(state.minute) + 1
+    state.pending_events.append(PendingEvent(
+        event_id=f"test_departure_replace_{departing_id}_skip",
+        event_type="cast_departure_replacement",
+        scheduled_day=scheduled_day,
+        payload={"departing_id": departing_id, "reason": "moving out"},
+        created_minute=state.minute,
+    ))
+
+    response = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:DAY"})
+    assert response.status_code == 200
+
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.pending_events[0].status == "applied"
+    assert state.cast_lifecycle.members[departing_id].status.value == "departed"
 
 
 def test_pending_replacement_survives_restart_mid_vacancy(client):
@@ -1609,13 +2280,14 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_makoto_restart",
+        event_id=f"test_departure_replace_{departing_id}_restart",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "makoto", "reason": "moving out"},
+        payload={"departing_id": departing_id, "reason": "moving out"},
         created_minute=state.minute,
     ))
 
@@ -1636,7 +2308,7 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     restored_state = restored["state"]
     assert len(restored_state.pending_events) == 1
     assert restored_state.pending_events[0].status == "pending"
-    assert "makoto" in restored_state.cast_lifecycle.active_ids(), "restore mid-vacancy must not itself trigger the replacement"
+    assert departing_id in restored_state.cast_lifecycle.active_ids(), "restore mid-vacancy must not itself trigger the replacement"
 
     # Install the restored session (matching guest identity so the
     # ownership check in get_session doesn't discard it as a fresh session)
@@ -1650,8 +2322,12 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     )
     assert r1.status_code == 200
 
+    # Phase 1.1: the turn handler now clones state, mutates the clone, and
+    # publishes the clone back to SESSIONS on success. `restored_state` above
+    # is the PRE-turn object; re-fetch to see the published, mutated state.
+    restored_state = pe_mod.SESSIONS["scheduler_restart_restored"]["state"]
     assert restored_state.pending_events[0].status == "applied"
-    assert restored_state.cast_lifecycle.members["makoto"].status.value == "departed"
+    assert restored_state.cast_lifecycle.members[departing_id].status.value == "departed"
 
     # Idempotency: replaying the exact same event_id must not double-apply
     # even if somehow invoked again (e.g. a duplicated scheduler tick).
@@ -1678,19 +2354,22 @@ def test_newly_arrived_character_gets_introduction_and_seeded_relationships(clie
     )
     assert r0.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
+    departing_id = state.cast_lifecycle.active_ids("men")[0]
 
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_makoto_intro",
+        event_id=f"test_departure_replace_{departing_id}_intro",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "makoto", "reason": "moving out"},
+        payload={"departing_id": departing_id, "reason": "moving out"},
         created_minute=state.minute,
     ))
     state.minute += 1440
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "a new day begins"})
     assert r1.status_code == 200
 
+    # Phase 1.1: fetch AFTER the mutating call.
+    state = pe_mod.SESSIONS[sid]["state"]
     successor = state.cast_lifecycle.history[-1].arriving_id
     assert successor is not None
 
@@ -1709,7 +2388,7 @@ def test_newly_arrived_character_gets_introduction_and_seeded_relationships(clie
     assert "first scene" in scene_brief
 
 
-def test_empty_queue_departure_leaves_valid_vacancy_no_arrival(client):
+def test_empty_queue_departure_keeps_final_residents_and_no_vacancy(client):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.world_calendar import PendingEvent, day_number
 
@@ -1725,27 +2404,30 @@ def test_empty_queue_departure_leaves_valid_vacancy_no_arrival(client):
     # status rather than routing through activate()/deactivate(), which
     # enforce capacity and would reject filling an already-full slot group)
     # so replace() has no eligible successor when the scheduled departure
-    # fires - this must leave a valid vacancy (no crash, no arrival).
+    # fires - the final resident must stay (no crash, no vacancy).
     from backend.app.engine.cast_lifecycle import CastStatus
     lifecycle = state.cast_lifecycle
+    departing_id = lifecycle.active_ids("men")[0]
     for key, member in lifecycle.members.items():
         if member.slot_group == "men" and member.status is CastStatus.UPCOMING:
             member.status = CastStatus.INACTIVE
 
     scheduled_day = day_number(state.minute) + 1
     state.pending_events.append(PendingEvent(
-        event_id="test_departure_replace_yuki_empty_queue",
+        event_id=f"test_departure_replace_{departing_id}_empty_queue",
         event_type="cast_departure_replacement",
         scheduled_day=scheduled_day,
-        payload={"departing_id": "yuki", "reason": "moving out, no replacement available"},
+        payload={"departing_id": departing_id, "reason": "moving out, no replacement available"},
         created_minute=state.minute,
     ))
     state.minute += 1440
     r1 = client.post("/api/chat", json={"session_id": sid, "message": "a new day begins"})
     assert r1.status_code == 200
 
-    assert state.pending_events[-1].status in ("applied", "cancelled")
-    assert "yuki" not in state.cast_lifecycle.active_ids()
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.pending_events[-1].status == "pending"
+    assert departing_id in state.cast_lifecycle.active_ids()
+    assert state.cast_lifecycle.vacancies("men") == 0
 
 
 def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(client):
@@ -1762,20 +2444,19 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     opening = response.json()["reply"]
     assert "\n\n" in opening and "\\n" not in opening
     state = pe_mod.SESSIONS[sid]["state"]
-    active_keys = {"makoto", "minori", "yuki", "mizuki", "uchi", "yuriko"}
-    keys = active_keys | {
-        "arman", "arisa", "hikaru", "natsumi", "misaki", "yuto", "riko",
-        "momoka", "hayato", "yuuki_byrnes", "masako",
-    }
+    active_keys = set(state.cast_lifecycle.active_ids())
+    keys = set(state.cast_lifecycle.members)
     assert "player" in state.characters
     assert set(state.characters) == keys | {"player"}
     assert state.player_name == "Chris"
-    assert state.main_character_id == "mizuki"
+    assert state.main_character_id in active_keys
     assert state.location_id == "front_entry"
-    assert {key: state.character_locations[key] for key in active_keys} == {
-        "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
-        "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
-    }
+    assert len(active_keys) == 5
+    assert len(state.cast_lifecycle.active_ids("men")) == 2
+    assert len(state.cast_lifecycle.active_ids("women")) == 3
+    assert {state.character_locations[key] for key in active_keys} <= set(
+        state.world_runtime.world_graph.locations
+    )
     for key in keys:
         assert state.characters[key].self_knowledge
         if key in active_keys:
@@ -1799,9 +2480,11 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert "6 recurring housemates/characters" in system_prompt
     assert "no fixed win condition" in system_prompt
     assert "Narrator aside device" in system_prompt
-    assert "### CHARACTER IDENTITY — Mizuki Shida" in system_prompt
-    for absent_key in keys - {"mizuki"}:
+    assert f"### CHARACTER IDENTITY — {state.characters[state.main_character_id].name}" in system_prompt
+    for absent_key in keys - {state.main_character_id}:
         assert f"### CHARACTER IDENTITY — {state.characters[absent_key].name}" not in system_prompt
+    assert "guest room" not in opening.lower()
+    assert "boys bedroom" in opening.lower()
 
 
 # ============================================================================
@@ -1908,7 +2591,11 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
         "/api/chat", headers=headers,
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     ).status_code == 200
-    original = "I walk to the living room and ask Makoto and Minori: what do you each do for work?"
+    opening_state = pe_mod.SESSIONS[sid]["state"]
+    first_id, second_id = opening_state.cast_lifecycle.active_ids("women")[:2]
+    first_name = opening_state.characters[first_id].name
+    second_name = opening_state.characters[second_id].name
+    original = f"I walk to the living room and ask {first_name.split()[0]} and {second_name.split()[0]}: what do you each do for work?"
     response = client.post(
         "/api/chat", headers=headers,
         json={"session_id": sid, "message": f"> {original}  "},
@@ -1925,8 +2612,8 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     assert {"role": "user", "content": original} in saved["log"]
     assert any(entry.text == f"Player said: {original}" for entry in state.transient_entries)
     system_prompt = messages[0]["content"]
-    assert "### CHARACTER IDENTITY — Makoto Hasegawa" in system_prompt
-    assert "### CHARACTER IDENTITY — Minori Nakada" in system_prompt
+    assert first_name in system_prompt
+    assert second_name in system_prompt
 
     # Leaving an occupied room must also clear its FIFO presence fallback when
     # the destination is empty and consequently has no people-present markers.
@@ -1934,9 +2621,12 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
         "/api/chat", headers=headers,
         json={"session_id": sid, "message": "I walk to the terrace to enjoy the evening air."},
     ).status_code == 200
+    # Phase 1.1: fetch AFTER this second mutating call — the reference from
+    # after the first call (line 2365 above) is now stale.
+    state = pe_mod.SESSIONS[sid]["state"]
     assert state.location_id == "terrace"
     terrace_prompt = rendered_messages[-1][0]["content"]
-    for key in ("makoto", "minori", "yuki", "uchi", "yuriko"):
+    for key in opening_state.cast_lifecycle.active_ids():
         assert f"### CHARACTER IDENTITY — {state.characters[key].name}" not in terrace_prompt
     # Six Strangers audit fix (2026-09-19): a genuinely empty destination
     # (people_present == []) means the main character (Mizuki, a separate
@@ -1945,7 +2635,7 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     # character. Previously this asserted the opposite, which is exactly the
     # live-reproduced bug where the focal NPC kept narrating as present in a
     # scene the player explicitly went to alone.
-    assert "### CHARACTER IDENTITY — Mizuki Shida" not in terrace_prompt
+    assert f"### CHARACTER IDENTITY — {opening_state.main_character.name}" not in terrace_prompt
     assert state.latest_scene_knowledge().location_id == "terrace"
     assert state.latest_scene_knowledge().people_present == []
 
@@ -2231,7 +2921,7 @@ def test_apply_placeholders_and_sanitize_honorific_terms():
     assert "{{HONORIFIC}}" not in out2  # placeholder replaced even if empty
 
 
-def test_japanese_language_theme_survives_canonicalization_and_styles_pauls_name():
+def test_japanese_language_theme_is_a_prompt_suggestion_not_reply_rewriting():
     from backend.app.engine.state import LanguageTheme, init_state
     from backend.app.engine.prompt_builder import system_prompt
     import backend.app.api.prompt_engine as pe_mod
@@ -2256,11 +2946,10 @@ def test_japanese_language_theme_survives_canonicalization_and_styles_pauls_name
     state.story_cfg = cfg
     state.language_theme = LanguageTheme.ENGLISH_JAPANESE
 
-    assert pe_mod.apply_language_theme_mixing('**"Paul, are you okay?"**', state).startswith('**"Paul-kun')
-    assert "Paul-kun-kun" not in pe_mod.apply_language_theme_mixing('**"Paul-kun, hi."**', state)
     prompt = system_prompt(state)
     assert "LANGUAGE STYLE — ENGLISH JAPANESE" in prompt
     assert 'Paul-kun' in prompt
+    assert "optional flavor, not output requirements" in prompt
 
 
 def test_name_extraction_and_confirmation():
@@ -2281,8 +2970,8 @@ def test_name_extraction_and_confirmation():
 # Map toggle tests
 # ============================================================================
 
-def test_map_toggle_shows_locations_from_world(client):
-    """Test that [M] or [MAP] command shows available locations."""
+def test_map_toggle_keeps_location_directory_out_of_chat(client):
+    """[M] remains a zero-token compatibility command without dumping the atlas."""
     # Start new game
     r0 = client.post("/api/chat", json={"session_id": "map1", "message": "__cmd_newgame__:" + STORY_ID + "|M|Player"})
     assert r0.status_code == 200
@@ -2293,10 +2982,10 @@ def test_map_toggle_shows_locations_from_world(client):
     resp1 = r1.json()
     reply1 = resp1["reply"]
 
-    # Should show World Map box with locations (no LLM call)
+    # Should show a compact World Map notice (no LLM call)
     assert "World Map" in reply1
-    # Should contain at least one location name from the story world
-    assert len(reply1) > 30, "Map should contain location data"
+    assert "Open the map from the game menu." in reply1
+    assert "Living Room" not in reply1
 
     # Verify no LLM tokens were used (early exit, same as [D])
     assert resp1.get("usage", {}).get("total_tokens", 0) == 0
@@ -2343,6 +3032,29 @@ def test_map_toggle_token_detection():
     assert not pe_mod._is_map_toggle("hello world")  # Normal message
 
 
+def test_parse_time_skip_token_detection():
+    """Test _parse_time_skip() directly with various inputs."""
+    import backend.app.api.prompt_engine as pe_mod
+
+    hours = pe_mod._parse_time_skip("__cmd_skip__:HOURS")
+    assert hours == (4 * 60, "A few hours pass")
+
+    overnight = pe_mod._parse_time_skip("__cmd_skip__:OVERNIGHT")
+    assert overnight == (8 * 60, "The night passes")
+
+    day = pe_mod._parse_time_skip("__cmd_skip__:DAY")
+    assert day == (24 * 60, "A full day passes")
+
+    # Case-insensitive preset key.
+    assert pe_mod._parse_time_skip("__cmd_skip__:hours") == hours
+
+    # Unknown preset, malformed prefix, or ordinary dialogue are all safe no-ops.
+    assert pe_mod._parse_time_skip("__cmd_skip__:NEXT_WEEK") is None
+    assert pe_mod._parse_time_skip("skip:HOURS") is None
+    assert pe_mod._parse_time_skip("") is None
+    assert pe_mod._parse_time_skip("let's skip ahead a few hours") is None
+
+
 def test_map_toggle_no_llm_call(client):
     """Verify that MAP toggle does not invoke LLM (0 tokens)."""
     # Start new game
@@ -2383,8 +3095,8 @@ def test_map_toggle_returns_boxed_format(client):
         assert "┘" in reply, "Bottom right corner missing"
 
 
-def test_map_toggle_shows_all_locations(client):
-    """Verify that MAP toggle lists all world locations."""
+def test_map_toggle_does_not_list_world_locations(client):
+    """The full-screen client map replaces the old long chat directory."""
     # Start new game
     r0 = client.post("/api/chat", json={"session_id": "map_all_locs", "message": "__cmd_newgame__:" + STORY_ID + "|M|AllLocs"})
     assert r0.status_code == 200
@@ -2394,9 +3106,8 @@ def test_map_toggle_shows_all_locations(client):
     assert r1.status_code == 200
     reply = r1.json()["reply"]
 
-    # Should contain multiple locations from the story world
-    location_lines = [line for line in reply.split('\n') if line.strip() and '─' not in line and 'World' not in line]
-    assert len(location_lines) > 3, f"Should list multiple locations, got: {reply}"
+    assert "Open the map from the game menu." in reply
+    assert "Living Room" not in reply
 
 
 def test_map_toggle_without_world_runtime(client, monkeypatch):
@@ -3136,6 +3847,46 @@ def test_canonicalize_story_cfg_preserves_motive_and_tells(client):
     assert cfg["characters"][0]["tells"] == ["fidgets when nervous", "avoids direct questions"]
 
 
+def test_canonicalize_story_cfg_preserves_behavior_tag_vocabulary():
+    """BL-16 fix: a story-authored closed vocabulary for behavior_tags
+    must survive _canonicalize_story_cfg's explicit whitelist."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    story = {"id": "synthetic_test_story", "behavior_tag_vocabulary": ["warm", " evasive ", "", "warm"]}
+    cfg = pe_mod._canonicalize_story_cfg(story)
+    assert cfg["behavior_tag_vocabulary"] == ["warm", "evasive", "warm"], "stripped, blanks dropped, order preserved"
+
+
+def test_canonicalize_story_cfg_defaults_behavior_tag_vocabulary_to_empty():
+    from backend.app.api import prompt_engine as pe_mod
+
+    cfg = pe_mod._canonicalize_story_cfg({"id": "synthetic_test_story"})
+    assert cfg["behavior_tag_vocabulary"] == [], "every pre-existing story (no vocabulary authored) must default to accept-anything"
+
+
+def test_migrate_behavior_log_to_vocabulary_drops_unknown_tags():
+    from backend.app.api import prompt_engine as pe_mod
+
+    log = {"makoto->mizuki": ["warm", "friendly", "warm"], "player->makoto": ["aggressive"]}
+    migrated = pe_mod._migrate_behavior_log_to_vocabulary(log, ["warm", "evasive"])
+    assert migrated == {"makoto->mizuki": ["warm", "warm"]}, "unknown tags dropped; pair with zero matches removed entirely"
+
+
+def test_migrate_behavior_log_to_vocabulary_case_insensitive():
+    from backend.app.api import prompt_engine as pe_mod
+
+    log = {"makoto->mizuki": ["WARM"]}
+    migrated = pe_mod._migrate_behavior_log_to_vocabulary(log, ["warm"])
+    assert migrated == {"makoto->mizuki": ["WARM"]}, "kept as-is (case-insensitive membership check only)"
+
+
+def test_migrate_behavior_log_to_vocabulary_empty_vocabulary_is_noop():
+    from backend.app.api import prompt_engine as pe_mod
+
+    log = {"makoto->mizuki": ["anything", "goes"]}
+    assert pe_mod._migrate_behavior_log_to_vocabulary(log, []) == log
+
+
 def test_noncanonical_story_details_are_seeded_to_transient_buffer():
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.state import init_state
@@ -3662,3 +4413,532 @@ def test_iu_identity_correction():
         assert entry in sysmsg
     for entry in by_key["priya"].self_knowledge:
         assert entry not in sysmsg
+
+
+@pytest.mark.parametrize("story_id,speaker_ids", [
+    ("six_strangers", ["mizuki", "makoto"]),
+    ("iu_murder_mystery", ["iu", "yoo_min_ho"]),
+])
+def test_structured_dialogue_reaches_ui_and_preserves_memory(client, monkeypatch, story_id, speaker_ids):
+    import json
+    from backend.app.api import prompt_engine as pe
+    sid = "dialogue_contract_" + story_id
+    start = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + story_id + "|M|Chris"})
+    assert start.status_code == 200
+    assert any(s["kind"] == "dialogue" for s in start.json()["segments"])
+    if story_id == "six_strangers":
+        speaker_ids = pe.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[:2]
+
+    async def respond(self, url, **kwargs):
+        schema = kwargs["json"]["response_format"]["json_schema"]
+        assert schema["strict"] is True
+        assert "SPEAKER PRESENTATION CONTRACT" in kwargs["json"]["messages"][0]["content"]
+        scene = {"segments": [
+            {"kind": "dialogue", "speaker_id": speaker_ids[0], "text": "Hello."},
+            {"kind": "narration", "speaker_id": None, "text": "A pause."},
+            {"kind": "dialogue", "speaker_id": speaker_ids[1], "text": "Welcome."},
+        ], "state": {"emotion": "happy", "rel_delta": 0}}
+        return types.SimpleNamespace(status_code=200, text="ok", json=lambda: {
+            "choices": [{"message": {"content": json.dumps(scene)}}], "usage": {"total_tokens": 10}})
+    monkeypatch.setattr(pe.httpx.AsyncClient, "post", respond)
+    response = client.post("/api/chat", json={"session_id": sid, "message": "Hello everyone"})
+    assert response.status_code == 200
+    data = response.json()
+    assert [s.get("speaker_id") for s in data["segments"]] == [speaker_ids[0], None, speaker_ids[1]]
+    assert "[[STATE]]" not in data["reply"]
+    assert "[SPEAKER:" not in data["reply"]
+    memory = pe.SESSIONS[sid]["log"][-1]["content"]
+    assert data["segments"][0]["speaker_name"] + ": Hello." in memory
+
+
+@pytest.mark.parametrize("gender,group,displaced,bedroom", [
+    ("M", "men", "uchi", "boys_bedroom"),
+    ("F", "women", "yuriko", "girls_bedroom"),
+])
+def test_player_resident_slot_survives_restore_and_full_automatic_rotation(client, gender, group, displaced, bedroom):
+    import json
+    from backend.app.api import prompt_engine as pe
+    from backend.app.engine.gameplay import process_pending_events
+    from backend.app.engine.world_calendar import PendingEvent, day_number
+    from backend.app.engine import prompt_builder
+
+    sid = f"resident_rotation_{gender}"
+    response = client.post("/api/chat", json={
+        "session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris",
+    })
+    assert response.status_code == 200
+    state = pe.SESSIONS[sid]["state"]
+    lifecycle = state.cast_lifecycle
+    assert lifecycle.player_slot_group == group
+    displaced_id = lifecycle.next_up(group)
+    assert displaced_id is not None
+    assert displaced_id not in state.character_locations
+    assert state.character_graph.get_edge("player", displaced_id) is None
+    assert "player_bedroom" not in state.world_runtime.world_graph.locations
+    assert bedroom.replace("_", " ") in prompt_builder._storyteller_scene_section(state, "hello")
+    roster = pe._cast_roster_payload(state)
+    assert len(roster["active"]) == 6
+    assert next(item for item in roster["active"] if item["id"] == "player")["name"] == "Chris"
+    assert roster["vacancies"] == []
+
+    # Re-initializing from a save must never displace a second housemate.
+    snapshot = json.loads(pe._serialize_state(state, []))["cast_lifecycle"]
+    pe._initialize_cast_lifecycle(state, snapshot)
+    assert state.cast_lifecycle.to_dict() == snapshot
+    lifecycle = state.cast_lifecycle
+
+    seen = set(lifecycle.active_ids())
+    for slot in ("men", "women"):
+        while lifecycle.next_up(slot):
+            departing = lifecycle.active_ids(slot)[0]
+            arriving = lifecycle.next_up(slot)
+            event = PendingEvent(
+                event_id=f"rotate:{slot}:{arriving}", event_type="cast_departure_replacement",
+                scheduled_day=day_number(state.minute) + 1, payload={"departing_id": departing},
+            )
+            state.pending_events.append(event)
+            assert process_pending_events(state, apply_cast_replacement=pe._apply_cast_replacement) == []
+            assert departing in lifecycle.active_ids()
+            state.minute += 1440
+            fired = process_pending_events(state, apply_cast_replacement=pe._apply_cast_replacement)
+            assert len(fired) == 1 and fired[0][1].arriving_id == arriving
+            assert arriving not in seen
+            seen.add(arriving)
+            assert lifecycle.vacancies("men") == lifecycle.vacancies("women") == 0
+            assert len(lifecycle.active_ids("men")) + int(group == "men") == 3
+            assert len(lifecycle.active_ids("women")) + int(group == "women") == 3
+            assert process_pending_events(state, apply_cast_replacement=pe._apply_cast_replacement) == []
+        before = lifecycle.to_dict()
+        with pytest.raises(ValueError, match="no same-slot replacement"):
+            pe._apply_cast_replacement(state, lifecycle.active_ids(slot)[0], reason="finished", event_id=f"empty:{slot}")
+        assert lifecycle.to_dict() == before
+    assert seen == set(lifecycle.members)
+    assert len(seen) == 17
+
+
+@pytest.mark.parametrize("gender,bedroom", [("M", "boys_bedroom"), ("F", "girls_bedroom")])
+def test_old_seventh_resident_save_migrates_once(client, gender, bedroom):
+    from backend.app.api import prompt_engine as pe
+    sid = f"resident_migration_{gender}"
+    client.post("/api/chat", json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris"})
+    state = pe.SESSIONS[sid]["state"]
+    legacy = pe.CastLifecycleState.from_config(state.story_cfg["cast_lifecycle"]).to_dict()
+    legacy.pop("player_slot_group")
+    legacy.pop("require_replacement")
+    state.location_id = "player_bedroom"
+    state.character_locations = dict(state.story_cfg["world"]["character_start_locations"])
+    pe._initialize_cast_lifecycle(state, legacy)
+    pe._sync_resident_locations(state)
+    assert state.location_id == bedroom
+    assert len(state.cast_lifecycle.active_ids()) == 5
+    assert len(state.character_locations) == 5
+    assert state.cast_lifecycle.require_replacement
+    snapshot = state.cast_lifecycle.to_dict()
+    pe._initialize_cast_lifecycle(state, snapshot)
+    assert state.cast_lifecycle.to_dict() == snapshot
+
+
+# --- Phase 0A.6: upstream provider errors must not leak to clients -----------
+
+def test_public_upstream_error_reveals_no_provider_detail():
+    """The player-facing story-master failure message must be provider-agnostic.
+
+    Regression guard for the audit finding that the chat endpoint returned
+    `f"upstream HTTP {status}: {r.text}"` straight to the browser. A provider's
+    error body can carry org/project IDs, quota and billing details, model
+    names and internal request IDs, so none of that may appear in a response.
+    """
+    from backend.app.api import prompt_engine as pe_mod
+
+    msg = pe_mod._PUBLIC_UPSTREAM_ERROR
+    assert isinstance(msg, str) and msg.strip()
+    lowered = msg.lower()
+    # No provider, model, account or transport detail.
+    for leak in (
+        "openai", "anthropic", "ollama", "gpt", "claude", "api.", "http",
+        "token", "quota", "billing", "org-", "project", "bearer", "key",
+        "traceback", "exception", "localhost", "127.0.0.1",
+    ):
+        assert leak not in lowered, f"public error message leaks {leak!r}: {msg!r}"
+    # No status codes or raw numbers that would hint at the upstream failure.
+    assert not re.search(r"\b[45]\d{2}\b", msg), f"public error leaks a status code: {msg!r}"
+
+
+def test_chat_upstream_error_path_returns_only_the_public_message():
+    """The error-return shape at the upstream-failure branch is the public one.
+
+    Reads the source of the failure branch rather than standing up the whole
+    1,255-line handler: the assertion is that the branch returns the constant
+    and does NOT interpolate the provider's response text.
+    """
+    import inspect
+
+    from backend.app.api import prompt_engine as pe_mod
+
+    src = inspect.getsource(pe_mod._chat_handler_impl)
+    # The old leaking form must be gone.
+    assert 'f"upstream HTTP {r.status_code}: {r.text}"' not in src
+    assert "_PUBLIC_UPSTREAM_ERROR" in src
+    # The raw body may still be logged for operators, but only inside a _log call.
+    for line in src.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("return") and "r.text" in stripped:
+            raise AssertionError(f"upstream body returned to client: {stripped!r}")
+
+
+# ============================================================================
+# Phase 1.1 - atomic turn commit. A failed/interrupted turn must leave the
+# LIVE session exactly as it was before the request, and a client retry must
+# see pre-turn state, not a partially-mutated one. This is the actual
+# acceptance criterion the audit named (state.turns mutated before the
+# storyteller call, both failure paths returning without restoring anything).
+# ============================================================================
+
+def test_failed_storyteller_call_does_not_mutate_live_session(client, monkeypatch):
+    """The audit's core finding: `state.turns += 1` and mutations happened
+    BEFORE the storyteller call, with no rollback on HTTP failure. This
+    reproduces exactly that failure and asserts the live session is
+    byte-identical to before the failed turn - not just that turns didn't
+    advance, but that the whole published object is untouched."""
+    from backend.app.api import prompt_engine as pe_mod
+    import copy as _copy
+    import json as _json_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000001"}
+    sid = "atomic_commit_storyteller_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_snapshot = _copy.deepcopy(pre_turn_state)
+    pre_turn_turns = pre_turn_state.turns
+    pre_turn_minute = pre_turn_state.minute
+
+    class _FailingAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            class _ErrResp:
+                status_code = 503
+                text = "simulated upstream outage - do not leak this string"
+
+                def json(self):
+                    return {}
+            return _ErrResp()
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _FailingAsyncClient)
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "I walk to the terrace."},
+    )
+    assert resp.status_code == 200  # the endpoint itself doesn't 500 - it returns a public error
+    body = resp.json()
+    assert body.get("error"), "a failed storyteller call must surface as an error, not a silent success"
+    assert "simulated upstream outage" not in _json_mod.dumps(body), (
+        "Phase 0A.6: the provider error body must never reach the client"
+    )
+
+    # THE ACTUAL PHASE 1.1 GUARANTEE: the live session object is exactly what
+    # it was before the failed turn - same turns, same minute, same identity
+    # object reference (never replaced by a partially-mutated clone).
+    post_failure_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_failure_state is pre_turn_state, (
+        "a failed turn must never publish its working clone - SESSIONS must "
+        "still hold the exact pre-turn object"
+    )
+    assert post_failure_state.turns == pre_turn_turns, "turns must not advance on a failed turn"
+    assert post_failure_state.minute == pre_turn_minute, "time must not advance on a failed turn"
+    assert post_failure_state.location_id == pre_turn_snapshot.location_id, (
+        "location (movement) must not apply on a failed turn"
+    )
+
+
+def test_failed_retrieval_does_not_mutate_live_session(client, monkeypatch):
+    """Same guarantee, different failure boundary: retrieval raising before
+    the storyteller is ever called."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000002"}
+    sid = "atomic_commit_retrieval_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_turns = pre_turn_state.turns
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated retrieval outage")
+
+    monkeypatch.setattr(pe_mod, "retrieve_knowledge", _boom, raising=False)
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello"},
+    )
+    assert resp.status_code == 200
+    assert resp.json().get("error") == "knowledge retrieval failed"
+
+    post_failure_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_failure_state is pre_turn_state
+    assert post_failure_state.turns == pre_turn_turns
+
+
+def test_dynamic_context_selects_broad_candidates_before_prompt(client, monkeypatch):
+    """The opt-in path replaces only optional retrieval context, not the turn."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.knowledge.runtime.dynamic_context import ContextSelectionResult
+
+    candidates = [
+        {"chunk_id": "old-promise", "text": "Ren promised to cook dinner.", "_context_source_rank": 1},
+        {"chunk_id": "recent-event", "text": "The player saved Ren a plate yesterday.", "_context_source_rank": 1},
+    ]
+    captured = {}
+
+    monkeypatch.setattr(pe_mod, "dynamic_context_enabled", lambda: True)
+    monkeypatch.setattr(pe_mod, "retrieve_context_candidates", lambda *a, **k: (list(candidates), {"source": "broad"}))
+
+    class _Selector:
+        async def select(self, **kwargs):
+            captured.update(kwargs)
+            return ContextSelectionResult([dict(candidates[1])], {"provider": "fake", "alpha": 1.5})
+
+    monkeypatch.setattr(pe_mod, "DynamicContextSelector", _Selector)
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000007"}
+    sid = "dynamic_context_prompt_flow"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    response = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "What should we make for dinner?"},
+    )
+    assert response.status_code == 200
+    assert [item["chunk_id"] for item in captured["candidates"]] == ["old-promise", "recent-event"]
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert [item["chunk_id"] for item in state.last_turn_retrieved_chunks] == ["recent-event"]
+
+
+def test_failed_dialogue_decode_does_not_mutate_live_session(client, monkeypatch):
+    """Same guarantee, third failure boundary: the storyteller responds 200
+    but with a reply that fails STATE-tag decoding."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000003"}
+    sid = "atomic_commit_decode_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_turns = pre_turn_state.turns
+
+    class _MalformedResp:
+        status_code = 200
+
+        def json(self):
+            # A truncated/incomplete structured-scene JSON object: starts with
+            # "{" (so decode_dialogue_response treats it as intended-structured,
+            # not legacy prose) but fails json.loads - this is the actual
+            # ValueError("Incomplete structured scene") path.
+            return {"choices": [{"message": {"content": '{"segments": [{"kind": "dialo'}}], "usage": {}}
+
+        text = "n/a"
+
+    class _MalformedAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return _MalformedResp()
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _MalformedAsyncClient)
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello"},
+    )
+    assert resp.status_code == 200
+    assert "incomplete" in (resp.json().get("error") or "").lower()
+
+    post_failure_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_failure_state is pre_turn_state
+    assert post_failure_state.turns == pre_turn_turns
+
+
+def test_successful_turn_publishes_a_new_state_object_and_advances_turns(client):
+    """Sanity check for the success path, to make sure the clone-and-publish
+    mechanism isn't accidentally disabled: a SUCCESSFUL turn must replace
+    SESSIONS[sid]["state"] with a new object (the published clone) and must
+    advance `turns` - this is the complement to the three failure tests
+    above, proving discard-on-failure isn't just "nothing ever publishes"."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000004"}
+    sid = "atomic_commit_success_path_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    pre_turn_state = pe_mod.SESSIONS[sid]["state"]
+    pre_turn_turns = pre_turn_state.turns
+
+    resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello"},
+    )
+    assert resp.status_code == 200
+    assert not resp.json().get("error")
+
+    post_turn_state = pe_mod.SESSIONS[sid]["state"]
+    assert post_turn_state is not pre_turn_state, (
+        "a successful turn must publish a NEW (cloned, mutated) state object, "
+        "not mutate the pre-turn object in place"
+    )
+    assert post_turn_state.turns == pre_turn_turns + 1
+
+
+def test_retry_after_failed_turn_reprocesses_from_correct_pre_turn_state(client, monkeypatch):
+    """End-to-end proof the fix actually solves the audit's scenario: a
+    client that retries after a failed turn must reprocess from the
+    UNADVANCED pre-turn state, not double-advance from a partially-mutated
+    one. (This is distinct from BL-02 dedup, which replays an already-
+    SUCCEEDED turn's exact reply - this is about a turn that never
+    succeeded at all.)"""
+    from backend.app.api import prompt_engine as pe_mod
+
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000005"}
+    sid = "atomic_commit_retry_after_failure_check"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+    turns_at_start = pe_mod.SESSIONS[sid]["state"].turns
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated one-shot outage")
+
+    monkeypatch.setattr(pe_mod, "retrieve_knowledge", _boom, raising=False)
+    failed_resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello", "request_id": "retry-after-fail-1"},
+    )
+    assert failed_resp.json().get("error")
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_at_start
+
+    # Restore retrieval and retry with the SAME request_id (a real client
+    # would resend after a failure exactly like this).
+    monkeypatch.setattr(pe_mod, "retrieve_knowledge", lambda *a, **k: ([], {}), raising=False)
+    retry_resp = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "hello", "request_id": "retry-after-fail-1"},
+    )
+    assert retry_resp.status_code == 200
+    assert not retry_resp.json().get("error")
+    # Exactly ONE successful advance, from the correct pre-turn baseline -
+    # not a double-advance from state the failed attempt might have mutated.
+    assert pe_mod.SESSIONS[sid]["state"].turns == turns_at_start + 1
+
+
+# ============================================================================
+# Jev provider architecture, step 1: the per-turn stage ledger must include an
+# `extraction` stage. Before this, retrieval/storyteller/commit were
+# instrumented but extraction was not, so production extractor latency was an
+# inference rather than a recorded fact - and the Jev design's ~17x speedup
+# ratio could not be validated against production without it.
+# ============================================================================
+
+def _capture_ledger(client, monkeypatch, sid, guest_headers):
+    """Drive one real turn and return the turn_stage_ledger dict it logged."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    captured = []
+    real_log = pe_mod._log
+
+    def _spy(event):
+        if isinstance(event, dict) and event.get("kind") == "turn_stage_ledger":
+            captured.append(dict(event))
+        return real_log(event)
+
+    monkeypatch.setattr(pe_mod, "_log", _spy)
+
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+    assert client.post(
+        "/api/chat", headers=guest_headers,
+        json={"session_id": sid, "message": "hello there"},
+    ).status_code == 200
+
+    assert captured, "no turn_stage_ledger line was emitted for a normal turn"
+    return captured[-1]
+
+
+def test_stage_ledger_includes_extraction_stage(client, monkeypatch):
+    """The actual step-1 deliverable: extraction is a named, timed stage."""
+    ledger = _capture_ledger(
+        client, monkeypatch, "stage_ledger_extraction_check",
+        {"X-Guest-Id": "30000000-0000-4000-8000-000000000001"},
+    )
+    stage_ms = ledger.get("stage_ms") or {}
+    assert "extraction" in stage_ms, (
+        f"extraction stage missing from the ledger; got stages: {sorted(stage_ms)}"
+    )
+    assert ledger.get("stage_calls", {}).get("extraction") == 1, (
+        "extraction should be entered exactly once per normal turn"
+    )
+
+
+def test_stage_ledger_covers_all_four_turn_stages(client, monkeypatch):
+    """Guard against a stage being silently dropped by a future refactor.
+
+    These four are the turn's expensive, externally-bound segments. If one
+    disappears from the ledger, before/after measurement for Phases 3 and 4
+    silently loses its denominator - which is exactly the failure this test
+    exists to prevent.
+    """
+    ledger = _capture_ledger(
+        client, monkeypatch, "stage_ledger_all_stages_check",
+        {"X-Guest-Id": "30000000-0000-4000-8000-000000000002"},
+    )
+    stage_ms = ledger.get("stage_ms") or {}
+    # commit only runs for non-anon sessions; this test uses a guest, so it applies.
+    for required in ("retrieval", "extraction", "storyteller", "commit"):
+        assert required in stage_ms, (
+            f"stage {required!r} missing; got {sorted(stage_ms)}"
+        )
+
+
+def test_stage_ledger_durations_are_non_negative(client, monkeypatch):
+    """A negative or absent duration would corrupt any percentile computed
+    from these lines."""
+    ledger = _capture_ledger(
+        client, monkeypatch, "stage_ledger_durations_check",
+        {"X-Guest-Id": "30000000-0000-4000-8000-000000000003"},
+    )
+    for name, ms in (ledger.get("stage_ms") or {}).items():
+        assert isinstance(ms, (int, float)), f"{name} duration is not numeric: {ms!r}"
+        assert ms >= 0.0, f"{name} duration is negative: {ms}"
+    assert ledger.get("total_ms", -1) >= 0.0

@@ -1,0 +1,54 @@
+{
+  "base_url": "https://beta-api.storieschat.ai",
+  "generated_at": 1790042421.3208163,
+  "scenarios": [
+    {
+      "scenario": "six_strangers-M-conc1",
+      "attempts": 6,
+      "ok": 6,
+      "failed": 0,
+      "latency_ms_p50": 3665.5,
+      "latency_ms_p95": 4817.5,
+      "latency_ms_max": 4817.5,
+      "latency_ms_mean": 2980.0,
+      "prompt_tokens_mean": 4793.0,
+      "completion_tokens_mean": 210.0
+    },
+    {
+      "scenario": "six_strangers-M-conc3",
+      "attempts": 6,
+      "ok": 6,
+      "failed": 0,
+      "latency_ms_p50": 3738.2,
+      "latency_ms_p95": 4436.0,
+      "latency_ms_max": 4436.0,
+      "latency_ms_mean": 2835.9,
+      "prompt_tokens_mean": 4789,
+      "completion_tokens_mean": 235.0
+    },
+    {
+      "scenario": "six_strangers-F-conc1",
+      "attempts": 6,
+      "ok": 6,
+      "failed": 0,
+      "latency_ms_p50": 3089.5,
+      "latency_ms_p95": 4618.8,
+      "latency_ms_max": 4618.8,
+      "latency_ms_mean": 2585.6,
+      "prompt_tokens_mean": 4802.0,
+      "completion_tokens_mean": 170.0
+    },
+    {
+      "scenario": "six_strangers-F-conc3",
+      "attempts": 6,
+      "ok": 6,
+      "failed": 0,
+      "latency_ms_p50": 3953.9,
+      "latency_ms_p95": 5872.9,
+      "latency_ms_max": 5872.9,
+      "latency_ms_mean": 3268.9,
+      "prompt_tokens_mean": 4801.0,
+      "completion_tokens_mean": 226
+    }
+  ]
+}

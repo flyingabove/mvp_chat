@@ -1,0 +1,44 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e35]:
+    - generic [ref=f1e36]:
+      - generic [ref=f1e37]: My Games
+      - button "New game" [ref=f1e39] [cursor=pointer]: ✚
+    - generic [ref=f1e40]:
+      - generic [ref=f1e41] [cursor=pointer]:
+        - generic [ref=f1e42]: Delete
+        - generic [ref=f1e43]:
+          - generic [ref=f1e44]: 🎭
+          - generic [ref=f1e45]:
+            - generic [ref=f1e46]: Terrace in the City
+            - generic [ref=f1e47]: Tester
+            - generic [ref=f1e48]: The last of the evening light is caught in the windows when you reach the house. Behind you, the residential street is q
+          - generic [ref=f1e49]: just now
+      - generic [ref=f1e50] [cursor=pointer]:
+        - generic [ref=f1e51]: Delete
+        - generic [ref=f1e52]:
+          - generic [ref=f1e53]: 🎭
+          - generic [ref=f1e54]:
+            - generic [ref=f1e55]: Six Strangers
+            - generic [ref=f1e56]: Playwright Tester · 2 turns
+            - generic [ref=f1e57]: The evening air carries a hint of adventure, a reminder of journeys just taken and yet to come. You lean against the rai
+          - generic [ref=f1e58]: 1d ago
+  - option "Murder Mystery" [selected]
+  - option "Romance"
+  - option "Horror"
+  - option "Fantasy"
+  - option "Comedy"
+  - option "Sci-Fi"
+  - option "Thriller"
+  - navigation [ref=f1e21]:
+    - generic [ref=f1e22] [cursor=pointer]:
+      - generic [ref=f1e23]: 🏠
+      - generic [ref=f1e24]: Home
+    - generic [ref=f1e25] [cursor=pointer]:
+      - generic [ref=f1e26]: 💬
+      - generic [ref=f1e27]: My Games
+    - generic [ref=f1e28] [cursor=pointer]:
+      - generic [ref=f1e29]: ✚
+      - generic [ref=f1e31]: Create
+    - generic [ref=f1e32] [cursor=pointer]:
+      - generic [ref=f1e33]: 👤
+      - generic [ref=f1e34]: Profile

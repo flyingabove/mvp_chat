@@ -6,6 +6,7 @@ from typing import Dict, Tuple
 from .edge import PathEdge
 from .ids import LocationId
 from .location import Location
+from .map_model import WorldMap
 
 
 @dataclass(frozen=True)
@@ -21,7 +22,8 @@ class EdgeList:
 class WorldGraph:
     """Authoritative topological world graph."""
 
-    def __init__(self) -> None:
+    def __init__(self, world_map: WorldMap | None = None) -> None:
+        self.world_map = world_map or WorldMap()
         self._locations: Dict[str, Location] = {}
         self._outgoing: Dict[str, Tuple[PathEdge, ...]] = {}
 

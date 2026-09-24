@@ -28,6 +28,14 @@
 
 ## Epistemic & Memory Systems
 
+The proposed shared Jev retrieval, weighted sampling and subtle narrative-context
+system is documented in [JEV_DYNAMIC_CONTEXT_DESIGN.md](model_output_docs/JEV_DYNAMIC_CONTEXT_DESIGN.md).
+Update it when candidate selection, callback/clue pacing, probability sampling,
+or the cross-game context implementation plan changes. Broad retrieval, Jev
+relevance judgment and configurable power-sampling are implemented behind the
+`context_selection` Jev task flag; clue and relationship pacing policies remain
+planned.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [EPISTEMIC_ENGINE_DESIGN.md](model_output_docs/EPISTEMIC_ENGINE_DESIGN.md) | ...knowledge retrieval, belief injection, or epistemic rules change. |
@@ -36,6 +44,10 @@
 | [LAYER_COVERAGE_MAPPING.md](model_output_docs/LAYER_COVERAGE_MAPPING.md) | ...new prompt layers are added or test coverage for layers changes. |
 
 ## Game Design Systems
+
+The reusable world/location atlas schema, research mapping and routing policy are
+documented in [WORLD_ATLAS_DESIGN.md](model_output_docs/WORLD_ATLAS_DESIGN.md).
+Update that document when map metadata, coordinates, routes or map UI behavior changes.
 
 | Doc | Edit this doc if... |
 |-----|---------------------|
@@ -70,9 +82,16 @@
 
 ## Scorer / Debug System
 
+The proposed controlled beta/prod evaluation system is documented in
+[JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md).
+Update it when paired-game controls, Jev judge calibration, evidence contracts,
+rating statistics or the arena implementation plan change. Status: implemented in observational mode
+(`backend/app/evaluation/`, see its §13); server receipts/snapshots and human calibration are BACKLOG BL-19/BL-20.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [AI_SCORER_SYSTEM.md](ai_learnings_mistakes/AI_SCORER_SYSTEM.md) | ...the debug system, scoring, player-agent loop, or grader changes. |
+| [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md) | ...the beta-vs-prod arena changes: rubric/weights, judge policy, pairing, rating math, checks, CLI, or its §13 implementation status. Code: `backend/app/evaluation/`, CLI `python -m scripts.eval.arena`. |
 
 ## Data Models
 
@@ -116,6 +135,19 @@
 | [ARCHIVE_EPISTEMIC_REDESIGN.md](model_output_docs/ARCHIVE_EPISTEMIC_REDESIGN.md) | Historical epistemic redesign notes. |
 | [ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md](model_output_docs/ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md) | Historical audit of NorthStar gaps. |
 | [ARCHIVE_DOC_REWRITE_ENFORCEMENT_2026_02_23.md](plans_scratch/ARCHIVE_DOC_REWRITE_ENFORCEMENT_2026_02_23.md) | Historical doc rewrite enforcement plan. |
+
+## Active Initiatives (Plans Under Execution)
+
+| Doc | Edit this doc if... |
+|-----|---------------------|
+| [ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md](ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md) | ...a phase of the reuse/correctness/performance/Jev initiative is started, completed, re-scoped, or its measurements are re-run. **Verified against code + measured on 2026-09-21; supersedes the raw audit's priorities where they conflict.** |
+| [CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md](CODEBASE_AUDIT_AND_REUSE_PERFORMANCE_JEV_PLAN_2026_09_21.md) | ...never — source audit, read-only input to the engineering plan above. |
+| [JEV_EXTRACTOR_REDESIGN_2026_09_22.md](JEV_EXTRACTOR_REDESIGN_2026_09_22.md) | ...the Jev/`TurnExtractor` ability mapping, call structure, cost model, or per-ability test cases change. **Refines Phase 4 of the engineering plan; every Jev result in it is a real live `jev-1.13.0` response, not a projection.** |
+| [JEV_PROVIDER_ARCHITECTURE_2026_09_22.md](JEV_PROVIDER_ARCHITECTURE_2026_09_22.md) | ...the Jev provider/fallback machinery changes: the `resolve()` contract, circuit-breaker parameters, flags/rollout modes, `backend/app/llm/` layout, or the implementation order. **Implementation-level design; read `JEV_EXTRACTOR_REDESIGN` first for WHICH abilities move.** |
+| [PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md](PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md) | ...the `SessionFactory`/`SnapshotCodec`/`TurnService`/`PlayerView`/`StoryDefinition.validate()` contracts, the `application/` package layout, or the handler decomposition order change. |
+| [PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md](PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md) | ...any of the 11 optimization rows' design, measurement method, or ship/drop threshold changes. |
+| [PHASE_5_FRONTEND_MODULARIZATION_DESIGN_2026_09_22.md](PHASE_5_FRONTEND_MODULARIZATION_DESIGN_2026_09_22.md) | ...the frontend module extraction order, the asset-manifest schema, or the motion-settings design changes. **Corrects the original plan's stale map-integration claim.** |
+| [PHASE_6_DELIVERY_CI_DESIGN_2026_09_22.md](PHASE_6_DELIVERY_CI_DESIGN_2026_09_22.md) | ...the Dockerfile/CI/dependency-lock design, the startup-readiness fix, or the index-fingerprint mechanism changes. |
 
 ## Verification Ledger
 

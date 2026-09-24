@@ -81,8 +81,11 @@ If instructions every conflict with what is designed in the doc, always update t
 - Only merge `beta` → `prod` when the user explicitly says to push to prod.
 - There is NO `main` branch. It was deleted. Do NOT create or reference `main`.
 
-### 9. Use the `/ship-and-verify` skill for shipping changes
-- Any non-trivial change (backend or frontend) should follow
+### 9. ALWAYS use the `/ship-and-verify` skill for shipping changes
+- **Ship and verify, always — no exceptions, never ask, just do it.** Order
+  is fixed: **1) test and view locally, 2) push to beta and test/view on
+  beta.** Never skip straight to beta without a local pass first. Any
+  non-trivial change (backend or frontend) must follow
   `.claude/skills/ship-and-verify/SKILL.md`: implement with tests → verify
   offline → push to beta → poll the real Railway deploy → actually exercise
   the feature on the live hosted beta site (browser-level via the Playwright
@@ -90,6 +93,13 @@ If instructions every conflict with what is designed in the doc, always update t
   otherwise) before calling it done. Passing the local test suite is
   necessary, not sufficient — BL-03 shipped a bug that only existed in the
   deployed/browser context, not in pytest.
+- **Any UI-visible change is checked in a real browser BEFORE committing —
+  standard workflow, not optional.** Desktop Chromium AND an iPhone-sized
+  WebKit session, both against the local dev server, using the Playwright
+  MCP plugin. See `.claude/skills/ship-and-verify/SKILL.md` step 4a for the
+  exact procedure. The same two-mode check is repeated against the live beta
+  site after deploy (Phase 3) — pre-commit doesn't replace post-deploy,
+  it catches layout/JS regressions earlier.
 - Browser automation: the official Playwright MCP plugin
   (`playwright@claude-plugins-official`) should be installed
   (`claude plugin list` to check). If its tools aren't showing up in a

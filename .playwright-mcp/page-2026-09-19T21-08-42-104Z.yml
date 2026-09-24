@@ -1,0 +1,86 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - generic [ref=f2e4]: StoriesChat
+      - generic [ref=f2e5]:
+        - button "✓ Guest Mode" [ref=f2e84] [cursor=pointer]
+        - button "Search" [ref=f2e7] [cursor=pointer]: 🔍
+        - button "Profile" [ref=f2e8] [cursor=pointer]: 👤
+    - generic [ref=f2e9]:
+      - generic [ref=f2e14]:
+        - generic [ref=f2e15]: Murder Mystery
+        - generic [ref=f2e16]: "Echoes of Cheongdam: IU Murder Mystery"
+        - generic [ref=f2e17]: A beloved singer is dead in Gangnam's most exclusive neighborhood. The suspects are hiding something. Can you expose the truth before it's buried forever?
+        - generic [ref=f2e18]:
+          - button "▶ Play" [ref=f2e19] [cursor=pointer]
+          - button "ⓘ More Info" [ref=f2e20] [cursor=pointer]
+      - generic [ref=f2e21]:
+        - generic [ref=f2e22]:
+          - generic [ref=f2e23]: Featured Games
+          - generic [ref=f2e24]:
+            - generic [ref=f2e25] [cursor=pointer]:
+              - generic [ref=f2e26]:
+                - generic [ref=f2e27]: 🔪
+                - generic [ref=f2e28]: Murder Mystery
+              - generic [ref=f2e29]: "Echoes of Cheongdam: IU Murder Mystery"
+            - generic [ref=f2e31] [cursor=pointer]:
+              - generic [ref=f2e32]:
+                - generic [ref=f2e33]: 🎭
+                - generic [ref=f2e34]: Slice of Life / Ensemble Drama
+              - generic [ref=f2e35]: Six Strangers
+        - generic [ref=f2e37]:
+          - generic [ref=f2e38]: Murder Mystery
+          - generic [ref=f2e40] [cursor=pointer]:
+            - generic [ref=f2e41]:
+              - generic [ref=f2e42]: 🔪
+              - generic [ref=f2e43]: Murder Mystery
+            - generic [ref=f2e44]: "Echoes of Cheongdam: IU Murder Mystery"
+        - generic [ref=f2e46]:
+          - generic [ref=f2e47]: Slice of Life / Ensemble Drama
+          - generic [ref=f2e49] [cursor=pointer]:
+            - generic [ref=f2e50]:
+              - generic [ref=f2e51]: 🎭
+              - generic [ref=f2e52]: Slice of Life / Ensemble Drama
+            - generic [ref=f2e53]: Six Strangers
+        - generic [ref=f2e55]:
+          - generic [ref=f2e56]: All Games
+          - generic [ref=f2e57]:
+            - generic [ref=f2e58] [cursor=pointer]:
+              - generic [ref=f2e59]:
+                - generic [ref=f2e60]: 🔪
+                - generic [ref=f2e61]: Murder Mystery
+              - generic [ref=f2e62]: "Echoes of Cheongdam: IU Murder Mystery"
+            - generic [ref=f2e64] [cursor=pointer]:
+              - generic [ref=f2e65]:
+                - generic [ref=f2e66]: 🎭
+                - generic [ref=f2e67]: Slice of Life / Ensemble Drama
+              - generic [ref=f2e68]: Six Strangers
+  - option "Murder Mystery" [selected]
+  - option "Romance"
+  - option "Horror"
+  - option "Fantasy"
+  - option "Comedy"
+  - option "Sci-Fi"
+  - option "Thriller"
+  - navigation [ref=f2e70]:
+    - generic [ref=f2e71] [cursor=pointer]:
+      - generic [ref=f2e72]: 🏠
+      - generic [ref=f2e73]: Home
+    - generic [ref=f2e74] [cursor=pointer]:
+      - generic [ref=f2e75]: 💬
+      - generic [ref=f2e76]: My Games
+    - generic [ref=f2e77] [cursor=pointer]:
+      - generic [ref=f2e78]: ✚
+      - generic [ref=f2e80]: Create
+    - generic [ref=f2e81] [cursor=pointer]:
+      - generic [ref=f2e82]: 👤
+      - generic [ref=f2e83]: Profile
+  - generic [ref=f2e95]:
+    - generic [ref=f2e96]: What's your name?
+    - generic [ref=f2e97]: You'll play as this persona in "Six Strangers".
+    - generic [ref=f2e98]:
+      - button "Use Default Persona" [active] [ref=f2e99]
+      - button "Create Persona" [ref=f2e100]
+    - textbox "Enter your name" [ref=f2e101]
+    - button "Continue" [disabled] [ref=f2e102]
+  - generic: "Guest mode on. Temp ID: 8d6c1a32…"

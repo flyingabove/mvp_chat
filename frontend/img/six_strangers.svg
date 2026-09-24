@@ -20,7 +20,7 @@
   <path d="M154 184L264 286M505 184L615 286" stroke="#f0f7fa" stroke-width="15" opacity=".13"/>
   <rect x="160" y="275" width="479" height="6" fill="#e5ceb0"/>
   <path d="M177 276V251H255V276M529 276V251H608V276" fill="#697875"/>
-  <!-- Exactly six residents; the player is the arriving seventh housemate. -->
+  <!-- Exactly six residents, including the player. -->
   <g fill="#172b3b">
     <g id="resident-1"><circle cx="211" cy="222" r="12"/><path d="M190 274Q190 237 204 236H218Q232 240 232 274Z"/></g>
     <g id="resident-2"><ellipse cx="282" cy="224" rx="12" ry="15"/><path d="M264 274Q264 241 277 239H287Q299 244 303 274Z"/></g>

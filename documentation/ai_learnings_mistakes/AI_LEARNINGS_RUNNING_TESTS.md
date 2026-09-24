@@ -52,3 +52,12 @@ Pre-flight checklist before running
 Reminder
 - Read this note before running tests. If a command fails, re-use the exact working forms above.
 - NEVER skip tests. Fix the test or fix the environment.
+
+## Async tests need an explicit `@pytest.mark.asyncio` (2026-09-23)
+
+The root `pytest.ini` sets `asyncio_mode = auto`, but the Dockerfile copies only
+`backend/ frontend/ tests/ scripts/`, so the Railway build-time test gate runs WITHOUT
+it (strict mode). Unmarked `async def test_*` pass locally and fail in the build
+("async def functions are not natively supported"), which blocks the deploy.
+Always decorate async tests with `@pytest.mark.asyncio`, and reproduce the build
+condition locally with: `python -m pytest <path> -c /dev/null --rootdir .`

@@ -1,0 +1,166 @@
+.atlas-host {
+  width: min(1280px, 94vw);
+  height: 90vh;
+  overflow: auto;
+  padding: 20px;
+  background: #111f2c;
+  color: #f2ead8;
+  border: 1px solid #687a84;
+  border-radius: 16px;
+  cursor: default;
+}
+.atlas-host h2 {
+  font-family: Georgia, serif;
+  margin: 0 40px 14px 0;
+  font-size: 26px;
+}
+.atlas-host h3 {
+  font-size: 18px;
+  margin: 8px 0;
+}
+.atlas-toolbar,
+.atlas-controls,
+.atlas-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.atlas-host button,
+.atlas-host select,
+.atlas-host input {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid #607580;
+  border-radius: 8px;
+  background: #203542;
+  color: #f2ead8;
+  cursor: pointer;
+}
+.atlas-host button:hover,
+.atlas-host button[aria-pressed="true"] {
+  background: #395763;
+  border-color: #dcc18b;
+}
+.atlas-host select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #203542;
+  color: #f2ead8;
+  color-scheme: dark;
+}
+.atlas-host :focus-visible {
+  outline: 3px solid #e8bc73;
+  outline-offset: 3px;
+}
+.atlas-stage {
+  width: 100%;
+  overflow: auto;
+  background: #142b38;
+  border-radius: 10px;
+}
+.atlas-stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.atlas-stage.enlarged {
+  max-height: 65vh;
+}
+.atlas-stage.enlarged img {
+  width: 1536px;
+  max-width: none;
+}
+.atlas-stage svg {
+  display: block;
+  width: 100%;
+  min-width: 650px;
+  max-height: 520px;
+}
+.atlas-stage text {
+  fill: #f2ead8;
+  font: 13px system-ui;
+  paint-order: stroke;
+  stroke: #142b38;
+  stroke-width: 3px;
+}
+.atlas-stage .atlas-tick {
+  font-size: 12px;
+  fill: #9fb4bd;
+}
+.atlas-axis {
+  stroke: #526d7a;
+  stroke-dasharray: 4 4;
+}
+.atlas-route {
+  stroke: #708fa0;
+  stroke-width: 2;
+}
+.atlas-marker {
+  cursor: pointer;
+}
+.atlas-marker circle {
+  fill: #edb76d;
+  stroke: #fff3d7;
+  stroke-width: 2;
+}
+.atlas-marker:hover circle,
+.atlas-marker:focus circle {
+  fill: #ee8e8d;
+  stroke-width: 4;
+}
+.atlas-marker circle.atlas-hit {
+  fill: transparent;
+  stroke: none;
+}
+.atlas-caption {
+  color: #aec0c6;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 10px 0;
+}
+.atlas-controls > * {
+  flex: 1;
+  min-width: 180px;
+}
+.atlas-list {
+  max-height: 280px;
+  overflow: auto;
+  border-top: 1px solid #405661;
+  padding: 8px 0;
+}
+.atlas-place {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 5px 0;
+}
+.atlas-detail {
+  padding: 14px 0;
+  border-top: 1px solid #405661;
+  line-height: 1.6;
+}
+.atlas-detail select {
+  max-width: 100%;
+}
+.atlas-legend button {
+  font-size: 12px;
+  padding: 6px 9px;
+}
+@media (max-width: 600px) {
+  .atlas-host {
+    padding: 12px;
+    height: 88vh;
+    width: 96vw;
+  }
+  .atlas-host h2 {
+    font-size: 21px;
+  }
+  .atlas-toolbar button {
+    flex: 1;
+    padding: 8px;
+  }
+  .atlas-controls {
+    flex-direction: column;
+  }
+}

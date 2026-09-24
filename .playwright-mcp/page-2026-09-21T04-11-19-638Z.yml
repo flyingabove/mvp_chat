@@ -1,0 +1,44 @@
+- generic [active] [ref=f6e1]:
+  - generic [ref=f6e192]:
+    - generic [ref=f6e193]:
+      - generic [ref=f6e194]: My Games
+      - button "New game" [ref=f6e196] [cursor=pointer]: ✚
+    - generic [ref=f6e197]:
+      - generic [ref=f6e198] [cursor=pointer]:
+        - generic [ref=f6e199]: Delete
+        - generic [ref=f6e200]:
+          - generic [ref=f6e201]: 🎭
+          - generic [ref=f6e202]:
+            - generic [ref=f6e203]: Terrace in the City
+            - generic [ref=f6e204]: SkipTester · 2 turns
+            - generic [ref=f6e205]: Mizuki checks her watch, her brow furrowed just slightly in concentration. “It’s about seven-thirty,” she replies, her v
+          - generic [ref=f6e206]: 2h ago
+      - generic [ref=f6e207] [cursor=pointer]:
+        - generic [ref=f6e208]: Delete
+        - generic [ref=f6e209]:
+          - generic [ref=f6e210]: 🎭
+          - generic [ref=f6e211]:
+            - generic [ref=f6e212]: Terrace in the City
+            - generic [ref=f6e213]: Paul Dingus
+            - generic [ref=f6e214]: The last of the evening light is caught in the windows when you reach the house. Behind you, the residential street is q
+          - generic [ref=f6e215]: 2h ago
+  - option "Murder Mystery" [selected]
+  - option "Romance"
+  - option "Horror"
+  - option "Fantasy"
+  - option "Comedy"
+  - option "Sci-Fi"
+  - option "Thriller"
+  - navigation [ref=f6e80]:
+    - generic [ref=f6e81] [cursor=pointer]:
+      - generic [ref=f6e82]: 🏠
+      - generic [ref=f6e83]: Home
+    - generic [ref=f6e84] [cursor=pointer]:
+      - generic [ref=f6e85]: 💬
+      - generic [ref=f6e86]: My Games
+    - generic [ref=f6e87] [cursor=pointer]:
+      - generic [ref=f6e88]: ✚
+      - generic [ref=f6e90]: Create
+    - generic [ref=f6e91] [cursor=pointer]:
+      - generic [ref=f6e92]: 👤
+      - generic [ref=f6e93]: Profile

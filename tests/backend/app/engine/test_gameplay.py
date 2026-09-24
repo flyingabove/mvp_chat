@@ -4,6 +4,7 @@ from backend.app.engine.gameplay import (
     sanitize_location,
     manifest_mode,
     advance_time,
+    advance_time_by,
     win_condition_detected,
     process_pending_events,
 )
@@ -58,6 +59,49 @@ def test_advance_time_does_not_move_on_natural_language_question():
     advance_time(st, "Can we go to your old workplace?")
     assert st.location == "IU’s Apartment"
     assert st.minute == 1
+
+
+def test_advance_time_by_jumps_minute_without_touching_location():
+    st = init_state()
+    st.minute = 100
+    st.location = "Cafe"
+    st.location_id = "cafe"
+
+    advance_time_by(st, 8 * 60)
+
+    assert st.minute == 100 + 8 * 60
+    # A time skip is a pure clock jump, never a movement command.
+    assert st.location == "Cafe"
+    assert st.location_id == "cafe"
+
+
+def test_advance_time_by_zero_or_negative_is_noop():
+    st = init_state()
+    st.minute = 50
+
+    advance_time_by(st, 0)
+    assert st.minute == 50
+
+    advance_time_by(st, -100)
+    assert st.minute == 50
+
+
+def test_advance_time_by_syncs_world_clock_when_present():
+    st = init_state()
+    st.minute = 100
+
+    mock_clock = Mock()
+    mock_clock.minute = 100 + 240  # world_clock is authoritative post-advance
+    mock_clock.advance = Mock()
+
+    mock_runtime = Mock()
+    mock_runtime.world_clock = mock_clock
+    st.world_runtime = mock_runtime
+
+    advance_time_by(st, 240)
+
+    mock_clock.advance.assert_called_once_with(240)
+    assert st.minute == 340
 
 
 def test_win_condition_detected_with_config_patterns():

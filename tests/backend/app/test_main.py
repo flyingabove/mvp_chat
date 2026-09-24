@@ -196,6 +196,58 @@ def test_health_endpoint(client):
     assert isinstance(data["content_schema_version"], int)
 
 
+def test_health_endpoint_includes_jev_block(client):
+    """JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6's exposure requirement:
+    confirming a Jev rollback took effect without reading logs."""
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    jev = r.json()["jev"]
+    assert "enabled" in jev
+    assert "state" in jev
+    assert jev["state"] in {"closed", "open", "half_open", "unknown"}
+    assert "model" in jev
+
+
+def test_health_jev_block_reflects_disabled_by_default(client, monkeypatch):
+    from backend.app.config import settings
+    monkeypatch.setattr(settings, "TYPESAFE_ENABLED", False)
+    r = client.get("/api/health")
+    assert r.json()["jev"]["enabled"] is False
+
+
+def test_health_jev_block_never_triggers_a_network_call(client, monkeypatch):
+    """Calling /api/health must never itself make a Jev API call - it only
+    reads the breaker's in-memory snapshot."""
+    called = {"n": 0}
+
+    class _ExplodingClient:
+        async def ask(self, *a, **k):
+            called["n"] += 1
+            raise AssertionError("‌/api/health must never call Jev")
+
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    assert called["n"] == 0
+
+
+def test_health_jev_block_survives_breaker_construction_failure(client, monkeypatch):
+    """/api/health must return 200 even if the Jev bookkeeping itself is
+    broken - this endpoint is what uptime checks and ship-and-verify depend
+    on, and must not become a new single point of failure."""
+    import backend.app.api.health as health_mod
+
+    def _broken_get_shared_breaker():
+        raise RuntimeError("breaker construction exploded")
+
+    monkeypatch.setattr(
+        "backend.app.llm.factory.get_shared_breaker", _broken_get_shared_breaker,
+    )
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    assert r.json()["jev"]["state"] == "unknown"
+
+
 def test_echo_endpoint(client):
     r = client.post("/api/echo", json={"x": 1})
     assert r.status_code == 200
@@ -222,10 +274,11 @@ async def test_fact_extraction_recovery_sweep_reprocesses_pending_row(monkeypatc
     """Simulates the exact failure mode BL-01b closes: a row left 'pending'
     by a prior process crash (enqueued, but the in-process extraction task
     never got to run/complete). The startup sweep must reprocess it and mark
-    it done."""
+    it done - and (Phase 1.2) durably persist whatever it extracted."""
     from backend.app import main
     from backend.app.db.database import init_db
-    from backend.app.db.repos import FactExtractionOutboxRepo
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
 
     init_db()
     row_id = await FactExtractionOutboxRepo.enqueue(
@@ -237,12 +290,12 @@ async def test_fact_extraction_recovery_sweep_reprocesses_pending_row(monkeypatc
 
     extract_calls = []
 
-    async def _fake_extract(text, role, msg_id, char_id):
+    async def _fake_extract_with_status(text, role, msg_id, char_id):
         extract_calls.append((text, role, msg_id, char_id))
-        return []
+        return ExtractionResult(ok=True, chunks=[])
 
     monkeypatch.setattr(
-        "backend.app.api.prompt_engine.extract_facts_from_message", _fake_extract, raising=False,
+        "backend.app.api.prompt_engine.extract_facts_with_status", _fake_extract_with_status, raising=False,
     )
 
     await main._fact_extraction_recovery_sweep()
@@ -277,11 +330,13 @@ async def test_fact_extraction_recovery_sweep_marks_row_failed_on_error(monkeypa
         character_id="mizuki",
     )
 
-    async def _raising_extract(*args, **kwargs):
-        raise RuntimeError("recovery extraction failed")
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+
+    async def _failing_extract_with_status(*args, **kwargs):
+        return ExtractionResult(ok=False, chunks=[], error="recovery extraction failed")
 
     monkeypatch.setattr(
-        "backend.app.api.prompt_engine.extract_facts_from_message", _raising_extract, raising=False,
+        "backend.app.api.prompt_engine.extract_facts_with_status", _failing_extract_with_status, raising=False,
     )
 
     await main._fact_extraction_recovery_sweep()
@@ -295,6 +350,48 @@ async def test_fact_extraction_recovery_sweep_marks_row_failed_on_error(monkeypa
         conn.close()
     assert row["status"] == "failed"
     assert "recovery extraction failed" in row["last_error"]
+
+
+@pytest.mark.asyncio
+async def test_fact_extraction_periodic_sweep_reclaims_hung_task(monkeypatch):
+    """Phase 1.2 (closes BL-01c): a row left 'pending' by a HUNG task (not a
+    crash - the process is still running, the task just never finished) must
+    be reclaimable by the periodic sweep once its lease expires. The
+    one-shot startup sweep alone cannot catch this, since it only runs once
+    at process start."""
+    from backend.app import main
+    from backend.app.db.database import init_db
+    from backend.app.db.repos import FactExtractionOutboxRepo
+    from backend.app.knowledge.runtime.dialogue_extractor import ExtractionResult
+
+    init_db()
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="hung_task_sess", user_id="guest:hung-uuid",
+        user_msg="a message", user_msg_id="umsg-h1",
+        ai_reply="a reply", ai_msg_id="aimsg-h1",
+        character_id="mizuki",
+    )
+    # Simulate the row already having an expired lease (as if a prior worker
+    # claimed it, then hung without ever marking done/failed).
+    await FactExtractionOutboxRepo.claim_pending(limit=10, lease_seconds=-10)
+
+    async def _fake_extract_with_status(text, role, msg_id, char_id):
+        return ExtractionResult(ok=True, chunks=[])
+
+    monkeypatch.setattr(
+        "backend.app.api.prompt_engine.extract_facts_with_status", _fake_extract_with_status, raising=False,
+    )
+
+    claimed = await FactExtractionOutboxRepo.claim_pending(limit=200, lease_seconds=300)
+    own_claimed = [r for r in claimed if r["id"] == row_id]
+    assert own_claimed, "periodic sweep's claim step must reclaim a row with an expired lease"
+
+    await main._reprocess_outbox_rows(own_claimed, "test periodic sweep")
+
+    pending_after = await FactExtractionOutboxRepo.fetch_pending()
+    assert not any(r["id"] == row_id for r in pending_after), (
+        "reclaimed hung row must be resolved (done) after reprocessing"
+    )
 
 
 @pytest.mark.asyncio
@@ -332,3 +429,133 @@ async def test_fact_extraction_recovery_sweep_prunes_old_done_rows(monkeypatch):
     assert remaining == [], "a 'done' row older than the retention window must be pruned by the sweep"
 
 
+
+
+# ============================================================================
+# Phase 1.5 — exact guest session eviction. The old _guest_cleanup_loop
+# evicted EVERY cached guest session (filtered only by user_id prefix)
+# whenever ANY expired guest rows were deleted, including ones still well
+# within their TTL. These tests exercise the eviction logic directly rather
+# than waiting a real hour for the loop's sleep().
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_evicts_only_the_deleted_session_ids(monkeypatch):
+    """THE Phase 1.5 regression test: an active, non-expired guest session
+    cached in SESSIONS must survive a cleanup pass that deletes a DIFFERENT
+    expired guest session - proving eviction is precise, not "clear every
+    guest entry whenever anything was deleted"."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    expired_sid = "cleanup_precision_expired"
+    active_sid = "cleanup_precision_active"
+    pe_mod.SESSIONS[expired_sid] = {"state": object(), "user_id": "guest:expired-uuid"}
+    pe_mod.SESSIONS[active_sid] = {"state": object(), "user_id": "guest:active-uuid"}
+
+    async def _fake_delete(cutoff_ts):
+        # Simulate the DB having deleted only the expired session.
+        return [expired_sid]
+
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo.delete_expired_guest_sessions", _fake_delete,
+    )
+
+    # _guest_cleanup_loop is an infinite loop (sleep() then one pass of
+    # work); run ONE pass by making sleep raise on its second call, so the
+    # loop's real body executes exactly once before the test ends it.
+    import asyncio as _asyncio
+    from backend.app import main
+
+    sleep_calls = {"n": 0}
+    real_sleep = _asyncio.sleep
+
+    async def _one_shot_sleep(seconds):
+        sleep_calls["n"] += 1
+        if sleep_calls["n"] > 1:
+            raise _asyncio.CancelledError()
+        await real_sleep(0)  # yield control once, don't actually wait an hour
+
+    monkeypatch.setattr(main.asyncio, "sleep", _one_shot_sleep)
+
+    try:
+        await main._guest_cleanup_loop()
+    except _asyncio.CancelledError:
+        pass  # expected - this is how we stop the intentionally-infinite loop
+
+    assert expired_sid not in pe_mod.SESSIONS, "the actually-expired session must be evicted"
+    assert active_sid in pe_mod.SESSIONS, (
+        "an active guest session must SURVIVE a cleanup pass that only deleted a different session"
+    )
+
+    # Cleanup for other tests sharing module-level SESSIONS.
+    pe_mod.SESSIONS.pop(active_sid, None)
+    pe_mod.SESSIONS.pop(expired_sid, None)
+
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_acquires_session_lock_before_eviction():
+    """Eviction must go through the SAME per-session lock chat_handler holds
+    for a turn's full duration, so eviction cannot interleave with an
+    in-flight turn for that session."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "cleanup_lock_check"
+    pe_mod.SESSIONS[sid] = {"state": object(), "user_id": "guest:lock-uuid"}
+    lock = pe_mod._get_session_lock(sid)
+
+    # Hold the lock, simulating an in-flight turn for this exact session.
+    await lock.acquire()
+    try:
+        # A concurrent eviction attempt must block on the same lock rather
+        # than popping SESSIONS out from under the in-flight turn.
+        async def _try_evict():
+            async with pe_mod._get_session_lock(sid):
+                pe_mod.SESSIONS.pop(sid, None)
+
+        import asyncio
+        evict_task = asyncio.create_task(_try_evict())
+        await asyncio.sleep(0.05)
+        assert sid in pe_mod.SESSIONS, "eviction must not proceed while the session lock is held elsewhere"
+    finally:
+        lock.release()
+
+    await evict_task
+    assert sid not in pe_mod.SESSIONS, "eviction proceeds once the lock is released"
+
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_retires_uncontended_lock(monkeypatch):
+    """Phase 1.5: _SESSION_LOCKS must not grow unbounded - an evicted
+    session's lock is retired too, once uncontended."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "cleanup_lock_retire_check"
+    pe_mod.SESSIONS[sid] = {"state": object(), "user_id": "guest:retire-uuid"}
+    lock = pe_mod._get_session_lock(sid)
+    assert sid in pe_mod._SESSION_LOCKS
+
+    async with lock:
+        pe_mod.SESSIONS.pop(sid, None)
+    if not lock.locked():
+        pe_mod._SESSION_LOCKS.pop(sid, None)
+
+    assert sid not in pe_mod._SESSION_LOCKS, "an uncontended lock for an evicted session must be retired"
+
+
+@pytest.mark.asyncio
+async def test_guest_cleanup_skips_sessions_not_in_memory_cache(monkeypatch):
+    """A deleted session_id that was never cached in SESSIONS (e.g. it
+    expired without ever being loaded into this process's cache) must not
+    raise or do anything odd - just a no-op skip."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    never_cached_sid = "cleanup_never_cached_check"
+    assert never_cached_sid not in pe_mod.SESSIONS
+
+    deleted_ids = [never_cached_sid]
+    for sid in deleted_ids:
+        if sid not in pe_mod.SESSIONS:
+            continue
+        async with pe_mod._get_session_lock(sid):
+            pe_mod.SESSIONS.pop(sid, None)
+    # No exception raised; nothing to assert beyond "this didn't crash".

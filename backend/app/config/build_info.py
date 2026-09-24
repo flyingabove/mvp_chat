@@ -37,6 +37,12 @@ def get_build_info() -> dict:
     environment = os.getenv("RAILWAY_ENVIRONMENT_NAME", "") or "local"
     return {
         "commit": commit,
+        # RAILWAY_DEPLOYMENT_ID is set on EVERY Railway deploy, including CLI
+        # (`railway up`) deploys that carry no git SHA (beta reported
+        # commit="unknown" on 2026-09-23). The Jev game arena pins releases by
+        # (commit, deployment_id) so a mid-experiment redeploy is detected
+        # even then. Empty locally.
+        "deployment_id": os.getenv("RAILWAY_DEPLOYMENT_ID", ""),
         "environment": environment,
         "content_schema_version": CONTENT_SCHEMA_VERSION,
     }

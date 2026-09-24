@@ -80,6 +80,14 @@ class TravelRules:
 
     def resolve_route(self, graph: WorldGraph, from_id: LocationId, to_id: LocationId) -> TravelRoute:
         """Resolve route using: direct -> one-intermediate -> multi-hop BFS -> error."""
+        if graph.world_map.route_policy == "shortest_time":
+            path = self._find_shortest_path(graph, from_id, to_id)
+            if path is not None:
+                return TravelRoute(from_id, to_id, tuple(TravelSegment(edge=e) for e in path))
+            if self._find_shortest_path(graph, from_id, to_id, ignore_blocked=True) is not None:
+                raise TravelBlockedError(f"No unblocked route from {from_id} to {to_id}")
+            # Authored atlases must never fabricate a short trip to a distant place.
+            raise ValueError(f"No authored route from {from_id} to {to_id}")
         
         # 1. Try direct route
         direct: EdgeList = graph.get_direct_edges(from_id, to_id)
@@ -133,6 +141,32 @@ class TravelRules:
         logger.warning(f"Created temporary dynamic edge: {from_id} -> {to_id} ({dynamic_edge.minutes} min)")
 
         return TravelRoute(from_id=from_id, to_id=to_id, segments=(TravelSegment(edge=dynamic_edge),))
+
+    @staticmethod
+    def _find_shortest_path(graph, from_id, to_id, *, ignore_blocked=False):
+        """Dijkstra by travel minutes, stable ties; no arbitrary hop limit."""
+        from heapq import heappop, heappush
+        from itertools import count
+
+        graph.get_location(from_id)
+        graph.get_location(to_id)
+        counter = count()
+        queue = [(0, next(counter), from_id, ())]
+        best = {from_id: 0}
+        while queue:
+            cost, _, current, path = heappop(queue)
+            if cost != best[current]:
+                continue
+            if current == to_id:
+                return path
+            for edge in graph.get_neighbors(current):
+                if edge.blocked and not ignore_blocked:
+                    continue
+                candidate = cost + edge.minutes
+                if candidate < best.get(edge.to_id, float("inf")):
+                    best[edge.to_id] = candidate
+                    heappush(queue, (candidate, next(counter), edge.to_id, path + (edge,)))
+        return None
 
     def _find_path_bfs(
         self,

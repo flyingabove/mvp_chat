@@ -5,8 +5,11 @@ deployment:
     - export BETAPATH=/home/storvrfx/public_html/beta
 
     # Clean old frontend (optional but recommended)
-    - /bin/rm -rf $DEPLOYPATH/*
-    - /bin/rm -rf $BETAPATH/*
+    # REMOVED (Phase 0A.5): unbounded delete of the prod web root with no
+    # exit-code check. Never re-enable. See README_DISABLED.md.
+    # REMOVED (Phase 0A.5): same unbounded delete against the beta root, and
+    # it copied ONE checkout to both prod and beta, contradicting the
+    # webhook's branch routing.
 
     # Copy frontend to PROD
     - /bin/cp -R frontend/* $DEPLOYPATH/

@@ -1128,13 +1128,19 @@ def _mode_context_section(state) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _identity_block(char_name: str, entries: list, goal: str = "") -> str:
+def _identity_block(char_name: str, entries: list, goal: str = "", voice: list | None = None) -> str:
     """Render one '### CHARACTER IDENTITY — <name>' block for the given entries.
 
     `goal` (Phase 3 "Social life"): the character's current persistent
     goal/motive, if any. Empty string (the common case for a character with
     no authored motive) renders no extra line at all - byte-identical
     output to before this parameter was added.
+
+    `voice`: authored speech-style cues (diction, rhythm, verbal tics,
+    catchphrases) — separate from `entries` (what the character knows/
+    believes) so that two characters with similar knowledge still read as
+    distinct people in dialogue. Empty/absent renders no extra section -
+    byte-identical output to before this parameter was added.
     """
     lines = [
         "\n────────────────────────────────────────",
@@ -1151,6 +1157,14 @@ def _identity_block(char_name: str, entries: list, goal: str = "") -> str:
         lines.append(f"- {entry}")
     if goal:
         lines.append(f"- [{char_name}'s current goal] {goal}")
+    if voice:
+        lines.append(
+            f"\n{char_name}'s speech style — follow these cues so {char_name} "
+            "sounds distinct from every other character in the scene, in every "
+            "line of dialogue, not just when the topic calls for it:"
+        )
+        for cue in voice:
+            lines.append(f"- {cue}")
     return "\n".join(lines) + "\n"
 
 
@@ -1208,10 +1222,11 @@ def _character_identity_section(state) -> str:
     main_goal_obj = getattr(main_char, "goal", None)
     if main_goal_obj is not None:
         main_goal = (getattr(main_goal_obj, "current", "") or "").strip()
+    main_voice = list(getattr(main_char, "voice", None) or [])
 
     blocks: list[str] = []
     if entries and _main_character_scene_eligible(state):
-        blocks.append(_identity_block(char_name, entries, goal=main_goal))
+        blocks.append(_identity_block(char_name, entries, goal=main_goal, voice=main_voice))
 
     # Additional present, non-main characters with their own self_knowledge.
     people_present_keys = _get_people_present_keys(state)
@@ -1230,7 +1245,8 @@ def _character_identity_section(state) -> str:
         other_goal_obj = getattr(ch, "goal", None)
         if other_goal_obj is not None:
             other_goal = (getattr(other_goal_obj, "current", "") or "").strip()
-        blocks.append(_identity_block(other_name, other_entries, goal=other_goal))
+        other_voice = list(getattr(ch, "voice", None) or [])
+        blocks.append(_identity_block(other_name, other_entries, goal=other_goal, voice=other_voice))
 
     if not blocks:
         return ""
@@ -1297,6 +1313,8 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
     lifecycle = getattr(state, "cast_lifecycle", None)
     if lifecycle is not None and getattr(lifecycle, "enabled", False):
         active_names = []
+        if lifecycle.player_slot_group:
+            active_names.append(f"{state.player_name or 'Player'} (the player)")
         for key in lifecycle.active_ids():
             ch = chars.get(key)
             active_names.append((getattr(ch, "name", None) or key).strip())
@@ -1312,6 +1330,15 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
             "person would to an unfamiliar name: with genuine unfamiliarity, not vague "
             "recognition.\n\n"
         )
+        if lifecycle.player_slot_group:
+            bedroom = state.story_cfg["cast_lifecycle"]["player_bedrooms"][lifecycle.player_slot_group]
+            roster_closure_line += (
+                "The player occupies one of the six resident slots: exactly three men and three women, "
+                "including the player, live here. The player shares "
+                f"{bedroom.replace('_', ' ')}. Departures and same-gender arrivals happen together "
+                "through the automatic replacement queue; nobody leaves without a replacement. "
+                "When that queue is exhausted, the final residents stay.\n\n"
+            )
 
     main_present = _main_character_scene_eligible(state)
     if main_present:
@@ -1389,8 +1416,9 @@ def system_prompt(
 ### LANGUAGE STYLE — ENGLISH KOREAN
 ────────────────────────────────────────
 Write primarily natural English in a Korean setting. In character speech, use
-the story's Korean terms and relationship-appropriate honorifics naturally and
-sparingly; never turn every sentence into a glossary or fake Korean grammar.
+the story's Korean terms and relationship-appropriate honorifics as an
+occasional, context-sensitive choice; never turn every sentence into a glossary
+or fake Korean grammar.
 Keep narration in fluent English. Use the player's name and an honorific only
 when a character would actually address them, not as a narrator label.
 """
@@ -1402,13 +1430,15 @@ when a character would actually address them, not as a narrator label.
 ────────────────────────────────────────
 This story is set in Japan. Write primarily idiomatic English, with light,
 contextual Japanese-English code-switching in character speech.{suffix_note}
-When a character directly addresses the player by name, use the Japanese
-honorific as a suffix — for example, **\"Paul-kun\"** — rather than a space or
-a title before the name. Use common words such as `ne`, `daijoubu`, `sugoi`,
-`kawaii`, `onegai`, and `yoroshiku` only where their meaning and the speaker's
-tone make sense. Honorifics signal ordinary politeness/familiarity, not instant
-romance; do not overuse them or write faux Japanese grammar. Keep narration in
-clear English and never force Japanese terms into it.
+Treat Japanese terms as optional flavor, not output requirements. A character
+may occasionally address the player with an appropriate suffix — for example,
+**\"Paul-kun\"** — when it fits their voice and the moment; use a plain name
+just as naturally in other lines. If using an honorific, attach it as a suffix,
+never as a title before the name. Use common words such as `ne`, `daijoubu`,
+`sugoi`, `kawaii`, `onegai`, and `yoroshiku` only where their meaning and the
+speaker's tone make sense. Honorifics signal ordinary politeness/familiarity,
+not instant romance; do not overuse them or write faux Japanese grammar. Keep
+narration in clear English and never force Japanese terms into it.
 """
 
     main_scene_eligible = _main_character_scene_eligible(state)
@@ -1425,6 +1455,66 @@ clear English and never force Japanese terms into it.
             "in this scene. A scene the player explicitly chose to spend alone or away from "
             "others stays that way unless the player's own message brings someone into it."
         )
+
+    # Phase 4 "Engagement and polish": explicit response-length calibration
+    # and NPC-initiative-frequency guidance. Previously the only length
+    # instruction was the single word "compact" with no scale to anchor
+    # against, which in practice let ordinary short exchanges ("hello",
+    # a one-line action) balloon into multi-paragraph responses just as
+    # readily as a genuine decision point. Scale the target length to the
+    # player's own message weight (a short message earns a short reply; a
+    # substantive question, decision, or emotionally loaded beat earns more
+    # room), and make "not every reply needs a hook" an explicit rule rather
+    # than leaving initiative frequency unaddressed - matching the audit's
+    # "not every reply need end in a question" recommendation.
+    _player_msg_word_count = len((current_user_msg or "").split())
+    if _player_msg_word_count <= 6:
+        pacing_line = (
+            "The player's message is short and low-stakes (a greeting, a brief action, a "
+            "one-line question). HARD LIMIT: 3-4 sentences total, one beat, one short "
+            "paragraph. This overrides any general instinct toward scene-setting or "
+            "populating the room - do not add a second paragraph of scenery, an aside about "
+            "other characters, or a follow-up question just to fill space. A short message "
+            "earns a short, complete reply, not a scaled-down version of a long one."
+        )
+    elif _player_msg_word_count <= 20:
+        pacing_line = (
+            "The player's message is a normal conversational beat. 1-2 compact paragraphs is "
+            "usually enough - only go longer if the moment genuinely earns it (new "
+            "information, a meaningful choice, an emotional turn)."
+        )
+    else:
+        pacing_line = (
+            "The player's message is substantive (a detailed question, a plan, or an "
+            "emotionally loaded beat). More room is warranted here, but stay purposeful - "
+            "every sentence should carry new information, character, or consequence, not "
+            "restate what was just said."
+        )
+    # BL-22 (arena pilot 2026-09-23): in ensemble stories the length cap plus
+    # the focal framing collapsed whole scenes onto one housemate. Spread the
+    # voices WITHIN the same limit rather than lengthening replies.
+    _mode_cfg = story_cfg.get("mode") if isinstance(story_cfg, dict) else None
+    if isinstance(_mode_cfg, dict) and str(_mode_cfg.get("type") or "").strip() == "social_sim":
+        pacing_line += (
+            "\n\nENSEMBLE VOICES: this is an ensemble story. Within the same length limit, let the "
+            "reply come from whoever present would naturally respond, usually one or two different "
+            "housemates, not always the same housemate or the focal character. Each speaker should "
+            "sound like themselves (their own speech style, concerns, and opinions), including mild "
+            "disagreement with each other."
+        )
+    pacing_and_initiative_contract = f"""
+────────────────────────────────────────
+### PACING AND INITIATIVE
+────────────────────────────────────────
+{pacing_line}
+
+Not every reply needs to end with a hook, an invitation, or a question back to the
+player. Real conversations have quiet moments and plain answers. Let some replies
+simply land and stop. When an NPC does take initiative (inviting the player
+somewhere, asking something, proposing a plan), it should read as that specific
+character choosing to, in that moment - not a reflex the narrator adds to every
+single turn to keep things moving.
+"""
 
     base_prompt = f"""
 You are the narrative scene engine for an interactive story game.
@@ -1575,6 +1665,7 @@ EXAMPLE (WRONG — do NOT do this):
         + knowledge_stack_section
         + relationship_section
         + character_identity
+        + pacing_and_initiative_contract
         + truth_override
     )
 
@@ -1588,6 +1679,7 @@ EXAMPLE (WRONG — do NOT do this):
             "knowledge_stack": knowledge_stack_section,
             "knowledge_chunks": knowledge_stack_debug,
             "relationship_context": relationship_section,
+            "pacing_and_initiative": pacing_and_initiative_contract,
             "truth_override": truth_override,
         }
         return full_prompt, layers
@@ -1652,6 +1744,8 @@ def build_messages(
             knowledge_chunks=pi.knowledge_chunks,
             current_user_msg=user_msg,
         )
+    from backend.app.engine.dialogue import dialogue_prompt
+    sysmsg += dialogue_prompt(state)
     messages = [{"role": "system", "content": sysmsg}]
 
     # keep last MEMORY_TURNS - 2 non-system turns

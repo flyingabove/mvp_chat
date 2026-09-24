@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from backend.app.engine.story_loader import load_story, find_story_dir, STORIES_DIR
 from backend.app.engine.world.world_loader import WorldLoader
+from backend.app.engine.world.map_model import world_map_payload
 from backend.app.config.settings import DEFAULT_USER_ID, DEFAULT_INSTANCE
 
 router = APIRouter()
@@ -80,6 +81,7 @@ def get_story_meta(story_id: str):
 
     # Load known locations from world if available
     known_locations = []
+    atlas = None
     world_cfg = story_cfg.get("world", {}) or {}
     seed = int(world_cfg.get("seed", 0))
     world_file = str(world_cfg.get("file", "")).strip()
@@ -108,6 +110,7 @@ def get_story_meta(story_id: str):
             )
 
         if loaded and loaded.world_graph:
+            atlas = world_map_payload(loaded.world_graph)
             for loc_id, loc in loaded.world_graph.locations.items():
                 known_locations.append({
                     "id": loc_id,
@@ -139,9 +142,12 @@ def get_story_meta(story_id: str):
             "dialogue": rules.get("dialogue", ""),
         },
         "known_locations": known_locations,
+        "world_map": atlas,
     }
     if world_map_image:
         result["world_map_image"] = world_map_image
+        stat = os.stat(os.path.join(STORIES_DIR, world_map_image))
+        result["world_map_image_revision"] = f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
         try:
             from PIL import Image
             with Image.open(os.path.join(STORIES_DIR, world_map_image)) as im:

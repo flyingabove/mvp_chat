@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from backend.app.engine.story_loader import load_story, StoryDefinition, STORIES_DIR
 from backend.app.engine.world.world_loader import WorldLoader
+from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
 from tests.conftest import first_story_id
 
 STORY_ID = first_story_id()
@@ -207,9 +208,10 @@ def test_six_strangers_content_references_and_private_concerns_are_consistent():
     ), "Upcoming residents must not leak through seeded relationships"
     assert any(source in keys and target in keys for source, target in pairs)
 
-    opening = cfg["opening"]["text"]
+    opening = "\n".join(cfg["opening"].get("variants") or [cfg["opening"]["text"]])
     assert "\n\n" in opening
     assert "\\n" not in opening, "Opening paragraphs must use actual newlines"
+    assert "guest room" not in opening.lower()
     content = json.dumps(cfg, ensure_ascii=False)
     assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", content, re.I)
     assert cfg["mode"]["type"] == "social_sim"
@@ -230,7 +232,8 @@ def test_six_strangers_cast_lifecycle_catalog_and_queue_are_consistent():
     assert lifecycle["replacement_policy"] == "same_slot_next"
     assert lifecycle["departure_policy"] == "committed_intent"
     assert lifecycle["replacement_timing"] == "next_day"
-    assert lifecycle["player_mode"] == "extra_resident"
+    assert lifecycle["player_mode"] == "resident_slot"
+    assert lifecycle["randomize_initial_roster"] is True
     assert lifecycle["slot_groups"] == {
         "men": {"capacity": 3, "label": "Men's resident slots"},
         "women": {"capacity": 3, "label": "Women's resident slots"},
@@ -260,9 +263,9 @@ def test_six_strangers_cast_lifecycle_catalog_and_queue_are_consistent():
     rules = lifecycle["rules_profile"].lower()
     assert "three men and three women" in rules
     assert "two shared cars" in rules
-    assert "additional seventh resident" in rules
+    assert "player and five npc housemates" in rules
     assert "no imposed challenges" in rules
-    assert "same slot group" in rules
+    assert "same-gender replacement" in rules
 
 
 def test_six_strangers_upcoming_cast_has_private_content_without_fixed_outcomes():
@@ -321,7 +324,8 @@ def test_six_strangers_world_supports_return_travel_and_all_active_starting_char
         "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
     }
     assert set(starts.values()) <= locations
-    assert {"boys_bedroom", "girls_bedroom", "player_bedroom", "terrace", "gotanda_station"} <= locations
+    assert {"boys_bedroom", "girls_bedroom", "terrace", "gotanda_station"} <= locations
+    assert "player_bedroom" not in locations
     for start in locations:
         visited = {start}
         pending = [start]
@@ -335,3 +339,62 @@ def test_six_strangers_world_supports_return_travel_and_all_active_starting_char
         assert visited == locations, f"Cannot travel from {start} to {locations - visited}"
     world_text = world_path.read_text(encoding="utf-8")
     assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", world_text, re.I)
+
+
+def test_six_strangers_house_holds_exactly_six_residents_with_no_guest_room():
+    """The six-resident rule is a hard invariant, not an authoring preference.
+
+    Regression guard for a real cross-agent conflict: the world compiler
+    (`scripts/build_six_strangers_world.py`) once generated a `player_bedroom`
+    "guest room ... added for the seventh resident", which contradicted the
+    `resident_slot` design where the player OCCUPIES one of the six gendered
+    slots and shares `boys_bedroom`/`girls_bedroom`. This test pins all three
+    facing surfaces together — lifecycle config, slot capacities, and world
+    geometry — so regenerating the world can never silently reintroduce a
+    seventh resident.
+    """
+    story = load_story("six_strangers")
+    cfg = story.as_dict()
+    lifecycle = cfg["cast_lifecycle"]
+
+    # 1. The player takes a slot rather than being an extra arrival.
+    assert lifecycle["player_mode"] == "resident_slot"
+
+    # 2. Capacities total exactly six, and the player shares a gendered bedroom.
+    capacities = {g: s["capacity"] for g, s in lifecycle["slot_groups"].items()}
+    assert capacities == {"men": 3, "women": 3}
+    assert sum(capacities.values()) == 6
+    assert lifecycle["player_bedrooms"] == {
+        "men": "boys_bedroom",
+        "women": "girls_bedroom",
+    }
+
+    # 3. The world must not offer a private seventh-resident room, and every
+    #    bedroom the player can be assigned to must actually exist.
+    world_cfg = cfg["world"]
+    loaded = WorldLoader.load_from_file(
+        str(Path(STORIES_DIR) / world_cfg["file"]), story_id="six_strangers"
+    )
+    locations = set(loaded.world_graph.locations)
+    assert "player_bedroom" not in locations
+    assert set(lifecycle["player_bedrooms"].values()) <= locations
+
+    # 4. Six authored NPCs fill the six slots before the player joins; taking a
+    #    slot displaces one same-gender NPC to the entry queue, so the house
+    #    holds exactly six residents (player + 5 NPCs) at runtime rather than
+    #    seven. Verified through the lifecycle, not by counting authored rows.
+    assert len(world_cfg["character_start_locations"]) == 6
+    for gender, group in lifecycle["player_slot_groups"].items():
+        built = CastLifecycleState.from_config(lifecycle)
+        built.choose_initial_roster(group)
+        assert len(built.active_ids(group)) == capacities[group] - 1
+        other_group = "women" if group == "men" else "men"
+        assert len(built.active_ids(other_group)) == capacities[other_group]
+        built.reserve_player_slot(group)
+        active = built.active_ids()
+        assert len(active) == 5, f"{gender}: player + {len(active)} NPCs != 6 residents"
+        assert len(built.active_ids(group)) == capacities[group] - 1
+        # The displaced housemate is queued for re-entry, not deleted.
+        assert built.members[
+            next(k for k in built.members if k not in active)
+        ].status is CastStatus.UPCOMING

@@ -407,7 +407,8 @@ async def test_delete_expired_guest_sessions(tmp_data_dir):
 
     cutoff = now - 86400  # 24 hours ago
     deleted = await SessionRepo.delete_expired_guest_sessions(cutoff)
-    assert deleted == 1  # Only the old guest session
+    # Phase 1.5: now returns the exact deleted session IDs, not just a count.
+    assert deleted == ["old_gs"]  # Only the old guest session
 
     # Verify old guest is gone
     assert await SessionRepo.get_session("old_gs", "guest:old-uuid") is None
@@ -666,3 +667,209 @@ async def test_prune_done_older_than_removes_only_old_done_rows(tmp_data_dir):
     assert recent_done_id in remaining_ids
     assert still_pending_id in remaining_ids
     assert still_failed_id in remaining_ids
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.2: durable extraction OUTPUT (extracted_chunks table) + the
+# mark_done_with_chunks atomic write, ExtractedChunksRepo, and claim_pending
+# (the lease-based reclaim BL-01c needed for hung, not crashed, tasks).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_mark_done_with_chunks_persists_chunks_and_marks_done_atomically(tmp_data_dir):
+    """THE core Phase 1.2 guarantee: chunks and the done status land in ONE
+    call. Before this, mark_done alone could run after the in-memory store
+    was updated but before any durable chunk record existed — a crash in
+    that window left a 'done' row with no chunks anywhere durable."""
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="durable_sess1", user_id="uid1", user_msg="I live in Tokyo.",
+        user_msg_id="umsg1", ai_reply="Interesting.", ai_msg_id="aimsg1",
+        character_id="mizuki",
+    )
+    usr_chunk = {
+        "chunk_id": "usr-umsg1-0", "character_id": "mizuki", "type": "dialogue_fact",
+        "text": "The player lives in Tokyo.", "confidence": "player_stated",
+        "source_type": "usr", "source_msg_id": "umsg1",
+    }
+    await FactExtractionOutboxRepo.mark_done_with_chunks(
+        row_id, "durable_sess1", "uid1", {"umsg1": [usr_chunk], "aimsg1": []}, extractor_version=1,
+    )
+
+    pending = await FactExtractionOutboxRepo.fetch_pending()
+    assert not any(r["id"] == row_id for r in pending), "row must be done, not pending"
+
+    stored = await ExtractedChunksRepo.load_for_session("durable_sess1")
+    assert len(stored) == 1
+    assert stored[0]["chunk_id"] == "usr-umsg1-0"
+    assert stored[0]["text"] == "The player lives in Tokyo."
+
+
+@pytest.mark.asyncio
+async def test_extracted_chunks_survive_independent_of_in_memory_session(tmp_data_dir):
+    """The actual durability property: chunks are readable from the DB with
+    NO in-memory SESSIONS entry involved at all — proving persistence does
+    not depend on the session happening to still be cached."""
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="durable_sess2", user_id="uid2", user_msg="msg", user_msg_id="u2",
+        ai_reply="reply", ai_msg_id="a2", character_id="mizuki",
+    )
+    chunks = [
+        {"chunk_id": "usr-u2-0", "character_id": "mizuki", "type": "dialogue_fact",
+         "text": "Fact A.", "confidence": "player_stated", "source_type": "usr", "source_msg_id": "u2"},
+        {"chunk_id": "ai-a2-0", "character_id": "mizuki", "type": "dialogue_fact",
+         "text": "Fact B.", "confidence": "ai_stated", "source_type": "ai", "source_msg_id": "a2"},
+    ]
+    await FactExtractionOutboxRepo.mark_done_with_chunks(
+        row_id, "durable_sess2", "uid2", {"u2": [chunks[0]], "a2": [chunks[1]]}, extractor_version=1,
+    )
+
+    # No SESSIONS cache involved anywhere above — read straight back from SQLite.
+    stored = await ExtractedChunksRepo.load_for_session("durable_sess2")
+    texts = {c["text"] for c in stored}
+    assert texts == {"Fact A.", "Fact B."}
+
+
+@pytest.mark.asyncio
+async def test_extracted_chunks_scoped_to_session(tmp_data_dir):
+    """One session's chunks must never leak into another session's load."""
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+
+    row_a = await FactExtractionOutboxRepo.enqueue(
+        session_id="scope_sess_a", user_id="uid", user_msg="m", user_msg_id="ua",
+        ai_reply="r", ai_msg_id="aa", character_id="c",
+    )
+    row_b = await FactExtractionOutboxRepo.enqueue(
+        session_id="scope_sess_b", user_id="uid", user_msg="m", user_msg_id="ub",
+        ai_reply="r", ai_msg_id="ab", character_id="c",
+    )
+    chunk_a = {"chunk_id": "usr-ua-0", "character_id": "c", "type": "dialogue_fact",
+               "text": "Belongs to A.", "confidence": "player_stated", "source_type": "usr", "source_msg_id": "ua"}
+    chunk_b = {"chunk_id": "usr-ub-0", "character_id": "c", "type": "dialogue_fact",
+               "text": "Belongs to B.", "confidence": "player_stated", "source_type": "usr", "source_msg_id": "ub"}
+    await FactExtractionOutboxRepo.mark_done_with_chunks(row_a, "scope_sess_a", "uid", {"ua": [chunk_a]}, 1)
+    await FactExtractionOutboxRepo.mark_done_with_chunks(row_b, "scope_sess_b", "uid", {"ub": [chunk_b]}, 1)
+
+    a_chunks = await ExtractedChunksRepo.load_for_session("scope_sess_a")
+    b_chunks = await ExtractedChunksRepo.load_for_session("scope_sess_b")
+    assert [c["text"] for c in a_chunks] == ["Belongs to A."]
+    assert [c["text"] for c in b_chunks] == ["Belongs to B."]
+
+
+@pytest.mark.asyncio
+async def test_mark_done_with_chunks_reextraction_replaces_not_duplicates(tmp_data_dir):
+    """A retry that re-runs extraction for the same message/version must
+    overwrite (INSERT OR REPLACE), not accumulate duplicate rows."""
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="reextract_sess", user_id="uid", user_msg="m", user_msg_id="u1",
+        ai_reply="r", ai_msg_id="a1", character_id="c",
+    )
+    chunk_v1 = {"chunk_id": "usr-u1-0", "character_id": "c", "type": "dialogue_fact",
+                "text": "Original text.", "confidence": "player_stated", "source_type": "usr", "source_msg_id": "u1"}
+    await FactExtractionOutboxRepo.mark_done_with_chunks(row_id, "reextract_sess", "uid", {"u1": [chunk_v1]}, 1)
+
+    # Same chunk_id, same extractor_version, different text (simulating a retry).
+    chunk_v1_retry = {**chunk_v1, "text": "Updated text."}
+    await FactExtractionOutboxRepo.mark_done_with_chunks(
+        row_id, "reextract_sess", "uid", {"u1": [chunk_v1_retry]}, 1,
+    )
+
+    stored = await ExtractedChunksRepo.load_for_session("reextract_sess")
+    assert len(stored) == 1, "same chunk_id + version must replace, not duplicate"
+    assert stored[0]["text"] == "Updated text."
+
+
+@pytest.mark.asyncio
+async def test_mark_done_with_chunks_different_extractor_version_coexists(tmp_data_dir):
+    """A bumped extractor_version must NOT silently overwrite an
+    old-schema extraction of the same message — both coexist so nothing
+    from a differently-shaped prior extraction is lost."""
+    from backend.app.db.repos import FactExtractionOutboxRepo, ExtractedChunksRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="version_sess", user_id="uid", user_msg="m", user_msg_id="u1",
+        ai_reply="r", ai_msg_id="a1", character_id="c",
+    )
+    chunk_v1 = {"chunk_id": "usr-u1-0", "character_id": "c", "type": "dialogue_fact",
+                "text": "v1 text.", "confidence": "player_stated", "source_type": "usr", "source_msg_id": "u1"}
+    chunk_v2 = {"chunk_id": "usr-u1-0", "character_id": "c", "type": "dialogue_fact",
+                "text": "v2 text.", "confidence": "player_stated", "source_type": "usr", "source_msg_id": "u1"}
+    await FactExtractionOutboxRepo.mark_done_with_chunks(row_id, "version_sess", "uid", {"u1": [chunk_v1]}, 1)
+    await FactExtractionOutboxRepo.mark_done_with_chunks(row_id, "version_sess", "uid", {"u1": [chunk_v2]}, 2)
+
+    stored = await ExtractedChunksRepo.load_for_session("version_sess")
+    assert len(stored) == 2, "different extractor_version must coexist, not overwrite"
+    texts = {c["text"] for c in stored}
+    assert texts == {"v1 text.", "v2 text."}
+
+
+@pytest.mark.asyncio
+async def test_claim_pending_sets_lease_and_hides_row_from_immediate_reclaim(tmp_data_dir):
+    """Phase 1.2 (BL-01c): claim_pending must lease a row so a second
+    concurrent claim doesn't grab the same row while it's still being
+    worked."""
+    from backend.app.db.repos import FactExtractionOutboxRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="lease_sess", user_id="uid", user_msg="m", user_msg_id="u1",
+        ai_reply="r", ai_msg_id="a1", character_id="c",
+    )
+
+    first_claim = await FactExtractionOutboxRepo.claim_pending(limit=10, lease_seconds=300)
+    assert any(r["id"] == row_id for r in first_claim), "first claim must pick up the pending row"
+
+    second_claim = await FactExtractionOutboxRepo.claim_pending(limit=10, lease_seconds=300)
+    assert not any(r["id"] == row_id for r in second_claim), (
+        "a row with an unexpired lease must not be claimed again"
+    )
+
+
+@pytest.mark.asyncio
+async def test_claim_pending_reclaims_after_lease_expires(tmp_data_dir):
+    """The hung-task recovery property: once a lease expires (worker died
+    without marking done/failed), the row becomes claimable again."""
+    from backend.app.db.repos import FactExtractionOutboxRepo
+
+    row_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="lease_expiry_sess", user_id="uid", user_msg="m", user_msg_id="u1",
+        ai_reply="r", ai_msg_id="a1", character_id="c",
+    )
+
+    # Claim with a lease already in the past (negative seconds) so it reads
+    # as expired on the very next check, without needing a real sleep().
+    first_claim = await FactExtractionOutboxRepo.claim_pending(limit=10, lease_seconds=-10)
+    assert any(r["id"] == row_id for r in first_claim)
+
+    # A moment later, a lease of 0s has already elapsed - the row must be
+    # reclaimable rather than stuck invisible until the outbox is pruned.
+    second_claim = await FactExtractionOutboxRepo.claim_pending(limit=10, lease_seconds=300)
+    assert any(r["id"] == row_id for r in second_claim), (
+        "an expired lease must make the row claimable again, not hide it forever"
+    )
+
+
+@pytest.mark.asyncio
+async def test_claim_pending_does_not_claim_done_or_failed_rows(tmp_data_dir):
+    from backend.app.db.repos import FactExtractionOutboxRepo
+
+    done_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="lease_status_sess", user_id="uid", user_msg="m", user_msg_id="u1",
+        ai_reply="r", ai_msg_id="a1", character_id="c",
+    )
+    await FactExtractionOutboxRepo.mark_done(done_id)
+
+    failed_id = await FactExtractionOutboxRepo.enqueue(
+        session_id="lease_status_sess2", user_id="uid", user_msg="m", user_msg_id="u2",
+        ai_reply="r", ai_msg_id="a2", character_id="c",
+    )
+    await FactExtractionOutboxRepo.mark_failed(failed_id, "some error")
+
+    claimed = await FactExtractionOutboxRepo.claim_pending(limit=50, lease_seconds=300)
+    claimed_ids = {r["id"] for r in claimed}
+    assert done_id not in claimed_ids
+    assert failed_id not in claimed_ids

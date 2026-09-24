@@ -10,15 +10,18 @@ from backend.app.engine.extractors.turn_extractor import (
 
 from fastapi import APIRouter, Depends, Request
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
-from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo
+from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 
 import asyncio
+import copy
 import dataclasses
 import httpx
 import json
 import logging
 
 import re
+
+import secrets
 
 import time
 
@@ -30,8 +33,15 @@ logger = logging.getLogger(__name__)
 
 
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
+from backend.app.knowledge.runtime.dynamic_context import (
+    DynamicContextSelector,
+    dynamic_context_enabled,
+    retrieve_context_candidates,
+)
 from backend.app.knowledge.runtime.session_chunk_store import SessionChunkStore
-from backend.app.knowledge.runtime.dialogue_extractor import extract_facts_from_message
+from backend.app.knowledge.runtime.dialogue_extractor import (
+    extract_facts_from_message, extract_facts_with_status, EXTRACTOR_VERSION,
+)
 
 from backend.app.knowledge.runtime.index_service import IndexService
 
@@ -67,6 +77,10 @@ from backend.app.engine.state import (
     LanguageTheme,
 
 )
+from backend.app.engine.dialogue import (
+    present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo,
+    dialogue_response_format, decode_dialogue_response,
+)
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
@@ -77,6 +91,8 @@ from backend.app.engine.story_loader import load_story, StoryDefinition
 from backend.app.engine.gameplay import (
 
     advance_time,
+
+    advance_time_by,
 
     win_condition_detected,
 
@@ -92,6 +108,7 @@ from backend.app.engine.prompt_builder import (
 
 )
 from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace_key
+from backend.app.utils.stage_timer import StageTimer
 
 
 router = APIRouter()
@@ -374,6 +391,13 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "win_detection": src.get("win_detection") or {},
         "epistemic_seed": src.get("epistemic_seed") or {},
         "canonical_truth": src.get("canonical_truth") or [],
+        # BL-16 fix: a closed, story-authored vocabulary for behavior_tags
+        # (see turn_extractor.py's BehaviorTagUpdate and
+        # _ripe_behavior_pairs' docstring in this file). Empty list for
+        # every pre-existing story until authored - the extractor and
+        # _ripe_behavior_pairs both treat an empty vocabulary as "accept
+        # anything", so this is a strictly additive, opt-in change.
+        "behavior_tag_vocabulary": [str(t).strip() for t in (src.get("behavior_tag_vocabulary") or []) if str(t or "").strip()],
         "characters": characters,
         "relationships": src.get("relationships") or {},
         # Optional ensemble/slice-of-life mode context (see
@@ -395,6 +419,7 @@ def _initialize_cast_lifecycle(state: GameState, snapshot: dict | None = None) -
     config = (getattr(state, "story_cfg", None) or {}).get("cast_lifecycle") or {}
     if snapshot is not None:
         state.cast_lifecycle = CastLifecycleState.from_dict(snapshot)
+        _reserve_player_resident_slot(state, config)
         return
     if not config or not bool(config.get("enabled", False)):
         state.cast_lifecycle = None
@@ -408,6 +433,128 @@ def _initialize_cast_lifecycle(state: GameState, snapshot: dict | None = None) -
         character_ids=(getattr(state, "characters", None) or {}).keys(),
         location_ids=location_ids,
     )
+    if config.get("randomize_initial_roster"):
+        group = config["player_slot_groups"][state.gender]
+        state.cast_lifecycle.choose_initial_roster(group)
+    _reserve_player_resident_slot(state, config)
+
+
+def _reserve_player_resident_slot(state: GameState, config: dict) -> None:
+    lifecycle = state.cast_lifecycle
+    if lifecycle is None or not lifecycle.enabled or config.get("player_mode") != "resident_slot":
+        return
+    group = config["player_slot_groups"][state.gender]
+    lifecycle.reserve_player_slot(group)
+    lifecycle.require_replacement = bool(config.get("require_replacement", False))
+
+
+def _sync_resident_locations(state: GameState) -> None:
+    lifecycle = state.cast_lifecycle
+    if lifecycle is None or not lifecycle.player_slot_group:
+        return
+    state.character_locations = {
+        key: location for key, location in state.character_locations.items()
+        if key == "player" or lifecycle.is_scene_eligible(key)
+    }
+    # Older saves can still point at the removed guest room.
+    config = state.story_cfg["cast_lifecycle"]
+    bedroom = config["player_bedrooms"][lifecycle.player_slot_group]
+    if state.location_id == "player_bedroom":
+        state.location_id = bedroom
+        if state.world_runtime:
+            location = state.world_runtime.world_graph.locations[bedroom]
+            state.location = location.name
+            state.location_uuid = location.uuid
+    for key, location in state.character_locations.items():
+        if location == "player_bedroom":
+            state.character_locations[key] = bedroom
+
+
+def _remove_upcoming_relationships(state: GameState) -> None:
+    lifecycle = state.cast_lifecycle
+    graph = state.character_graph
+    if lifecycle is None or not lifecycle.player_slot_group or graph is None:
+        return
+    upcoming = {key for key, member in lifecycle.members.items() if member.status is CastStatus.UPCOMING}
+    graph.edges = {
+        key: edge for key, edge in graph.edges.items()
+        if edge.from_id not in upcoming and edge.to_id not in upcoming
+    }
+
+
+def _seed_initial_active_relationships(state: GameState) -> None:
+    """Give every randomized opening resident a real first-meeting edge.
+
+    Authored story graphs can describe a particular premiere cast, while a
+    lifecycle-enabled game may draw any eligible residents into its opening
+    roster.  Preserve authored edges where they exist and let the generic
+    graph first-meeting rule fill only the missing ones.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    graph = getattr(state, "character_graph", None)
+    if lifecycle is None or graph is None:
+        return
+    participant_ids = set(lifecycle.active_ids()) | {"player"}
+    for key in participant_ids:
+        character = (getattr(state, "characters", {}) or {}).get(key)
+        if character is not None and key not in graph.characters:
+            graph.add_character(character)
+    graph.process_first_meetings(participant_ids, state, int(getattr(state, "minute", 0) or 0), is_new_encounter=True)
+
+
+def player_visible_character_ids(state: GameState) -> set[str] | None:
+    """Phase 1.4: the ONE policy for which character IDs a player-facing view
+    (roster, journal, or any future public projection) may ever mention.
+
+    Returns None when cast lifecycle isn't enabled for this story - callers
+    should treat that as "no filtering; every authored character is visible"
+    (matches _cast_roster_payload's existing no-lifecycle fallback).
+
+    The audit's finding: "is this character currently active" is NOT
+    sufficient — a departed resident the player actually met must stay
+    visible (their journal history is legitimately learned), while an
+    unarrived UPCOMING resident must never appear at all, even though they
+    are fully authored in story content (goals, dialogue hooks, etc. for
+    characters the player hasn't met yet). The three lifecycle statuses that
+    mean "the player has, at some point, actually been in scene with this
+    character" are ACTIVE, INACTIVE (deactivated but not via the full
+    departure/replacement flow - still someone the player met), and
+    DEPARTED (replaced out through the normal flow). UPCOMING is the one
+    status that must never leak, in any view.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not lifecycle.enabled:
+        return None
+    visible = {
+        key for key, member in lifecycle.members.items()
+        if member.status is not CastStatus.UPCOMING
+    }
+    if lifecycle.player_slot_group:
+        visible.add("player")
+    return visible
+
+
+def player_visible_arrival_minute(state: GameState, character_id: str) -> int | None:
+    """Phase 1.4: earliest minute a player-facing view may show content
+    attributed to `character_id`, or None if there is no lower bound (no
+    lifecycle, or the character has no recorded activation - e.g. an
+    original day-one resident who was never activate()'d through the
+    lifecycle machinery because they started active).
+
+    Closes the second half of the audit's finding: a character's `goal` can
+    carry AUTHORED history entries (e.g. their starting motivation) whose
+    `timestamp_minute` may be 0 or otherwise predate the moment they actually
+    entered the scene as a mid-game arrival. A public view must not surface
+    that as something the player has "learned" before it was ever shown to
+    them in play.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not lifecycle.enabled:
+        return None
+    member = lifecycle.members.get(character_id)
+    if member is None:
+        return None
+    return member.activated_minute
 
 
 def _cast_roster_payload(state: GameState) -> dict:
@@ -424,6 +571,8 @@ def _cast_roster_payload(state: GameState) -> dict:
     characters = getattr(state, "characters", {}) or {}
     active = []
     departed = []
+    if lifecycle.player_slot_group:
+        active.append({"id": "player", "name": state.user.display_name or state.player_name or "Player", "role": "Housemate (you)"})
     for key in lifecycle.active_ids():
         ch = characters.get(key)
         if ch is not None:
@@ -849,6 +998,30 @@ def _is_epistemic_toggle(msg: str) -> bool:
     return (msg or "").strip().upper() in EPISTEMIC_TOGGLE_TOKENS
 
 
+# ---------------------------------------------------------------------------
+# TIME SKIP — player-triggered jump forward in world time.
+# ---------------------------------------------------------------------------
+# Named presets only (no free-form minute counts from the client) so every
+# value is validated and the narration cue text stays predictable.
+TIME_SKIP_PRESETS: dict[str, tuple[int, str]] = {
+    "HOURS": (4 * 60, "A few hours pass"),
+    "OVERNIGHT": (8 * 60, "The night passes"),
+    "DAY": (24 * 60, "A full day passes"),
+}
+TIME_SKIP_PREFIX = "__cmd_skip__:"
+
+
+def _parse_time_skip(msg: str) -> Optional[tuple[int, str]]:
+    """Returns (minutes, narration_cue) if msg is a valid time-skip command,
+    else None. Unknown preset keys are treated as not-a-command (safe no-op),
+    matching the tolerant-parsing convention used elsewhere in this file."""
+    text = (msg or "").strip()
+    if not text.startswith(TIME_SKIP_PREFIX):
+        return None
+    preset_key = text[len(TIME_SKIP_PREFIX):].strip().upper()
+    return TIME_SKIP_PRESETS.get(preset_key)
+
+
 def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
     """Heuristic location matcher for world-graph travel.
 
@@ -982,6 +1155,7 @@ async def _translate_to_chinese(text: str) -> str:
             "italics (*text*), quotes, newlines, punctuation, and special characters. "
             "Keep the layout and structure exactly the same as the original. "
             "Only translate the actual words, not the formatting markers. "
+            "Preserve [SPEAKER:id] and [/SPEAKER] markers and their IDs EXACTLY. "
             "Return ONLY the translated text, no explanations.\n\n"
             f"Text to translate:\n{text}"
         )
@@ -1162,6 +1336,25 @@ def _restore_behavior_log(saved: dict | None) -> dict:
     if not isinstance(saved, dict):
         return {}
     return {str(k): [str(t) for t in (v or []) if isinstance(v, list)] for k, v in saved.items() if isinstance(v, list)}
+
+
+def _migrate_behavior_log_to_vocabulary(log: dict, vocabulary: list[str]) -> dict:
+    """BL-16 fix: a session saved BEFORE a story authored a
+    behavior_tag_vocabulary may hold free-text tags that no longer match
+    it. Dropping unknown tags (rather than fuzzy-mapping them) is the
+    simplest correct choice - the window is capped at
+    BEHAVIOR_LOG_WINDOW_SIZE entries per pair, so a few stale entries lost
+    on the first load after authoring a vocabulary is a small, one-time
+    cost. A pair left with zero matching tags is dropped entirely."""
+    if not vocabulary:
+        return log
+    allowed = {str(t).strip().lower() for t in vocabulary}
+    migrated: dict[str, list[str]] = {}
+    for pair_key, tags in (log or {}).items():
+        kept = [t for t in tags if str(t).strip().lower() in allowed]
+        if kept:
+            migrated[pair_key] = kept
+    return migrated
 
 
 def _ripe_behavior_pairs(state: GameState) -> dict[str, list[str]]:
@@ -1552,6 +1745,8 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 if k and v
             }
 
+        _sync_resident_locations(restored)
+
         if (
             restored.cast_lifecycle is not None
             and restored.main_character_id
@@ -1561,8 +1756,10 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
 
         # Character relationship graph
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
-            restored.character_graph = story_def.relationships
+            restored.character_graph = copy.deepcopy(story_def.relationships)
             _restore_character_graph(restored, saved.get("character_graph"))
+        _remove_upcoming_relationships(restored)
+        _seed_initial_active_relationships(restored)
 
         # Fallback knowledge bundle
         if not restored.knowledge_character_id and main_char_def:
@@ -1593,7 +1790,10 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         if saved_pending_events:
             restored.pending_events = _restore_pending_events(saved_pending_events)
         _restore_character_goals(restored, saved.get("character_goals"))
-        restored.recent_behavior_log = _restore_behavior_log(saved.get("recent_behavior_log"))
+        restored.recent_behavior_log = _migrate_behavior_log_to_vocabulary(
+            _restore_behavior_log(saved.get("recent_behavior_log")),
+            (restored.story_cfg or {}).get("behavior_tag_vocabulary") or [],
+        )
         restored.clear_all_transient_entries()
         _seed_noncanonical_story_details_to_transient(story_def, restored)
 
@@ -1676,10 +1876,38 @@ def apply_placeholders(text: str, state: GameState) -> str:
         lang = {}
     honorific_map = lang.get("honorifics", {}) or {}
     honorific = honorific_map.get(state.gender, "")
+    lifecycle_cfg = cfg.get("cast_lifecycle", {}) or {}
+    bedroom_id = (lifecycle_cfg.get("player_bedrooms", {}) or {}).get(
+        getattr(state, "cast_lifecycle", None).player_slot_group
+        if getattr(state, "cast_lifecycle", None) else "",
+        "",
+    )
+    bedroom = bedroom_id.replace("_", " ") if bedroom_id else "shared bedroom"
     return (
         text.replace("{{PLAYER_NAME}}", name)
             .replace("{{HONORIFIC}}", honorific)
+            .replace("{{PLAYER_BEDROOM}}", bedroom)
     )
+
+
+def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
+    """Choose an authored opening variant without making story text procedural.
+
+    Any story can provide ``opening.variants``; legacy stories retain their
+    single ``opening.text`` unchanged. Placeholders are resolved afterwards.
+    """
+    opening_cfg = story_def.get("opening", {}) or {}
+    variants = [str(item) for item in (opening_cfg.get("variants") or []) if str(item).strip()]
+    opening = secrets.choice(variants) if variants else str(
+        opening_cfg.get("text", "The room is quiet. A story begins.")
+    )
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    active_ids = lifecycle.active_ids() if lifecycle else []
+    if active_ids:
+        # The welcome belongs to a resident who is actually in this draw, not
+        # a fixed authored host who may be waiting in the replacement queue.
+        return f"{opening}\n\n[SPEAKER:{secrets.choice(active_ids)}]Welcome — we're glad you're here."
+    return opening
 
 
 # ---------------------------------------------------------------------------
@@ -1739,90 +1967,6 @@ def _derive_language_theme_from_story_cfg(cfg: dict) -> LanguageTheme:
     except Exception:
         pass
     return LanguageTheme.ENGLISH_US
-
-
-import random
-
-def apply_language_theme_mixing(text: str, state: GameState) -> str:
-    """Post-process an assistant reply to introduce light honorifics / casual local flavor
-
-    Behavior:
-      - For English Korean / English Japanese themes, replace occurrences of the player's
-        display name with a name + honorific based on story language.honorifics map.
-      - Optionally append a small casual interjection from story_cfg.language.casual_terms
-        with modest frequency so output doesn't feel mechanical.
-
-    This is intentionally conservative: only shallow textual transforms are applied.
-    """
-    try:
-        if not text or not state:
-            return text
-        cfg = getattr(state, "story_cfg", {}) or {}
-        lang = cfg.get("language", {}) or {}
-        honorific_map = lang.get("honorifics") or {}
-        casual_terms = list(lang.get("casual_terms") or [])
-
-        # Determine theme preference (explicit state field preferred)
-        theme = getattr(state, "language_theme", None)
-        if theme is None or (isinstance(theme, str) and not theme):
-            theme = _derive_language_theme_from_story_cfg(cfg)
-        elif isinstance(theme, str):
-            # Tolerate session objects produced by older code paths that held
-            # the enum value as a plain string.
-            try:
-                theme = LanguageTheme(theme)
-            except ValueError:
-                theme = _derive_language_theme_from_story_cfg(cfg)
-
-        # Normalize player's display name
-        display_name = (state.user.display_name or state.player_name or "Player").strip()
-        if not display_name:
-            return text
-
-        # Honorific substitution
-        honorific = ""
-        if isinstance(honorific_map, dict):
-            honorific = honorific_map.get(state.gender) or honorific_map.get("default") or honorific_map.get("M") or honorific_map.get("F") or ""
-        # If honorific found and theme indicates mixing, replace bare name
-        # occurrences.  Do not add it a second time when the model already
-        # followed the language prompt.
-        if honorific and (theme == LanguageTheme.ENGLISH_KOREAN or theme == LanguageTheme.ENGLISH_JAPANESE):
-            # If honorific looks like a suffix (e.g., 'san' or '-kun') determine joiner
-            honor_l = str(honorific).strip()
-            if honor_l.startswith("-") or honor_l.startswith("-"):
-                # keep as-is (e.g., '-kun')
-                replacement = f"{display_name}{honor_l}"
-            elif honor_l.endswith("-"):
-                replacement = f"{honor_l}{display_name}"
-            else:
-                # Default: append with a space or hyphen for readability
-                if len(honor_l) <= 4 and honor_l.isalpha():
-                    # short suffix (san, kun, chan) — append with no space
-                    replacement = f"{display_name}{honor_l if honor_l.startswith('-') else ('-' + honor_l)}"
-                else:
-                    replacement = f"{display_name} {honor_l}"
-
-            # Replace case-insensitively but preserve basic case of display_name
-            pattern = (
-                rf"(?<![A-Za-z0-9]){re.escape(display_name)}"
-                rf"(?![A-Za-z0-9-]|\s*{re.escape(honor_l.lstrip('-'))}\b)"
-            )
-            text = re.sub(pattern, replacement, text)
-
-        # Occasionally append a casual interjection to the end of the reply
-        if casual_terms and (theme == LanguageTheme.ENGLISH_KOREAN or theme == LanguageTheme.ENGLISH_JAPANESE):
-            # modest probability to avoid heavy-handed mixing
-            if random.random() < 0.18:
-                term = random.choice(casual_terms)
-                # append separated by a space; don't duplicate punctuation
-                if not text.endswith((".", "?", "!")):
-                    text = text.rstrip()
-                    text += "."
-                text += f" {term}"
-
-        return text
-    except Exception:
-        return text
 
 
 # ---------------------------------------------------------------------------
@@ -1901,6 +2045,13 @@ def handle_name_confirmation(user_msg: str, state: GameState):
 # smaller, separate piece of work flagged as out of scope for this pass.
 _SESSION_LOCKS: dict[str, asyncio.Lock] = {}
 
+# Stable, provider-agnostic message shown to players when the story master call
+# fails upstream. Deliberately says nothing about which provider, model, quota or
+# account was involved - operators correlate via req_id in the JSONL log instead.
+_PUBLIC_UPSTREAM_ERROR = (
+    "The story master is unavailable right now. Please try that again in a moment."
+)
+
 
 def _get_session_lock(session_id: str) -> asyncio.Lock:
     lock = _SESSION_LOCKS.get(session_id)
@@ -1977,6 +2128,33 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         state.session_chunk_store = SessionChunkStore()
     log = sess["log"]
 
+    # TIME SKIP — jump the world clock forward, then fall through into the
+    # normal turn pipeline with a short narration-cue message so the story
+    # master narrates what's changed (consistent with the North Star's
+    # "events continue off-screen" principle — a skip is not a silent no-op,
+    # the next reply must acknowledge time has passed). advance_time_by()
+    # runs here (once, for the full jump) instead of relying on the
+    # per-turn advance_time() call later, which is sized for dialogue-length
+    # deltas, not multi-hour/day jumps.
+    _time_skip = _parse_time_skip(msg)
+    _is_time_skip_turn = False
+    if _time_skip is not None and state is not None:
+        _skip_minutes, _skip_cue = _time_skip
+        advance_time_by(state, _skip_minutes)
+        # Embed the resulting clock time directly in the cue the story master
+        # reads. The world clock is otherwise never surfaced in the prompt
+        # (only in the debug box) - live-verified this turn silently narrates
+        # the OLD time/scene ("dinner should be ready soon") if the cue is
+        # left generic, because nothing else in the prompt tells the model
+        # time has moved. Stating the new time explicitly, in the one place
+        # the model reliably reads every turn (the user message), fixes this
+        # without a broader prompt-builder change.
+        _new_ts = WorldTimeFormatter.compute(
+            getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)
+        ).display
+        msg = f"[Time skip] {_skip_cue}. It is now {_new_ts}."
+        _is_time_skip_turn = True
+
     # Sync epistemic master flag to this session's toggle.
     set_master(bool(sess.get("epistemic_state", True)))
 
@@ -2026,7 +2204,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
-    # MAP TOGGLE - Show available locations
+    # MAP TOGGLE - keep chat clear; the client owns the full-screen artwork.
     if _is_map_toggle(msg):
         state: GameState = sess.get("state")
         if not state or not state.world_runtime:
@@ -2038,11 +2216,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             )
             map_image = None
         else:
-            locations = list(state.world_runtime.world_graph.locations.values())
-            location_lines = []
-            for loc in locations:
-                location_lines.append(f"{loc.name}")
-            notice = _box("World Map", location_lines)
+            notice = _box("World Map", ["Open the map from the game menu."])
             
             # Get world map image path if available
             map_image = None
@@ -2051,6 +2225,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 map_image = str(world_cfg.get("world_map_image", "")).strip() or None
 
         result = {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
+        if state and state.world_runtime:
+            from backend.app.engine.world.map_model import world_map_payload
+            result["world_map"] = world_map_payload(state.world_runtime.world_graph)
         if map_image:
             result["world_map_image"] = map_image
             try:
@@ -2123,6 +2300,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         return {"reply": notice, "usage": {"total_tokens": 0}, "character": "default"}
 
     t0 = time.time()
+    stage_timer = StageTimer()  # Phase 0B: per-turn stage ledger
 
     # RESET
     if msg == "__cmd_reset__":
@@ -2341,9 +2519,26 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 if k and v
             }
 
+        _sync_resident_locations(new_state)
+
+        # A randomly selected opening cast may not include the authored focal
+        # character. Keep the focal lens inside the current five-NPC roster.
+        if new_state.cast_lifecycle and not new_state.cast_lifecycle.is_scene_eligible(new_state.main_character_id):
+            new_state.main_character_id = next(iter(new_state.cast_lifecycle.active_ids()), None)
+
+        if new_state.cast_lifecycle:
+            default_location = str(
+                (new_state.story_cfg.get("cast_lifecycle", {}) or {}).get("initial_active_location_id")
+                or "living_room"
+            )
+            for key in new_state.cast_lifecycle.active_ids():
+                new_state.character_locations.setdefault(key, default_location)
+
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
-            new_state.character_graph = story_def.relationships
+            new_state.character_graph = copy.deepcopy(story_def.relationships)
+        _remove_upcoming_relationships(new_state)
+        _seed_initial_active_relationships(new_state)
 
         # Fallback knowledge bundle for main
         if not new_state.knowledge_character_id and main_char_def:
@@ -2352,8 +2547,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         # Label all knowledge chunks with player visibility for debug player agent retrieval.
         _seed_player_visibility(new_state)
 
-        opening = story_def.get("opening", {}).get("text", "The room is quiet. A story begins.")
+        opening = _opening_for_new_game(story_def, new_state)
         opening = apply_placeholders(opening, new_state)
+        opening, segments = present_dialogue(opening, new_state)
+        opening = dialogue_transcript(segments)
 
         sess["state"] = new_state
         new_state.session_chunk_store = SessionChunkStore()
@@ -2393,9 +2590,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         # Apply Chinese translation if chinese_mode is enabled
         reply = opening
         if bool(sess.get("chinese_mode", False)):
-            reply = await _translate_to_chinese(reply)
+            reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
 
-        return {"reply": reply, "usage": {"total_tokens": 0}, "character": "default"}
+        return {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
 
     # REGULAR TURN — auto-reinitialize if game state is missing
     if not state.story or not state.story_cfg:
@@ -2418,6 +2615,39 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     if state.over:
         return {"reply": "This story has ended. Start a new game from the home screen to play again.", "character": "default"}
+
+    # Phase 1.1: isolate this turn's mutations from the live cached session.
+    #
+    # Problem this closes: `state` below is a LIVE reference into
+    # SESSIONS[session_id]["state"] (see `state = sess["state"]` above and in
+    # get_session()), mutated in place, not copy-on-write. Every mutation from
+    # here on (advance_time, relationship deltas, cast lifecycle, state.turns
+    # += 1, scene knowledge) was applied directly to that shared object BEFORE
+    # the storyteller call. If the storyteller call then fails (see the
+    # retrieval/upstream/decode `return` points below) or the process is
+    # killed mid-turn, the live session was left permanently mutated with no
+    # completed reply and no BL-02 dedup token — a client retry would
+    # reprocess from already-advanced state and double-apply everything.
+    #
+    # Fix: clone the state into an isolated working copy up front. All
+    # mutation below operates on the clone. The clone is written back to
+    # SESSIONS only at the single success point (alongside the BL-02 dedup
+    # token, in the same block) — see `_publish_turn_state` below. Every
+    # failure `return` between here and there discards the clone; the live
+    # session is untouched by construction, so a retry sees exactly the
+    # pre-turn state it would have seen if this turn had never been attempted.
+    #
+    # Cost: measured ~30ms for a full GameState clone (world graph, cast
+    # lifecycle, character graph, session chunk store all included) against a
+    # multi-second storyteller call — not a meaningful tax on turn latency.
+    working_state = copy.deepcopy(state)
+    state = working_state
+    # `log` (recent dialogue turns, used for MEMORY_TURNS context) is a
+    # separate mutable structure hanging off `sess`, not off `state` — clone
+    # it too so its mutation below (log.append(...) further down) is subject
+    # to the same discard-on-failure / publish-on-success rule.
+    working_log = list(log)
+    log = working_log
 
     # Keep transient scene memory bounded.
     state.purge_transient_entries()
@@ -2465,27 +2695,39 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # NOTE: advance_time is called AFTER location extraction (below) so that
     # the canonicalized movement message (e.g. "go to interview_room_bob") is
     # used instead of the raw user text which may not match the strict regex.
-    handle_name_confirmation(msg, state)
+    # Skip on a time-skip turn: the narration cue ("A few hours pass") is
+    # narrator framing, not player dialogue, but its shape (a short bare
+    # phrase of letters/spaces) matches extract_user_name_from_text()'s
+    # "solo name" fallback pattern and would otherwise overwrite the
+    # player's real name with the cue text.
+    if not _is_time_skip_turn:
+        handle_name_confirmation(msg, state)
 
-    extracted = extract_user_name_from_text(msg)
-    if extracted:
-        state.user.formal_name = extracted
-        if not state.user.display_name:
-            state.user.display_name = extracted
+        extracted = extract_user_name_from_text(msg)
+        if extracted:
+            state.user.formal_name = extracted
+            if not state.user.display_name:
+                state.user.display_name = extracted
 
     # --- KNOWLEDGE RETRIEVAL (must happen BEFORE location extraction) ---
     # This retrieval provides context that helps LocationExtractor disambiguate ambiguous location
     # references. For example, "I'm going to her old studio" needs FAISS knowledge context to
     # resolve "old studio" to the specific location ID (e.g., "downtown_recording_studio").
     try:
-        # Route retrieval to the correct character bundle for this story.
-        if getattr(state, "knowledge_character_id", ""):
-            IndexService.set_active_character(state.knowledge_character_id)
-        namespace = build_namespace_key(user_id=getattr(state, "user_id", ""), story_id=getattr(state, "story", ""), instance=getattr(state, "instance", 1))
-        retrieved, debug = retrieve_knowledge(
-            msg, namespace=namespace,
-            session_store=state.session_chunk_store,
-        )
+        with stage_timer.stage("retrieval"):
+            # Route retrieval to the correct character bundle for this story.
+            if getattr(state, "knowledge_character_id", ""):
+                IndexService.set_active_character(state.knowledge_character_id)
+            namespace = build_namespace_key(user_id=getattr(state, "user_id", ""), story_id=getattr(state, "story", ""), instance=getattr(state, "instance", 1))
+            if dynamic_context_enabled():
+                retrieved, debug = retrieve_context_candidates(
+                    msg, namespace=namespace, session_store=state.session_chunk_store,
+                )
+            else:
+                retrieved, debug = retrieve_knowledge(
+                    msg, namespace=namespace,
+                    session_store=state.session_chunk_store,
+                )
     except Exception as e:
         _log({"kind": "retrieval_error", "error": str(e)})
         return {"error": "knowledge retrieval failed", "character": "default"}
@@ -2516,21 +2758,46 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         }
 
         try:
+            # Phase 3 "Social life": only ever ask the extractor to judge a
+            # social shift when the cheap, no-LLM heuristic has flagged a
+            # pair's accumulated behavior as ripe - most turns this is
+            # empty and the extractor prompt is byte-identical to before
+            # this feature existed. Evaluate at most one pair per turn to
+            # keep the added prompt small and the judgment focused.
+            _ripe_pairs = _ripe_behavior_pairs(state)
+            _behavior_window = None
+            if _ripe_pairs:
+                _ripe_pair_key = next(iter(_ripe_pairs))
+                _behavior_window = {"pair": _ripe_pair_key, "tags": _ripe_pairs[_ripe_pair_key]}
+
             _log({
                 "kind": "turn_extraction_attempting",
                 "user_msg": msg,
                 "current_location_id": state.location_id,
                 "current_location_name": state.location,
             })
-            extraction = await _TURN_EXTRACTOR.extract(
-                user_msg=msg,
-                world_locations=world_locations,
-                character_key_to_name=character_key_to_name,
-                previous_turn_user_msg=str(getattr(state, "last_turn_user_msg", "") or ""),
-                previous_turn_assistant_reply=str(getattr(state, "last_turn_assistant_reply", "") or ""),
-                previous_turn_candidate_chunks=previous_candidate_chunks,
-                conversation_log=log,
-            )
+            # Step 1 of the Jev provider architecture (see
+            # documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §1): the
+            # stage ledger instrumented retrieval/storyteller/commit but NOT
+            # extraction, so production extractor latency was an inference
+            # rather than a recorded fact. Locally this call measured ~3.6s
+            # p50, which is NOT reconcilable with Phase 0B's measured 3.1-3.9s
+            # TOTAL turn time - meaning production is faster than the local
+            # measurement and the real number was unknown. This stage makes it
+            # observable before anyone quotes a Jev speedup ratio as a
+            # production figure.
+            with stage_timer.stage("extraction"):
+                extraction = await _TURN_EXTRACTOR.extract(
+                    user_msg=msg,
+                    world_locations=world_locations,
+                    character_key_to_name=character_key_to_name,
+                    previous_turn_user_msg=str(getattr(state, "last_turn_user_msg", "") or ""),
+                    previous_turn_assistant_reply=str(getattr(state, "last_turn_assistant_reply", "") or ""),
+                    previous_turn_candidate_chunks=previous_candidate_chunks,
+                    conversation_log=log,
+                    behavior_window=_behavior_window,
+                    allowed_behavior_tags=(state.story_cfg or {}).get("behavior_tag_vocabulary") or [],
+                )
             
             _log({
                 "kind": "turn_extraction_complete",
@@ -2662,13 +2929,64 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
             # Phase 3 "Social life": accumulate cheap per-turn behavior tags
             # unconditionally (raw material only - never itself a change).
-            # The rare, expensive social_shift_signal judgment/apply is
-            # handled separately (see the scheduler block after advance_time).
             for _tag in (extraction.behavior_tags or []):
                 _pair_key = f"{_tag.from_id}->{_tag.to_id}"
                 _log_list = state.recent_behavior_log.setdefault(_pair_key, [])
                 _log_list.append(_tag.tag)
                 del _log_list[:-BEHAVIOR_LOG_WINDOW_SIZE]
+
+            # Apply a genuine SHIFT (never a WISH - "a wish or joke is not
+            # departure" applies here too: a momentary flicker must not
+            # rewrite a character's goal/disposition). Re-validate
+            # subject_id/target_id against current live state - never trust
+            # the extractor's earlier allowed_character_keys check alone,
+            # same double-validation discipline as the destination_id path.
+            _shift = extraction.social_shift_signal
+            if _shift is not None and _shift.certainty == "SHIFT" and _shift.new_value:
+                _shift_entry_id = f"social_shift_{_shift.scope}_{_shift.subject_id}_{_shift.target_id}_{state.turns}"
+                if _shift.scope == "goal":
+                    _shift_char = (getattr(state, "characters", {}) or {}).get(_shift.subject_id)
+                    if _shift_char is not None:
+                        if _shift_char.goal is None:
+                            _shift_char.goal = EvolvingTrait(kind="goal", subject_id=_shift.subject_id)
+                        _shift_applied = _shift_char.goal.propose_change(
+                            _shift.new_value,
+                            minute=int(getattr(state, "minute", 0) or 0),
+                            reason=_shift.reason or "behavior shift observed over several turns",
+                            confidence=0.7,
+                            entry_id=_shift_entry_id,
+                        )
+                        if _shift_applied:
+                            state.recent_behavior_log.pop(f"{_shift.subject_id}->{_shift.target_id}", None)
+                            _log({
+                                "kind": "social_goal_shift_applied",
+                                "character_id": _shift.subject_id,
+                                "new_value": _shift.new_value,
+                            })
+                elif _shift.scope == "disposition" and _rel_graph is not None and _shift.target_id:
+                    _shift_edge = _rel_graph.get_edge(_shift.subject_id, _shift.target_id)
+                    if _shift_edge is not None:
+                        if _shift_edge.disposition is None:
+                            _shift_edge.disposition = EvolvingTrait(
+                                kind="disposition", subject_id=_shift.subject_id, target_id=_shift.target_id,
+                            )
+                        _shift_applied = _shift_edge.disposition.propose_change(
+                            _shift.new_value,
+                            minute=int(getattr(state, "minute", 0) or 0),
+                            reason=_shift.reason or "behavior shift observed over several turns",
+                            confidence=0.7,
+                            entry_id=_shift_entry_id,
+                        )
+                        if _shift_applied:
+                            # Reset this pair's window so the next shift
+                            # needs fresh evidence, not the same window twice.
+                            state.recent_behavior_log.pop(f"{_shift.subject_id}->{_shift.target_id}", None)
+                            _log({
+                                "kind": "social_disposition_shift_applied",
+                                "from_id": _shift.subject_id,
+                                "to_id": _shift.target_id,
+                                "new_value": _shift.new_value,
+                            })
         except Exception as e:
             _log({
                 "kind": "turn_extraction_error",
@@ -2695,7 +3013,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             _log({"kind": "turn_extraction_skipped", "reason": "no_location_id"})
 
     # Only travel/time consumes the command; preserve player dialogue everywhere else.
-    advance_time(state, movement_msg)
+    # Skip the normal per-turn advance on a time-skip turn: advance_time_by()
+    # already jumped the clock by the exact preset amount above, and the
+    # narration-cue text ("A few hours pass") is not real player dialogue -
+    # running it through advance_time()'s word-count delta would add a few
+    # stray extra minutes on top of an otherwise-exact jump.
+    if not _is_time_skip_turn:
+        advance_time(state, movement_msg)
 
     # Phase 2 cast-cycling scheduler: execute any departure replacement whose
     # authored availability window (day boundary) has now arrived. Must run
@@ -2769,6 +3093,32 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     except Exception:
         pass
 
+    # Context selection intentionally happens after validated movement/state
+    # updates. It may vary optional memory emphasis, but canonical facts and
+    # speaker knowledge still enter the prompt through their deterministic
+    # prompt-builder layers.
+    if dynamic_context_enabled():
+        try:
+            with stage_timer.stage("context_selection"):
+                scene = (
+                    f"Location: {getattr(state, 'location', '') or getattr(state, 'location_id', '')}. "
+                    f"Present: {', '.join(sorted(_people_present))}. "
+                    f"Turn: {int(getattr(state, 'turns', 0) or 0)}."
+                )
+                selection = await DynamicContextSelector().select(
+                    query=msg,
+                    candidates=retrieved,
+                    scene=scene,
+                    focal_character_id=str(getattr(state, "main_character_id", "") or ""),
+                    seed_material=f"{session_id}|{int(getattr(state, 'turns', 0) or 0)}|{msg}",
+                )
+                retrieved = selection.chunks
+                debug = dict(debug or {})
+                debug["dynamic_context"] = selection.debug
+        except Exception as exc:
+            # Optional contextual variety must never make a valid turn fail.
+            _log({"kind": "dynamic_context_selection_error", "error": str(exc)})
+
     from backend.app.engine.prompt_builder import PromptInput
 
     prompt_input = PromptInput(
@@ -2787,8 +3137,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     payload = {
         "model": OPENAI_MODEL,
         "messages": messages,
+        "response_format": dialogue_response_format(state),
         "temperature": TEMPERATURE,
-        "max_tokens": MAX_TOKENS,
+        # Reserve room for per-speaker metadata as well as the existing prose budget.
+        "max_tokens": max(1024, MAX_TOKENS * 2),
     }
 
     _log({
@@ -2804,12 +3156,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     # Story master call — uses configurable base URL/model so the same code
     # works against OpenAI (online) or a local Ollama instance (local dev).
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.post(
-            f"{STORY_MASTER_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
-            json={**payload, "model": STORY_MASTER_MODEL},
-        )
+    with stage_timer.stage("storyteller"):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                f"{STORY_MASTER_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                json={**payload, "model": STORY_MASTER_MODEL},
+            )
 
     if r.status_code < 200 or r.status_code >= 300:
         _log({
@@ -2818,10 +3171,18 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             "status": r.status_code,
             "body": _truncate(r.text, 4000),
         })
-        return {"error": f"upstream HTTP {r.status_code}: {r.text}", "character": "default"}
+        # Phase 0A.6: never return the provider's raw response body to the
+        # client. It can carry provider org/project identifiers, quota and
+        # billing details, model names, and internal request IDs. The full body
+        # is already in the operator log above (kind=chat_upstream_error) with
+        # req_id for correlation; the player gets a stable, generic message.
+        return {"error": _PUBLIC_UPSTREAM_ERROR, "character": "default"}
 
     data = r.json()
-    reply = str(data["choices"][0]["message"]["content"])
+    try:
+        reply = decode_dialogue_response(str(data["choices"][0]["message"]["content"]), state)
+    except ValueError:
+        return {"error": "The scene response was incomplete. Please try again.", "character": "default"}
 
     guess_match = re.search(
         r"\bis your name\s+([A-Za-z][A-Za-z\s'\-]{0,40})\??",
@@ -2833,12 +3194,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
-    # Apply language-theme mixing (honorifics, casual interjections) conservatively
-    try:
-        clean = apply_language_theme_mixing(clean, state)
-    except Exception:
-        pass
-
+    clean, segments = present_dialogue(clean, state)
+    # The player already sees their own message; never let the scene hand it
+    # to an NPC (arena-found beta regression, 2026-09-23).
+    segments = drop_player_echo(segments, msg)
+    clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]
 
@@ -2849,7 +3209,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     log.append({"role": "user", "content": msg})
     log.append({"role": "assistant", "content": clean})
-    sess["log"] = log[-MEMORY_TURNS:]
+    # Phase 1.1: trim the WORKING clone only; do not publish to `sess` yet —
+    # that happens once, atomically with `state`, at the success point below.
+    log = log[-MEMORY_TURNS:]
 
     try:
         state.add_transient_entry(
@@ -2912,36 +3274,38 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # persisted snapshot is atomic with respect to the turn just completed.
     if user_id != "anon":
         try:
-            story_title = ""
-            if hasattr(state, "story_cfg") and state.story_cfg:
-                cfg = state.story_cfg
-                story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
-            await SessionRepo.create_or_update_session(
-                session_id=session_id,
-                user_id=user_id,
-                story_id=state.story or "",
-                story_title=story_title,
-                player_name=state.player_name or "",
-                gender=state.gender or "M",
-                state_json=_serialize_state(state, sess["log"]),
-                flags_json=json.dumps({
-                    "debug_mode": bool(sess.get("debug_mode", False)),
-                    "chinese_mode": bool(sess.get("chinese_mode", False)),
-                    "epistemic_state": bool(sess.get("epistemic_state", True)),
-                    "truth_mode": bool(sess.get("truth_mode", False)),
-                }),
-                last_message=clean[:120],
-                turns=state.turns,
-            )
-            await ConversationRepo.append_turns(
-                user_id=user_id,
-                session_id=session_id,
-                user_msg=msg,
-                assistant_reply=clean,
-                turn=state.turns,
-                user_msg_id=user_msg_id,
-                ai_msg_id=ai_msg_id,
-            )
+            with stage_timer.stage("commit"):
+                story_title = ""
+                if hasattr(state, "story_cfg") and state.story_cfg:
+                    cfg = state.story_cfg
+                    story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
+                await SessionRepo.create_or_update_session(
+                    session_id=session_id,
+                    user_id=user_id,
+                    story_id=state.story or "",
+                    story_title=story_title,
+                    player_name=state.player_name or "",
+                    gender=state.gender or "M",
+                    state_json=_serialize_state(state, log),  # Phase 1.1: working clone, not stale sess["log"]
+                    flags_json=json.dumps({
+                        "debug_mode": bool(sess.get("debug_mode", False)),
+                        "chinese_mode": bool(sess.get("chinese_mode", False)),
+                        "epistemic_state": bool(sess.get("epistemic_state", True)),
+                        "truth_mode": bool(sess.get("truth_mode", False)),
+                    }),
+                    last_message=clean[:120],
+                    turns=state.turns,
+                )
+                await ConversationRepo.append_turns(
+                    user_id=user_id,
+                    session_id=session_id,
+                    user_msg=msg,
+                    assistant_reply=clean,
+                    turn=state.turns,
+                    user_msg_id=user_msg_id,
+                    ai_msg_id=ai_msg_id,
+                    segments=segments,
+                )
         except Exception:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
 
@@ -2957,43 +3321,89 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # sessions have no durable identity (they never persist to SQLite at
     # all - see the `user_id != "anon"` guard above), so they keep the
     # legacy best-effort fire-and-forget path unchanged.
+    #
+    # Phase 1.2: for non-anon sessions, ALSO make the extraction OUTPUT
+    # durable, not just the attempt. The old `_extract_and_store` wrote
+    # chunks only into the in-memory SessionChunkStore, then called plain
+    # `mark_done` - a crash between those two lines left a 'done' row with no
+    # actual chunks anywhere durable (the in-memory store is only persisted
+    # by a LATER turn's session save, which hasn't happened yet at this
+    # point). It also used extract_facts_from_message, which collapses
+    # "provider failed" and "genuinely nothing to extract" to the same []
+    # and always marked done either way - a real outage was silently
+    # recorded as a successful empty extraction and never retried.
     character_id = str(getattr(state, "knowledge_character_id", "") or state.story or "unknown")
     if state.session_chunk_store is not None:
         import asyncio as _asyncio
 
-        async def _extract_and_store(
-            _user_msg: str, _user_id: str, _ai_reply: str, _ai_id: str,
-            _char_id: str, _store: "SessionChunkStore", _outbox_row_id: int | None,
+        async def _extract_and_store_durable(
+            _user_msg: str, _user_msg_id: str, _ai_reply: str, _ai_msg_id: str,
+            _char_id: str, _store: "SessionChunkStore", _session_id: str, _user_id: str,
+            _outbox_row_id: int,
         ) -> None:
+            usr_result = await extract_facts_with_status(_user_msg, "user", _user_msg_id, _char_id)
+            ai_result = await extract_facts_with_status(_ai_reply, "assistant", _ai_msg_id, _char_id)
+            # Either half failing means the OUTPUT is incomplete for this
+            # turn - must retry, never mark done. (A retry re-runs both
+            # halves; INSERT OR REPLACE on the chunk table means a half that
+            # already durably succeeded is simply overwritten with the same
+            # content, not duplicated.)
+            if not usr_result.ok or not ai_result.ok:
+                err = usr_result.error or ai_result.error or "unknown extraction failure"
+                try:
+                    await FactExtractionOutboxRepo.mark_failed(_outbox_row_id, err)
+                except Exception:
+                    logger.exception(
+                        "Failed to mark fact-extraction outbox row %s failed for session %s",
+                        _outbox_row_id, _session_id,
+                    )
+                return
+            all_chunks = usr_result.chunks + ai_result.chunks
+            _store.add_chunks(all_chunks)
+            try:
+                await FactExtractionOutboxRepo.mark_done_with_chunks(
+                    _outbox_row_id, _session_id, _user_id,
+                    {_user_msg_id: usr_result.chunks, _ai_msg_id: ai_result.chunks},
+                    EXTRACTOR_VERSION,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to durably persist extracted chunks for session %s (row %s) - "
+                    "chunks are in the in-memory store but NOT marked done, so a "
+                    "recovery sweep will retry rather than silently lose them",
+                    _session_id, _outbox_row_id,
+                )
+
+        async def _extract_and_store_best_effort(
+            _user_msg: str, _user_id: str, _ai_reply: str, _ai_id: str,
+            _char_id: str, _store: "SessionChunkStore",
+        ) -> None:
+            # Anon path, unchanged: no durable identity to persist chunks or
+            # an outbox row against, so this stays fire-and-forget.
             try:
                 usr_chunks = await extract_facts_from_message(_user_msg, "user", _user_id, _char_id)
                 ai_chunks = await extract_facts_from_message(_ai_reply, "assistant", _ai_id, _char_id)
                 _store.add_chunks(usr_chunks + ai_chunks)
-                if _outbox_row_id is not None:
-                    await FactExtractionOutboxRepo.mark_done(_outbox_row_id)
-            except Exception as exc:
-                if _outbox_row_id is not None:
-                    try:
-                        await FactExtractionOutboxRepo.mark_failed(_outbox_row_id, str(exc))
-                    except Exception:
-                        pass
+            except Exception:
+                pass
 
         if user_id != "anon":
             try:
                 outbox_row_id = await FactExtractionOutboxRepo.enqueue(
                     session_id, user_id, msg, user_msg_id, clean, ai_msg_id, character_id,
                 )
-                _asyncio.ensure_future(_extract_and_store(
+                _asyncio.ensure_future(_extract_and_store_durable(
                     msg, user_msg_id, clean, ai_msg_id,
-                    character_id, state.session_chunk_store, outbox_row_id,
+                    character_id, state.session_chunk_store, session_id, user_id,
+                    outbox_row_id,
                 ))
             except Exception:
                 logger.exception("Failed to enqueue fact-extraction outbox row for session %s", session_id)
         else:
             try:
-                _asyncio.ensure_future(_extract_and_store(
+                _asyncio.ensure_future(_extract_and_store_best_effort(
                     msg, user_msg_id, clean, ai_msg_id,
-                    character_id, state.session_chunk_store, None,
+                    character_id, state.session_chunk_store,
                 ))
             except Exception:
                 pass
@@ -3006,6 +3416,22 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         "usage": data.get("usage", {}),
         "assistant_reply_preview": _truncate(clean, 1200),
     })
+
+    # Phase 0B: per-stage timing/cost ledger for this turn. Separate log line
+    # (kind=turn_stage_ledger) rather than folded into chat_response above, so
+    # a ledger-only query/dashboard doesn't have to also parse reply previews.
+    _log(stage_timer.as_ledger({
+        "kind": "turn_stage_ledger",
+        "req_id": req_id,
+        "session_id": session_id,
+        "user_id": user_id,
+        "story": state.story or "",
+        "turn": state.turns,
+        "model": STORY_MASTER_MODEL,
+        "prompt_tokens": (data.get("usage") or {}).get("prompt_tokens"),
+        "completion_tokens": (data.get("usage") or {}).get("completion_tokens"),
+        "cached_tokens": ((data.get("usage") or {}).get("prompt_tokens_details") or {}).get("cached_tokens"),
+    }))
 
     # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
     ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
@@ -3035,9 +3461,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     # Apply Chinese translation if chinese_mode is enabled
     if bool(sess.get("chinese_mode", False)):
-        reply = await _translate_to_chinese(reply)
+        reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
 
-    result = {"reply": reply, "usage": data.get("usage"), "character": "default"}
+    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
     # prompt_debug carries the FULL assembled system prompt (all canonical
     # facts, character secrets, retrieval chunk text) and is only for the
     # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
@@ -3055,6 +3481,19 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         if knowledge_resolution_updates:
             debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
         result["debug_box"] = debug_box
+
+    # Phase 1.1: publish the working clone back to the live session cache.
+    # This is the ONE place `SESSIONS[session_id]` is updated for a regular
+    # turn — every mutation since the clone point above happened on
+    # `working_state`/`working_log`, never on the object other requests could
+    # see. Every failure `return` between the clone point and here skipped
+    # this line, so a failed/interrupted turn leaves the live session exactly
+    # as it was before this request started. This must run BEFORE the BL-02
+    # dedup token write immediately below, so a retry that finds the token can
+    # also find the state it describes (both true-together, not just the
+    # token alone).
+    sess["state"] = state
+    sess["log"] = log
 
     # BL-02: record this turn's dedup token now that `result` (the exact
     # client-facing reply) is fully built, so a retry with the same

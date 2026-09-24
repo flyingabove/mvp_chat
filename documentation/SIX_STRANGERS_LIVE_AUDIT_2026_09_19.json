@@ -1,0 +1,135 @@
+[
+  {
+    "response": {
+      "reply": "The last of the evening light is caught in the windows when you reach the house. Behind you, the residential street is quiet enough to hear the wheels of your suitcase catch on a seam in the pavement. Somewhere back toward Gotanda station, a train passes above the traffic.\n\nThrough the glass, you can see a long table laid with plates that do not quite match. Someone is counting them, starting again, and pulling out another chair.\n\nYou ring the bell.\n\nThe woman who opens the door has pushed her sleeves back and is carrying a tea towel. She looks from you to the suitcase, then smiles.\n\n“Hi. You found it. I'm Mizuki.” She steps aside. “Come in — there's space for your shoes here. Well. There was this morning.”\n\nSeven pairs could fit if everyone moved something an inch. Mizuki nudges her own shoes out of the way first.\n\n“They've made up the little guest room for you,” she says. “The rest of us are sharing upstairs. I can show you after dinner, if you're hungry.”\n\nBeyond her, the living room opens into the kitchen and dining area. A young man in a T-shirt has a baseball resting against his knee; beside the sofa, a woman closes a magazine over one finger and looks toward the door. At the table, the person counting plates finally seems satisfied. From upstairs comes the brief rush of a hairdryer, then quiet.\n\n“Everyone's only just getting used to being here,” Mizuki says, a little more softly. “So you haven't missed much.”\n\nShe leaves your suitcase beside the entry bench. The kettle clicks off behind her. Nobody calls for a speech, and nobody seems quite sure whether introductions should happen standing up or over dinner.\n\nMizuki stays beside you, one hand resting on the back of the bench.\n\n“What should we call you? And — tea, coffee, or something cold?”",
+      "usage": {
+        "total_tokens": 0
+      },
+      "character": "default"
+    },
+    "message": "__cmd_newgame__:six_strangers|M|Alex",
+    "seconds": 8.88
+  },
+  {
+    "response": {
+      "reply": "",
+      "cast_roster": {
+        "title": "Housemates",
+        "labels": {
+          "active": "Present",
+          "vacancy": "Room available",
+          "departed": "Moved out"
+        },
+        "active": [
+          {
+            "id": "makoto",
+            "name": "Makoto Hasegawa",
+            "role": "University student and baseball player, 22"
+          },
+          {
+            "id": "yuki",
+            "name": "Yuki Adachi",
+            "role": "Professional tap dancer, 28"
+          },
+          {
+            "id": "uchi",
+            "name": "Tatsuya \"Uchi\" Uchihara",
+            "role": "Hair stylist, 23"
+          },
+          {
+            "id": "minori",
+            "name": "Minori Nakada",
+            "role": "University student and model, 21"
+          },
+          {
+            "id": "mizuki",
+            "name": "Mizuki Shida",
+            "role": "Office worker and barista, 22"
+          },
+          {
+            "id": "yuriko",
+            "name": "Yuriko Hayata",
+            "role": "Sixth-year medical student, 23"
+          }
+        ],
+        "vacancies": [],
+        "departed": []
+      },
+      "usage": {
+        "total_tokens": 0
+      },
+      "character": "default"
+    },
+    "message": "[CAST]",
+    "seconds": 0.17
+  },
+  {
+    "response": {
+      "reply": "You step into the living room, the smell of something savory drifting in from the kitchen. Makoto, lounging with his back against the armrest, tilts his head up, his casual demeanor making the room feel more inviting. Minori glances up from her magazine, her fingers lightly tracing the edge of the page, as if considering how to engage.\n\n“What do you both do outside the house?” you ask, your curiosity weaving through the air. \n\nMakoto shifts, his baseball resting on his knee. **“I’m a university student. I play for the baseball team, too. We’ve got practice a couple of times a week.”** His eyes light up a bit when he talks about it, like he’s sharing a secret. **“It’s a fun way to keep fit, and I get to hang out with the guys.”**\n\nMinori puts down the magazine, her gaze steady but soft. **“I’m studying too,”** she chimes in. **“I balance my coursework with modeling jobs. It can be hectic, but I like the variety.”** She shrugs, a little shy. **“I just try to manage my time. Plus, it’s nice to have the space here to unwind.”**\n\nAs they both speak, the atmosphere lightens, and you sense a burgeoning camaraderie among the three of you in this shared moment. The warmth of the kitchen hums softly behind you, inviting, while the chatter of the house begins to fill the space around you, hinting at a life that’s just starting to settle into rhythm.",
+      "usage": {
+        "prompt_tokens": 5157,
+        "completion_tokens": 321,
+        "total_tokens": 5478,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "character": "default"
+    },
+    "message": "I walk to the living room and ask Makoto and Minori what they do outside the house.",
+    "seconds": 5.43
+  },
+  {
+    "response": {
+      "reply": "You slip away to the rooftop terrace, leaving the sounds of dinner and conversation to blend into the background. The door creaks softly as you push it open, revealing a wider expanse of sky that swallows your senses whole. The city unfurls beneath you, a tapestry of lights and life stretching toward the horizon. \n\nThe skyline glows in the twilight, a mix of concrete and glass illuminated by the fading sun. You breathe in the cool air, feeling it wash over you, refreshing against the weariness nestled in your bones. The hum of traffic below is a distant murmur, a reminder of the busy world still moving around you.\n\nAs you gaze out, the enormity of the city feels both daunting and comforting. You can see the silhouettes of buildings standing tall, each one a story of its own. Somewhere down there, people are hustling home, making plans, living their lives — lives that seem so vibrant yet separate from the quiet moment you’ve carved out for yourself.\n\nA soft shuffle from behind draws your attention, and you see Mizuki walking up the steps to join you. Her presence is an easy one, and she leans against the railing beside you, her gaze following yours toward the skyline. \n\n**“It’s beautiful up here, isn’t it?”** she says, her voice a gentle thread against the backdrop of the city. **“You can feel the energy of the place.”** She pauses, taking a breath as if to capture the moment. **“What do you think of it so far?”**",
+      "usage": {
+        "prompt_tokens": 4649,
+        "completion_tokens": 313,
+        "total_tokens": 4962,
+        "prompt_tokens_details": {
+          "cached_tokens": 1024,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "character": "default"
+    },
+    "message": "I go to the rooftop terrace alone and quietly look at the skyline.",
+    "seconds": 4.66
+  },
+  {
+    "response": {
+      "reply": "Mizuki glances sideways at you, her expression shifting to one of curiosity as well. **“Arman? He’s one of the housemates. I think he moved in a couple of days before you, actually.”** She leans a little closer, the night air stirring around you both. **“He’s studying to be a firefighter, I believe. Pretty dedicated — always talking about his training and the applications he’s working on.”** \n\nThere’s a spark of enthusiasm in her voice, a hint of admiration. **“I think he’s still figuring out the balance between studying and everything else, like the rest of us. It’s nice to have someone with that kind of ambition around, you know?”** She turns her gaze back to the skyline, her face softening in the evening light.\n\n**“Have you met him yet? I think he’s around here somewhere.”** Mizuki gestures vaguely toward the house, and you can almost hear the conversations drifting through the open window behind you.",
+      "usage": {
+        "prompt_tokens": 5029,
+        "completion_tokens": 206,
+        "total_tokens": 5235,
+        "prompt_tokens_details": {
+          "cached_tokens": 1024,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "character": "default"
+    },
+    "message": "Who is Arman? Does he already live here?",
+    "seconds": 3.65
+  }
+]

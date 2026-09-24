@@ -50,10 +50,14 @@
       --radius-sm:    8px;
       --radius-bubble:18px;
       --font:         -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      /* Updated by visualViewport below. Avoids iOS reserving a phantom area
+         below a standalone web-app's fixed tab bar. */
+      --app-height: 100dvh;
     }
 
     html, body {
-      height: 100%;
+      height: var(--app-height);
+      min-height: 100%;
       background: var(--bg);
       color: var(--text);
       font-family: var(--font);
@@ -67,7 +71,7 @@
        SCREENS (show/hide SPA routing)
     ══════════════════════════════════════════════ */
     .screen {
-      position: fixed; inset: 0;
+      position: fixed; top: 0; right: 0; left: 0; height: var(--app-height);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -676,6 +680,7 @@
       flex: 1; min-width: 0;
       display: flex; align-items: center; gap: 10px;
       margin-right: 8px;
+      cursor: pointer;
     }
     #chat-char-avatar-mini {
       width: 36px; height: 36px; border-radius: 50%;
@@ -841,7 +846,7 @@
       flex: 1; min-height: 28px; max-height: 120px;
       background: transparent; border: none;
       border-radius: 0; padding: 8px 0;
-      color: var(--text); font-size: 15px; font-family: var(--font);
+      color: var(--text); font-size: 16px; font-family: var(--font);
       resize: none; outline: none; line-height: 1.4;
       -webkit-appearance: none;
     }
@@ -1051,7 +1056,7 @@
       padding: 16px;
       cursor: pointer;
     }
-    #map-modal.open { display: flex; flex-direction: column; gap: 12px; }
+    #map-modal.open { display: flex; }
     #map-modal.fullscreen {
       padding: 0;
       background: #000;
@@ -1062,10 +1067,11 @@
     }
     .map-container {
       position: relative;
-      max-width: 90vw; max-height: 70vh;
+      width: 100vw; height: var(--app-height);
+      max-width: none; max-height: none;
       overflow: hidden;
-      border-radius: 12px;
-      background: var(--surface);
+      border-radius: 0;
+      background: #000;
       cursor: default;
     }
     .map-image {
@@ -1076,19 +1082,6 @@
     }
     .map-image.dragging { cursor: grabbing; }
     .map-image.pannable { cursor: grab; }
-    .map-locations {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      background: var(--surface);
-      border-radius: 0 0 12px 12px;
-      padding: 12px 14px; max-height: 200px; overflow-y: auto;
-      width: 100%;
-    }
-    .map-locations.hidden { display: none; }
-    .map-loc-item {
-      font-size: 13px; color: var(--text-sub);
-      padding: 4px 0; border-bottom: 1px solid var(--border);
-    }
-    .map-loc-item:last-child { border-bottom: none; }
     #map-modal-close {
       position: absolute; top: 16px; right: 16px;
       width: 36px; height: 36px; border-radius: 50%;
@@ -1100,6 +1093,48 @@
     #map-modal.fullscreen #map-modal-close {
       top: 20px; right: 20px;
       background: rgba(0,0,0,0.7);
+    }
+
+    /* ══════════════════════════════════════════════
+       JOURNAL MODAL
+    ══════════════════════════════════════════════ */
+    #journal-modal {
+      position: fixed; inset: 0; z-index: 400;
+      background: rgba(0,0,0,0.92);
+      display: none; flex-direction: column;
+    }
+    #journal-modal.open { display: flex; }
+    #journal-modal-close {
+      position: absolute; top: 20px; right: 20px;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(0,0,0,0.7); border: none; cursor: pointer;
+      color: white; font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10;
+    }
+    #journal-modal-title {
+      padding: 20px 60px 12px 20px;
+      font-size: 18px; font-weight: 600; color: var(--text);
+      flex-shrink: 0;
+    }
+    #journal-modal-body {
+      flex: 1; overflow-y: auto; padding: 0 16px 24px;
+    }
+    .journal-empty {
+      color: var(--text-sub); font-size: 14px; text-align: center;
+      padding: 40px 20px;
+    }
+    .journal-entry {
+      background: var(--surface); border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 10px;
+    }
+    .journal-entry-meta {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--text-muted); margin-bottom: 4px;
+    }
+    .journal-entry-meta .who { color: var(--red); }
+    .journal-entry-text {
+      font-size: 14px; color: var(--text); line-height: 1.4;
     }
 
     /* Scrollable message area when chat header is shown */
@@ -1212,7 +1247,41 @@
       font-size: 15px; font-weight: 700;
     }
     .confirm-ok:active { background: var(--red-dark); }
+
+    /* ══════════════════════════════════════════════
+       TIME SKIP ACTION SHEET
+    ══════════════════════════════════════════════ */
+    #skip-modal {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.85);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    #skip-modal.open { display: flex; }
+    .skip-card {
+      background: var(--surface); border-radius: 20px;
+      padding: 24px; width: 100%; max-width: 340px;
+    }
+    .skip-title { font-size: 18px; font-weight: 800; margin-bottom: 4px; text-align: center; }
+    .skip-sub { font-size: 13px; color: var(--text-sub); margin-bottom: 18px; text-align: center; line-height: 1.4; }
+    .skip-option {
+      width: 100%; text-align: left;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+      color: var(--text); cursor: pointer;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .skip-option:active { background: rgba(255,255,255,0.12); }
+    .skip-option-icon { font-size: 20px; }
+    .skip-option-label { font-size: 15px; font-weight: 600; }
+    .skip-cancel {
+      width: 100%; height: 44px; border-radius: 12px; margin-top: 4px;
+      background: transparent; color: var(--text-sub);
+      border: none; cursor: pointer; font-size: 14px; font-weight: 600;
+    }
   </style>
+<link rel="stylesheet" href="dialogue.css?v=3" />
+<link rel="stylesheet" href="world-map.css?v=1">
 </head>
 
 <body>
@@ -1225,6 +1294,7 @@
     <span class="logo">StoriesChat</span>
     <div class="top-actions">
       <button class="guest-pill-btn" id="home-guest-pill" title="Play without signing in">✦ Play as Guest</button>
+      <button class="icon-btn" id="home-hard-reload-btn" title="Force update the app (clears cache)" aria-label="Hard reload">⟳</button>
       <button class="icon-btn" id="home-search-btn" title="Search" aria-label="Search">🔍</button>
       <button class="icon-btn" id="home-profile-btn" title="Profile" aria-label="Profile">👤</button>
     </div>
@@ -1288,6 +1358,8 @@
     <div id="chat-dropdown">
       <div class="dropdown-item" id="dd-map"><span class="di-icon">🗺</span> World Map</div>
       <div class="dropdown-item" id="dd-cast"><span class="di-icon">👥</span> <span id="dd-cast-label">Cast</span></div>
+      <div class="dropdown-item" id="dd-journal"><span class="di-icon">📓</span> Journal</div>
+      <div class="dropdown-item" id="dd-skip"><span class="di-icon">⏭</span> Skip Ahead</div>
       <div class="dropdown-item" id="dd-debug"><span class="di-icon">🔬</span> Debug Info</div>
       <div class="dropdown-item" id="dd-truth"><span class="di-icon">💡</span> Truth Mode</div>
       <div class="dropdown-item" id="dd-chinese"><span class="di-icon">🀄</span> Chinese Mode</div>
@@ -1395,7 +1467,7 @@
         <div class="settings-row-icon">⌨</div>
         <div class="settings-row-label">Text Speed</div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <input type="range" class="settings-slider" id="typewriter-speed" min="0" max="3" step="1" value="1" />
+          <input type="range" class="settings-slider" id="typewriter-speed" min="0" max="2" step="1" value="1" />
           <span id="typewriter-speed-label" style="font-size:13px;color:var(--text-sub);min-width:50px;">Normal</span>
         </div>
       </div>
@@ -1443,6 +1515,10 @@
     <span class="tab-icon"><span style="font-size:20px">✚</span></span>
     <span>Create</span>
   </div>
+  <button class="tab-item" type="button" data-action="hard-reload" id="tab-update-app" aria-label="Update App: clear cached files and reload">
+    <span class="tab-icon">⟳</span>
+    <span>Update App</span>
+  </button>
   <div class="tab-item" data-screen="profile" id="tab-profile">
     <span class="tab-icon">👤</span>
     <span>Profile</span>
@@ -1565,11 +1641,17 @@
 
 <!-- World map modal -->
 <div id="map-modal">
-  <button id="map-modal-close">✕</button>
+  <button id="map-modal-close" aria-label="Close full-screen map">✕</button>
   <div class="map-container">
     <img id="map-modal-img" class="map-image" alt="World map" style="display:none;" />
-    <div id="map-modal-locations" class="map-locations"></div>
   </div>
+</div>
+
+<!-- Journal / recap modal -->
+<div id="journal-modal">
+  <button id="journal-modal-close">✕</button>
+  <div id="journal-modal-title">Journal</div>
+  <div id="journal-modal-body"></div>
 </div>
 
 <!-- Confirm dialog -->
@@ -1584,12 +1666,26 @@
   </div>
 </div>
 
+<!-- Time skip action sheet -->
+<div id="skip-modal">
+  <div class="skip-card">
+    <div class="skip-title">Skip Ahead</div>
+    <div class="skip-sub">Time will pass, but the world keeps moving. Anything can happen while you're away.</div>
+    <button class="skip-option" id="skip-hours"><span class="skip-option-icon">⏱</span><span class="skip-option-label">A few hours</span></button>
+    <button class="skip-option" id="skip-overnight"><span class="skip-option-icon">🌙</span><span class="skip-option-label">Overnight</span></button>
+    <button class="skip-option" id="skip-day"><span class="skip-option-icon">📅</span><span class="skip-option-label">A full day</span></button>
+    <button class="skip-cancel" id="skip-cancel">Cancel</button>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
 <!-- ════════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════════ -->
+<script src="world-map.js?v=1"></script>
+<script src="dialogue.js?v=3"></script>
 <script>
 (function(){
 "use strict";
@@ -1681,9 +1777,10 @@ var GUEST_ID_KEY = "storieschat_guest_id";
 var SKIP_LOGIN_KEY = "storieschat_skip_login";
 var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
 
-// Typewriter speed: 0=Instant, 1=Normal(30ms), 2=Slow(55ms), 3=Very Slow(80ms)
-var TYPEWRITER_SPEEDS = [0, 30, 55, 80];
-var TYPEWRITER_LABELS = ["Instant", "Normal", "Slow", "V. Slow"];
+// Slow preserves the former Normal pace. Normal is 2.5x faster and Fast is
+// 4x faster, so the default feels brisk without removing readable pacing.
+var TYPEWRITER_SPEEDS = [10, 4, 2.5];
+var TYPEWRITER_LABELS = ["Slow", "Normal", "Fast"];
 var CHARACTER_ASSET_MAP = {
   makoto: "/img/characters/Makoto_Hasegawa.png",
   minori: "/img/characters/Minori_Nakada.png",
@@ -1705,7 +1802,7 @@ var CHARACTER_ASSET_MAP = {
   player: "/img/avatars/persona_default.svg",
   persona: "/img/avatars/persona_default.svg",
   default_persona: "/img/avatars/persona_default.svg",
-  six_strangers: "/img/characters/Mizuki_Shida.png"
+  six_strangers: "/img/six_strangers_house.jpg"
 };
 
 function normalizeAssetKey(value){
@@ -1754,8 +1851,9 @@ function renderCharacterAvatar(target, characterId, characterName, fallbackText)
 }
 
 function getTypewriterDelay(){
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return 0;
   var idx = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
-  if (idx < 0 || idx >= TYPEWRITER_SPEEDS.length) idx = 1;
+  if (!Number.isFinite(idx) || idx < 0 || idx >= TYPEWRITER_SPEEDS.length) idx = 1;
   return TYPEWRITER_SPEEDS[idx];
 }
 
@@ -2422,6 +2520,7 @@ $("onboard-continue-btn").addEventListener("click", function(){
 // the ids are never left dangling between calls.
 function renderChatCharacterHeader(story){
   var msgs = $("chat-messages");
+  if (dialoguePresentation) dialoguePresentation.finish();
   msgs.innerHTML = "";
   var header = document.createElement("div");
   header.id = "chat-character-header";
@@ -2478,6 +2577,7 @@ function launchChat(story, playerName, gender, guestMode){
   renderAvatarImage($("chat-char-avatar-mini"), getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
   renderAvatarImage($("chat-user-dock-avatar"), getCharacterAvatarSrc("persona", appState.personaName || "Paul Dingus"), appState.userAvatarLabel || "U");
 
+  dialoguePresentation.finish();
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
 
@@ -2489,7 +2589,7 @@ function launchChat(story, playerName, gender, guestMode){
 
   showScreen("chat");
 
-  // Load story meta and show world map inline at game start
+  // Load and show the map artwork; tapping it opens the full-screen viewer.
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
@@ -2533,29 +2633,9 @@ function _renderLoadEarlierBtn(sessionId, oldestTurn){
         // Render oldest-first above existing messages
         var firstMsg = msgs.querySelector(".msg-row");
         entries.forEach(function(e){
-          var row = document.createElement("div");
-          row.className = "msg-row " + (e.role === "user" ? "user" : "npc");
-          var bubble = document.createElement("div");
-          bubble.className = "msg-bubble " + (e.role === "user" ? "user" : "npc");
-          bubble.innerHTML = formatMsgText(e.content);
-          if (e.role !== "user"){
-            var av = document.createElement("div");
-            av.className = "msg-avatar";
-            av.textContent = appState.currentStory ? genreEmoji(appState.currentStory.genre || "") : "🎭";
-            row.appendChild(av);
-          } else {
-            var userAv = document.createElement("div");
-            userAv.className = "msg-avatar user-avatar";
-            userAv.textContent = appState.userAvatarLabel || "U";
-            row.appendChild(bubble);
-            row.appendChild(userAv);
-            if (firstMsg) msgs.insertBefore(row, firstMsg);
-            else msgs.appendChild(row);
-            return;
-          }
-          row.appendChild(bubble);
-          if (firstMsg) msgs.insertBefore(row, firstMsg);
-          else msgs.appendChild(row);
+          addMessage(e.role === "user" ? "user" : "npc", e.content, {
+            skipTypewriter: true, segments: e.segments, before: firstMsg, noScroll: true, noRecord: true
+          });
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
       })
@@ -2585,6 +2665,7 @@ function resumeGameFromSession(sess){
   $("chat-char-avatar-mini").textContent = genreEmoji(story.genre || story.theme);
   $("chat-user-dock-avatar").textContent = appState.userAvatarLabel;
 
+  dialoguePresentation.finish();
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
 
@@ -2592,7 +2673,7 @@ function resumeGameFromSession(sess){
 
   showScreen("chat");
 
-  // Load story meta and show world map inline
+  // Load and show the map artwork; tapping it opens the full-screen viewer.
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
@@ -2613,7 +2694,7 @@ function resumeGameFromSession(sess){
         if (!data) return;
         var entries = data.entries || [];
         entries.forEach(function(e){
-          addMessage(e.role === "user" ? "user" : "npc", e.content, { skipTypewriter: true });
+          addMessage(e.role === "user" ? "user" : "npc", e.content, { skipTypewriter: true, segments: e.segments });
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
         if (!entries.length) addSystemMessage("(Continue where you left off)");
@@ -2649,131 +2730,64 @@ function addMessage(role, text, options){
     bubble = document.createElement("div");
     bubble.className = "msg-bubble user";
     bubble.innerHTML = formatMsgText(text);
-    var userAv = document.createElement("div");
-    userAv.className = "msg-avatar user-avatar";
-    renderAvatarImage(userAv, getCharacterAvatarSrc("persona", appState.personaName || appState.userAvatarLabel || "Paul Dingus"), appState.onboardName || "You");
     row.appendChild(bubble);
-    row.appendChild(userAv);
-  } else { // npc
-    var av = document.createElement("div");
-    av.className = "msg-avatar";
-    var npcName = appState.currentStory ? (appState.currentStory.title || "Character") : "Character";
-    renderAvatarImage(av, getCharacterAvatarSrc(appState.currentStory && appState.currentStory.id, npcName), npcName);
-    bubble = document.createElement("div");
-    bubble.className = "msg-bubble npc";
-    row.appendChild(av);
-    row.appendChild(bubble);
+    var playerName = (appState.session && appState.session.player_name) || appState.onboardName || "You";
+    var playerLabel = document.createElement("div");
+    playerLabel.className = "speaker-name";
+    playerLabel.textContent = playerName;
+    bubble.insertBefore(playerLabel, bubble.firstChild);
+    var playerPortrait = dialoguePresentation.portraitButton(playerName, getCharacterAvatarSrc("persona", playerName), true);
+    playerPortrait.classList.add("user-avatar");
+    row.appendChild(playerPortrait);
+  } else { // npc: one ordered scene containing any number of speakers
+    var game = appState.currentStory || {};
+    dialoguePresentation.render(
+      row,
+      text,
+      options.segments,
+      getTypewriterDelay() > 0 && !options.skipTypewriter,
+      {
+        name: game.title || "Game",
+        src: game.thumbnail_url || getCharacterAvatarSrc(game.id, game.title)
+      }
+    );
   }
 
-  msgs.appendChild(row);
-  appState.chatHistory.push({ role: role, text: text });
-
-  // Typewriter effect for NPC messages (not history loads)
-  var delay = getTypewriterDelay();
-  if (role === "npc" && delay > 0 && !options.skipTypewriter) {
-    typewriteMessage(bubble, text, delay);
-  } else if (role === "npc") {
-    bubble.innerHTML = formatMsgText(text);
-  }
-
-  scrollChatToBottom();
+  if (options.before) msgs.insertBefore(row, options.before);
+  else msgs.appendChild(row);
+  if (!options.noRecord) appState.chatHistory.push({ role: role, text: text, segments: options.segments });
+  if (!options.noScroll) scrollChatToBottom();
   return row;
 }
 
-var _typewriterAbort = null; // AbortController for current typewriter
-
-function typewriteMessage(bubble, text, charDelay){
-  // Cancel any prior typewriter
-  if (_typewriterAbort) _typewriterAbort.abort();
-  var controller = new AbortController();
-  _typewriterAbort = controller;
-
-  var formatted = formatMsgText(text);
-  // We type the raw text, then set full HTML at the end
-  var plainText = text.replace(/\\n/g, "\n");
-  bubble.textContent = "";
-  bubble.classList.add("typing-active");
-
-  var idx = 0;
-  var cancelled = false;
-  controller.signal.addEventListener("abort", function(){ cancelled = true; });
-
-  // Allow tap/click to skip to end
-  function skipHandler(){
-    cancelled = true;
-    bubble.removeEventListener("click", skipHandler);
-  }
-  bubble.addEventListener("click", skipHandler);
-  bubble.style.cursor = "pointer";
-
-  function typeNext(){
-    if (cancelled || idx >= plainText.length){
-      bubble.innerHTML = formatted;
-      bubble.classList.remove("typing-active");
-      bubble.style.cursor = "";
-      bubble.removeEventListener("click", skipHandler);
-      if (_typewriterAbort === controller) _typewriterAbort = null;
-      scrollChatToBottom();
-      return;
-    }
-    // Add next character
-    var ch = plainText[idx++];
-    if (ch === "\n") {
-      bubble.appendChild(document.createElement("br"));
-    } else {
-      bubble.appendChild(document.createTextNode(ch));
-    }
-    // Vary speed slightly for natural feel: pause longer on punctuation
-    var d = charDelay;
-    if (".!?".indexOf(ch) >= 0) d = charDelay * 4;
-    else if (",;:".indexOf(ch) >= 0) d = charDelay * 2;
-    scrollChatToBottom();
-    setTimeout(typeNext, d);
-  }
-
-  typeNext();
-}
+var dialoguePresentation = window.createDialoguePresentation({
+  renderAvatarImage: renderAvatarImage,
+  formatMsgText: formatMsgText,
+  getTypewriterDelay: getTypewriterDelay,
+  scrollChatToBottom: scrollChatToBottom
+});
 
 function addSystemMessage(text){ addMessage("system", text); }
 
 function renderInlineWorldMap(meta){
-  if (!meta) return;
+  if (!meta || !meta.world_map_image) return;
   var msgs = $("chat-messages");
 
-  // World map image
-  if (meta.world_map_image){
-    var imgRow = document.createElement("div");
-    imgRow.className = "msg-row system";
-    imgRow.style.cssText = "justify-content:center;";
-    var imgWrap = document.createElement("div");
-    imgWrap.style.cssText = "max-width:100%;border-radius:12px;overflow:hidden;margin:4px 0;";
-    var img = document.createElement("img");
-    img.src = API_BASE + "/story-image/" + meta.world_map_image;
-    img.alt = "World Map";
-    img.style.cssText = "width:100%;display:block;border-radius:12px;";
-    imgWrap.appendChild(img);
-    imgRow.appendChild(imgWrap);
-    msgs.appendChild(imgRow);
-  }
-
-  // Location list
-  var locs = meta.known_locations || [];
-  if (locs.length){
-    var locRow = document.createElement("div");
-    locRow.className = "msg-row system";
-    var locBubble = document.createElement("div");
-    locBubble.className = "msg-bubble system-msg";
-    locBubble.style.cssText = "text-align:left;font-size:13px;";
-    var html = "<strong>World Map</strong><br><br>";
-    locs.forEach(function(loc){
-      var name = escapeHTML(loc.name || loc.id);
-      var desc = loc.description ? " — " + escapeHTML(loc.description) : "";
-      html += "<em>" + name + "</em>" + desc + "<br>";
-    });
-    locBubble.innerHTML = html;
-    locRow.appendChild(locBubble);
-    msgs.appendChild(locRow);
-  }
+  var imgRow = document.createElement("div");
+  imgRow.className = "msg-row system";
+  imgRow.style.cssText = "justify-content:center;";
+  var imgWrap = document.createElement("button");
+  imgWrap.type = "button";
+  imgWrap.setAttribute("aria-label", "Open world map full screen");
+  imgWrap.style.cssText = "display:block;width:100%;max-width:100%;padding:0;border:0;background:none;border-radius:12px;overflow:hidden;margin:4px 0;cursor:zoom-in;";
+  var img = document.createElement("img");
+  img.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
+  img.alt = "World Map";
+  img.style.cssText = "width:100%;display:block;border-radius:12px;";
+  imgWrap.addEventListener("click", showMapModal);
+  imgWrap.appendChild(img);
+  imgRow.appendChild(imgWrap);
+  msgs.appendChild(imgRow);
 
   scrollChatToBottom();
 }
@@ -2931,7 +2945,7 @@ function sendMessage(text, isInit, options){
       addSystemMessage("Error: " + data.error);
     } else {
       var reply = (data && data.reply) ? data.reply : "";
-      if (reply) addMessage("npc", reply);
+      if (reply) addMessage("npc", reply, { segments: data.segments });
       if (data && data.cast_roster) renderCastRoster(data.cast_roster);
       addDebugBox(data && data.debug_box);
 
@@ -3021,6 +3035,16 @@ $("dd-cast").addEventListener("click", function(){
   sendMessage("[CAST]", false, { suppressUserMessage: true, countAsTurn: false });
 });
 
+$("dd-journal").addEventListener("click", function(){
+  $("chat-dropdown").classList.remove("open");
+  showJournalModal();
+});
+
+$("dd-skip").addEventListener("click", function(){
+  $("chat-dropdown").classList.remove("open");
+  openModal("skip-modal");
+});
+
 $("dd-debug").addEventListener("click", function(){
   appState.debugMode = !appState.debugMode;
   this.classList.toggle("active", appState.debugMode);
@@ -3057,8 +3081,13 @@ $("dd-exit").addEventListener("click", function(){
 });
 
 $("chat-back-btn").addEventListener("click", function(){
-  showConfirm("Leave Game?", "Your progress is saved. You can resume from My Games anytime.", "Leave", function(){
-    showScreen("games");
+  showScreen("games");
+});
+
+$("chat-char-name-wrap").addEventListener("click", function(){
+  if (!appState.currentStory) return;
+  showConfirm("Start new game?", "Your current progress will be saved. You can resume it anytime from My Games.", "Start New Game", function(){
+    launchChat(appState.currentStory, appState.session ? appState.session.player_name : "Paul Dingus", appState.session ? appState.session.gender : "M", appState.guestMode);
   });
 });
 
@@ -3067,48 +3096,21 @@ function showMapModal(){
   var meta = appState.currentMeta;
   var imgEl = $("map-modal-img");
   var modal = $("map-modal");
-  var container = modal.querySelector(".map-container");
-  var locationsEl = $("map-modal-locations");
 
-  // Reset state
-  imgEl.style.display = "none";
-  imgEl.style.transform = "translate(0, 0) scale(1)";
-  imgEl.classList.remove("pannable", "dragging");
-  locationsEl.innerHTML = "";
-  modal.classList.remove("fullscreen");
-
-  if (!meta){
+  if (!meta || !meta.world_map_image){
     showToast("Map not available yet.");
     return;
   }
 
-  if (meta.world_map_image){
-    imgEl.src = API_BASE + "/story-image/" + meta.world_map_image;
-    imgEl.style.display = "block";
-    imgEl.onload = function(){
-      // Check if image is larger than container
-      var imgRect = imgEl.getBoundingClientRect();
-      var containerRect = container.getBoundingClientRect();
-      if (imgRect.width > containerRect.width || imgRect.height > containerRect.height) {
-        imgEl.classList.add("pannable");
-      }
-    };
-  }
-
-  var locs = meta.known_locations || [];
-  if (locs.length){
-    locationsEl.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Locations</div>';
-    locs.forEach(function(loc){
-      var d = document.createElement("div");
-      d.className = "map-loc-item";
-      d.textContent = (loc.name || loc.id) + (loc.description ? " — " + loc.description : "");
-      locationsEl.appendChild(d);
-    });
-  }
-
+  // The full-screen viewer contains only the artwork: no location directory
+  // or description dump accompanies it.
+  imgEl.style.display = "none";
+  imgEl.style.transform = "translate(0, 0) scale(1)";
+  imgEl.classList.remove("pannable", "dragging");
+  modal.classList.add("fullscreen");
+  imgEl.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
+  imgEl.style.display = "block";
   openModal("map-modal");
-
-  // Set up pan/zoom functionality
   setupMapInteraction();
 }
 
@@ -3116,7 +3118,6 @@ function setupMapInteraction(){
   var modal = $("map-modal");
   var imgEl = $("map-modal-img");
   var container = modal.querySelector(".map-container");
-  var locationsEl = $("map-modal-locations");
 
   var isDragging = false;
   var startX, startY, initialX, initialY;
@@ -3126,19 +3127,6 @@ function setupMapInteraction(){
   function updateTransform(){
     imgEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   }
-
-  // Click to toggle fullscreen
-  container.addEventListener("click", function(e){
-    if (e.target === imgEl && !isDragging) {
-      modal.classList.toggle("fullscreen");
-      locationsEl.classList.toggle("hidden", modal.classList.contains("fullscreen"));
-      // Reset pan/zoom when toggling
-      scale = 1;
-      translateX = 0;
-      translateY = 0;
-      updateTransform();
-    }
-  });
 
   // Pan functionality
   imgEl.addEventListener("mousedown", function(e){
@@ -3211,6 +3199,81 @@ function setupMapInteraction(){
 
 $("map-modal-close").addEventListener("click", function(){ closeModal("map-modal"); });
 $("map-modal").addEventListener("click", function(e){ if(e.target === this) closeModal("map-modal"); });
+
+/* ─── JOURNAL / RECAP MODAL ─────────────────────── */
+function showJournalModal(){
+  var body = $("journal-modal-body");
+  body.innerHTML = '<div class="journal-empty">Loading journal…</div>';
+  openModal("journal-modal");
+
+  var session = appState.session;
+  var sessionId = session ? (session.session_id || session.id) : null;
+  if (!sessionId){
+    body.innerHTML = '<div class="journal-empty">No active session.</div>';
+    return;
+  }
+
+  fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/journal", { headers: apiHeaders() })
+    .then(function(r){
+      if (r.status === 401) { handleUnauthorized(); return null; }
+      if (!r.ok) throw new Error("journal fetch failed");
+      return r.json();
+    })
+    .then(function(data){
+      if (!data) return;
+      renderJournalEntries(data.entries || []);
+    })
+    .catch(function(){
+      body.innerHTML = '<div class="journal-empty">Couldn\'t load the journal. Try again later.</div>';
+    });
+}
+
+function renderJournalEntries(entries){
+  var body = $("journal-modal-body");
+  body.innerHTML = "";
+
+  if (!entries.length){
+    body.innerHTML = '<div class="journal-empty">Nothing to recap yet — keep playing and this will fill in.</div>';
+    return;
+  }
+
+  var kindLabel = { goal: "Goal", disposition: "Feels toward", note: "Moment" };
+
+  entries.forEach(function(e){
+    var card = document.createElement("div");
+    card.className = "journal-entry";
+
+    var meta = document.createElement("div");
+    meta.className = "journal-entry-meta";
+    var who = document.createElement("span");
+    who.className = "who";
+    who.textContent = e.target_name ? (e.character_name + " → " + e.target_name) : e.character_name;
+    meta.appendChild(who);
+    meta.appendChild(document.createTextNode("  ·  " + (kindLabel[e.kind] || e.kind)));
+    card.appendChild(meta);
+
+    var text = document.createElement("div");
+    text.className = "journal-entry-text";
+    text.textContent = e.text;
+    card.appendChild(text);
+
+    body.appendChild(card);
+  });
+}
+
+$("journal-modal-close").addEventListener("click", function(){ closeModal("journal-modal"); });
+$("journal-modal").addEventListener("click", function(e){ if(e.target === this) closeModal("journal-modal"); });
+
+/* ─── TIME SKIP ACTION SHEET ────────────────────── */
+function sendTimeSkip(preset){
+  closeModal("skip-modal");
+  sendMessage("__cmd_skip__:" + preset, false, { suppressUserMessage: true });
+}
+$("skip-hours").addEventListener("click", function(){ sendTimeSkip("HOURS"); });
+$("skip-overnight").addEventListener("click", function(){ sendTimeSkip("OVERNIGHT"); });
+$("skip-day").addEventListener("click", function(){ sendTimeSkip("DAY"); });
+$("skip-cancel").addEventListener("click", function(){ closeModal("skip-modal"); });
+$("skip-modal").addEventListener("click", function(e){ if(e.target === this) closeModal("skip-modal"); });
 
 /* ─── MY GAMES SCREEN ───────────────────────────── */
 function renderGamesListEmpty(){
@@ -3499,6 +3562,10 @@ $("profile-auth-btn").addEventListener("click", function(){
 /* ─── TAB BAR ───────────────────────────────────── */
 document.querySelectorAll(".tab-item").forEach(function(tab){
   tab.addEventListener("click", function(){
+    if (this.dataset.action === "hard-reload") {
+      hardReloadApp();
+      return;
+    }
     var screen = this.dataset.screen;
     if (screen) showScreen(screen);
   });
@@ -3552,6 +3619,10 @@ $("confirm-dialog").addEventListener("click", function(e){
 
   // Load saved value
   var saved = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
+  // Prior builds exposed four values; preserve the user's intent while
+  // collapsing them into the three deliberately supported choices.
+  if (saved === 0) saved = 1;
+  if (saved > 2) saved = 2;
   if (saved < 0 || saved >= TYPEWRITER_LABELS.length) saved = 1;
   slider.value = saved;
   label.textContent = TYPEWRITER_LABELS[saved];
@@ -3561,6 +3632,18 @@ $("confirm-dialog").addEventListener("click", function(e){
     label.textContent = TYPEWRITER_LABELS[val] || "Normal";
     localStorage.setItem(TYPEWRITER_SPEED_KEY, String(val));
   });
+})();
+
+/* ─── MOBILE VISUAL VIEWPORT ───────────────────── */
+(function(){
+  function syncAppHeight(){
+    var viewport = window.visualViewport;
+    var height = viewport && viewport.height ? viewport.height : window.innerHeight;
+    document.documentElement.style.setProperty("--app-height", Math.round(height) + "px");
+  }
+  syncAppHeight();
+  window.addEventListener("resize", syncAppHeight);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", syncAppHeight);
 })();
 
 /* ─── VERSION ───────────────────────────────────── */
@@ -3576,7 +3659,11 @@ fetch("version.json", { cache: "no-store" })
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js")
     .then(function(reg){
-      reg.update();
+      // A first install already fetches the current worker. Racing it with an
+      // update can be cancelled by WebKit when controllerchange reloads us.
+      if (reg.active && !reg.installing) {
+        reg.update().catch(function(){});
+      }
       if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
     })
     .catch(function(){});
@@ -3585,6 +3672,48 @@ if ("serviceWorker" in navigator) {
     if (window.__swRefreshed) return;
     window.__swRefreshed = true;
     window.location.reload();
+  });
+}
+
+/* ─── HARD RELOAD (force-update the installed webapp) ─── */
+(function(){
+  var btn = $("home-hard-reload-btn");
+  if (!btn) return;
+  btn.addEventListener("click", function(){
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = "…";
+    hardReloadApp();
+  });
+})();
+
+function hardReloadApp(){
+  var steps = [];
+
+  // Unregister all service workers so a fresh one is installed on reload.
+  if ("serviceWorker" in navigator) {
+    steps.push(
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        return Promise.all(regs.map(function(r){ return r.unregister(); }));
+      }).catch(function(){})
+    );
+  }
+
+  // Delete every CacheStorage entry (the PWA shell cache from sw.js).
+  if (window.caches && caches.keys) {
+    steps.push(
+      caches.keys().then(function(keys){
+        return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+      }).catch(function(){})
+    );
+  }
+
+  Promise.all(steps).then(function(){
+    // Cache-bust the document itself in case the browser HTTP cache
+    // (not just the SW/CacheStorage) is holding a stale index.html.
+    var url = new URL(window.location.href);
+    url.searchParams.set("_hr", Date.now().toString());
+    window.location.replace(url.toString());
   });
 }
 
