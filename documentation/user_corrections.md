@@ -4,6 +4,16 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-23: Always finish repository work by pushing to beta
+
+The Jev arena design was left in a local feature-branch commit. The user corrected
+this: every completed repository task, including design/docs, must be pushed to
+beta without another permission request. Added an end-of-task completion rule to
+`AGENTS.md`: integrate latest beta, run applicable checks, commit explicit task
+files, push `HEAD:beta`, and verify remote inclusion before reporting completion.
+This is a persistent agent instruction, not an installed executable lifecycle hook.
+Never force-push or infer authorization to deploy to production.
+
 ## 2026-09-20: Isolate Codex from other agents' working trees
 
 The user requested a full independent `mvp_chat_for_codex_only` clone after an

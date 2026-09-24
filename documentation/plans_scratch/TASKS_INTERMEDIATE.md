@@ -4,6 +4,11 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### Ship Jev design and persist beta completion rule (2026-09-23)
+
+- [x] Add standing end-of-task beta shipping instructions and record the correction.
+- [ ] Integrate latest beta, check documentation changes, commit, push and verify remote inclusion.
+
 ### Terrace in the City mobile/PWA and six-resident correctness
 
 - [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
