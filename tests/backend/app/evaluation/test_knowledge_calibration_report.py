@@ -1,5 +1,7 @@
 """Tests for the knowledge bundle, calibration mutations, report and the
 /api/eval/capabilities contract (JEV_GAME_ARENA_DESIGN.md §6, §9, §10-11)."""
+import pytest
+
 import json
 
 from fastapi.testclient import TestClient
@@ -69,6 +71,7 @@ def test_meets_expectations():
     assert meets("tie", 0.5) and meets("tie", None) is None
 
 
+@pytest.mark.asyncio
 async def test_calibration_detects_mutations_with_a_sensitive_judge():
     """A judge that penalises the leak text must pass secret_leak and A/A."""
     policy = marker_policy("I shouldn't say this")
@@ -80,6 +83,7 @@ async def test_calibration_detects_mutations_with_a_sensitive_judge():
 
 # ---- report ------------------------------------------------------------------------
 
+@pytest.mark.asyncio
 async def test_report_end_to_end_from_stored_artifacts(tmp_path):
     store = ArtifactStore(tmp_path, "exp")
     pairs = build_pairs([ScenarioSpec("tiny.a", "tiny"), ScenarioSpec("tiny.b", "tiny")],

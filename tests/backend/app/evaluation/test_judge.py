@@ -74,6 +74,7 @@ def test_noul_probability_must_be_in_unit_interval():
     assert validate_answer(d, JevRawAnswer(kind="noul", probability=0.3)).valid
 
 
+@pytest.mark.asyncio
 async def test_transient_failure_is_retried_on_the_same_input():
     client = FakeJevClient(fail_times=1)
     judge = JevPairwiseJudge(client, DEFAULT_RUBRIC, backoff_s=0)
@@ -82,6 +83,7 @@ async def test_transient_failure_is_retried_on_the_same_input():
     assert client.calls[0].state == client.calls[1].state   # same stored input
 
 
+@pytest.mark.asyncio
 async def test_schema_errors_are_not_retried():
     class Rejecting:
         calls = 0
@@ -95,12 +97,14 @@ async def test_schema_errors_are_not_retried():
     assert call.failed and "422" in call.error
 
 
+@pytest.mark.asyncio
 async def test_exhausted_retries_leave_call_failed_without_answers():
     judge = JevPairwiseJudge(FakeJevClient(fail_times=9), DEFAULT_RUBRIC, backoff_s=0, max_attempts=3)
     call = await judge.judge(packet(), orientation="beta_as_A")
     assert call.failed and call.attempts == 3 and call.answers == {}
 
 
+@pytest.mark.asyncio
 async def test_resolved_model_other_than_pinned_is_flagged():
     judge = JevPairwiseJudge(FakeJevClient(model="jev-2.0.0"), DEFAULT_RUBRIC, model="jev-1.13.0")
     call = await judge.judge(packet(), orientation="beta_as_A")

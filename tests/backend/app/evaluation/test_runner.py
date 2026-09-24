@@ -40,6 +40,7 @@ def test_build_pairs_is_complete_balanced_and_deterministic():
     assert [p.pair_id for p in pairs] == [p.pair_id for p in build_pairs(scenarios(), personas(), 2, seed=5)]
 
 
+@pytest.mark.asyncio
 async def test_runner_plays_both_arms_and_persists_them(tmp_path):
     targets = {BETA: FakeTarget(BETA), PROD: FakeTarget(PROD)}
     store, r = await make_runner(tmp_path, targets)
@@ -54,6 +55,7 @@ async def test_runner_plays_both_arms_and_persists_them(tmp_path):
     assert len(ids) == len(set(ids)) == 12
 
 
+@pytest.mark.asyncio
 async def test_rerun_skips_finished_arms(tmp_path):
     targets = {BETA: FakeTarget(BETA), PROD: FakeTarget(PROD)}
     store, r = await make_runner(tmp_path, targets)
@@ -65,6 +67,7 @@ async def test_rerun_skips_finished_arms(tmp_path):
     assert s2.arms_skipped == 4 and len(targets[BETA].request_ids) == sent
 
 
+@pytest.mark.asyncio
 async def test_release_change_mid_arm_marks_drift_and_is_rerun(tmp_path):
     targets = {BETA: FakeTarget(BETA, drift_after_identify=1), PROD: FakeTarget(PROD)}
     store, r = await make_runner(tmp_path, targets)
@@ -74,6 +77,7 @@ async def test_release_change_mid_arm_marks_drift_and_is_rerun(tmp_path):
     assert store.load_arm(pairs[0].arm_id(PROD)).status is ArmStatus.COMPLETE
 
 
+@pytest.mark.asyncio
 async def test_target_error_ends_arm_as_target_failure(tmp_path):
     targets = {BETA: FakeTarget(BETA, fail_at_turn=2), PROD: FakeTarget(PROD)}
     store, r = await make_runner(tmp_path, targets)
@@ -83,6 +87,7 @@ async def test_target_error_ends_arm_as_target_failure(tmp_path):
     assert arm.status is ArmStatus.TARGET_FAILURE and arm.turns[-1].error == "HTTP 500"
 
 
+@pytest.mark.asyncio
 async def test_engine_game_end_stops_arm_early_without_padding(tmp_path):
     targets = {BETA: FakeTarget(BETA, end_at_turn=2), PROD: FakeTarget(PROD)}
     store, r = await make_runner(tmp_path, targets)
@@ -92,6 +97,7 @@ async def test_engine_game_end_stops_arm_early_without_padding(tmp_path):
     assert arm.status is ArmStatus.ENDED and len(arm.turns) == 2
 
 
+@pytest.mark.asyncio
 async def test_turn_budget_cancels_and_marks_partial(tmp_path):
     targets = {BETA: FakeTarget(BETA), PROD: FakeTarget(PROD)}
     store, r = await make_runner(tmp_path, targets, budget=Budget(max_game_turns=4))
@@ -101,6 +107,7 @@ async def test_turn_budget_cancels_and_marks_partial(tmp_path):
     assert summary.game_turns <= 4 + 2 * 2                 # in-flight arms finish their current turn
 
 
+@pytest.mark.asyncio
 async def test_stop_file_cancels(tmp_path):
     targets = {BETA: FakeTarget(BETA), PROD: FakeTarget(PROD)}
     store, r = await make_runner(tmp_path, targets)
