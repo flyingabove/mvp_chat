@@ -335,6 +335,9 @@ AI speaker has a named portrait bubble that opens a full-size portrait; narrator
 passages carry a separate label, and human messages are right-aligned with a
 "You" label. The structured dialogue schema excludes the player as an AI
 speaker and drops any invalid player dialogue segment returned by a provider.
+An unknown speaker who explicitly introduces themselves with the full name of
+one active housemate receives that housemate's portrait; concealed voices stay
+unknown.
 
 Validation scripts: `scripts/verify_mobile_pwa_browser.py` drives real desktop
 Chromium, iPhone WebKit and a simulated standalone flag; `scripts/verify_pwa_upgrade.py`

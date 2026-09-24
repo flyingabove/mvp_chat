@@ -180,6 +180,22 @@ def _segment(text: str, speaker: str | None, characters: dict) -> dict:
             "speaker_name": name, "portrait_url": portrait, "text": text}
 
 
+def _self_identified_speaker(text: str, state) -> str | None:
+    """Resolve only a clear first-person full-name introduction by active cast."""
+    characters = getattr(state, "characters", {}) or {}
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    active = set(lifecycle.active_ids()) if lifecycle else set(characters)
+    matches = []
+    for key in active:
+        if key == "player" or key not in characters:
+            continue
+        name = str(characters[key].name).strip()
+        if name and re.match(rf"^\s*(?:and\s+)?(?:i['’]m|i am|my name is)\s+{re.escape(name)}(?=\b|[,.!?])",
+                             text, re.I):
+            matches.append(key)
+    return matches[0] if len(matches) == 1 else None
+
+
 def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     """Strip transport markers and return ordered, validated presentation blocks.
 
@@ -193,12 +209,14 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     for match in MARKER.finditer(text):
         body = text[offset:match.start()].strip()
         if body:
-            segments.append(_segment(body, speaker, characters))
+            resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
+            segments.append(_segment(body, resolved or speaker, characters))
         speaker = match.group(1).strip() if match.group(1) is not None else None
         offset = match.end()
     body = text[offset:].strip()
     if body:
-        segments.append(_segment(body, speaker, characters))
+        resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
+        segments.append(_segment(body, resolved or speaker, characters))
     clean = MARKER.sub("", text).strip()
     grouped = []
     for segment in segments:

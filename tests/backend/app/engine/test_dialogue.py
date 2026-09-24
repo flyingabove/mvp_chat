@@ -205,3 +205,14 @@ def test_player_can_never_be_an_ai_dialogue_speaker():
     prose, _ = extract_state_tag(decode_dialogue_response(raw, s))
     assert "Hi, I'm Paul" not in prose
     assert present_dialogue(prose, s)[1][0]["speaker_id"] == "mizuki"
+
+
+def test_unknown_voice_self_introduction_uses_matching_active_portrait():
+    s = state()
+    s.characters["yuto"] = Character(key="yuto", name="Yuto Handa")
+    s.cast_lifecycle = SimpleNamespace(active_ids=lambda: ["mizuki", "yuto"])
+    _, blocks = present_dialogue("[SPEAKER:unknown]And I'm Yuto Handa. Welcome home![/SPEAKER]", s)
+    assert blocks[0]["speaker_id"] == "yuto"
+    assert blocks[0]["portrait_url"].endswith("Yuto_Handa.png")
+    _, concealed = present_dialogue("[SPEAKER:unknown]Someone knocks at the door.[/SPEAKER]", s)
+    assert concealed[0]["speaker_id"] is None
