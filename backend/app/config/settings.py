@@ -110,6 +110,16 @@ JEV_SHADOW_SAMPLE_RATE: float = float(_os.getenv("JEV_SHADOW_SAMPLE_RATE", "0.0"
 JEV_TIMEOUT_MS: int = int(_os.getenv("JEV_TIMEOUT_MS", "1000"))
 JEV_MAX_QUESTIONS_PER_BATCH: int = int(_os.getenv("JEV_MAX_QUESTIONS_PER_BATCH", "60"))
 
+# Dynamic memory selection is a separate opt-in Jev task. It is active only
+# when TYPESAFE_ENABLED is true AND JEV_ENABLED_TASKS includes
+# "context_selection" (or "*"). The exponent sharpens optional-memory draws:
+# 1.0 preserves utility weights, 1.5 is the default moderate preference, and
+# 2.0 squares them. Required game facts never pass through this sampler.
+JEV_CONTEXT_SELECTION_ALPHA: float = float(_os.getenv("JEV_CONTEXT_SELECTION_ALPHA", "1.5"))
+JEV_CONTEXT_CANDIDATE_LIMIT: int = int(_os.getenv("JEV_CONTEXT_CANDIDATE_LIMIT", "200"))
+JEV_CONTEXT_OPTIONAL_LIMIT: int = int(_os.getenv("JEV_CONTEXT_OPTIONAL_LIMIT", "6"))
+JEV_CONTEXT_MIN_RELEVANCE: float = float(_os.getenv("JEV_CONTEXT_MIN_RELEVANCE", "0.35"))
+
 # --- Jev circuit breaker parameters (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6) ---
 JEV_BREAKER_FAIL_THRESHOLD: int = int(_os.getenv("JEV_BREAKER_FAIL_THRESHOLD", "3"))
 JEV_BREAKER_FAIL_WINDOW_S: float = float(_os.getenv("JEV_BREAKER_FAIL_WINDOW_S", "60"))

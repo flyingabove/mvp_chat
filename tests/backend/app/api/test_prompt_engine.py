@@ -4695,6 +4695,43 @@ def test_failed_retrieval_does_not_mutate_live_session(client, monkeypatch):
     assert post_failure_state.turns == pre_turn_turns
 
 
+def test_dynamic_context_selects_broad_candidates_before_prompt(client, monkeypatch):
+    """The opt-in path replaces only optional retrieval context, not the turn."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.knowledge.runtime.dynamic_context import ContextSelectionResult
+
+    candidates = [
+        {"chunk_id": "old-promise", "text": "Ren promised to cook dinner.", "_context_source_rank": 1},
+        {"chunk_id": "recent-event", "text": "The player saved Ren a plate yesterday.", "_context_source_rank": 1},
+    ]
+    captured = {}
+
+    monkeypatch.setattr(pe_mod, "dynamic_context_enabled", lambda: True)
+    monkeypatch.setattr(pe_mod, "retrieve_context_candidates", lambda *a, **k: (list(candidates), {"source": "broad"}))
+
+    class _Selector:
+        async def select(self, **kwargs):
+            captured.update(kwargs)
+            return ContextSelectionResult([dict(candidates[1])], {"provider": "fake", "alpha": 1.5})
+
+    monkeypatch.setattr(pe_mod, "DynamicContextSelector", _Selector)
+    headers = {"X-Guest-Id": "20000000-0000-4000-8000-000000000007"}
+    sid = "dynamic_context_prompt_flow"
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+    ).status_code == 200
+
+    response = client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "What should we make for dinner?"},
+    )
+    assert response.status_code == 200
+    assert [item["chunk_id"] for item in captured["candidates"]] == ["old-promise", "recent-event"]
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert [item["chunk_id"] for item in state.last_turn_retrieved_chunks] == ["recent-event"]
+
+
 def test_failed_dialogue_decode_does_not_mutate_live_session(client, monkeypatch):
     """Same guarantee, third failure boundary: the storyteller responds 200
     but with a reply that fails STATE-tag decoding."""

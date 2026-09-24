@@ -1,6 +1,6 @@
 # JEV dynamic memory and narrative context design
 
-Date: 2026-09-23. Status: design proposal, not implemented. Target: beta.
+Date: 2026-09-23. Status: foundational retrieval, relevance scoring and power sampling implemented behind an opt-in beta flag; clue/relationship pacing policies remain planned. Target: beta.
 
 ## 1. Decision and intended experience
 
@@ -181,13 +181,13 @@ For remaining optional candidates:
 
 `P(next = i | remaining candidates) = weight_i / sum(weight_j)`
 
-Define a single editable backend constant in `backend/app/config/settings.py` when implementing the selector:
+The selector exposes this editable backend constant in `backend/app/config/settings.py`:
 
 ```python
 JEV_CONTEXT_SELECTION_ALPHA: float = 1.5
 ```
 
-The sampler reads this setting rather than hardcoding an exponent. Fractional values such as 1.25 or 1.5 are supported directly with ordinary floating-point exponentiation; for a shortlist of 200 candidates this arithmetic is negligible compared with retrieval and model calls. No approximation or additional Jev request is needed. This is a proposed setting, not a runtime constant added by this documentation change.
+The sampler reads this setting rather than hardcoding an exponent. Fractional values such as 1.25 or 1.5 are supported directly with ordinary floating-point exponentiation; for a shortlist of 200 candidates this arithmetic is negligible compared with retrieval and model calls. No approximation or additional Jev request is needed.
 
 | Alpha | Selection behavior |
 | ---: | --- |
@@ -308,7 +308,7 @@ Acceptance plan:
 - Social tests measure repeated beats, grounded callbacks, private-knowledge leakage and conditional cast attention; no reward for forced romance or maximal conflict.
 - Verify timeout/429/provider failure, stale state, cache isolation, restart/retry persistence, malicious memory text and superseded facts under production-like concurrency.
 
-Implementation order: (1) candidate adapter, source reservations and diagnostics; (2) offline Jev calibration and packet inspection; (3) sampled shadow runs with unchanged user prompts; (4) opt-in beta relevance-only selection; (5) beta power sampling and callback policies; (6) mystery opportunities and broader initiatives. Each phase has an independently reversible flag. No production rollout is implied by shipping this design to beta.
+Implementation status: (1) the candidate adapter now broadly retrieves up to 200 source-balanced authored/session candidates; (2) optional context is opt-in through `TYPESAFE_ENABLED=true` plus `JEV_ENABLED_TASKS=context_selection`; (3) Jev relevance Noul judgments, thresholding, deterministic anchor selection and seeded power sampling are implemented; (4) provider errors/circuit-open state fall back to deterministic rank-only selection without blocking the turn. Shadow-mode calibration, prompt-packet inspection, callback/clue pacing, expanded dimensions and broader initiatives remain next steps. No production rollout is implied by shipping this beta feature.
 
 Initial promotion gate: all critical fixtures pass, paired human-rated naturalness/continuity show improvement with uncertainty reported, no measured regression in direct answers or player agency, and latency/cost remain within the budgets. If the sample cannot establish improvement, collect more evidence or retain the simpler policy.
 

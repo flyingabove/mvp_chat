@@ -31,7 +31,10 @@
 The proposed shared Jev retrieval, weighted sampling and subtle narrative-context
 system is documented in [JEV_DYNAMIC_CONTEXT_DESIGN.md](model_output_docs/JEV_DYNAMIC_CONTEXT_DESIGN.md).
 Update it when candidate selection, callback/clue pacing, probability sampling,
-or the cross-game context implementation plan changes. Status: design only.
+or the cross-game context implementation plan changes. Broad retrieval, Jev
+relevance judgment and configurable power-sampling are implemented behind the
+`context_selection` Jev task flag; clue and relationship pacing policies remain
+planned.
 
 | Doc | Edit this doc if... |
 |-----|---------------------|

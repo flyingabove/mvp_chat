@@ -33,6 +33,11 @@ logger = logging.getLogger(__name__)
 
 
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
+from backend.app.knowledge.runtime.dynamic_context import (
+    DynamicContextSelector,
+    dynamic_context_enabled,
+    retrieve_context_candidates,
+)
 from backend.app.knowledge.runtime.session_chunk_store import SessionChunkStore
 from backend.app.knowledge.runtime.dialogue_extractor import (
     extract_facts_from_message, extract_facts_with_status, EXTRACTOR_VERSION,
@@ -2714,10 +2719,15 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             if getattr(state, "knowledge_character_id", ""):
                 IndexService.set_active_character(state.knowledge_character_id)
             namespace = build_namespace_key(user_id=getattr(state, "user_id", ""), story_id=getattr(state, "story", ""), instance=getattr(state, "instance", 1))
-            retrieved, debug = retrieve_knowledge(
-                msg, namespace=namespace,
-                session_store=state.session_chunk_store,
-            )
+            if dynamic_context_enabled():
+                retrieved, debug = retrieve_context_candidates(
+                    msg, namespace=namespace, session_store=state.session_chunk_store,
+                )
+            else:
+                retrieved, debug = retrieve_knowledge(
+                    msg, namespace=namespace,
+                    session_store=state.session_chunk_store,
+                )
     except Exception as e:
         _log({"kind": "retrieval_error", "error": str(e)})
         return {"error": "knowledge retrieval failed", "character": "default"}
@@ -3082,6 +3092,32 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         )
     except Exception:
         pass
+
+    # Context selection intentionally happens after validated movement/state
+    # updates. It may vary optional memory emphasis, but canonical facts and
+    # speaker knowledge still enter the prompt through their deterministic
+    # prompt-builder layers.
+    if dynamic_context_enabled():
+        try:
+            with stage_timer.stage("context_selection"):
+                scene = (
+                    f"Location: {getattr(state, 'location', '') or getattr(state, 'location_id', '')}. "
+                    f"Present: {', '.join(sorted(_people_present))}. "
+                    f"Turn: {int(getattr(state, 'turns', 0) or 0)}."
+                )
+                selection = await DynamicContextSelector().select(
+                    query=msg,
+                    candidates=retrieved,
+                    scene=scene,
+                    focal_character_id=str(getattr(state, "main_character_id", "") or ""),
+                    seed_material=f"{session_id}|{int(getattr(state, 'turns', 0) or 0)}|{msg}",
+                )
+                retrieved = selection.chunks
+                debug = dict(debug or {})
+                debug["dynamic_context"] = selection.debug
+        except Exception as exc:
+            # Optional contextual variety must never make a valid turn fail.
+            _log({"kind": "dynamic_context_selection_error", "error": str(exc)})
 
     from backend.app.engine.prompt_builder import PromptInput
 
