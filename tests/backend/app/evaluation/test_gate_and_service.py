@@ -95,3 +95,66 @@ async def test_run_experiment_plays_once_and_judges_with_every_judge(tmp_path, m
     html = (store.dir / "report.html").read_text(encoding="utf-8")
     assert "Release gate" in html and "Judge: llm" in html
     assert (store.dir / "report_fragment.html").read_text(encoding="utf-8").startswith("<title>")
+
+
+# ---- three evaluators, cheapest first ----------------------------------------
+
+def test_ollama_judge_spec_is_a_one_window_llm_judge():
+    ollama = ModelEndpoint("http://127.0.0.1:11434/v1", "ollama", "llama3.1-8b-ctx16k")
+    (spec,) = judge_specs(["ollama"], turns=6, llm=None, ollama=ollama)
+    assert (spec.name, spec.kind, spec.window_turns, spec.namespace) == ("ollama", "llm", 6, "ollama")
+    with pytest.raises(ValueError):
+        judge_specs(["ollama"], turns=6, llm=None)
+
+
+def _fake_report(p_by_game, beta_fail=0, prod_fail=0, beta_err=0, prod_err=0, checks=None):
+    return {
+        "strata": {g: {"p": p} for g, p in p_by_game.items()},
+        "critical": {"regressions": []},
+        "reliability": {BETA: {"statuses": {"complete": 2, "target_failure": beta_fail}, "turn_errors": beta_err},
+                        PROD: {"statuses": {"complete": 2, "target_failure": prod_fail}, "turn_errors": prod_err}},
+        "checks": checks or {},
+        "headline": "h",
+    }
+
+
+def _arena_with(monkeypatch, reports, gate_judges):
+    """build_arena_report over fake per-judge reports (keyed by each judge's
+    judgments list), with judgments that name both games."""
+    import backend.app.evaluation.report as report
+
+    judgments = {name: [{"story_id": g} for g in GAMES] for name in reports}
+    by_list = {id(js): reports[name] for name, js in judgments.items()}
+    monkeypatch.setattr(report, "build_report", lambda manifest, arms, js, rubric, **kw: by_list[id(js)])
+    manifest = type("M", (), {"experiment_id": "x"})()
+    return report.build_arena_report(manifest, {}, judgments, DEFAULT_RUBRIC, gate_judges=gate_judges)
+
+
+def test_gate_counts_only_gate_judges_and_reports_ollama_as_advisory(monkeypatch):
+    arena = _arena_with(monkeypatch, {
+        "jev": _fake_report({GAMES[0]: 0.7, GAMES[1]: 0.3}),
+        "llm": _fake_report({GAMES[0]: 0.4, GAMES[1]: 0.4}),
+        "ollama": _fake_report({GAMES[0]: 0.9, GAMES[1]: 0.9}),
+    }, ("jev", "llm"))
+    gate = arena["gate"]
+    # Six Strangers is only "won" under the advisory ollama judge -> gate fails
+    assert not gate["passed"] and gate["advisory_judges"] == ["ollama"]
+    assert gate["judges_counted"] == ["jev", "llm"]
+    assert gate["per_game"][GAMES[0]]["beta_wins_under"] == ["jev"]
+
+
+def test_gate_falls_back_to_the_judges_that_ran(monkeypatch):
+    """Offline runs have only the ollama judge; it then decides the gate."""
+    arena = _arena_with(monkeypatch, {"ollama": _fake_report({GAMES[0]: 0.6, GAMES[1]: 0.6})}, ("jev", "llm"))
+    assert arena["gate"]["judges_counted"] == ["ollama"] and arena["gate"]["passed"]
+
+
+def test_precheck_verdict_is_about_reliability_not_local_quality():
+    from backend.app.evaluation.report import precheck_verdict
+
+    ok = {"judges": {"ollama": _fake_report({GAMES[0]: 0.0, GAMES[1]: 0.0})}}
+    assert precheck_verdict(ok)["passed"]                    # losing on quality alone never fails it
+    broken = {"judges": {"ollama": _fake_report({GAMES[0]: 1.0}, beta_fail=1, beta_err=2,
+                                                checks={"route_legality (major)": {BETA: 2, PROD: 0}})}}
+    verdict = precheck_verdict(broken)
+    assert not verdict["passed"] and len(verdict["reasons"]) == 3

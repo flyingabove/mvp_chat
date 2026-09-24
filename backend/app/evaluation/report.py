@@ -374,16 +374,23 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *,
 
 def build_arena_report(manifest: ExperimentManifest, arms: Mapping[str, ArmTranscript],
                        judgments_by_judge: Mapping[str, Sequence[Mapping[str, Any]]], rubric: Rubric, *,
-                       calibration: Mapping[str, Any] | None = None, iterations: int = 2000) -> dict[str, Any]:
-    """One build_report per judge over the SAME played arms, plus the release gate."""
+                       calibration: Mapping[str, Any] | None = None, iterations: int = 2000,
+                       gate_judges: Sequence[str] | None = None) -> dict[str, Any]:
+    """One build_report per judge over the SAME played arms, plus the release
+    gate computed from `gate_judges` only (others are reported as advisory).
+    If none of the configured gate judges ran, every judge that ran counts."""
     from backend.app.evaluation.aggregate import release_gate
 
     per_judge = {name: build_report(manifest, arms, js, rubric, calibration=calibration, iterations=iterations)
                  for name, js in judgments_by_judge.items()}
     games = sorted({j["story_id"] for js in judgments_by_judge.values() for j in js})
     regressions = sorted({f"[{name}] {r}" for name, rep in per_judge.items() for r in rep["critical"]["regressions"]})
-    gate = release_gate({name: {g: rep["strata"].get(g, {}).get("p") for g in games}
-                         for name, rep in per_judge.items()}, games, regressions)
+    counted = [n for n in per_judge if gate_judges is None or n in gate_judges] or list(per_judge)
+    gate = release_gate({name: {g: per_judge[name]["strata"].get(g, {}).get("p") for g in games}
+                         for name in counted}, games,
+                        [r for r in regressions if any(r.startswith(f"[{n}]") for n in counted)])
+    gate["judges_counted"] = counted
+    gate["advisory_judges"] = [n for n in per_judge if n not in counted]
     return {"experiment_id": manifest.experiment_id, "judges": per_judge, "gate": gate}
 
 
@@ -395,7 +402,9 @@ def gate_panel(gate: Mapping[str, Any]) -> str:
         f"</td><td class={'good' if g['passed'] else 'bad'}>{esc(', '.join(g['beta_wins_under']) or 'none')}</td></tr>"
         for game, g in gate["per_game"].items())
     return (f"<div class=panel><div class='head {status}'>Release gate: {'PASS' if gate['passed'] else 'FAIL'}</div>"
-            f"<p class=muted>{esc(gate['rule'])}</p><div class=scroll><table><tr><th>Game</th>"
+            f"<p class=muted>{esc(gate['rule'])}. Counted: {esc(', '.join(gate.get('judges_counted', [])))}"
+            f"{'; advisory: ' + esc(', '.join(gate['advisory_judges'])) if gate.get('advisory_judges') else ''}</p>"
+            f"<div class=scroll><table><tr><th>Game</th>"
             f"<th>Beta match score by judge</th><th>Beta wins under</th></tr>{rows}</table></div>" +
             "".join(f"<p class=bad>{esc(r)}</p>" for r in gate["reasons"]) + "</div>")
 
@@ -422,3 +431,28 @@ def render_arena_html(arena: Mapping[str, Any], arms: Mapping[str, ArmTranscript
     extra = "".join(judge_summary(n, arena["judges"][n]) for n in names[1:])
     lead = gate_panel(arena["gate"]) + f"<p class=muted>Detailed sections below use judge: {esc(names[0])}</p>"
     return render_html(primary, arms, fragment=fragment, lead=lead, extra_sections=extra)
+
+
+def precheck_verdict(arena: Mapping[str, Any]) -> dict[str, Any]:
+    """Cheap offline screen (tier 1). Judged on engine RELIABILITY and the
+    deterministic checks only - quality verdicts from a small local model are
+    reported but never decide it. Beta must not fail more than its baseline:
+    no extra target failures or turn errors, no deterministic check firing
+    more often, and at least one completed arm."""
+    first = next(iter(arena["judges"].values()))
+    rel = first["reliability"]
+    reasons: list[str] = []
+    fails = {side: rel[side]["statuses"].get("target_failure", 0) for side in (BETA, PROD)}
+    if fails[BETA] > fails[PROD]:
+        reasons.append(f"beta target failures {fails[BETA]} > baseline {fails[PROD]}")
+    if rel[BETA]["turn_errors"] > rel[PROD]["turn_errors"]:
+        reasons.append(f"beta turn errors {rel[BETA]['turn_errors']} > baseline {rel[PROD]['turn_errors']}")
+    for check, counts in sorted(first["checks"].items()):
+        if counts[BETA] > counts[PROD]:
+            reasons.append(f"{check}: beta {counts[BETA]} > baseline {counts[PROD]}")
+    played = rel[BETA]["statuses"].get("complete", 0) + rel[BETA]["statuses"].get("ended", 0)
+    if not played:
+        reasons.append("beta completed no games")
+    return {"passed": not reasons, "reasons": reasons,
+            "rule": "no new target failures, turn errors or deterministic-check findings vs baseline",
+            "quality_advisory": {name: rep["headline"] for name, rep in arena["judges"].items()}}

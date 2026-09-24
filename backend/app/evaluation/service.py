@@ -40,6 +40,9 @@ from backend.app.evaluation.targets import HostedTargetAdapter
 Log = Callable[[str], None]
 STAGES = ("play", "judge", "calibrate", "report")
 OPENAI_V1 = "https://api.openai.com/v1"
+# Judges that decide the release gate by default. "ollama" (a small local
+# model) is a free, advisory screen: it is reported but cannot pass a game.
+GATE_JUDGES = ("jev", "llm")
 
 
 @dataclass(frozen=True)
@@ -90,6 +93,7 @@ class ArenaConfig:
     mode: str = ExperimentMode.AS_DEPLOYED_PRODUCT.value
     extra_notes: tuple[str, ...] = ()
     target_timeout_s: float = 150.0
+    gate_judges: tuple[str, ...] = GATE_JUDGES   # judges allowed to pass a game in the gate
 
     @property
     def store(self) -> ArtifactStore:
@@ -97,9 +101,13 @@ class ArenaConfig:
 
 
 def judge_specs(names: list[str], *, turns: int, llm: ModelEndpoint | None, jev_api_key: str = "",
-                jev_model: str = DEFAULT_JUDGE_MODEL, jev_window_turns: int = 4) -> list[JudgeSpec]:
-    """Jev judges scene windows; the LLM judge sees the whole episode in one
-    window (2 calls per pair: A/B then B/A) to keep API calls low."""
+                jev_model: str = DEFAULT_JUDGE_MODEL, jev_window_turns: int = 4,
+                ollama: ModelEndpoint | None = None) -> list[JudgeSpec]:
+    """Three evaluators share one judge implementation:
+      jev     TypeSafe Jev, scene windows
+      llm     OpenAI (or any OpenAI-compatible cloud model), one window per episode
+      ollama  local Ollama model, one window per episode (free, advisory)
+    One-window judges cost 2 calls per pair (A/B then B/A)."""
     specs = []
     for name in names:
         if name == "jev":
@@ -108,6 +116,10 @@ def judge_specs(names: list[str], *, turns: int, llm: ModelEndpoint | None, jev_
             if llm is None:
                 raise ValueError("llm judge requested without an endpoint")
             specs.append(JudgeSpec("llm", "llm", llm.model, turns, endpoint=llm))
+        elif name == "ollama":
+            if ollama is None:
+                raise ValueError("ollama judge requested without an endpoint")
+            specs.append(JudgeSpec("ollama", "llm", ollama.model, turns, endpoint=ollama))
         else:
             raise ValueError(f"unknown judge: {name}")
     return specs
@@ -291,7 +303,8 @@ def report(cfg: ArenaConfig, log: Log) -> dict[str, Any]:
                 for spec in cfg.judges}
     cal_path = store.dir / "calibration.json"
     calibration = json.loads(cal_path.read_text(encoding="utf-8")) if cal_path.exists() else None
-    arena = build_arena_report(manifest, arms, by_judge, DEFAULT_RUBRIC, calibration=calibration)
+    arena = build_arena_report(manifest, arms, by_judge, DEFAULT_RUBRIC, calibration=calibration,
+                               gate_judges=cfg.gate_judges)
     store.save_report(arena, render_arena_html(arena, arms))
     (store.dir / "report_fragment.html").write_text(render_arena_html(arena, arms, fragment=True), encoding="utf-8")
     (store.dir / "gate.json").write_text(json.dumps(arena["gate"], indent=2), encoding="utf-8")
