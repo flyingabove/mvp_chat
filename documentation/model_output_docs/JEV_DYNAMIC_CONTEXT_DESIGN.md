@@ -181,7 +181,25 @@ For remaining optional candidates:
 
 `P(next = i | remaining candidates) = weight_i / sum(weight_j)`
 
-Start at alpha=2. Alpha=1 is more varied; alpha>2 more concentrated. This is equivalent to a temperature on log utility, not softmax applied to raw utility.
+Define a single editable backend constant in `backend/app/config/settings.py` when implementing the selector:
+
+```python
+JEV_CONTEXT_SELECTION_ALPHA: float = 1.5
+```
+
+The sampler reads this setting rather than hardcoding an exponent. Fractional values such as 1.25 or 1.5 are supported directly with ordinary floating-point exponentiation; for a shortlist of 200 candidates this arithmetic is negligible compared with retrieval and model calls. No approximation or additional Jev request is needed. This is a proposed setting, not a runtime constant added by this documentation change.
+
+| Alpha | Selection behavior |
+| ---: | --- |
+| 0 | Uniform sampling among eligible candidates with positive utility |
+| 1 | Original utility weighting, with no sharpening |
+| 1.5 | Default: moderate preference for stronger candidates |
+| 2 | Squared weighting: stronger concentration |
+| 3 | Cubed weighting: very strong concentration |
+
+Allow finite values from 0 through 4 initially; reject invalid configuration at startup. Values between 0 and 1 flatten the distribution. Implement alpha=0 explicitly as uniform sampling over the positive-utility pool, avoiding `0 ** 0`; an empty or all-zero pool still yields no optional item. Eligibility, minimum relevance/natural-fit thresholds, required context and earned discoveries are independent of this setting. Changing sharpness must never admit an ineligible item or randomize a required answer.
+
+Record the effective alpha in each turn's selection diagnostics and persisted packet, and include it in the selection-policy fingerprint. Replays and generation retries retain the original packet and alpha even after the backend constant changes; new turns use the new setting. For positive alpha this is equivalent to a temperature on log utility, not softmax applied to raw utility.
 
 For pure relevance scores 0.8, 0.4 and 0.2, squares are 0.64, 0.16 and 0.04; normalized first-draw probabilities are 76.19%, 19.05% and 4.76%. Likewise 8%, 4% and 2% square to 0.64%, 0.16% and 0.04%, producing the SAME normalized distribution. An 8% input alone never implies a 64% selection probability. A lone survivor would otherwise get 100%, which is why absolute quality gates and an explicit skip decision precede normalization.
 
@@ -277,7 +295,7 @@ Initial targets: optional packet <=1,200 tokens and six items including anchors;
 
 Build labeled scenes from both stories covering direct questions, ambiguous references, quiet life, callbacks, contested testimony, hidden evidence, private confessions, departures, superseded preferences and empty evidence. Use real story IDs in implementation fixtures; the examples above are deliberately illustrative.
 
-Compare: current retrieval; source-balanced retrieval alone; deterministic Jev top-k; Jev power sampling with alpha 1/2/4; and power sampling plus pacing. This isolates whether gains come from fairer recall, Jev, or randomness. Freeze token budgets and storyteller settings. Run multiple selector seeds from identical snapshots and paired full sessions using the proposed [Jev game arena](JEV_GAME_ARENA_DESIGN.md).
+Compare: current retrieval; source-balanced retrieval alone; deterministic Jev top-k; Jev power sampling with alpha 0/1/1.5/2/3/4; and power sampling plus pacing. This isolates whether gains come from fairer recall, Jev, or randomness. Freeze token budgets and storyteller settings. Run multiple selector seeds from identical snapshots and paired full sessions using the proposed [Jev game arena](JEV_GAME_ARENA_DESIGN.md).
 
 Acceptance plan:
 

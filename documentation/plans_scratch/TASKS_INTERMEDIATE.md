@@ -58,6 +58,8 @@ Package: `backend/app/evaluation/` (pure core, I/O at the edges). CLI: `scripts/
 
 ## Consumed History
 
+- 2026-09-23: Updated the dynamic-context design with proposed backend constant `JEV_CONTEXT_SELECTION_ALPHA = 1.5`, fractional exponents, validation, uniform-sampling semantics and replay metadata. Documentation-only clarification; runtime setting remains to be implemented with the selector. Verified whitespace and integrated latest beta before pushing; remote verification follows the push.
+
 - 2026-09-23: Completed `JEV_DYNAMIC_CONTEXT_DESIGN.md` for unified mystery/social memory selection, subtle callbacks and controlled randomness. Inspected current retrieval/provider contracts and official TypeSafe documentation; verified seven relative document links, balanced code fences and whitespace. Indexed the design and integrated current origin/beta before shipping. Documentation-only scope; no runtime behavior or live gameplay testing claimed. Remote beta verification is performed after this commit's push and reported in the task response.
 
 - 2026-09-23: Pushed Jev arena design `181d618` and persistent beta completion instruction `82123ad` to `origin/beta`. Fetched the remote and verified design ancestry, document presence and the AGENTS.md rule. Documentation checks passed; no runtime code changes or runtime QA claimed.
