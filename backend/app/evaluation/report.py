@@ -179,10 +179,11 @@ def headline_text(s: Mapping[str, Any]) -> str:
 # --------------------------------------------------------------------------- HTML
 
 CSS = """
-:root{--bg:#f7f7f5;--panel:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e3e3e0;--beta:#2563eb;--prod:#b45309;--good:#15803d;--bad:#b91c1c;--chip:#f0f0ec}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121214;--panel:#1b1b1f;--ink:#ececef;--muted:#9a9aa3;--line:#2c2c33;--beta:#60a5fa;--prod:#f59e0b;--good:#4ade80;--bad:#f87171;--chip:#26262c}}
-:root[data-theme="dark"]{--bg:#121214;--panel:#1b1b1f;--ink:#ececef;--muted:#9a9aa3;--line:#2c2c33;--beta:#60a5fa;--prod:#f59e0b;--good:#4ade80;--bad:#f87171;--chip:#26262c}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e3e3e0;--beta:#2563eb;--prod:#b45309;--good:#15803d;--bad:#b91c1c;--chip:#f0f0ec}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121214;--panel:#1b1b1f;--ink:#ececef;--muted:#9a9aa3;--line:#2c2c33;--beta:#60a5fa;--prod:#f59e0b;--good:#4ade80;--bad:#f87171;--chip:#26262c;color-scheme:dark}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#121214;--panel:#1b1b1f;--ink:#ececef;--muted:#9a9aa3;--line:#2c2c33;--beta:#60a5fa;--prod:#f59e0b;--good:#4ade80;--bad:#f87171;--chip:#26262c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+.stat b,td,.head{font-variant-numeric:tabular-nums}.stat b{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace}h1,h2{text-wrap:balance}
 main{max-width:1060px;margin:0 auto;padding:24px 16px 64px}h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:32px 0 10px}
 .muted{color:var(--muted)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0}
 .head{font-size:18px;font-weight:600}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -218,7 +219,13 @@ def render_arm(arm: ArmTranscript | None) -> str:
     return "".join(out)
 
 
-def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript]) -> str:
+FONTS = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500'
+         '&family=IBM+Plex+Sans:wght@400;600&display=swap">')
+
+
+def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *, fragment: bool = False) -> str:
+    """Full standalone document, or (fragment=True) title+style+main only
+    for hosts that supply their own document skeleton."""
     s = report["summary"]
     t = report["targets"]
     stats = [
@@ -229,9 +236,11 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript]) ->
         ("Coverage", f"{s['coverage']:.0%}"),
         ("Pairs", str(s["n_pairs"])),
     ]
-    parts = [f"<!doctype html><html lang=en><head><meta charset=utf-8>"
-             f"<meta name=viewport content='width=device-width,initial-scale=1'>"
-             f"<title>Jev Game Arena</title><style>{CSS}</style></head><body><main>",
+    head = f"<title>Jev Game Arena</title>{FONTS}<style>{CSS}</style>"
+    opener = (f"{head}<main>" if fragment else
+              f"<!doctype html><html lang=en><head><meta charset=utf-8>"
+              f"<meta name=viewport content='width=device-width,initial-scale=1'>{head}</head><body><main>")
+    parts = [opener,
              f"<h1>Jev game arena: beta vs prod</h1><p class=muted>{esc(report['experiment_id'])} · mode "
              f"{esc(report['mode'])}{' · observational' if report['observational'] else ''} · manifest "
              f"{esc(report['manifest_hash'][:12])}</p>",
@@ -311,5 +320,6 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript]) ->
                      f"<div><h3 class=beta>beta</h3>{render_arm(arms.get(j['pair_id'] + '.beta'))}</div>"
                      f"<div><h3 class=prod>prod</h3>{render_arm(arms.get(j['pair_id'] + '.prod'))}</div></div></details>")
     parts.append("</div><p class=muted>Advisory only: promotion stays manual. Elo-equivalent is the expected match score "
-                 "under this suite and tie policy, not a share of humans who prefer beta.</p></main></body></html>")
+                 "under this suite and tie policy, not a share of humans who prefer beta.</p></main>"
+                 + ("" if fragment else "</body></html>"))
     return "".join(parts)

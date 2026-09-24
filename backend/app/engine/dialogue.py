@@ -24,7 +24,8 @@ def dialogue_prompt(state) -> str:
         "EVERY spoken passage MUST be a dialogue segment. Split at every change of "
         "speaker, including within one paragraph. Keep actions and narration in "
         "narration segments. Do not add name prefixes inside spoken text. Never "
-        "invent the player's dialogue. Use speaker_id unknown for an unidentified "
+        "invent the player's dialogue. Never repeat the player's own message as anyone's "
+        "dialogue; the player already sees what they wrote. Use speaker_id unknown for an unidentified "
         "or unlisted voice. Do not reveal "
         "a concealed identity through a speaker ID. These markers are presentation "
         "metadata; preserve all other story requirements. Put the focal character's "
@@ -168,6 +169,51 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
         else:
             grouped.append(segment)
     return clean, grouped
+
+
+SENTENCE = re.compile(r"[^.!?…]+[.!?…]*[\"'”’]*")
+MIN_ECHO_WORDS = 3
+
+
+def normalized_words(text: str) -> str:
+    return " ".join(re.findall(r"[\w']+", (text or "").casefold().replace("’", "'")))
+
+
+def drop_player_echo(segments: list[dict], player_message: str, player_key: str = "player") -> list[dict]:
+    """Remove the player's own words from other speakers' dialogue.
+
+    The structured scene forces every spoken passage onto a speaker_id, so when
+    the model echoes the player's line it sometimes attributes it to a nearby
+    NPC (live beta 2026-09-23: "Natsumi Saito: That sounds amazing. Do you all
+    cook together usually?" was the player's exact message). Leading sentences
+    of a non-player dialogue segment that appear verbatim (word-normalized, at
+    least MIN_ECHO_WORDS words) in the player's message are stripped; a segment
+    that was only the echo is dropped. Short lines ("Yes.") and the NPC's own
+    words are never touched.
+    """
+    said = f" {normalized_words(player_message)} "
+    if not said.strip():
+        return segments
+    out = []
+    for seg in segments:
+        if seg.get("kind") == "dialogue" and seg.get("speaker_id") != player_key:
+            text, cut = seg["text"], 0
+            for match in SENTENCE.finditer(text):
+                words = normalized_words(match.group())
+                if not words:
+                    cut = match.end()
+                    continue
+                if len(words.split()) >= MIN_ECHO_WORDS and f" {words} " in said:
+                    cut = match.end()
+                    continue
+                break
+            if cut:
+                rest = text[cut:].strip()
+                if not rest:
+                    continue
+                seg = {**seg, "text": rest}
+        out.append(seg)
+    return out
 
 
 def encode_dialogue(segments: list[dict]) -> str:
