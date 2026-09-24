@@ -11,6 +11,12 @@ Debug System — AI Learnings & Reference
 >
 > This distinction matters for future logging: user sessions come from humans; player sessions come from the debug engine's LLM agent.
 
+> **Not the release evaluator.** The beta-vs-prod quality comparison (paired games, blinded Jev
+> judging, deterministic checks, Elo-equivalent with intervals) is the separate Jev game arena:
+> `backend/app/evaluation/`, CLI `python -m scripts.eval.arena`, design
+> `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md`. This debug grader's CSV scores are
+> not interchangeable with arena ratings.
+
 Overview
 --------
 The debug system is integrated into the main backend and accessible at `/beta/debug`.

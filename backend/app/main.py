@@ -13,6 +13,7 @@ from pathlib import Path
 from backend.app.api.prompt_engine import router as chat_router
 from backend.app.api.echo import router as echo_router
 from backend.app.api.health import router as health_router
+from backend.app.api.eval_capabilities import router as eval_capabilities_router
 from backend.app.api.story import router as story_router
 from backend.app.api.stories import router as stories_router
 from backend.app.api.integration_playback import router as integration_playback_router
@@ -322,6 +323,7 @@ app.add_middleware(
 app.include_router(chat_router, prefix="/api")
 app.include_router(echo_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
+app.include_router(eval_capabilities_router, prefix="/api")
 app.include_router(story_router, prefix="/api")
 app.include_router(stories_router, prefix="/api")
 app.include_router(integration_playback_router, prefix="/api")

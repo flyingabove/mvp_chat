@@ -236,3 +236,33 @@ First useful milestone: an offline Jev comparison of archived, evidence-complete
 This task delivers the design. Runtime implementation, live cost/latency measurement, human calibration and a real beta/prod rating remain future work, not verified features. No production changes are needed to review this document.
 
 Defaults proposed for implementation: both games equally weighted; common quality rubric with genre-specific progress; generative adaptive players; Jev as primary semantic judge; deterministic correctness gates; fixed confirmatory batches; no automatic promotion. Pilot data must determine final budgets, sample sizes and calibration thresholds. Human preference labels are the only outstanding external input needed to claim the score predicts what players enjoy.
+
+## 13. Implementation status (2026-09-23)
+
+Implemented in `backend/app/evaluation/` (CLI: `python -m scripts.eval.arena all --experiment-id <id>`; artifacts under `data/eval_arena/<id>/`). Tests: `tests/backend/app/evaluation/`.
+
+| Design element | Module / class | Status |
+| --- | --- | --- |
+| ExperimentManifest, TargetIdentity, TurnRecord, ArmTranscript, PairSpec | `contracts.py` | Done. Manifest is hashed and immutable per experiment id (`ArtifactStore.save_manifest` refuses a different hash). |
+| Rubric (6 dimensions, proposed weights, 0-4 bands, critical probes) | `rubric.py` `DEFAULT_RUBRIC` | Done, version `arena-rubric-0.1-proposed`; weights/thresholds NOT frozen (needs human calibration). |
+| GameKnowledgeBundle (authored canon, protected facts, directed world graph) | `knowledge.py` | Done; built from authored JSON, never from engine runtime state. |
+| JudgeEvidence packets: blinding, quote fencing, numbered spans, focused facts, token budget | `evidence.py` | Done. |
+| Jev judge policy: pinned `jev-1.13.0`, bounded same-input retry, fail-closed validation, no fallback | `judge.py` `JevPairwiseJudge` | Done; live-verified (resolved model `jev-1.13.0`, ~8.5k input tokens/request, score scale 0-4). |
+| A/B + B/A order swap, remap, order-disagreement = unresolved | `pipeline.py` `judge_arms` | Done. |
+| Deterministic checks: route reachability (BFS over authored directed edges), clock monotonicity, repetition stall, target/turn failures | `checks.py` | Done (observational subset). Capacity, RNG parity, state-transition legality and snapshot round-trip are listed in `UNSUPPORTED_OBSERVATIONAL` and reported as not measured. |
+| Paired runner: balanced first side, randomized order, per-arm guest isolation, request_id idempotent retries, drift invalidation, budget/STOP cancellation, resume | `runner.py`, `targets.py`, `store.py` | Done against hosted `/api/chat` (observational mode). |
+| Generative players seeing only public info; five personas | `players.py` | Done. |
+| Episode vote, margin, could-flip unresolved, stratified p, Elo-equivalent, cluster bootstrap, pessimistic/optimistic, advisory decision | `aggregate.py` | Done. |
+| Mutation sensitivity + A/A | `calibration.py` | Done (secret leak, player override, speaker swap, memory loss, shorten, injection). Human-label agreement: format only (`HUMAN_LABEL_FIELDS`). |
+| Report (JSON + self-contained HTML drill-down) | `report.py` | Done. |
+| Server: build identity pin (`deployment_id`) + `GET /api/eval/capabilities` | `config/build_info.py`, `api/eval_capabilities.py` | Done (beta). Prod gains them only on the next explicit promotion. |
+| Server turn receipts, controlled initialization, snapshot export/restore, response forks | - | Deferred: BACKLOG BL-19. |
+| Human calibration (~200 labeled pairs), frozen weights/thresholds | - | Deferred owner action: BACKLOG BL-20. |
+| Post-deploy trigger + hosted results UI | - | Deferred: BACKLOG BL-21. CLI + HTML report today. |
+
+Deviations from the proposal, with reasons:
+
+* Critical-probe threshold is `0.5` in BOTH orders (not 0.9): a live secret-leak mutant read 0.79/0.66, so 0.9 missed a known leak. Uncalibrated; revisit with human labels.
+* Jev `noul` criteria must be a `{"true","false"}` map; a list is rejected with HTTP 422 (verified live). The gameplay extractor currently sends lists (BACKLOG BL-18).
+* Beta reported `commit: "unknown"` on CLI deploys, so releases are pinned by `(commit, deployment_id, content_schema_version)`.
+* Game end is detected from the engine-emitted `END GAME YOU WIN` marker, never from judge/model reading prose.

@@ -142,6 +142,25 @@ Use `kind="fact"`, `kind="claim"`, `kind="observation"` on `KnowledgeChunk` to d
 
 ---
 
+## Evaluation Arena (beta vs prod)
+
+Design: `JEV_GAME_ARENA_DESIGN.md`. All plain data, JSON round-trippable, persisted under `data/eval_arena/<experiment_id>/`.
+
+| Class | File | What it is |
+|---|---|---|
+| `ExperimentManifest` | `backend/app/evaluation/contracts.py` | Immutable experiment identity (targets, judge model, rubric hash, player model/prompt, bundle hashes, pairs, seed, budget, capabilities). `manifest_hash` = sha256 of canonical JSON. |
+| `TargetIdentity` | `backend/app/evaluation/contracts.py` | A release as reported by `/api/health`; `pin_key` = (commit, deployment_id, content_schema_version). |
+| `PairSpec` / `ScenarioSpec` / `PersonaSpec` | `backend/app/evaluation/contracts.py` | One paired scenario replicate (the statistical unit), its starting condition and player persona. |
+| `TurnRecord` / `ObservedState` / `ArmTranscript` | `backend/app/evaluation/contracts.py` | One player action + public reply + `[D]` observation; one side's full game with `ArmStatus`. |
+| `Rubric` / `Dimension` / `CriticalProbe` | `backend/app/evaluation/rubric.py` | Judged dimensions, weights, criteria and per-side critical yes/no probes. |
+| `GameKnowledgeBundle` / `CanonFact` / `LocationNode` | `backend/app/evaluation/knowledge.py` | Judge-side oracle built from authored story/world JSON; protected facts; directed world graph. |
+| `EvidencePacket` | `backend/app/evaluation/evidence.py` | One blinded, fenced, token-bounded Jev `state` for one window in one A/B order. |
+| `JudgeCall` / `ValidatedAnswer` | `backend/app/evaluation/judge.py` | One judge request record and its fail-closed per-question answers. |
+| `Vote` / `EpisodeDecision` / `EpisodeOutcome` / `RatingSummary` | `backend/app/evaluation/aggregate.py` | Rating math units: dimension vote, episode decision, stratified outcome, headline summary. |
+| `CheckFinding` | `backend/app/evaluation/checks.py` | Deterministic correctness finding (check id, severity, turn). |
+
+---
+
 ## Prompt Assembly
 
 | Class / Function | File | What it is |

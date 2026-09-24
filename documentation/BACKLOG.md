@@ -8,6 +8,30 @@
 
 ## Open
 
+### BL-18 — Gameplay Jev extractor sends `noul` criteria as a list; live API rejects it with HTTP 422 (source: Jev game arena build, 2026-09-23)
+**What:** `engine/extractors/decision_registry.py` builds every `noul` Decision (`knowledge_decision`, speaker nouls, `relationship_history_decision`, ...) with `criteria=[...]` (a list). `JevClient._build_criteria` passes lists through unchanged. Verified live on 2026-09-23: `knowledge_decision("c1", ...)` -> `HTTP 422 ... questions.knows_c1.noul.criteria: Input should be a valid dictionary`. The documented shape (`JEV_EXTRACTOR_REDESIGN_2026_09_22.md` §8) is a `{"true": ..., "false": ...}` map. Consequence: any Jev batch containing one of these questions fails as a whole and the resolver falls back to legacy, so those abilities are never actually Jev-answered on beta (and the failures feed the circuit breaker).
+**Why deferred:** Found while building the evaluation arena; the fix changes live extractor behavior in another agent's in-flight Jev rollout (BL-17), so it needs that owner's decision and its own ship-and-verify pass rather than riding along with the arena commit.
+**What's needed:** Map list criteria for `noul` to `{"true": criteria[0], "false": "not: " + criteria[0]}` in ONE place (`JevClient._build_criteria`), add a regression test that asserts the request shape, and re-verify live that the knowledge/speaker/relationship-history batches return answers. The arena's own probes already use the map shape (`evaluation/rubric.py` `CriticalProbe.criteria`).
+**Touches:** `backend/app/llm/providers/jev.py`, `tests/backend/app/llm/providers/`.
+
+### BL-19 — Arena Phase 2: server receipts, controlled init, snapshots, response forks (source: Jev game arena, 2026-09-23)
+**What:** The arena runs in observational mode: public `/api/chat` + the player-facing `[D]` debug box. Not yet built: server-side per-turn receipts (applied events, pre/post state hashes, component versions), seeded/controlled initialization (roster, RNG streams), snapshot export/restore, and the identical-state response-fork track (design §5B). Checks needing them (`cast_capacity`, `rng_stream_parity`, `state_transition_legality`, `snapshot_round_trip`) are reported as not measured.
+**Why deferred:** These belong with the Phase 2 `SessionFactory`/`SnapshotCodec`/`TurnService` restructure (`PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md`) rather than being bolted onto the HTTP handler; prod also needs them deployed before controlled hosted parity is possible (explicit release decision).
+**What's needed:** Implement receipts + controlled init + snapshot codec behind operator auth, flip the flags in `api/eval_capabilities.py`, then add a `ResponseForkRunner` and the unsupported checks.
+**Touches:** `backend/app/api/prompt_engine.py` (via Phase 2 services), `backend/app/api/eval_capabilities.py`, `backend/app/evaluation/`.
+
+### BL-20 — Arena judge needs human calibration before any verdict is more than advisory (source: Jev game arena, 2026-09-23; owner action)
+**What:** Rubric weights, the episode margin (0.55) and the critical-probe threshold (0.5) are the design's proposals, not calibrated values. Mutation sensitivity + A/A are implemented, but agreement with human judgment is unmeasured, so every report is labeled "uncalibrated: advisory only".
+**Why deferred:** Requires ~200 human-labeled pairs (two labelers on ambiguous cases, adjudicated) — an owner action, not code.
+**What's needed:** Label pairs from real arena artifacts using `evaluation/calibration.py` `HUMAN_LABEL_FIELDS` (JSONL), add an agreement report (per-dimension agreement, severe-error recall/precision, order sensitivity), then freeze weights/thresholds and bump `calibration_version`.
+**Touches:** `backend/app/evaluation/calibration.py`, `rubric.py`.
+
+### BL-21 — Arena post-deploy trigger and hosted results view (source: Jev game arena, 2026-09-23)
+**What:** Arena runs are launched manually from the CLI and produce `report.json`/`report.html` locally. Design §11 step 5 wants an opt-in run after each beta deploy and an operator results page.
+**Why deferred:** Needs a durable worker/queue on Railway and an operator-only page; the CLI + report cover the first useful milestone.
+**What's needed:** Operator-only endpoint/page serving stored reports; opt-in post-deploy job with the manifest budget ceilings.
+**Touches:** `backend/app/evaluation/`, new operator route, `frontend/`.
+
 ### BL-15 — Workload harness needs the full matrix run (source: Phase 0B, 2026-09-22)
 **What:** `scripts/bench/turn_workload_harness.py` (Phase 0B) is proven working against live beta but was only run at a small scale: one story, concurrency 1/3, 2 sessions per level. The plan specifies both stories, cold/warm start, short/long conversations, movement, time skip, queue exhaustion, provider errors, and concurrency 1/10/50.
 **Why deferred:** Each additional run spends real paid LLM tokens against the live provider; running the full matrix casually was out of scope for proving the harness itself works. Concurrency 10/50 in particular are real paid-call bursts that deserve a deliberate window, not an unattended background run.
