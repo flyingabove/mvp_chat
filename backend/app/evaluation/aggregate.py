@@ -209,3 +209,26 @@ def summarize(episodes: Sequence[EpisodeOutcome], weights: Mapping[str, float], 
         p_interval=p_int, elo_interval=elo_int, p_pessimistic=p_pes, p_optimistic=p_opt,
         coverage=coverage, decision=decision, reasons=reasons,
     )
+
+
+def release_gate(strata_p_by_judge: Mapping[str, Mapping[str, float | None]],
+                 games: Sequence[str], critical_regressions: Sequence[str] = ()) -> dict:
+    """Promotion gate agreed 2026-09-24: for EVERY game, beta must win (match
+    score > 50%) under AT LEAST ONE judge, and no critical regression may
+    exist under any judge. Deliberately a point-estimate rule for a cheap
+    gate profile; the per-judge intervals in the report say how firm it is."""
+    per_game: dict[str, dict] = {}
+    reasons: list[str] = []
+    for game in games:
+        scores = {judge: strata.get(game) for judge, strata in strata_p_by_judge.items()}
+        winners = sorted(j for j, p in scores.items() if p is not None and p > 0.5)
+        per_game[game] = {"match_score_by_judge": scores, "beta_wins_under": winners, "passed": bool(winners)}
+        if not winners:
+            reasons.append(f"{game}: beta did not win under any judge")
+    if critical_regressions:
+        reasons.append("critical regression: " + "; ".join(critical_regressions))
+    passed = all(g["passed"] for g in per_game.values()) and not critical_regressions and bool(per_game)
+    if not per_game:
+        reasons.append("no games were judged")
+    return {"passed": passed, "rule": "each game won by beta under at least one judge; no critical regression",
+            "per_game": per_game, "reasons": reasons}

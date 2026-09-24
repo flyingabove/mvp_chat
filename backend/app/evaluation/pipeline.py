@@ -161,7 +161,7 @@ class JudgePipeline:
     def __init__(self, *, store: ArtifactStore, bundles: Mapping[str, GameKnowledgeBundle],
                  judge: PairwiseJudge, rubric: Rubric, window_turns: int,
                  checks: tuple[CorrectnessCheck, ...] = DEFAULT_CHECKS, concurrency: int = 4,
-                 max_judge_input_tokens: int = 5_000_000) -> None:
+                 max_judge_input_tokens: int = 5_000_000, judge_name: str = "") -> None:
         self.store = store
         self.bundles = bundles
         self.judge = judge
@@ -171,9 +171,10 @@ class JudgePipeline:
         self.sem = asyncio.Semaphore(concurrency)
         self.max_tokens = max_judge_input_tokens
         self.tokens_used = 0
+        self.judge_name = judge_name          # store namespace; "" = default judge
 
     async def judge_pair(self, pair: PairSpec, *, force: bool = False) -> dict[str, Any]:
-        cached = None if force else self.store.load_judgment(pair.pair_id)
+        cached = None if force else self.store.load_judgment(pair.pair_id, self.judge_name)
         if cached is not None:
             return cached
         bundle = self.bundles[pair.scenario.story_id]
@@ -195,14 +196,14 @@ class JudgePipeline:
                    if st in (ArmStatus.DRIFT, ArmStatus.CANCELLED, ArmStatus.PLAYER_FAILURE)]
         if invalid:
             result = {**base, "outcome": Outcome.INVALID.value, "reason": f"invalid arm(s): {invalid}"}
-            self.store.save_judgment(pair.pair_id, result)
+            self.store.save_judgment(pair.pair_id, result, self.judge_name)
             return result
         failed = [s for s, st in statuses.items() if st is ArmStatus.TARGET_FAILURE]
         if failed:
             outcome = (Outcome.BOTH_FAILED if len(failed) == 2
                        else Outcome.PROD_WIN if failed[0] == BETA else Outcome.BETA_WIN)
             result = {**base, "outcome": outcome.value, "reason": f"target failure: {failed}"}
-            self.store.save_judgment(pair.pair_id, result)
+            self.store.save_judgment(pair.pair_id, result, self.judge_name)
             return result
 
         if self.tokens_used >= self.max_tokens:
@@ -228,7 +229,7 @@ class JudgePipeline:
         # Judge infra failures stay unresolved and are never cached as final,
         # so a rerun retries them against the same stored transcripts.
         if not any(c.failed for c in judged.calls):
-            self.store.save_judgment(pair.pair_id, result)
+            self.store.save_judgment(pair.pair_id, result, self.judge_name)
         return result
 
     async def run(self, pairs: Sequence[PairSpec], *, force: bool = False) -> list[dict[str, Any]]:

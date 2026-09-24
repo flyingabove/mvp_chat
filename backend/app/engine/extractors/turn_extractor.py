@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace as _dataclass_replace
 import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL, EXTRACTOR_TURNS
+from backend.app.config.settings import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL, EXTRACTOR_TURNS
 from backend.app.utils.logging_utils import jlog
 from backend.app.engine.extractors.decision_registry import (
     NONE_OF_THESE,
@@ -191,7 +191,7 @@ class TurnExtractor:
         from backend.app.llm.factory import build_default_resolver, get_shared_httpx_client
         from backend.app.llm.providers.openai_chat import OpenAIChatClient
         self._legacy_client = OpenAIChatClient(
-            get_shared_httpx_client(), base_url="https://api.openai.com/v1", api_key=OPENAI_API_KEY,
+            get_shared_httpx_client(), base_url=OPENAI_BASE_URL, api_key=OPENAI_API_KEY,
         )
         self._resolver: DecisionProvider = (
             resolver if resolver is not None else build_default_resolver(self._call_legacy_raw)

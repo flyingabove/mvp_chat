@@ -251,9 +251,12 @@ FONTS = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=
          '&family=IBM+Plex+Sans:wght@400;600&display=swap">')
 
 
-def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *, fragment: bool = False) -> str:
+def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *, fragment: bool = False,
+                lead: str = "", extra_sections: str = "") -> str:
     """Full standalone document, or (fragment=True) title+style+main only
-    for hosts that supply their own document skeleton."""
+    for hosts that supply their own document skeleton. `lead` is inserted
+    under the title (e.g. the release gate), `extra_sections` before the
+    episode drill-down (e.g. other judges' summaries)."""
     s = report["summary"]
     t = report["targets"]
     stats = [
@@ -272,6 +275,7 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *,
              f"<h1>Jev game arena: beta vs prod</h1><p class=muted>{esc(report['experiment_id'])} · mode "
              f"{esc(report['mode'])}{' · observational' if report['observational'] else ''} · manifest "
              f"{esc(report['manifest_hash'][:12])}</p>",
+             lead,
              f"<div class='panel head'>{esc(report['headline'])}</div>",
              "<div class=grid>" + "".join(f"<div class=stat><span class=muted>{esc(k)}</span><b>{esc(v)}</b></div>"
                                           for k, v in stats) + "</div>"]
@@ -340,6 +344,7 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *,
                      "".join(f"<tr><td>{esc(k)}</td><td>{v['passed']}</td><td>{v['failed']}</td><td>{v['unresolved']}</td>"
                              f"<td>{fmt_num(v['pass_rate_resolved'], '.0%')}</td></tr>"
                              for k, v in cal["summary"].items()) + "</table></div>")
+    parts.append(extra_sections)
     parts.append("<h2>Episodes</h2><div class=panel>")
     for j in report["pairs"]:
         vote = j.get("episode_vote") or {}
@@ -360,3 +365,57 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *,
                  "under this suite and tie policy, not a share of humans who prefer beta.</p></main>"
                  + ("" if fragment else "</body></html>"))
     return "".join(parts)
+
+
+# --------------------------------------------------------------------------- multi-judge
+
+def build_arena_report(manifest: ExperimentManifest, arms: Mapping[str, ArmTranscript],
+                       judgments_by_judge: Mapping[str, Sequence[Mapping[str, Any]]], rubric: Rubric, *,
+                       calibration: Mapping[str, Any] | None = None, iterations: int = 2000) -> dict[str, Any]:
+    """One build_report per judge over the SAME played arms, plus the release gate."""
+    from backend.app.evaluation.aggregate import release_gate
+
+    per_judge = {name: build_report(manifest, arms, js, rubric, calibration=calibration, iterations=iterations)
+                 for name, js in judgments_by_judge.items()}
+    games = sorted({j["story_id"] for js in judgments_by_judge.values() for j in js})
+    regressions = sorted({f"[{name}] {r}" for name, rep in per_judge.items() for r in rep["critical"]["regressions"]})
+    gate = release_gate({name: {g: rep["strata"].get(g, {}).get("p") for g in games}
+                         for name, rep in per_judge.items()}, games, regressions)
+    return {"experiment_id": manifest.experiment_id, "judges": per_judge, "gate": gate}
+
+
+def gate_panel(gate: Mapping[str, Any]) -> str:
+    status = "good" if gate["passed"] else "bad"
+    rows = "".join(
+        f"<tr><td>{esc(game)}</td><td>" +
+        " · ".join(f"{esc(j)} {fmt_num(p, '.0%')}" for j, p in g["match_score_by_judge"].items()) +
+        f"</td><td class={'good' if g['passed'] else 'bad'}>{esc(', '.join(g['beta_wins_under']) or 'none')}</td></tr>"
+        for game, g in gate["per_game"].items())
+    return (f"<div class=panel><div class='head {status}'>Release gate: {'PASS' if gate['passed'] else 'FAIL'}</div>"
+            f"<p class=muted>{esc(gate['rule'])}</p><div class=scroll><table><tr><th>Game</th>"
+            f"<th>Beta match score by judge</th><th>Beta wins under</th></tr>{rows}</table></div>" +
+            "".join(f"<p class=bad>{esc(r)}</p>" for r in gate["reasons"]) + "</div>")
+
+
+def judge_summary(name: str, report: Mapping[str, Any]) -> str:
+    s = report["summary"]
+    dims = "".join(f"<tr><td>{esc(d['title'])}</td><td>{share_bar(d['beta_share'])}</td>"
+                   f"<td>{d['resolved']}/{d['windows']}</td></tr>" for d in report["dimensions"])
+    games = "".join(f"<tr><td>{esc(k)}</td><td>{v['counts']['beta_win']}/{v['counts']['tie']}/"
+                    f"{v['counts']['prod_win']}/{v['counts']['unresolved']}</td><td>{esc(fmt_elo(v['elo_delta']))}</td></tr>"
+                    for k, v in report["strata"].items())
+    return (f"<h2>Judge: {esc(name)}</h2><div class='panel head'>{esc(report['headline'])}</div>"
+            f"<div class='panel scroll'><table><tr><th>Game</th><th>Beta/Tie/Prod/Unres.</th><th>Elo</th></tr>{games}"
+            f"</table><table><tr><th>Dimension</th><th>Beta share</th><th>Resolved</th></tr>{dims}</table>"
+            f"<p class=muted>Resolved model(s): {esc(', '.join(report['judge']['resolved_models']) or 'n/a')} · "
+            f"judge input tokens {report['cost']['judge_input_tokens']:,} · decision {esc(s['decision'])}</p></div>")
+
+
+def render_arena_html(arena: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *, fragment: bool = False) -> str:
+    """Primary judge renders the full page; the gate leads it and every other
+    judge adds a summary section (transcripts are shown once)."""
+    names = list(arena["judges"])
+    primary = arena["judges"][names[0]]
+    extra = "".join(judge_summary(n, arena["judges"][n]) for n in names[1:])
+    lead = gate_panel(arena["gate"]) + f"<p class=muted>Detailed sections below use judge: {esc(names[0])}</p>"
+    return render_html(primary, arms, fragment=fragment, lead=lead, extra_sections=extra)
