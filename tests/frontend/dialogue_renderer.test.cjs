@@ -31,52 +31,42 @@ function setup() {
   return { api, row: () => new Element(), advance(now) { const pending = [...frames.values()]; frames.clear(); pending.forEach(fn => fn(now)); } };
 }
 
-test('renders one old-style bubble and uses the speaker with the most dialogue', () => {
+test('game cover surrounds ordered narration and named individual speech bubbles', () => {
   const { api, row, advance } = setup();
   const scene = row();
-  api.render(scene, 'IU: hi\n\nMizuki: abcdefghij', [
-    { kind: 'dialogue', speaker_id: 'iu', speaker_name: 'IU', portrait_url: '/img/characters/iu.png', text: 'hi' },
-    { kind: 'dialogue', speaker_id: 'mizuki', speaker_name: 'Mizuki', portrait_url: '/img/characters/mizuki.png', text: 'abcdefghij' }
-  ], true, { name: 'Terrace in the City', src: '/img/six_strangers.png' });
-  assert.equal(scene.children.length, 2);
-  assert.equal(scene.children[0].title, 'Mizuki');
-  assert.equal(scene.children[1].className, 'msg-bubble npc');
-  advance(90);
-  assert.equal(scene.children[1].textContent, 'IU: hi\n\n');
-  advance(400);
-  assert.equal(scene.children[1].innerHTML, 'IU: hi\n\nMizuki: abcdefghij');
+  api.render(scene, 'Scene', [
+    {kind: 'narration', text: 'Rain falls.'},
+    {kind: 'dialogue', speaker_name: 'Mizuki', portrait_url: '/img/characters/Mizuki_Shida.png', text: 'Hello'},
+    {kind: 'dialogue', speaker_name: 'Yuki', portrait_url: '/img/characters/Yuki_Adachi.png', text: 'Welcome'}
+  ], true, {name: 'Terrace', src: '/img/six_strangers_house.jpg'});
+  assert.equal(scene.children[0].title, 'Terrace');
+  const outer = scene.children[1];
+  assert.equal(outer.children.length, 3);
+  assert.equal(outer.children[1].className, 'scene-speech');
+  assert.equal(outer.children[1].children[0].title, 'Mizuki');
+  assert.equal(outer.children[2].children[0].title, 'Yuki');
+  advance(40);
+  assert.equal(outer.children[0].children[0].textContent, 'Rain');
+  assert.equal(outer.children[1].hidden, true);
+  advance(1000);
+  assert.equal(outer.children[1].children[1].children[1].innerHTML, 'Hello');
   assert.equal(scene.attributes['aria-busy'], undefined);
 });
 
-test('new turn completes the prior turn instead of leaving truncated dialogue', () => {
-  const { api, row } = setup();
+test('new turn completes prior turn and legacy prose stays intact and escaped', () => {
+  const {api, row} = setup();
   const first = row();
-  api.render(first, 'First complete reply', null, true, { name: 'Game', src: '/img/game.png' });
-  api.render(row(), 'Next reply', null, true, { name: 'Game', src: '/img/game.png' });
-  assert.equal(first.children[1].innerHTML, 'First complete reply');
+  api.render(first, '<script>First complete reply', null, true, {name: 'Game'});
+  api.render(row(), 'Next', null, true, {name: 'Game'});
+  assert.equal(first.children[1].children[0].children[0].innerHTML, '&lt;script>First complete reply');
   assert.equal(first.attributes['aria-busy'], undefined);
 });
 
-test('narration and an unknown side character use the game picture', () => {
-  const { api, row } = setup();
-  for (const segments of [
-    [{ kind: 'narration', speaker_id: null, text: 'Rain falls.' }],
-    [{ kind: 'dialogue', speaker_id: null, speaker_name: 'Waiter', portrait_url: '/img/avatars/persona_default.svg', text: 'Welcome.' }]
-  ]) {
-    const scene = row();
-    api.render(scene, '<script>hello', segments, false, { name: 'Terrace in the City', src: '/img/six_strangers.png' });
-    assert.equal(scene.children[0].title, 'Terrace in the City');
-    assert.equal(scene.children[1].innerHTML, '&lt;script>hello');
-  }
-});
-
-test('dialogue totals are combined by speaker and ties use first appearance', () => {
-  const { api, row } = setup();
+test('unknown speech has its own initials, never a borrowed character portrait', () => {
+  const {api, row} = setup();
   const scene = row();
-  api.render(scene, 'Mixed reply', [
-    { kind: 'dialogue', speaker_id: 'mizuki', speaker_name: 'Mizuki', portrait_url: '/img/mizuki.png', text: '1234' },
-    { kind: 'dialogue', speaker_id: 'iu', speaker_name: 'IU', portrait_url: '/img/iu.png', text: '1234567' },
-    { kind: 'dialogue', speaker_id: 'mizuki', speaker_name: 'Mizuki', portrait_url: '/img/mizuki.png', text: '567' }
-  ], false, { name: 'Game', src: '/img/game.png' });
-  assert.equal(scene.children[0].title, 'Mizuki');
+  api.render(scene, 'Hello', [{kind:'dialogue', text:'Hello'}], false, {name:'Game'});
+  const portrait = scene.children[1].children[0].children[0];
+  assert.equal(portrait.title, 'Unknown speaker');
+  assert.equal(portrait.textContent, 'US');
 });

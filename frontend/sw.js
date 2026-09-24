@@ -1,63 +1,35 @@
-// StoriesChat Service Worker
-// Network-first for HTML/API, cache-first for static assets.
-
-const CACHE_NAME = 'storieschat-v5';
-const SHELL_URLS = ['/manifest.json', '/beta/manifest.json', '/sw.js', '/beta/sw.js'];
-
+// Every shell edit changes these bytes when served, triggering a worker update.
+const CACHE_NAME = 'storieschat-__SHELL_REVISION__';
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL_URLS)).catch(() => {})
-  );
-  self.skipWaiting();
+  event.waitUntil(self.skipWaiting());
 });
-
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k.startsWith('storieschat-') && k !== CACHE_NAME).map(k => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
-
 self.addEventListener('message', event => {
-  if (event && event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
-
 self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-
-  // Network-first for API calls and HTML pages — always want fresh data.
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/beta/debug')
-      || event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // Cache successful HTML navigations for offline fallback.
-          if (response && response.status === 200 && event.request.mode === 'navigate') {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then(cached => cached || caches.match('/beta/') || caches.match('/')))
-    );
-    return;
-  }
-
-  // Cache-first for static assets (images, SVGs, manifest)
-  event.respondWith(
-    caches.match(event.request).then(cached => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  // Only content-addressed assets are immutable. All other requests bypass
+  // both Cache Storage and the HTTP cache, including legacy fixed-name files.
+  if (/\/assets\/[^/]+\.[a-f0-9]{16}\.(js|css)$/.test(url.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
       if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    })
-  );
+      const response = await fetch(request);
+      if (response.ok) await cache.put(request, response.clone());
+      return response;
+    })());
+  } else {
+    event.respondWith(fetch(request, {cache: 'no-store'}));
+  }
 });

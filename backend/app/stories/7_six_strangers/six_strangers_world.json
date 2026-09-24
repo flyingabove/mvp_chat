@@ -275,7 +275,7 @@
   "locations": {
     "front_entry": {
       "name": "Front Entry / Genkan",
-      "description": "Street-side entry; opens into the internal circulation area. Used for arrivals, departures, greetings, and luggage.",
+      "description": "Leave your shoes and come inside.",
       "tags": [
         "home",
         "shared",
@@ -299,7 +299,7 @@
     },
     "living_room": {
       "name": "Living Room",
-      "description": "Large sunken/lounge-style communal seating zone with sofas and TV; visually connected to the dining/kitchen side and facing the glass doors toward the terrace.",
+      "description": "Relax on the sofas with your housemates.",
       "tags": [
         "home",
         "shared",
@@ -323,7 +323,7 @@
     },
     "dining_room": {
       "name": "Dining Room",
-      "description": "Long communal dining table between/alongside the living room and kitchen; many house meetings and meals happen here.",
+      "description": "Share meals around the long table.",
       "tags": [
         "home",
         "shared",
@@ -347,7 +347,7 @@
     },
     "kitchen": {
       "name": "Open Kitchen",
-      "description": "Open-plan kitchen with island/counter, sink, cooktop, storage, and refrigerator; directly connected to dining area.",
+      "description": "Cook together at the kitchen counter.",
       "tags": [
         "home",
         "shared",
@@ -371,7 +371,7 @@
     },
     "playroom": {
       "name": "Playroom / TV Room",
-      "description": "Separate, more private lounge used for one-on-one conversations and group TV viewing; distinct from the main living room.",
+      "description": "Watch TV or find a quiet moment together.",
       "tags": [
         "home",
         "shared",
@@ -395,7 +395,7 @@
     },
     "boys_bedroom": {
       "name": "Boys' Bedroom",
-      "description": "Shared male sleeping room with three beds and personal storage. Hayato’s bed is specifically important late in the season. Knock and wait for an invitation before entering.",
+      "description": "Three beds shared by the boys. Knock and wait for an invitation before entering.",
       "tags": [
         "home",
         "shared",
@@ -420,7 +420,7 @@
     },
     "girls_bedroom": {
       "name": "Girls' Bedroom",
-      "description": "Shared female sleeping room with three beds, vanity/storage, and its own conversation zone. Knock and wait for an invitation before entering.",
+      "description": "Three beds shared by the girls. Knock and wait for an invitation before entering.",
       "tags": [
         "home",
         "shared",
@@ -445,7 +445,7 @@
     },
     "washitsu": {
       "name": "Japanese-style Room / Washitsu",
-      "description": "Upstairs tatami room discovered/used in Episode 17; proposed as a sleeping space for Minori and Uchi.",
+      "description": "A peaceful upstairs tatami room.",
       "tags": [
         "home",
         "shared",
@@ -469,7 +469,7 @@
     },
     "shared_bathroom": {
       "name": "Main Bathroom / Bathing Room",
-      "description": "Enclosed wet room/bath used by residents; count separately from sink/toilet areas.",
+      "description": "Unwind in a warm bath.",
       "tags": [
         "home",
         "shared",
@@ -493,7 +493,7 @@
     },
     "washroom": {
       "name": "Washroom / Vanity Area",
-      "description": "Sink, mirrors, grooming/laundry transition area adjacent to bathing functions.",
+      "description": "Mirrors and sinks for getting ready.",
       "tags": [
         "home",
         "shared",
@@ -517,7 +517,7 @@
     },
     "toilet": {
       "name": "Toilet",
-      "description": "Separate toilet room, consistent with the Japanese bath layout.",
+      "description": "A separate, private toilet.",
       "tags": [
         "home",
         "shared",
@@ -541,7 +541,7 @@
     },
     "laundry": {
       "name": "Laundry / Utility Area",
-      "description": "Washer/household utility zone; functionally distinct even when adjacent to washroom.",
+      "description": "Wash and dry your clothes.",
       "tags": [
         "home",
         "shared",
@@ -565,7 +565,7 @@
     },
     "hallway": {
       "name": "Hallway and Staircase",
-      "description": "Internal circulation joining common rooms, bedrooms, and upstairs washitsu.",
+      "description": "Stairs connect the rooms upstairs and down.",
       "tags": [
         "home",
         "shared",
@@ -589,7 +589,7 @@
     },
     "terrace": {
       "name": "Terrace / Pool Deck",
-      "description": "Outdoor paved social zone immediately outside the main glazing; used for conversations, parties, and lounging.",
+      "description": "Lounge outside beside the pool.",
       "tags": [
         "home",
         "shared",
@@ -613,7 +613,7 @@
     },
     "swimming_pool": {
       "name": "Swimming Pool",
-      "description": "Separate water zone; used repeatedly, including Episode 2 and the finale.",
+      "description": "Cool off with a swim.",
       "tags": [
         "home",
         "shared",
@@ -638,7 +638,7 @@
     },
     "barbecue": {
       "name": "Barbecue Area",
-      "description": "Outdoor grill/dining portion of the terrace; used for the Episode 31–32 barbecue and finale.",
+      "description": "Fire up the grill with your housemates.",
       "tags": [
         "home",
         "shared",
@@ -662,7 +662,7 @@
     },
     "driveway": {
       "name": "Front Exterior / Driveway",
-      "description": "Arrival/departure and vehicle-loading area outside the entrance.",
+      "description": "Meet arriving friends outside the house.",
       "tags": [
         "home",
         "shared",
@@ -686,7 +686,7 @@
     },
     "garage": {
       "name": "Garage / Car Area",
-      "description": "House vehicle storage/parking zone; count only when the scene actually occurs there.",
+      "description": "The house cars are parked here.",
       "tags": [
         "home",
         "shared",
@@ -761,7 +761,7 @@
     },
     "place_e01": {
       "name": "Porco Rosso, Ebisu — Restaurant dining room",
-      "description": "Restaurant dining room at Porco Rosso, Ebisu. Confirmed by contemporary location guide.",
+      "description": "Restaurant dining room.",
       "tags": [
         "public"
       ],
@@ -779,7 +779,7 @@
     },
     "place_e02": {
       "name": "Zauo Meguro — Seafood restaurant dining/fishing area",
-      "description": "Seafood restaurant dining/fishing area at Zauo Meguro. Confirmed by contemporary location guide.",
+      "description": "Seafood restaurant dining/fishing area.",
       "tags": [
         "public"
       ],
@@ -797,7 +797,7 @@
     },
     "salon": {
       "name": "Uchi’s hair salon (L.DORADO / salon workplace) — Salon floor",
-      "description": "Salon floor at Uchi’s hair salon (L.DORADO / salon workplace). Workplace identity is widely associated with Uchi; salon floor is the actual scene-place. Shibuya cluster placement is approximate; exact address is not asserted.",
+      "description": "Salon floor.",
       "tags": [
         "public"
       ],
@@ -815,7 +815,7 @@
     },
     "place_e04": {
       "name": "Tokyo Leisureland — Used amusement/game area",
-      "description": "Used amusement/game area at Tokyo Leisureland. Episode source confirms Leisure Land; exact internal attraction is not consistently documented.",
+      "description": "Used amusement/game area.",
       "tags": [
         "public"
       ],
@@ -833,7 +833,7 @@
     },
     "place_e05": {
       "name": "Enoshima Aquarium entrance — Closed entrance/forecourt",
-      "description": "Closed entrance/forecourt at Enoshima Aquarium entrance. They arrive after closing, so the aquarium interior is not counted here.",
+      "description": "Closed entrance/forecourt.",
       "tags": [
         "public"
       ],
@@ -851,7 +851,7 @@
     },
     "place_e06": {
       "name": "DIEGO BY THE RIVER, Enoshima — Restaurant/café dining area",
-      "description": "Restaurant/café dining area at DIEGO BY THE RIVER, Enoshima. Confirmed by contemporary location guide.",
+      "description": "Restaurant/café dining area.",
       "tags": [
         "public"
       ],
@@ -869,7 +869,7 @@
     },
     "place_e07": {
       "name": "Queen’s Bath Resort, Odaiba — Restaurant dining area",
-      "description": "Restaurant dining area at Queen’s Bath Resort, Odaiba. Confirmed by contemporary location guide.",
+      "description": "Restaurant dining area.",
       "tags": [
         "public"
       ],
@@ -887,7 +887,7 @@
     },
     "place_e08": {
       "name": "art baru muse, Shibuya — Bar/performance room",
-      "description": "Bar/performance room at art baru muse, Shibuya. Confirmed by contemporary location guide; associated with Yuki’s tap performance/date-era scenes.",
+      "description": "Bar/performance room.",
       "tags": [
         "public"
       ],
@@ -905,7 +905,7 @@
     },
     "place_e09": {
       "name": "Sumida Aquarium — Aquarium galleries",
-      "description": "Aquarium galleries at Sumida Aquarium. Named in the episode guide.",
+      "description": "Aquarium galleries.",
       "tags": [
         "public"
       ],
@@ -923,7 +923,7 @@
     },
     "place_e10": {
       "name": "Torigoya Honten, Nakameguro — Restaurant dining room",
-      "description": "Restaurant dining room at Torigoya Honten, Nakameguro. Confirmed by contemporary location guide.",
+      "description": "Restaurant dining room.",
       "tags": [
         "public"
       ],
@@ -941,7 +941,7 @@
     },
     "place_e11": {
       "name": "HATAKE AOYAMA — Restaurant dining room",
-      "description": "Restaurant dining room at HATAKE AOYAMA. Confirmed by contemporary location guide; Minori/Kurumi lunch.",
+      "description": "Restaurant dining room.",
       "tags": [
         "public"
       ],
@@ -959,7 +959,7 @@
     },
     "place_e12": {
       "name": "Blue Note Tokyo — Concert hall / audience seating",
-      "description": "Concert hall / audience seating at Blue Note Tokyo. Named in episode guide.",
+      "description": "Concert hall / audience seating.",
       "tags": [
         "public"
       ],
@@ -977,7 +977,7 @@
     },
     "place_e13": {
       "name": "IL GHIOTTONE Marunouchi — Restaurant dining room",
-      "description": "Restaurant dining room at IL GHIOTTONE Marunouchi. Confirmed by contemporary location guide.",
+      "description": "Restaurant dining room.",
       "tags": [
         "public"
       ],
@@ -995,7 +995,7 @@
     },
     "place_e14": {
       "name": "GirlsAward venue — Backstage/hair-and-makeup area",
-      "description": "Backstage/hair-and-makeup area at GirlsAward venue. Separate from runway.",
+      "description": "Backstage/hair-and-makeup area.",
       "tags": [
         "public"
       ],
@@ -1013,7 +1013,7 @@
     },
     "place_e15": {
       "name": "GirlsAward venue — Fashion runway / audience hall",
-      "description": "Fashion runway / audience hall at GirlsAward venue. Minori models while Uchi works backstage.",
+      "description": "Fashion runway / audience hall.",
       "tags": [
         "public"
       ],
@@ -1031,7 +1031,7 @@
     },
     "place_e16": {
       "name": "TARGET Shibuya kickboxing gym — Training ring/floor",
-      "description": "Training ring/floor at TARGET Shibuya kickboxing gym. Named in episode guide; recurring Arman workplace/training place.",
+      "description": "Training ring/floor.",
       "tags": [
         "public"
       ],
@@ -1049,7 +1049,7 @@
     },
     "place_e17": {
       "name": "Cafe Chillax, Nakameguro — Café dining room",
-      "description": "Café dining room at Cafe Chillax, Nakameguro. Confirmed by contemporary location guide.",
+      "description": "Café dining room.",
       "tags": [
         "public"
       ],
@@ -1067,7 +1067,7 @@
     },
     "place_e18": {
       "name": "TARLUM BIANCO Odaiba — Restaurant dining room",
-      "description": "Restaurant dining room at TARLUM BIANCO Odaiba. Confirmed by contemporary location guide.",
+      "description": "Restaurant dining room.",
       "tags": [
         "public"
       ],
@@ -1085,7 +1085,7 @@
     },
     "place_e19": {
       "name": "Mount Takao — Trail",
-      "description": "Trail at Mount Takao. Trail and summit are separate scene-places.",
+      "description": "Trail.",
       "tags": [
         "public"
       ],
@@ -1103,7 +1103,7 @@
     },
     "place_e20": {
       "name": "Mount Takao — Summit/picnic area",
-      "description": "Summit/picnic area at Mount Takao. Bento eaten at/near summit.",
+      "description": "Summit/picnic area.",
       "tags": [
         "public"
       ],
@@ -1121,7 +1121,7 @@
     },
     "place_e21": {
       "name": "Costco — Warehouse sales floor",
-      "description": "Warehouse sales floor at Costco. Episode title and scene establish the Costco trip; branch not safely verified.",
+      "description": "Warehouse sales floor.",
       "tags": [
         "public"
       ],
@@ -1139,7 +1139,7 @@
     },
     "place_e22": {
       "name": "Kickboxing event venue — Ring / competition hall",
-      "description": "Ring / competition hall at Kickboxing event venue. Arman’s amateur match; venue name not safely verified.",
+      "description": "Ring / competition hall.",
       "tags": [
         "public"
       ],
@@ -1157,7 +1157,7 @@
     },
     "place_e23": {
       "name": "Kamakura Loco Mart & Garden — Shop/garden workplace",
-      "description": "Shop/garden workplace at Kamakura Loco Mart & Garden. Named in episode guide.",
+      "description": "Shop/garden workplace.",
       "tags": [
         "public"
       ],
@@ -1175,7 +1175,7 @@
     },
     "place_e24": {
       "name": "Yomiuriland — Amusement-park grounds",
-      "description": "Amusement-park grounds at Yomiuriland. Named in episode guide.",
+      "description": "Amusement-park grounds.",
       "tags": [
         "public"
       ],
@@ -1193,7 +1193,7 @@
     },
     "place_e25": {
       "name": "Yomiuriland — Specific ride/attraction areas shown",
-      "description": "Specific ride/attraction areas shown at Yomiuriland. Each ride could be subdivided further from direct episode review; public recaps do not identify all ride names.",
+      "description": "Rides and attractions for a fun day out.",
       "tags": [
         "public"
       ],
@@ -1211,7 +1211,7 @@
     },
     "place_e26": {
       "name": "Snow resort — Ski/snowboard slope",
-      "description": "Ski/snowboard slope at Snow resort. Uchi/Minori farewell outing; resort name not safely verified.",
+      "description": "Ski/snowboard slope.",
       "tags": [
         "public"
       ],
@@ -1229,7 +1229,7 @@
     },
     "place_e27": {
       "name": "Snow resort — Lodge/restaurant dining room",
-      "description": "Lodge/restaurant dining room at Snow resort. Separate interior place from the slope.",
+      "description": "Lodge/restaurant dining room.",
       "tags": [
         "public"
       ],
@@ -1247,7 +1247,7 @@
     },
     "place_e28": {
       "name": "Han-san’s architecture studio — Main workroom/model-building area",
-      "description": "Main workroom/model-building area at Han-san’s architecture studio. Recurring private studio; exact public business name not reliably established.",
+      "description": "Main workroom/model-building area.",
       "tags": [
         "public"
       ],
@@ -1265,7 +1265,7 @@
     },
     "place_e29": {
       "name": "Yakiniku restaurant — Dining room",
-      "description": "Dining room at Yakiniku restaurant. Business name not safely verified from public recaps.",
+      "description": "Dining room.",
       "tags": [
         "public"
       ],
@@ -1283,7 +1283,7 @@
     },
     "place_e30": {
       "name": "Motorcycle/bicycle outing route — Road/route scenes",
-      "description": "Road/route scenes at Motorcycle/bicycle outing route. Treat route as one place unless reconstructing every stop from the episode.",
+      "description": "Take a ride through the city.",
       "tags": [
         "public"
       ],
@@ -1301,7 +1301,7 @@
     },
     "place_e31": {
       "name": "Arisa’s hat exhibition venue — Exhibition/gallery room",
-      "description": "Exhibition/gallery room at Arisa’s hat exhibition venue. Exact venue not safely verified.",
+      "description": "Exhibition/gallery room.",
       "tags": [
         "public"
       ],
@@ -1319,7 +1319,7 @@
     },
     "place_e32": {
       "name": "Clothing/lingerie store — Sales floor",
-      "description": "Sales floor at Clothing/lingerie store. Misaki and Riko shop for a nightgown; store name not safely verified.",
+      "description": "Sales floor.",
       "tags": [
         "public"
       ],
@@ -1337,7 +1337,7 @@
     },
     "place_e33": {
       "name": "Yokohama date restaurant — Dining room",
-      "description": "Dining room at Yokohama date restaurant. Specific restaurant not safely verified.",
+      "description": "Dining room.",
       "tags": [
         "public"
       ],
@@ -1355,7 +1355,7 @@
     },
     "place_e34": {
       "name": "Yokohama waterfront/date area — Promenade/viewpoint",
-      "description": "Promenade/viewpoint at Yokohama waterfront/date area. Separate from restaurant.",
+      "description": "Promenade/viewpoint.",
       "tags": [
         "public"
       ],
@@ -1373,7 +1373,7 @@
     },
     "place_e35": {
       "name": "Meat festival — Festival food-stall grounds",
-      "description": "Festival food-stall grounds at Meat festival. Riko/Hayato date.",
+      "description": "Festival food-stall grounds.",
       "tags": [
         "public"
       ],
@@ -1391,7 +1391,7 @@
     },
     "place_e36": {
       "name": "Group restaurant after meat-festival period — Dining room",
-      "description": "Dining room at Group restaurant after meat-festival period. Named only generically in public episode guide.",
+      "description": "Dining room.",
       "tags": [
         "public"
       ],
@@ -1409,7 +1409,7 @@
     },
     "place_e37": {
       "name": "SHIBUYA 109 — Specific shop/job-interview room or sales floor",
-      "description": "Specific shop/job-interview room or sales floor at SHIBUYA 109. The store/tenant is the true place under the user’s rule; tenant name is not safely verified.",
+      "description": "Browse the shops or apply for work.",
       "tags": [
         "public"
       ],
@@ -1427,7 +1427,7 @@
     },
     "place_e38": {
       "name": "Ballet school/studio — Dance floor",
-      "description": "Dance floor at Ballet school/studio. Momoka teaches/rehearses; organization name not safely verified.",
+      "description": "Dance floor.",
       "tags": [
         "public"
       ],
@@ -1445,7 +1445,7 @@
     },
     "place_e39": {
       "name": "Sanja Matsuri — Mikoshi procession street segment",
-      "description": "Mikoshi procession street segment at Sanja Matsuri. Festival route where Arman carries the mikoshi.",
+      "description": "Mikoshi procession street segment.",
       "tags": [
         "public"
       ],
@@ -1463,7 +1463,7 @@
     },
     "place_e40": {
       "name": "Han-san-designed café — Café interior",
-      "description": "Café interior at Han-san-designed café. Exact café name not safely verified.",
+      "description": "Café interior.",
       "tags": [
         "public"
       ],
@@ -1481,7 +1481,7 @@
     },
     "place_e41": {
       "name": "Comedy club — Performance/audience room",
-      "description": "Performance/audience room at Comedy club. Arman/Momoka date; exact club name not safely verified.",
+      "description": "Performance/audience room.",
       "tags": [
         "public"
       ],
@@ -1499,7 +1499,7 @@
     },
     "place_e42": {
       "name": "Ebisu Muscats performance venue — Stage",
-      "description": "Stage at Ebisu Muscats performance venue. Separate from backstage.",
+      "description": "Stage.",
       "tags": [
         "public"
       ],
@@ -1517,7 +1517,7 @@
     },
     "place_e43": {
       "name": "Ebisu Muscats performance venue — Backstage/dressing area",
-      "description": "Backstage/dressing area at Ebisu Muscats performance venue. Work/support scene-place.",
+      "description": "Backstage/dressing area.",
       "tags": [
         "public"
       ],
@@ -1535,7 +1535,7 @@
     },
     "place_e44": {
       "name": "Tsukiji Outer Market — Market lanes/stalls",
-      "description": "Market lanes/stalls at Tsukiji Outer Market. Named in episode guide.",
+      "description": "Market lanes/stalls.",
       "tags": [
         "public"
       ],
@@ -1553,7 +1553,7 @@
     },
     "place_e45": {
       "name": "Tsukiji food shop/restaurant used on date — Counter/dining area",
-      "description": "Counter/dining area at Tsukiji food shop/restaurant used on date. Exact tenant requires direct frame verification.",
+      "description": "Counter/dining area.",
       "tags": [
         "public"
       ],
@@ -1571,7 +1571,7 @@
     },
     "place_e46": {
       "name": "Architecture competition/exhibition — Exhibition gallery",
-      "description": "Exhibition gallery at Architecture competition/exhibition. Han-san’s accessible-facility design display.",
+      "description": "Exhibition gallery.",
       "tags": [
         "public"
       ],
@@ -1589,7 +1589,7 @@
     },
     "place_e47": {
       "name": "Restaurant used for Yuki Byrnes/Misaki date — Dining room",
-      "description": "Dining room at Restaurant used for Yuki Byrnes/Misaki date. Business name not safely verified.",
+      "description": "Dining room.",
       "tags": [
         "public"
       ],
@@ -1607,7 +1607,7 @@
     },
     "place_e48": {
       "name": "Cup Noodles Museum Yokohama — Exhibition galleries",
-      "description": "Exhibition galleries at Cup Noodles Museum Yokohama. Named in episode guide.",
+      "description": "Exhibition galleries.",
       "tags": [
         "public"
       ],
@@ -1625,7 +1625,7 @@
     },
     "place_e49": {
       "name": "Cup Noodles Museum Yokohama — My CUPNOODLES Factory/workshop",
-      "description": "My CUPNOODLES Factory/workshop at Cup Noodles Museum Yokohama. Separate activity room inside the museum.",
+      "description": "My CUPNOODLES Factory/workshop.",
       "tags": [
         "public"
       ],
@@ -1643,7 +1643,7 @@
     },
     "place_e50": {
       "name": "Hayato’s restaurant workplace — Kitchen",
-      "description": "Kitchen at Hayato’s restaurant workplace. Separate from dining room. Exact restaurant name not safely verified.",
+      "description": "Kitchen.",
       "tags": [
         "public"
       ],
@@ -1661,7 +1661,7 @@
     },
     "place_e51": {
       "name": "Hayato’s restaurant workplace — Dining room",
-      "description": "Dining room at Hayato’s restaurant workplace. Yuki/Arman visit and finale dessert plan.",
+      "description": "Dining room.",
       "tags": [
         "public"
       ],
@@ -1679,7 +1679,7 @@
     },
     "place_e52": {
       "name": "Ballet competition venue — Stage",
-      "description": "Stage at Ballet competition venue. Separate from backstage/warm-up.",
+      "description": "Stage.",
       "tags": [
         "public"
       ],
@@ -1697,7 +1697,7 @@
     },
     "place_e53": {
       "name": "Ballet competition venue — Backstage/warm-up room",
-      "description": "Backstage/warm-up room at Ballet competition venue. Momoka competition scenes.",
+      "description": "Backstage/warm-up room.",
       "tags": [
         "public"
       ],
@@ -1715,7 +1715,7 @@
     },
     "place_e54": {
       "name": "Ballet company office/studio — Meeting room",
-      "description": "Meeting room at Ballet company office/studio. Momoka meets artistic director.",
+      "description": "Meeting room.",
       "tags": [
         "public"
       ],
@@ -1733,7 +1733,7 @@
     },
     "place_e55": {
       "name": "Talent/management agency — Contract-signing office",
-      "description": "Contract-signing office at Talent/management agency. Riko signs with her mother present.",
+      "description": "Contract-signing office.",
       "tags": [
         "public"
       ],
@@ -1751,7 +1751,7 @@
     },
     "place_e56": {
       "name": "Driver licensing center — Test/administrative area",
-      "description": "Test/administrative area at Driver licensing center. Yuki’s license test scenes; exact center not safely verified.",
+      "description": "Test/administrative area.",
       "tags": [
         "public"
       ],
@@ -1769,7 +1769,7 @@
     },
     "place_e57": {
       "name": "Yokohama date location — Waterfront/observation area",
-      "description": "Waterfront/observation area at Yokohama date location. Yuki and Misaki’s successful date; exact stops not safely verified.",
+      "description": "Waterfront/observation area.",
       "tags": [
         "public"
       ],
@@ -1787,7 +1787,7 @@
     },
     "place_e58": {
       "name": "Nagatoro campground — Campsite/tent area",
-      "description": "Campsite/tent area at Nagatoro campground. Named in episode guide.",
+      "description": "Campsite/tent area.",
       "tags": [
         "public"
       ],
@@ -1805,7 +1805,7 @@
     },
     "place_e59": {
       "name": "Nagatoro campground — Riverbank",
-      "description": "Riverbank at Nagatoro campground. Separate natural scene-place.",
+      "description": "Riverbank.",
       "tags": [
         "public"
       ],
@@ -1823,7 +1823,7 @@
     },
     "place_e60": {
       "name": "Nagatoro outing — Food/cooking area",
-      "description": "Food/cooking area at Nagatoro outing. Camp cooking and group gathering zone.",
+      "description": "Food/cooking area.",
       "tags": [
         "public"
       ],
@@ -1841,7 +1841,7 @@
     },
     "place_e61": {
       "name": "Lunch restaurant for Martha/Hayato — Dining room",
-      "description": "Dining room at Lunch restaurant for Martha/Hayato. Exact restaurant not safely verified.",
+      "description": "Dining room.",
       "tags": [
         "public"
       ],
@@ -1859,7 +1859,7 @@
     },
     "place_e62": {
       "name": "Street/skateboarding route — Road/sidewalk segment",
-      "description": "Road/sidewalk segment at Street/skateboarding route. Arman is struck by a car while skating with Yuki.",
+      "description": "Road/sidewalk segment.",
       "tags": [
         "public"
       ],
@@ -1877,7 +1877,7 @@
     },
     "place_e63": {
       "name": "Yukata shop — Sales/fitting room",
-      "description": "Sales/fitting room at Yukata shop. Misaki and Riko shop; exact retailer not safely verified.",
+      "description": "Sales/fitting room.",
       "tags": [
         "public"
       ],
@@ -1895,7 +1895,7 @@
     },
     "place_e64": {
       "name": "Fireworks festival — Festival grounds / viewing area",
-      "description": "Festival grounds / viewing area at Fireworks festival. Riko/Hayato date.",
+      "description": "Festival grounds / viewing area.",
       "tags": [
         "public"
       ],
@@ -1913,7 +1913,7 @@
     },
     "place_e65": {
       "name": "Beach for Arman/Martha date — Beachfront",
-      "description": "Beachfront at Beach for Arman/Martha date. Exact beach not safely verified.",
+      "description": "Beachfront.",
       "tags": [
         "public"
       ],
@@ -1931,7 +1931,7 @@
     },
     "place_e66": {
       "name": "Boat used on Arman/Martha date — Passenger deck/seating",
-      "description": "Passenger deck/seating at Boat used on Arman/Martha date. Separate place under a scene-level model.",
+      "description": "Passenger deck/seating.",
       "tags": [
         "public"
       ],
@@ -1949,7 +1949,7 @@
     },
     "place_e67": {
       "name": "Train station used by Riko on return — Platform/concourse",
-      "description": "Platform/concourse at Train station used by Riko on return. Exact station not safely verified.",
+      "description": "Platform/concourse.",
       "tags": [
         "public"
       ],
@@ -1967,7 +1967,7 @@
     },
     "place_o01": {
       "name": "Grocery store sales floor",
-      "description": "Grocery store sales floor. Episode 1 group grocery trip; branch/name not verified.",
+      "description": "Grocery store sales floor.",
       "tags": [
         "public"
       ],
@@ -1985,7 +1985,7 @@
     },
     "place_o02": {
       "name": "Neighborhood jogging route",
-      "description": "Neighborhood jogging route. Minori/Makoto runs; treat as one route node.",
+      "description": "Neighborhood jogging route.",
       "tags": [
         "public"
       ],
@@ -2003,7 +2003,7 @@
     },
     "place_o03": {
       "name": "Baseball field",
-      "description": "Baseball field. Makoto’s university baseball practice/game environment.",
+      "description": "Baseball field.",
       "tags": [
         "public"
       ],
@@ -2021,7 +2021,7 @@
     },
     "place_o04": {
       "name": "Baseball dugout/bench",
-      "description": "Baseball dugout/bench. Separate room/zone if reproducing scenes closely.",
+      "description": "Baseball dugout/bench.",
       "tags": [
         "public"
       ],
@@ -2039,7 +2039,7 @@
     },
     "dance_studio": {
       "name": "Tap-dance rehearsal studio",
-      "description": "Tap-dance rehearsal studio. Yuki’s work/practice space.",
+      "description": "Tap-dance rehearsal studio.",
       "tags": [
         "public"
       ],
@@ -2057,7 +2057,7 @@
     },
     "place_o06": {
       "name": "English-teaching job interview/classroom",
-      "description": "English-teaching job interview/classroom. Arman’s application scene in Episode 12.",
+      "description": "English-teaching job interview/classroom.",
       "tags": [
         "public"
       ],
@@ -2075,7 +2075,7 @@
     },
     "place_o07": {
       "name": "Beach used by Arman/Mizuki",
-      "description": "Beach used by Arman/Mizuki. Episode 12 date; exact beach not securely identified.",
+      "description": "Beach used by Arman/Mizuki.",
       "tags": [
         "public"
       ],
@@ -2093,7 +2093,7 @@
     },
     "place_o08": {
       "name": "Yuriko’s university/medical-study room",
-      "description": "Yuriko’s university/medical-study room. School/study context; count the actual room, not the whole university.",
+      "description": "Yuriko’s university/medical-study room.",
       "tags": [
         "public"
       ],
@@ -2111,7 +2111,7 @@
     },
     "place_o09": {
       "name": "Mizuki’s workplace/café-related workroom",
-      "description": "Mizuki’s workplace/café-related workroom. Work scene; exact business/room requires direct episode check.",
+      "description": "Mizuki’s workplace/café-related workroom.",
       "tags": [
         "public"
       ],
@@ -2129,7 +2129,7 @@
     },
     "place_o10": {
       "name": "Arisa’s hat workshop",
-      "description": "Arisa’s hat workshop. Design/work room distinct from exhibition venue.",
+      "description": "Arisa’s hat workshop.",
       "tags": [
         "public"
       ],
@@ -2147,7 +2147,7 @@
     },
     "place_o11": {
       "name": "Construction site",
-      "description": "Construction site. Hikaru’s work; each job site can be a separate place if shown as distinct.",
+      "description": "Construction site.",
       "tags": [
         "public"
       ],
@@ -2165,7 +2165,7 @@
     },
     "place_o12": {
       "name": "Modeling/photo studio",
-      "description": "Modeling/photo studio. Various residents’ shoots; each identifiable studio is separate.",
+      "description": "Modeling/photo studio.",
       "tags": [
         "public"
       ],
@@ -2183,7 +2183,7 @@
     },
     "place_o14": {
       "name": "Restaurant/café interiors shown in advice/friend meetings",
-      "description": "Restaurant/café interiors shown in advice/friend meetings. Count each distinct establishment separately when direct episode frames provide its title card.",
+      "description": "Meet friends over a meal or coffee.",
       "tags": [
         "public"
       ],
@@ -2201,7 +2201,7 @@
     },
     "place_o15": {
       "name": "Private family/friend meeting rooms",
-      "description": "Private family/friend meeting rooms. Count each distinct home/room separately, but exact addresses should not be published.",
+      "description": "Private family/friend meeting rooms.",
       "tags": [
         "public"
       ],

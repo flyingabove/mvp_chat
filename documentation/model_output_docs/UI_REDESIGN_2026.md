@@ -297,3 +297,38 @@ All original bracket commands still work, now via the 3-dot menu or by typing th
 | `[EXIT]` | 🚪 Exit Game menu item |
 
 The integration playback feature is now accessible only via the `/debug` console URL (debug.html).
+
+## PWA delivery and mobile presentation (2026-09-24)
+
+The FastAPI-served shell now references SHA-256 content-addressed JS/CSS URLs.
+HTML, fixed-name legacy assets, worker scripts, manifests and version responses
+use `Cache-Control: no-store`. The service worker only caches hashed JS/CSS;
+activation removes old StoriesChat caches before claiming clients. Its served
+bytes include a fingerprint of the HTML, styles, scripts and manifest, so every
+shell deployment changes the worker. Registration bypasses HTTP caches, and the
+app checks the shell revision on foreground return and every minute. Automatic
+revision checks defer while a chat request or unsent draft is present. First
+installation does not cause a competing reload. Refresh Cache clears worker
+registrations and Cache Storage, cache-busts the document, and preserves login
+and saved-game storage.
+
+Beta manifests use `/beta/` for start URL, scope and identity; installing from
+beta must not send the player to production `/`. Existing production installs
+still require an explicitly authorized production deployment to receive these
+changes. Physical iOS Home Screen installation remains distinct from WebKit
+emulation and should not be claimed as tested from desktop tooling.
+
+The scene uses a stable game-cover avatar and smaller named character portrait
+bubbles within each reply; narration stays in reading order. The header and
+resumed games retain the cover too. Slow/Normal/Fast use 10/4/(10÷3.5) milliseconds
+per character, with Normal as default; this controls text reveal, not model
+inference latency. The unused upload-photo control is removed. My Games rows
+fill the available width, distinguish taps from horizontal drags, and reveal an
+accessible X delete button. The bottom Refresh Cache button shares tab styling.
+Standalone viewport sizing uses the full inner height except when the keyboard
+is open.
+
+Validation scripts: `scripts/verify_mobile_pwa_browser.py` drives real desktop
+Chromium, iPhone WebKit and a simulated standalone flag; `scripts/verify_pwa_upgrade.py`
+installs the actual legacy worker from commit 37cdcfe, seeds stale script data,
+then verifies replacement and old-cache deletion in Chromium and WebKit.

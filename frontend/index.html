@@ -144,6 +144,7 @@
       -webkit-backdrop-filter: blur(12px);
     }
     .tab-item {
+      appearance: none; background: none; border: 0; font-family: inherit;
       flex: 1; height: var(--tab-h);
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
@@ -607,8 +608,8 @@
     .games-list::-webkit-scrollbar { display: none; }
 
     .game-list-item {
-      display: flex; align-items: center; gap: 14px;
-      padding: 12px 16px; cursor: pointer;
+      display: block; width: 100%;
+      padding: 0; cursor: pointer;
       border-bottom: 1px solid rgba(255,255,255,0.05);
       -webkit-tap-highlight-color: transparent;
     }
@@ -1062,7 +1063,7 @@
       background: #000;
     }
     #map-modal.fullscreen .map-container {
-      width: 100vw; height: 100vh;
+      width: 100vw; height: var(--app-height);
       max-width: none; max-height: none;
     }
     .map-container {
@@ -1186,7 +1187,7 @@
     }
     .game-list-item .delete-bg {
       position: absolute; top: 0; right: 0; bottom: 0;
-      width: 80px; background: #d32f2f;
+      width: 80px; background: #d32f2f; border: 0; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       color: white; font-size: 13px; font-weight: 700;
       opacity: 0; transition: opacity 0.15s;
@@ -1194,6 +1195,7 @@
     .game-list-item.swiped .delete-bg { opacity: 1; }
     .game-list-item .item-content {
       display: flex; align-items: center; gap: 14px;
+      width: 100%; min-width: 0; box-sizing: border-box; touch-action: pan-y;
       padding: 12px 16px; background: var(--bg);
       position: relative; z-index: 1;
       transition: transform 0.2s ease;
@@ -1393,7 +1395,6 @@
       <div id="chat-user-dock-avatar">🧑</div>
       <textarea id="chat-text-input" rows="1" placeholder="Message..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
       <div id="chat-input-tools">
-        <button class="chat-tool-btn" id="chat-image-btn" aria-label="Image">🖼️</button>
         <button class="chat-tool-btn" id="chat-persona-btn" aria-label="Persona">◌</button>
       </div>
     </div>
@@ -1517,7 +1518,7 @@
   </div>
   <button class="tab-item" type="button" data-action="hard-reload" id="tab-update-app" aria-label="Update App: clear cached files and reload">
     <span class="tab-icon">⟳</span>
-    <span>Update App</span>
+    <span>Refresh Cache</span>
   </button>
   <div class="tab-item" data-screen="profile" id="tab-profile">
     <span class="tab-icon">👤</span>
@@ -1778,8 +1779,8 @@ var SKIP_LOGIN_KEY = "storieschat_skip_login";
 var TYPEWRITER_SPEED_KEY = "storieschat_typewriter_speed";
 
 // Slow preserves the former Normal pace. Normal is 2.5x faster and Fast is
-// 4x faster, so the default feels brisk without removing readable pacing.
-var TYPEWRITER_SPEEDS = [10, 4, 2.5];
+// 3.5x faster, so the default feels brisk without removing readable pacing.
+var TYPEWRITER_SPEEDS = [10, 4, 10 / 3.5];
 var TYPEWRITER_LABELS = ["Slow", "Normal", "Fast"];
 var CHARACTER_ASSET_MAP = {
   makoto: "/img/characters/Makoto_Hasegawa.png",
@@ -2527,7 +2528,7 @@ function renderChatCharacterHeader(story){
 var avatarEl = document.createElement("div");
 avatarEl.id = "chat-avatar";
 avatarEl.style.cssText = "width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#e50914 0%,#7c0b0b 100%);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:10px;overflow:hidden;position:relative;flex-shrink:0;";
-renderAvatarImage(avatarEl, getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
+renderAvatarImage(avatarEl, story.thumbnail_url || getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
 var nameEl = document.createElement("div");
 nameEl.id = "chat-header-name";
 nameEl.style.cssText = "font-size:17px;font-weight:700;margin-bottom:2px;";
@@ -2574,7 +2575,7 @@ function launchChat(story, playerName, gender, guestMode){
   // Setup chat UI
   $("chat-char-name").textContent = story.title;
   $("chat-char-sub").textContent = story.genre || "Game";
-  renderAvatarImage($("chat-char-avatar-mini"), getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
+  renderAvatarImage($("chat-char-avatar-mini"), story.thumbnail_url || getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
   renderAvatarImage($("chat-user-dock-avatar"), getCharacterAvatarSrc("persona", appState.personaName || "Paul Dingus"), appState.userAvatarLabel || "U");
 
   dialoguePresentation.finish();
@@ -2662,8 +2663,8 @@ function resumeGameFromSession(sess){
 
   $("chat-char-name").textContent = story.title;
   $("chat-char-sub").textContent = story.genre || "Game";
-  $("chat-char-avatar-mini").textContent = genreEmoji(story.genre || story.theme);
-  $("chat-user-dock-avatar").textContent = appState.userAvatarLabel;
+  renderAvatarImage($("chat-char-avatar-mini"), story.thumbnail_url || getCharacterAvatarSrc(story.id, story.title), story.title);
+  renderAvatarImage($("chat-user-dock-avatar"), getCharacterAvatarSrc("persona", sess.player_name), appState.userAvatarLabel);
 
   dialoguePresentation.finish();
   // Clear messages and (re)build the character header as one unit (A06).
@@ -2900,6 +2901,7 @@ function hideTypingIndicator(){ $("typing-indicator").classList.remove("visible"
 /* ─── SEND / RECEIVE ────────────────────────────── */
 function sendMessage(text, isInit, options){
   options = options || {};
+  if (/^\s*(?:\[(?:m|map)\]|\((?:m|map)\))\s*$/i.test(text)) { showMapModal(true); return; }
   if (appState.awaitingResponse && !isInit) return;
   appState.awaitingResponse = true;
 
@@ -3003,7 +3005,6 @@ $("chat-send-btn").addEventListener("click", function(){
 
 $("chat-mute-btn").addEventListener("click", function(){ showToast("Voice controls coming soon."); });
 $("chat-call-btn").addEventListener("click", function(){ showToast("Voice mode coming soon."); });
-$("chat-image-btn").addEventListener("click", function(){ showToast("Image sharing coming soon."); });
 $("chat-persona-btn").addEventListener("click", function(){ showToast("Persona switch coming soon."); });
 
 function doSendChat(){
@@ -3027,7 +3028,7 @@ document.addEventListener("click", function(){
 
 $("dd-map").addEventListener("click", function(){
   $("chat-dropdown").classList.remove("open");
-  showMapModal();
+  showMapModal(true);
 });
 
 $("dd-cast").addEventListener("click", function(){
@@ -3092,7 +3093,7 @@ $("chat-char-name-wrap").addEventListener("click", function(){
 });
 
 /* ─── WORLD MAP MODAL ───────────────────────────── */
-function showMapModal(){
+function showMapModal(showDetails){
   var meta = appState.currentMeta;
   var imgEl = $("map-modal-img");
   var modal = $("map-modal");
@@ -3102,6 +3103,18 @@ function showMapModal(){
     return;
   }
 
+  var oldDirectory = modal.querySelector(".atlas-host");
+  if (oldDirectory) oldDirectory.remove();
+  modal.querySelector(".map-container").style.display = showDetails === true ? "none" : "block";
+  if (showDetails === true && meta.world_map && window.WorldMapView) {
+    var directory = document.createElement("div");
+    directory.className = "atlas-host";
+    modal.appendChild(directory);
+    new window.WorldMapView(directory, meta.world_map, API_BASE + "/story-image/" + meta.world_map_image);
+    openModal("map-modal");
+    return;
+  }
+  modal.querySelector(".map-container").style.display = "block";
   // The full-screen viewer contains only the artwork: no location directory
   // or description dump accompanies it.
   imgEl.style.display = "none";
@@ -3118,6 +3131,7 @@ function setupMapInteraction(){
   var modal = $("map-modal");
   var imgEl = $("map-modal-img");
   var container = modal.querySelector(".map-container");
+  if (imgEl._resetMap) { imgEl._resetMap(); return; }
 
   var isDragging = false;
   var startX, startY, initialX, initialY;
@@ -3127,6 +3141,9 @@ function setupMapInteraction(){
   function updateTransform(){
     imgEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   }
+
+  imgEl._resetMap = function(){ scale = 1; translateX = 0; translateY = 0; updateTransform(); };
+  imgEl.addEventListener("dblclick", function(){ scale = scale === 1 ? 2 : 1; imgEl.classList.toggle("pannable", scale > 1); updateTransform(); });
 
   // Pan functionality
   imgEl.addEventListener("mousedown", function(e){
@@ -3307,9 +3324,12 @@ function renderSessionsRows(sessions){
     item.className = "game-list-item";
 
     // Delete background (visible on swipe)
-    var deleteBg = document.createElement("div");
+    var deleteBg = document.createElement("button");
+    deleteBg.type = "button";
+    deleteBg.setAttribute("aria-label", "Delete " + (sess.story_title || story.title || "game"));
     deleteBg.className = "delete-bg";
-    deleteBg.textContent = "Delete";
+    deleteBg.textContent = "×";
+    deleteBg.style.fontSize = "32px";
     item.appendChild(deleteBg);
 
     // Item content wrapper (slides on swipe)
@@ -3345,13 +3365,15 @@ function renderSessionsRows(sessions){
     item.appendChild(content);
 
     // Swipe-to-delete
-    var startX = 0, currentX = 0, swiping = false;
+    var startX = 0, currentX = 0, startY = 0, swiping = false, suppressTapUntil = 0;
     content.addEventListener("touchstart", function(e){
-      startX = e.touches[0].clientX;
+      startX = currentX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
       swiping = true;
     }, { passive: true });
     content.addEventListener("touchmove", function(e){
       if (!swiping) return;
+      if (Math.abs(e.touches[0].clientY - startY) > Math.abs(e.touches[0].clientX - startX)) { swiping = false; content.style.transform = ""; return; }
       currentX = e.touches[0].clientX;
       var dx = startX - currentX;
       if (dx > 10) {
@@ -3359,8 +3381,10 @@ function renderSessionsRows(sessions){
       }
     }, { passive: true });
     content.addEventListener("touchend", function(){
+      var dx = swiping ? startX - currentX : 0;
       swiping = false;
-      var dx = startX - currentX;
+      content.style.transform = "";
+      if (Math.abs(dx) > 10) suppressTapUntil = Date.now() + 350;
       if (dx > 50) {
         item.classList.add("swiped");
       } else {
@@ -3368,6 +3392,8 @@ function renderSessionsRows(sessions){
         content.style.transform = "";
       }
     });
+
+    content.addEventListener("touchcancel", function(){ swiping = false; content.style.transform = ""; });
 
     // Delete handler
     deleteBg.addEventListener("click", function(e){
@@ -3396,6 +3422,7 @@ function renderSessionsRows(sessions){
 
     // Tap to resume (only if not swiped)
     content.addEventListener("click", function(){
+      if (Date.now() < suppressTapUntil) return;
       if (item.classList.contains("swiped")) {
         item.classList.remove("swiped");
         content.style.transform = "";
@@ -3621,7 +3648,6 @@ $("confirm-dialog").addEventListener("click", function(e){
   var saved = parseInt(localStorage.getItem(TYPEWRITER_SPEED_KEY) || "1", 10);
   // Prior builds exposed four values; preserve the user's intent while
   // collapsing them into the three deliberately supported choices.
-  if (saved === 0) saved = 1;
   if (saved > 2) saved = 2;
   if (saved < 0 || saved >= TYPEWRITER_LABELS.length) saved = 1;
   slider.value = saved;
@@ -3638,7 +3664,9 @@ $("confirm-dialog").addEventListener("click", function(e){
 (function(){
   function syncAppHeight(){
     var viewport = window.visualViewport;
-    var height = viewport && viewport.height ? viewport.height : window.innerHeight;
+    var standalone = navigator.standalone || window.matchMedia("(display-mode: standalone)").matches;
+    var keyboardOpen = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) && viewport && viewport.height < window.innerHeight - 120;
+    var height = standalone && !keyboardOpen ? window.innerHeight : (viewport && viewport.height ? viewport.height : window.innerHeight);
     document.documentElement.style.setProperty("--app-height", Math.round(height) + "px");
   }
   syncAppHeight();
@@ -3657,7 +3685,7 @@ fetch("version.json", { cache: "no-store" })
 
 /* ─── PWA SERVICE WORKER ────────────────────────── */
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js")
+  navigator.serviceWorker.register("sw.js", {updateViaCache: "none"})
     .then(function(reg){
       // A first install already fetches the current worker. Racing it with an
       // update can be cancelled by WebKit when controllerchange reloads us.
@@ -3668,12 +3696,31 @@ if ("serviceWorker" in navigator) {
     })
     .catch(function(){});
 
+  var hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener("controllerchange", function(){
+    if (!hadController) { hadController = true; return; }
     if (window.__swRefreshed) return;
     window.__swRefreshed = true;
     window.location.reload();
   });
 }
+
+var SHELL_REVISION = "__SHELL_REVISION__";
+var checkingUpdate = false;
+function checkAppUpdate(){
+  if (checkingUpdate || document.hidden || appState.awaitingResponse) return;
+  checkingUpdate = true;
+  fetch("version.json", {cache: "no-store"}).then(function(r){ return r.json(); }).then(function(v){
+    if (v.shell_revision && v.shell_revision !== SHELL_REVISION) {
+      // Keep typed, unsent input in place; the next check installs the update.
+      if ($("chat-text-input") && $("chat-text-input").value.trim()) return;
+      hardReloadApp();
+    }
+  }).catch(function(){}).finally(function(){ checkingUpdate = false; });
+}
+window.addEventListener("pageshow", checkAppUpdate);
+document.addEventListener("visibilitychange", function(){ if (!document.hidden) checkAppUpdate(); });
+setInterval(checkAppUpdate, 60000);
 
 /* ─── HARD RELOAD (force-update the installed webapp) ─── */
 (function(){

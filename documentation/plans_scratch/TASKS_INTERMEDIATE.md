@@ -91,3 +91,18 @@ Package: `backend/app/evaluation/` (pure core, I/O at the edges). CLI: `scripts/
 1. Keep only open items in `Active`.
 2. Move completed lists to `Consumed History` at task completion.
 3. If this file exceeds ~200 lines, archive older consumed entries to `ARCHIVE_TASKS_INTERMEDIATE.md`.
+
+### 2026-09-24 PWA and mobile repair checklist
+
+- [x] Switch to beta and pull current origin/beta; persist beta-only convention.
+- [x] PWA: no-store HTML/worker/version; content-version JS/CSS; automatic activation, old cache cleanup, foreground update detection; test stale-worker upgrade.
+- [x] Confirm startup map has no instructions and tapping maximizes it; brief player-facing location descriptions only.
+- [x] Restore/verify bottom Refresh Cache action; remove photo upload control.
+- [x] Verify standalone viewport fills phone including bottom navigation.
+- [x] House cover for chat/header; individual named portrait bubbles nested in each scene.
+- [x] Slow = prior 1x, Normal = 2.5x, Fast = 3.5x; default Normal and persistent choices.
+- [x] Full-width My Games resume; swipe reveals accessible X delete button.
+- [x] Run regression/full tests and inspect desktop Chromium + iPhone WebKit local screenshots and interactions.
+- [ ] Integrate latest beta, resolve conflicts, retest, commit/push beta, verify remote SHA and hosted behavior.
+
+- Local evidence: real Chromium + iPhone WebKit + simulated standalone interaction/screenshot passes; old-worker upgrade passed Chromium/WebKit; 9 Node tests; full pytest 1096 passed / 1 expected failure before final integration.

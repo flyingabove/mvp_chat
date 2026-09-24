@@ -1205,29 +1205,33 @@ def test_extraction_outbox_row_marked_done_after_successful_extraction(client, m
 
     guest_headers = {"X-Guest-Id": "55555555-6666-7777-8888-999999999999"}
     sid = "outbox_mark_done_check"
-    r0 = client.post(
-        "/api/chat",
-        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
-        headers=guest_headers,
-    )
-    assert r0.status_code == 200
-    r1 = client.post(
-        "/api/chat",
-        json={"session_id": sid, "message": "hello there"},
-        headers=guest_headers,
-    )
-    assert r1.status_code == 200
+    # Keep the ASGI event loop alive while its background extraction completes.
+    # A context-free TestClient closes the per-request portal before this poll.
+    monkeypatch.setenv("DISABLE_INDEX_WARMUP", "1")
+    with client:
+        r0 = client.post(
+            "/api/chat",
+            json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+            headers=guest_headers,
+        )
+        assert r0.status_code == 200
+        r1 = client.post(
+            "/api/chat",
+            json={"session_id": sid, "message": "hello there"},
+            headers=guest_headers,
+        )
+        assert r1.status_code == 200
 
-    async def _wait_and_check():
-        for _ in range(100):
-            await asyncio.sleep(0.05)
-            pending = await FactExtractionOutboxRepo.fetch_pending()
-            if not any(row["session_id"] == sid for row in pending):
-                return True
-        return False
+        async def _wait_and_check():
+            for _ in range(100):
+                await asyncio.sleep(0.05)
+                pending = await FactExtractionOutboxRepo.fetch_pending()
+                if not any(row["session_id"] == sid for row in pending):
+                    return True
+            return False
 
-    completed = asyncio.run(_wait_and_check())
-    assert completed, "outbox row for this session never left 'pending' status"
+        completed = asyncio.run(_wait_and_check())
+        assert completed, "outbox row for this session never left 'pending' status"
 
 
 def test_anon_session_skips_outbox_enqueue(client, monkeypatch):

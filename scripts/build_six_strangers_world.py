@@ -168,6 +168,17 @@ def build():
         if position:
             locations[lid]["map_position"] = {"x": position[0], "y": position[1]}
 
+    house_descriptions = [
+        "Leave your shoes and come inside.", "Relax on the sofas with your housemates.",
+        "Share meals around the long table.", "Cook together at the kitchen counter.",
+        "Watch TV or find a quiet moment together.", "Three beds shared by the boys.",
+        "Three beds shared by the girls.", "A peaceful upstairs tatami room.",
+        "Unwind in a warm bath.", "Mirrors and sinks for getting ready.",
+        "A separate, private toilet.", "Wash and dry your clothes.",
+        "Stairs connect the rooms upstairs and down.", "Lounge outside beside the pool.",
+        "Cool off with a swim.", "Fire up the grill with your housemates.",
+        "Meet arriving friends outside the house.", "The house cars are parked here.",
+    ]
     for i, (lid, name, pos) in enumerate(
         zip(HOUSE_IDS, HOUSE_NAMES, HOUSE_POSITIONS), 1
     ):
@@ -175,7 +186,7 @@ def build():
         add(
             lid,
             name,
-            rows[sid][1],
+            house_descriptions[i - 1],
             "house",
             sid,
             "scene_derived",
@@ -242,7 +253,7 @@ def build():
         add(
             lid,
             f"{title} — {zone}",
-            f"{zone} at {title}. {note}",
+            {"E25": "Rides and attractions for a fun day out.", "E30": "Take a ride through the city.", "E37": "Browse the shops or apply for work."}.get(sid, f"{zone}."),
             aid,
             sid,
             status,
@@ -258,7 +269,7 @@ def build():
         add(
             lid,
             title,
-            f"{title}. {note}",
+            {"O14": "Meet friends over a meal or coffee."}.get(sid, f"{title}."),
             "gotanda" if i == 2 else "unverified",
             sid,
             "approximate" if i == 2 else "unverified",

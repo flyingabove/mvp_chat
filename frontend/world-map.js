@@ -126,10 +126,10 @@
       this.host.append(stage);
       const caption =
         this.mode === "Interiors"
-          ? "Functional room relationships, not a verified floor plan. Select a room for its details."
+          ? "Choose a room to explore."
           : this.mode === "Artwork"
-            ? "Illustrated overview. Regions and Nearby use the research distance model; the artwork compresses geography."
-            : `North ↑ · East → · Kilometers from ${this.atlas.origin_label}. Positions are approximate cluster offsets, not street addresses. Select a region to explore.`;
+            ? "Explore the city and your shared home."
+            : `North ↑ · East → · Kilometers from ${this.atlas.origin_label}. Choose a neighborhood to explore.`;
       this.host.append(element("p", caption, "atlas-caption"));
       const controls = element("div", undefined, "atlas-controls");
       this.filter = element("select");
@@ -291,7 +291,7 @@
             this.renderList();
             this.detail.replaceChildren(
               element("h3", label),
-              element("p", p.area.note),
+              element("p", "Explore places in this neighborhood."),
             );
           }
         };
@@ -349,7 +349,7 @@
       matches.forEach((l) => {
         const button = element(
           "button",
-          `${l.name} · ${l.research.status.replaceAll("_", " ")}`,
+          l.name,
           "atlas-place",
         );
         button.type = "button";
@@ -365,23 +365,6 @@
         element("h3", loc.name),
         element("p", loc.description),
       );
-      const research = loc.research,
-        area = regionalArea(this.atlas, loc.area_id);
-      this.detail.append(
-        element(
-          "p",
-          `${research.source_ids.join(", ") || "Game addition"} · ${research.status.replaceAll("_", " ")}${research.episodes ? " · Episodes: " + research.episodes : ""}`,
-          "atlas-caption",
-        ),
-      );
-      if (research.note) this.detail.append(element("p", research.note));
-      if (area?.distance_min_km != null)
-        this.detail.append(
-          element(
-            "p",
-            `${area.name}: ${area.distance_min_km}${area.distance_min_km !== area.distance_max_km ? "–" + area.distance_max_km : ""} km ${area.direction} from ${this.atlas.origin_label} (approximate straight-line cluster distance).`,
-          ),
-        );
       const label = element("label", "Plan route from: "),
         select = element("select");
       select.setAttribute("aria-label", "Route origin");
@@ -393,8 +376,8 @@
         const route = routeBetween(this.atlas.routes, select.value, id),
           names = new Map(this.atlas.locations.map((l) => [l.id, l.name]));
         routeOutput.textContent = route
-          ? `${route.minutes} min estimated travel, plus the game's departure cost. ${[select.value, ...route.segments.map((e) => e.to)].map((l) => names.get(l)).join(" → ")}`
-          : "No available authored route.";
+          ? `${route.minutes} min travel. ${[select.value, ...route.segments.map((e) => e.to)].map((l) => names.get(l)).join(" → ")}`
+          : "No route available.";
       };
       select.onchange = show;
       label.append(select);

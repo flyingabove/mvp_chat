@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const html = fs.readFileSync(path.join(__dirname, "../../frontend/index.html"), "utf8");
-const block = html.slice(html.indexOf('navigator.serviceWorker.register("sw.js")'));
+const block = html.slice(html.indexOf('navigator.serviceWorker.register("sw.js", {updateViaCache: "none"})'));
 const body = block.match(/\.then\(function\(reg\)\{([\s\S]*?)\n    \}\)/)[1];
 const registered = new Function("reg", body);
 

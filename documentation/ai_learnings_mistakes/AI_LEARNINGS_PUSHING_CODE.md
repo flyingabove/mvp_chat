@@ -300,3 +300,11 @@ git checkout beta
     git pull --rebase && git push
 - Pre-commit hook failure → fix the issue, stage, make a NEW commit (never
   --amend after a hook failure, it would modify the previous commit).
+
+## 2026-09-24 beta-only convention
+
+Work directly on `beta` in the dedicated Codex checkout. Pull `origin/beta`
+before code changes and again before pushing. Resolve conflicts by preserving
+both writers' intent, rerun affected checks, and push without force. This replaces
+older instructions to create a `codex/` feature branch. No production promotion
+is authorized by the mobile/PWA repair task.

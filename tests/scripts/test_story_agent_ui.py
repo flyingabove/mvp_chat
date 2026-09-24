@@ -201,6 +201,9 @@ def test_game_ui_root_serves_html(tmp_path):
     fake_path.write_text(fake_html, encoding="utf-8")
 
     original = main_module._INDEX_HTML_PATH
+    # The shell now fingerprints its delivered resources as one deployment.
+    for name in ("sw.js", "manifest.json", *main_module._SHELL_ASSETS):
+        (tmp_path / name).write_bytes((original.parent / name).read_bytes())
     main_module._INDEX_HTML_PATH = fake_path
     try:
         client = TestClient(main_module.app)
@@ -222,6 +225,9 @@ def test_beta_game_ui_route_serves_html(tmp_path):
     fake_path.write_text(fake_html, encoding="utf-8")
 
     original = main_module._INDEX_HTML_PATH
+    # The shell now fingerprints its delivered resources as one deployment.
+    for name in ("sw.js", "manifest.json", *main_module._SHELL_ASSETS):
+        (tmp_path / name).write_bytes((original.parent / name).read_bytes())
     main_module._INDEX_HTML_PATH = fake_path
     try:
         client = TestClient(main_module.app)
