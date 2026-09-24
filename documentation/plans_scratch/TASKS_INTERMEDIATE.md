@@ -26,6 +26,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Consumed History
 
+- 2026-09-23: Completed Jev game arena research/design against beta `3ffecea` on `codex/jev-game-evaluation-design`. Added `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md` and indexed it. Specifies paired adaptive games, response forks, complete world evidence, calibrated Jev judgments, independent correctness gates, Elo-equivalent intervals, costs and implementation acceptance criteria. Documentation only; no runtime implementation, paid model runs or deployment. Validation: source/API schema review, repository integration-path checks and `git diff --check`.
+
 - 2026-09-21: Single-bubble dominant-speaker presentation completed and deployed to beta in `0043948` (Railway deployment `90f2b537-63d8-454f-a5b8-de17aab77f7f`).
 	- Restored one bubble per AI reply while retaining structured speaker metadata for reliable attribution.
 	- The canonical speaker with the greatest total spoken text supplies the avatar; ties use first appearance.

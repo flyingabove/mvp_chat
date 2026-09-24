@@ -74,6 +74,11 @@ Update that document when map metadata, coordinates, routes or map UI behavior c
 
 ## Scorer / Debug System
 
+The proposed controlled beta/prod evaluation system is documented in
+[JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md).
+Update it when paired-game controls, Jev judge calibration, evidence contracts,
+rating statistics or the arena implementation plan change. Status: design only.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [AI_SCORER_SYSTEM.md](ai_learnings_mistakes/AI_SCORER_SYSTEM.md) | ...the debug system, scoring, player-agent loop, or grader changes. |
