@@ -9,6 +9,7 @@ instance reacts to its own game.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -111,7 +112,10 @@ class LLMPlayer:
     """OpenAI-compatible chat completions player."""
 
     def __init__(self, client: httpx.AsyncClient, *, api_key: str, model: str = "gpt-4o-mini",
-                 base_url: str = "https://api.openai.com/v1", temperature: float = 0.9) -> None:
+                 base_url: str = "https://api.openai.com/v1", temperature: float = 0.9,
+                 max_attempts: int = 6, backoff_s: float = 4.0) -> None:
+        self.max_attempts = max_attempts
+        self.backoff_s = backoff_s
         self.client = client
         self.api_key = api_key
         self.model = model
@@ -120,6 +124,18 @@ class LLMPlayer:
 
     async def next_move(self, obs: PlayerObservation, *, seed: int) -> PlayerMove:
         system = PLAYER_SYSTEM.format(brief=obs.brief, persona=obs.persona.description)
+        last = ""
+        for attempt in range(1, self.max_attempts + 1):
+            move, retry_after = await self.attempt(system, obs, seed)
+            if retry_after is None:
+                return move
+            last = move.error
+            await asyncio.sleep(retry_after or self.backoff_s * (2 ** (attempt - 1)))
+        return PlayerMove("", error=f"gave up after {self.max_attempts} attempts: {last}"[:300])
+
+    async def attempt(self, system: str, obs: PlayerObservation, seed: int) -> tuple[PlayerMove, float | None]:
+        """One call. Returns (move, None) when final, or (move, delay) when the
+        provider signalled a transient limit and the call should be retried."""
         try:
             r = await self.client.post(
                 f"{self.base_url}/chat/completions",
@@ -134,15 +150,23 @@ class LLMPlayer:
                 },
                 timeout=60.0,
             )
+            if r.status_code == 429 or r.status_code >= 500:
+                try:
+                    delay = float(r.headers.get("retry-after") or 0)
+                except ValueError:
+                    delay = 0.0
+                return PlayerMove("", error=f"HTTP {r.status_code}"), delay
             r.raise_for_status()
             body = r.json()
             message = clean_move(body["choices"][0]["message"]["content"])
             usage = {k: int(v) for k, v in (body.get("usage") or {}).items() if isinstance(v, int)}
             if not message:
-                return PlayerMove("", usage, error="empty player message")
-            return PlayerMove(message, usage)
+                return PlayerMove("", usage, error="empty player message"), None
+            return PlayerMove(message, usage), None
+        except httpx.TimeoutException as exc:
+            return PlayerMove("", error=f"timeout: {exc}"), 0.0
         except Exception as exc:  # noqa: BLE001 - evaluator-side failure, never scored
-            return PlayerMove("", error=f"{type(exc).__name__}: {exc}"[:300])
+            return PlayerMove("", error=f"{type(exc).__name__}: {exc}"[:300]), None
 
 
 class ScriptedPlayer:

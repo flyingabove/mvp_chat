@@ -159,3 +159,83 @@ def test_clean_move_strips_role_labels_and_quotes():
 def test_five_design_personas_exist():
     assert set(PERSONAS) == {"exploratory_newcomer", "direct_investigator", "empathetic_builder",
                              "impatient_player", "boundary_tester"}
+
+
+# ---- provider-limit resilience (pilot 2026-09-23 hit shared OpenAI 429s) -------
+
+import httpx
+
+from backend.app.evaluation.players import LLMPlayer
+from backend.app.evaluation.targets import ArmSession, HostedTargetAdapter, is_transient
+
+
+def scripted_transport(responses, seen):
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        status, body = responses.pop(0)
+        return httpx.Response(status, json=body)
+    return httpx.MockTransport(handler)
+
+
+@pytest.mark.asyncio
+async def test_transient_game_error_is_retried_with_the_same_request_id():
+    seen = []
+    transport = scripted_transport([
+        (200, {"error": "The story master is unavailable right now. Please try that again in a moment."}),
+        (200, {"reply": "Mina waves.", "segments": []}),
+    ], seen)
+    async with httpx.AsyncClient(transport=transport) as client:
+        target = HostedTargetAdapter("beta", "https://x", client, backoff_s=0)
+        res = await target.send(ArmSession("s", "g"), "hi", "req-1")
+    assert res.reply == "Mina waves." and not res.error
+    assert [r.read() for r in seen][0] == seen[1].read()      # identical resend (same request_id)
+    assert b'"request_id":"req-1"' in seen[1].read().replace(b" ", b"")
+
+
+@pytest.mark.asyncio
+async def test_non_transient_game_error_is_not_retried():
+    seen = []
+    transport = scripted_transport([(200, {"error": "story not found: nope"})], seen)
+    async with httpx.AsyncClient(transport=transport) as client:
+        res = await HostedTargetAdapter("beta", "https://x", client, backoff_s=0).send(ArmSession("s", "g"), "hi", "r")
+    assert res.error.startswith("story not found") and len(seen) == 1
+
+
+@pytest.mark.asyncio
+async def test_transient_error_without_request_id_is_never_resent():
+    """newgame has no request_id, so a resend could not be deduplicated."""
+    seen = []
+    transport = scripted_transport([(200, {"error": "upstream HTTP 429: rate limit"})], seen)
+    async with httpx.AsyncClient(transport=transport) as client:
+        res = await HostedTargetAdapter("beta", "https://x", client, backoff_s=0).post_chat(ArmSession("s", "g"), "__cmd_newgame__:x")
+    assert res.error and len(seen) == 1
+
+
+def test_transient_classifier():
+    assert is_transient("upstream HTTP 429: Rate limit reached for gpt-4o-mini")
+    assert is_transient("The story master is unavailable right now. Please try that again in a moment.")
+    assert not is_transient("story not found: x")
+
+
+@pytest.mark.asyncio
+async def test_player_retries_provider_rate_limit_then_succeeds():
+    seen = []
+    transport = scripted_transport([
+        (429, {"error": {"message": "Rate limit"}}),
+        (200, {"choices": [{"message": {"content": "I stay here."}}], "usage": {"total_tokens": 12}}),
+    ], seen)
+    async with httpx.AsyncClient(transport=transport) as client:
+        player = LLMPlayer(client, api_key="k", backoff_s=0)
+        obs = PlayerObservation("brief", PERSONAS["boundary_tester"], "opening", [], 1, 8)
+        move = await player.next_move(obs, seed=1)
+    assert move.message == "I stay here." and not move.error and len(seen) == 2
+
+
+@pytest.mark.asyncio
+async def test_player_gives_up_after_bounded_attempts():
+    seen = []
+    transport = scripted_transport([(429, {})] * 3, seen)
+    async with httpx.AsyncClient(transport=transport) as client:
+        player = LLMPlayer(client, api_key="k", backoff_s=0, max_attempts=3)
+        move = await player.next_move(PlayerObservation("b", PERSONAS["impatient_player"], "o", [], 1, 8), seed=1)
+    assert move.error.startswith("gave up after 3") and len(seen) == 3

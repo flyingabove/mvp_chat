@@ -8,6 +8,12 @@
 
 ## Open
 
+### BL-22 — Six Strangers scene quality regressed on beta vs prod: one NPC monopolizes, generic voices (source: Jev game arena pilot `arena_pilot_20260923b`, 2026-09-23)
+**What:** 40-pair pilot, beta `2aba92c` vs prod `e8664ec`: Six Strangers beta 2 wins / prod 9 (6 unresolved), -261 Elo-equivalent, 95% interval -inf to -70; IU Murder Mystery beta 10 / prod 4 (+159, interval 0 to +inf). Weakest beta dimension overall is character distinction (beta share 0.25 of resolved votes). Transcripts show beta Six Strangers scenes carried by a single housemate with generic lines and `**bold**` markdown inside dialogue, where prod stages several housemates with distinct voices. Likely tied to the structured speaker-segment output (`engine/dialogue.py` contract) and/or single-bubble dominant-speaker presentation. The judge is uncalibrated (BL-20), so treat as advisory but consistent across personas.
+**Why deferred:** Diagnosis needs response forks on identical state (BL-19) or targeted prompt experiments; out of scope for the arena build.
+**What's needed:** Inspect `dialogue_prompt` / storyteller prompt for ensemble pressure lost in the JSON transport; strip markdown emphasis from dialogue segments; rerun the arena on Six Strangers only (`--stories six_strangers`) to confirm the fix.
+**Touches:** `backend/app/engine/dialogue.py`, `backend/app/engine/prompt_builder.py`.
+
 ### BL-18 — Gameplay Jev extractor sends `noul` criteria as a list; live API rejects it with HTTP 422 (source: Jev game arena build, 2026-09-23)
 **What:** `engine/extractors/decision_registry.py` builds every `noul` Decision (`knowledge_decision`, speaker nouls, `relationship_history_decision`, ...) with `criteria=[...]` (a list). `JevClient._build_criteria` passes lists through unchanged. Verified live on 2026-09-23: `knowledge_decision("c1", ...)` -> `HTTP 422 ... questions.knows_c1.noul.criteria: Input should be a valid dictionary`. The documented shape (`JEV_EXTRACTOR_REDESIGN_2026_09_22.md` §8) is a `{"true": ..., "false": ...}` map. Consequence: any Jev batch containing one of these questions fails as a whole and the resolver falls back to legacy, so those abilities are never actually Jev-answered on beta (and the failures feed the circuit breaker).
 **Why deferred:** Found while building the evaluation arena; the fix changes live extractor behavior in another agent's in-flight Jev rollout (BL-17), so it needs that owner's decision and its own ship-and-verify pass rather than riding along with the arena commit.

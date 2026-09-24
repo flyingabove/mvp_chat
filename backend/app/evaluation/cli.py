@@ -102,7 +102,12 @@ def build_manifest(args, ids: dict[str, TargetIdentity], caps: dict[str, dict]) 
                 "replicate": p.replicate, "seed": p.seed, "first_side": p.first_side} for p in pairs],
         seed=args.seed,
         window_turns=args.window_turns,
-        budget=Budget(max_game_turns=args.max_game_turns, max_wall_seconds=args.max_wall_seconds).__dict__,
+        budget=Budget(
+            # 0 = exactly enough for every arm's horizon (2 arms per pair); a
+            # fixed default silently starved the last pairs of the first pilot.
+            max_game_turns=args.max_game_turns or 2 * sum(p.scenario.max_player_turns for p in pairs),
+            max_wall_seconds=args.max_wall_seconds,
+        ).__dict__,
         capabilities=caps,
         notes=tuple(notes),
     )
@@ -180,6 +185,13 @@ async def cmd_calibrate(args) -> None:
     say(f"calibration {CALIBRATION_VERSION}: {json.dumps(result['summary'])}")
 
 
+def not_run(pair) -> dict:
+    """A planned pair with no stored judgment is reported, never silently dropped."""
+    return {"pair_id": pair.pair_id, "story_id": pair.scenario.story_id, "scenario_id": pair.scenario.scenario_id,
+            "persona": pair.persona.id, "replicate": pair.replicate, "first_side": pair.first_side,
+            "outcome": "invalid", "reason": "not played or not judged (budget, cancel or judge failure)"}
+
+
 def cmd_report(args) -> dict:
     store = ArtifactStore(args.root, args.experiment_id)
     manifest = store.load_manifest()
@@ -190,7 +202,7 @@ def cmd_report(args) -> dict:
             arm = store.load_arm(p.arm_id(side))
             if arm:
                 arms[arm.arm_id] = arm
-    judgments = [j for j in (store.load_judgment(p.pair_id) for p in pairs) if j]
+    judgments = [store.load_judgment(p.pair_id) or not_run(p) for p in pairs]
     cal_path = store.dir / "calibration.json"
     calibration = json.loads(cal_path.read_text(encoding="utf-8")) if cal_path.exists() else None
     report = build_report(manifest, arms, judgments, DEFAULT_RUBRIC, calibration=calibration)
@@ -216,9 +228,11 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--window-turns", type=int, default=4)
     ap.add_argument("--max-pairs", type=int, default=0)
     ap.add_argument("--seed", type=int, default=20260923)
-    ap.add_argument("--concurrency", type=int, default=4)
+    # Players and both releases' storytellers share provider rate limits (and real
+    # users' capacity); keep paired-arm concurrency low. See design §10.
+    ap.add_argument("--concurrency", type=int, default=2)
     ap.add_argument("--judge-concurrency", type=int, default=4)
-    ap.add_argument("--max-game-turns", type=int, default=600)
+    ap.add_argument("--max-game-turns", type=int, default=0, help="0 = full horizon for every pair")
     ap.add_argument("--max-wall-seconds", type=int, default=5400)
     ap.add_argument("--player-model", default="gpt-4o-mini")
     ap.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)

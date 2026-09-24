@@ -20,6 +20,8 @@ import httpx
 
 from backend.app.evaluation.contracts import ObservedState, TargetIdentity
 
+TRANSIENT_ERROR_MARKERS = ("429", "rate limit", "unavailable right now", "try that again in a moment",
+                           "timed out", "overloaded")
 GAME_END_MARKER = "END GAME YOU WIN"     # emitted by the engine itself (prompt_engine win path)
 DEBUG_TOGGLE = "[D]"                     # player-facing toggle; returns the observational debug box
 
@@ -54,6 +56,11 @@ class TargetAdapter(Protocol):
     async def send(self, session: ArmSession, message: str, request_id: str) -> TurnResult: ...
 
 
+def is_transient(error: str) -> bool:
+    low = error.lower()
+    return any(m in low for m in TRANSIENT_ERROR_MARKERS)
+
+
 def parse_observed(body: dict[str, Any]) -> ObservedState:
     box = body.get("debug_box") or {}
     if not isinstance(box, dict):
@@ -82,12 +89,13 @@ def new_arm_session(experiment_id: str, arm_id: str) -> ArmSession:
 
 class HostedTargetAdapter:
     def __init__(self, label: str, base_url: str, client: httpx.AsyncClient, *,
-                 turn_timeout_s: float = 150.0, max_attempts: int = 3) -> None:
+                 turn_timeout_s: float = 150.0, max_attempts: int = 5, backoff_s: float = 8.0) -> None:
         self.label = label
         self.base_url = base_url.rstrip("/")
         self.client = client
         self.turn_timeout_s = turn_timeout_s
         self.max_attempts = max_attempts
+        self.backoff_s = backoff_s
 
     async def identify(self) -> TargetIdentity:
         r = await self.client.get(f"{self.base_url}/api/health", timeout=30.0)
@@ -139,14 +147,21 @@ class HostedTargetAdapter:
                     if not isinstance(body, dict):
                         return TurnResult(reply="", latency_ms=latency, error="non-object response")
                     if body.get("error"):
-                        return TurnResult(reply="", latency_ms=latency, error=str(body["error"])[:300])
-                    return TurnResult(
-                        reply=str(body.get("reply") or ""),
-                        speaker_ids=parse_speakers(body),
-                        observed=parse_observed(body),
-                        usage=dict(body.get("usage") or {}),
-                        latency_ms=latency,
-                    )
+                        err = str(body["error"])[:300]
+                        # A failed turn never commits state (atomic turn commit) and the
+                        # dedupe token is written only on success, so resending the same
+                        # request_id after an upstream capacity error is safe.
+                        if not (request_id and is_transient(err)):
+                            return TurnResult(reply="", latency_ms=latency, error=err)
+                        last_error = err
+                    else:
+                        return TurnResult(
+                            reply=str(body.get("reply") or ""),
+                            speaker_ids=parse_speakers(body),
+                            observed=parse_observed(body),
+                            usage=dict(body.get("usage") or {}),
+                            latency_ms=latency,
+                        )
             except httpx.TimeoutException:
                 last_error = f"timeout after {self.turn_timeout_s:.0f}s"
             except httpx.HTTPError as exc:
@@ -155,7 +170,7 @@ class HostedTargetAdapter:
             # otherwise a retry could advance the game twice (§10).
             if not request_id or attempt == self.max_attempts:
                 break
-            await asyncio.sleep(2.0 * attempt)
+            await asyncio.sleep(self.backoff_s * (2 ** (attempt - 1)))
         return TurnResult(reply="", error=last_error or "request failed")
 
     async def start(self, session: ArmSession, story_id: str, gender: str, player_name: str) -> TurnResult:
