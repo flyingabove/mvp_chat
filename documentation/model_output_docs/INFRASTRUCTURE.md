@@ -75,9 +75,7 @@ python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-coll
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID | `123...apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret | `GOCSPX-...` |
 | `JWT_SECRET` | HS256 signing key for JWTs (365-day expiry) | 32+ char random hex |
-| `DEBUG_TOOLS_ENABLED` + `OPERATOR_TOKEN` | Unlock operator-only routes, incl. arena runs (`/api/eval/runs`); fail closed when unset | `true` + long random token (beta only) |
-| `ARENA_BETA_URL` / `ARENA_PROD_URL` | Arena run targets (defaults: this service's `RAILWAY_PUBLIC_DOMAIN`, `https://storieschat.ai`) | (unset) |
-| `ARENA_PLAYER_MODEL` / `ARENA_LLM_MODEL` | Arena player agent / LLM judge model | (unset = `gpt-4o-mini`) |
+| `DEBUG_TOOLS_ENABLED` + `OPERATOR_TOKEN` | Unlock operator-only debug/authoring routes; fail closed when unset. Not needed for the game arena (local-only). | (unset on beta and prod) |
 
 ### Storage path detection (in code)
 ```python

@@ -8,13 +8,23 @@ user-invocable: true
 
 Production is sacred (CLAUDE.md §8). This skill is the only way beta reaches
 `prod`: the user must have **explicitly** asked for a promotion in this
-conversation. Everything here reuses the arena in `backend/app/evaluation/`
-(design: `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md` §13-14).
-All commands run from the repo root with the conda env:
+conversation. Design: `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md` §13-14.
+
+**Everything evaluation-related lives in this folder and runs only on this
+machine** (owner decision 2026-09-24) - it is never deployed and never runs
+on deploy:
+
+| Path | What |
+| --- | --- |
+| `arena/` | the arena package (players, targets, judges, gate, report, offline launcher, release helpers) |
+| `arena_cli.py` | entry point; works from any directory |
+| `tests/` | its tests - outside the repo's `tests/`, so the Docker build gate never runs them |
+| `data/eval_arena/` (repo root) | run artifacts (gitignored) |
 
 ```bash
 PY=C:/Users/Christian/miniconda3/envs/storieschat/python.exe
-ARENA="env PYTHONPATH=. PYTHONIOENCODING=utf-8 $PY -m scripts.eval.arena"
+ARENA="env PYTHONIOENCODING=utf-8 $PY .claude/skills/promote-to-prod/arena_cli.py"
+$PY -m pytest .claude/skills/promote-to-prod/tests -q      # the skill's own tests
 ```
 
 ## Vocabulary
@@ -140,6 +150,6 @@ fails or smoke fails: tell the user immediately with the output; never
    LLM decision client fails closed on detected prompt truncation.
 5. **prod env has no JEV_* flags**: Jev paths stay off in production even
    though the code ships; that is expected.
-6. **Railway runs**: `$ARENA kickoff/status` work only after the owner sets
-   `DEBUG_TOOLS_ENABLED=true` + `OPERATOR_TOKEN` on beta (BACKLOG BL-21);
-   local runs from this machine are the default.
+6. **Local only.** There are no service-side arena endpoints (removed by
+   owner decision; BACKLOG BL-21 withdrawn). Never add evaluation to the
+   Dockerfile, CI, or app startup - a gate run costs real API spend.
