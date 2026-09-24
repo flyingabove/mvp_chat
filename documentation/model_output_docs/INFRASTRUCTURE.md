@@ -60,7 +60,8 @@ python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-coll
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `OPENAI_API_KEY` | Cloud LLM API key | `sk-...` |
-| `OPENAI_MODEL` | Default cloud model | `gpt-4o` |
+| `OPENAI_MODEL` | Model for extractors/translation (honored since 2026-09-24; previously hardcoded) | (unset = `gpt-4o-mini`) |
+| `OPENAI_BASE_URL` | Base URL for extractor/translation calls; arena offline mode points it at Ollama | (unset = `https://api.openai.com/v1`) |
 | `STORY_MASTER_BASE_URL` | Override story master API base | (unset = OpenAI) |
 | `STORY_MASTER_MODEL` | Override story master model | (unset = OPENAI_MODEL) |
 | `STORY_MASTER_API_KEY` | Override story master key | (unset = OPENAI_API_KEY) |
@@ -74,6 +75,9 @@ python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-coll
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID | `123...apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret | `GOCSPX-...` |
 | `JWT_SECRET` | HS256 signing key for JWTs (365-day expiry) | 32+ char random hex |
+| `DEBUG_TOOLS_ENABLED` + `OPERATOR_TOKEN` | Unlock operator-only routes, incl. arena runs (`/api/eval/runs`); fail closed when unset | `true` + long random token (beta only) |
+| `ARENA_BETA_URL` / `ARENA_PROD_URL` | Arena run targets (defaults: this service's `RAILWAY_PUBLIC_DOMAIN`, `https://storieschat.ai`) | (unset) |
+| `ARENA_PLAYER_MODEL` / `ARENA_LLM_MODEL` | Arena player agent / LLM judge model | (unset = `gpt-4o-mini`) |
 
 ### Storage path detection (in code)
 ```python

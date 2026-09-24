@@ -26,7 +26,8 @@ def transport(answer_fn, seen=None):
         answers = answer_fn(questions, body["messages"][1]["content"])
         return httpx.Response(200, json={"model": "gpt-4o-mini-2024-07-18",
                                          "choices": [{"message": {"content": json.dumps({"answers": answers})}}],
-                                         "usage": {"prompt_tokens": 1200, "completion_tokens": 300}})
+                                         "usage": {"prompt_tokens": len(request.content) // 4,
+                                                   "completion_tokens": 300}})
     return httpx.MockTransport(handler)
 
 
@@ -62,7 +63,7 @@ async def test_one_request_per_batch_in_json_mode_with_all_questions():
             batch(), timeout_ms=1000)
     assert len(seen) == 1 and seen[0]["response_format"] == {"type": "json_object"}
     assert set(result.answers) == {d.id for d in batch().decisions}
-    assert result.usage == {"input_tokens": 1200, "output_tokens": 300}
+    assert result.usage["output_tokens"] == 300 and result.usage["input_tokens"] > 1000
 
 
 @pytest.mark.asyncio
@@ -105,3 +106,27 @@ async def test_reuses_the_jev_judge_end_to_end_including_order_swap():
                                judge, DEFAULT_RUBRIC, 8)
     assert all(not c.error for c in res.calls) and len(res.calls) == 2
     assert {v["value"] for v in res.windows[0]["dimensions"].values()} == {1.0}
+
+
+@pytest.mark.asyncio
+async def test_provider_side_prompt_truncation_fails_closed():
+    """Ollama's default 2k context silently truncated a ~9.8k-token judge
+    prompt (2026-09-24); such an answer must never be scored."""
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({"answers": {}})}}],
+                                         "usage": {"prompt_tokens": 2050, "completion_tokens": 10}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        with pytest.raises(ProviderMalformedResponseError, match="truncated"):
+            await LLMDecisionClient(c, base_url="http://x/v1", api_key="k", model="m").ask(batch(), timeout_ms=1000)
+
+
+@pytest.mark.asyncio
+async def test_answers_without_the_wrapper_object_are_accepted():
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(
+            {"cmp_canon": {"choice": "A", "confidence": 0.7}})}}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        result = await LLMDecisionClient(c, base_url="http://x/v1", api_key="k", model="m").ask(batch(), timeout_ms=1000)
+    assert result.answers["cmp_canon"].choice == "A"

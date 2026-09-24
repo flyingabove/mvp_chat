@@ -268,3 +268,19 @@ Deviations from the proposal, with reasons:
 * Game end is detected from the engine-emitted `END GAME YOU WIN` marker, never from judge/model reading prose.
 * **Provider capacity is shared.** The player agent and both releases' storytellers use the same OpenAI organization as real players. The first pilot (concurrency 5 = 10 simultaneous arms) exhausted the gpt-4o-mini rate limit within 40 s: 49 player failures, 31 target failures, zero scorable episodes, and real users on beta/prod could see errors meanwhile. Defaults are now `--concurrency 2`; the player retries 429/5xx with backoff (honoring `Retry-After`); a game turn whose error is transient (`TRANSIENT_ERROR_MARKERS`) is resent with the same `request_id` (safe: failed turns never commit state and the BL-02 dedupe token is written only on success). A dedicated evaluation API key/org would remove the contention entirely.
 * Found by the arena and fixed on beta: NPCs speaking the player's own line (`engine/dialogue.py` `drop_player_echo`). Also observed: prod shows players raw upstream error JSON on 429s; beta already returns a sanitized message.
+
+## 14. Running it: three modes, two judges, one gate (2026-09-24)
+
+All modes call `backend/app/evaluation/service.py` `run_experiment()`; games are **played once and judged by every configured judge**, so a second judge adds only judge calls.
+
+| Mode | Where it runs | Command | Judges |
+| --- | --- | --- | --- |
+| Hosted | this machine plays hosted beta vs prod | `python -m scripts.eval.arena all --profile gate` | `jev`, `llm` (OpenAI) |
+| Railway | the beta service runs it itself, results on `/data/eval_arena` | `python -m scripts.eval.arena kickoff --profile gate` then `status --experiment-id <id>`; report at `GET /api/eval/runs/<id>/report?operator_token=...` | `jev`, `llm` |
+| Offline | two local uvicorn servers (checkout vs `--baseline-ref`, default `origin/prod`) on Ollama | `python -m scripts.eval.arena local --ollama-model llama3.1:8b` | `llm` (Ollama); Jev is cloud-only |
+
+* **Never mandatory.** Nothing runs on deploy or in the Docker build; runs are opt-in. Railway runs need `DEBUG_TOOLS_ENABLED=true` + `OPERATOR_TOKEN` on beta (operator routes fail closed otherwise), one run at a time, refused on the prod service. A redeploy mid-run marks it `interrupted`; start a new experiment id (the pinned release is gone).
+* **LLM judge** = `llm/providers/llm_decisions.py` `LLMDecisionClient`: same `ask(batch)` contract as `JevClient`, one JSON request per batch, so `JevPairwiseJudge`, fail-closed validation, order swap, aggregation and report are reused unchanged. It judges each episode in one window (2 calls per pair). Its choice "distribution" is synthesized from stated confidence and is not calibrated.
+* **Release gate** (`aggregate.release_gate`, in every report and `gate.json`): for **every game**, beta's match score must exceed 50% under **at least one judge**, and no critical regression may exist under any judge. Point-estimate rule by design for the cheap `gate` profile; read the per-judge intervals for firmness.
+* **API budget by profile** (`suite.PROFILES`): `smoke` 2 pairs x 3 turns; `gate` 12 pairs x 6 turns (~144 game turns + 144 player calls, 24 Jev + 24 LLM judge calls); `pilot` 40 pairs x 8 turns. `--concurrency` defaults to 2 because players and storytellers share the provider's rate limits with real users.
+* **Offline safety.** `local_release.py` routes `OPENAI_BASE_URL`/`OPENAI_MODEL` and `STORY_MASTER_*` to Ollama, disables Jev, gives each release its own knowledge cache and a synthetic `RAILWAY_DEPLOYMENT_ID` pin, and refuses any ref that predates `OPENAI_BASE_URL` routing (its extractors would silently call OpenAI). Quality numbers from an 8B local model are for plumbing and regression smoke, not release decisions.

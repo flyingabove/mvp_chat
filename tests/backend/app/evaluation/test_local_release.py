@@ -48,3 +48,9 @@ def test_ref_release_uses_a_git_worktree(tmp_path):
     directory = rel.prepare()
     assert directory != repo and (directory / "backend" / "app" / "config" / "settings.py").exists()
     subprocess.run(["git", "worktree", "remove", "--force", str(directory)], cwd=repo, check=True)
+
+
+def test_context_model_name_is_stable_and_ollama_safe():
+    from backend.app.evaluation.local_release import context_model_name
+
+    assert context_model_name("llama3.1:8b") == "llama3.1-8b-ctx16k"

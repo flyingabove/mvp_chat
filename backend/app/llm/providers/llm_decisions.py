@@ -112,7 +112,18 @@ class LLMDecisionClient:
             content = str(result.body["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError) as exc:
             raise ProviderMalformedResponseError(f"no message content: {exc}") from exc
-        answers_raw = parse_json_object(content).get("answers") or {}
+        prompt_tokens = int(result.usage.get("prompt_tokens") or 0)
+        estimated = (len(SYSTEM) + len(user)) // 4
+        if prompt_tokens and prompt_tokens < estimated // 2:
+            # e.g. Ollama's default 2k context silently drops most of the
+            # prompt; a judgment on a truncated prompt must never count.
+            raise ProviderMalformedResponseError(
+                f"prompt truncated by the provider ({prompt_tokens} of ~{estimated} tokens); raise the context size")
+        parsed = parse_json_object(content)
+        answers_raw = parsed.get("answers")
+        if not isinstance(answers_raw, dict):
+            # some local models drop the wrapper and answer at the top level
+            answers_raw = {k: v for k, v in parsed.items() if isinstance(v, dict)}
         answers = {}
         for d in batch.decisions:
             mapped = to_raw_answer(d, answers_raw.get(d.id))

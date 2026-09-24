@@ -214,6 +214,7 @@ async def test_transient_error_without_request_id_is_never_resent():
 def test_transient_classifier():
     assert is_transient("upstream HTTP 429: Rate limit reached for gpt-4o-mini")
     assert is_transient("The story master is unavailable right now. Please try that again in a moment.")
+    assert is_transient("The scene response was incomplete. Please try again.")
     assert not is_transient("story not found: x")
 
 

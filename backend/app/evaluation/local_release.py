@@ -133,6 +133,32 @@ class LocalRelease:
                 self.process.kill()
 
 
+ARENA_NUM_CTX = 16384
+
+
+def context_model_name(base_model: str, num_ctx: int = ARENA_NUM_CTX) -> str:
+    return f"{base_model.replace(':', '-')}-ctx{num_ctx // 1024}k"
+
+
+async def ensure_context_model(base_model: str, base_url: str = OLLAMA_V1, num_ctx: int = ARENA_NUM_CTX) -> str:
+    """Ollama serves every model with a 2k context unless told otherwise and
+    SILENTLY truncates longer prompts (measured 2026-09-24: a ~9.8k-token
+    judge prompt arrived as 2,050 tokens; storyteller prompts are ~10k).
+    Create (once) a derived model with a larger num_ctx and use it for the
+    game servers, the player and the judge."""
+    name = context_model_name(base_model, num_ctx)
+    native = base_url.removesuffix("/v1")
+    if name in await ollama_models(base_url) or f"{name}:latest" in await ollama_models(base_url):
+        return name
+    async with httpx.AsyncClient() as client:
+        r = await client.post(f"{native}/api/create", json={
+            "model": name, "from": base_model, "parameters": {"num_ctx": num_ctx}, "stream": False,
+        }, timeout=600.0)
+        if r.status_code >= 400:
+            raise RuntimeError(f"could not create {name} from {base_model}: HTTP {r.status_code} {r.text[:200]}")
+    return name
+
+
 async def ollama_models(base_url: str = OLLAMA_V1) -> list[str]:
     try:
         async with httpx.AsyncClient() as client:

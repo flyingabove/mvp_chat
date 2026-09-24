@@ -172,7 +172,9 @@ def build_report(manifest: ExperimentManifest, arms: Mapping[str, ArmTranscript]
         "reliability": reliability,
         "cost": {
             "judge_input_tokens": judge_tokens,
-            "judge_usd_estimate": round(estimate_cost_usd(manifest.judge_model, {"input_tokens": judge_tokens}), 4),
+            # None for unpriced (e.g. local Ollama) models
+            "judge_usd_estimate": (lambda c: round(c, 4) if c is not None else None)(
+                estimate_cost_usd(manifest.judge_model, {"input_tokens": judge_tokens})),
             "player_tokens": player_tokens,
         },
         "calibration": calibration,
@@ -333,7 +335,8 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *,
                          "".join(f"<span class=chip>{esc(a)} {b}</span>" for a, b in v["statuses"].items()) + "</td></tr>"
                          for k, v in rel.items()) +
                  f"</table><p class=muted>Judge input tokens {report['cost']['judge_input_tokens']:,} "
-                 f"(~${report['cost']['judge_usd_estimate']}) · player tokens {report['cost']['player_tokens']:,}</p>"
+                 f"(~${report['cost']['judge_usd_estimate'] if report['cost']['judge_usd_estimate'] is not None else 'n/a'}) "
+                 f"· player tokens {report['cost']['player_tokens']:,}</p>"
                  "<table><tr><th>Deterministic check</th><th class=beta>beta</th><th class=prod>prod</th></tr>" +
                  "".join(f"<tr><td>{esc(k)}</td><td>{v[BETA]}</td><td>{v[PROD]}</td></tr>" for k, v in sorted(report["checks"].items())) +
                  "</table></div>")

@@ -30,7 +30,7 @@ from pathlib import Path
 import httpx
 
 from backend.app.evaluation.contracts import BETA, PROD
-from backend.app.evaluation.local_release import OLLAMA_V1, LocalRelease, ollama_models
+from backend.app.evaluation.local_release import OLLAMA_V1, LocalRelease, ensure_context_model, ollama_models
 from backend.app.evaluation.players import PERSONAS
 from backend.app.evaluation.service import (
     OPENAI_V1, STAGES, ArenaConfig, ModelEndpoint, judge_specs, run_experiment,
@@ -69,10 +69,12 @@ async def run_local(args) -> None:
     if args.ollama_model not in models:
         raise SystemExit(f"Ollama model {args.ollama_model!r} not available at {args.ollama_url} "
                          f"(have: {', '.join(models) or 'none - is `ollama serve` running?'})")
+    model = await ensure_context_model(args.ollama_model, args.ollama_url)
+    say(f"ollama model {model} (from {args.ollama_model}, larger context)")
     work = args.root / "_local"
     releases = [
-        LocalRelease(BETA, args.candidate_ref, args.beta_port, REPO, work, args.ollama_model, args.ollama_url),
-        LocalRelease(PROD, args.baseline_ref, args.prod_port, REPO, work, args.ollama_model, args.ollama_url),
+        LocalRelease(BETA, args.candidate_ref, args.beta_port, REPO, work, model, args.ollama_url),
+        LocalRelease(PROD, args.baseline_ref, args.prod_port, REPO, work, model, args.ollama_url),
     ]
     for rel in releases:
         rel.prepare()
@@ -81,7 +83,7 @@ async def run_local(args) -> None:
         for rel in releases:
             rel.start()
         await asyncio.gather(*(rel.wait_healthy() for rel in releases))
-        endpoint = ModelEndpoint(args.ollama_url, "ollama", args.ollama_model)
+        endpoint = ModelEndpoint(args.ollama_url, "ollama", model)
         turns = args.turns or PROFILES[args.profile]["turns"]
         cfg = ArenaConfig(
             experiment_id=args.experiment_id, root=args.root, beta_url=releases[0].url, prod_url=releases[1].url,
@@ -90,7 +92,7 @@ async def run_local(args) -> None:
             turns=args.turns, max_pairs=args.max_pairs, seed=args.seed, concurrency=1, judge_concurrency=1,
             max_wall_seconds=args.max_wall_seconds, calibration_arms=args.calibration_arms,
             mode="local_offline", target_timeout_s=600.0,
-            extra_notes=(f"offline: both releases served locally on Ollama {args.ollama_model}; "
+            extra_notes=(f"offline: both releases served locally on Ollama {model}; "
                          "no Jev judge (cloud); quality numbers reflect the local model, not production",),
         )
         await run_experiment(cfg, say, stages=STAGES if args.calibration_arms else ("play", "judge", "report"))
