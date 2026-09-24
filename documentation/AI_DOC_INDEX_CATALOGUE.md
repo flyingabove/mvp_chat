@@ -28,6 +28,11 @@
 
 ## Epistemic & Memory Systems
 
+The proposed shared Jev retrieval, weighted sampling and subtle narrative-context
+system is documented in [JEV_DYNAMIC_CONTEXT_DESIGN.md](model_output_docs/JEV_DYNAMIC_CONTEXT_DESIGN.md).
+Update it when candidate selection, callback/clue pacing, probability sampling,
+or the cross-game context implementation plan changes. Status: design only.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [EPISTEMIC_ENGINE_DESIGN.md](model_output_docs/EPISTEMIC_ENGINE_DESIGN.md) | ...knowledge retrieval, belief injection, or epistemic rules change. |
