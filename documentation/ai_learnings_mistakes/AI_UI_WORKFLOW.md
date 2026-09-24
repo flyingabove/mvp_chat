@@ -3,16 +3,27 @@ UI WORKFLOW & FRONTEND ARCHITECTURE
 
 > **What this doc is for:** Frontend development workflow and architecture patterns. Edit this doc when frontend architecture, build process, or UI patterns change.
 
-⚠️ UPDATED 2026-03-07: The frontend was FULLY REDESIGNED.
-See `documentation/model_output_docs/UI_REDESIGN_2026.md` for the complete
-new design spec (screens, CSS system, localStorage schema, PWA setup).
+Current as of 2026-09-24: `frontend/index.html` remains the SPA shell, with
+`frontend/dialogue.js`, `dialogue.css`, `world-map.js` and `world-map.css` for
+major components. FastAPI serves content-addressed JS/CSS URLs. Shell and
+worker revisions are derived from file contents in `backend/app/main.py`;
+there is no manual `version.json` bump. See
+`documentation/model_output_docs/UI_REDESIGN_2026.md` for current behavior.
 
-The new frontend is STILL a single file (frontend/index.html) — IIFE, no build step.
-The terminal/text UI described below is the LEGACY architecture — preserved here
-only as historical reference and for understanding the original API contracts.
+For UI development, follow `.claude/skills/ship-and-verify/SKILL.md` and its
+`BROWSER_QA.md`. Run `scripts/verify_ui_browser.py` in real desktop Chromium,
+iPhone 13 WebKit and simulated standalone WebKit, then click through the changed
+feature with a task-specific Playwright flow. Run locally before committing
+and against hosted beta after its health endpoint reports the pushed commit.
+Inspect screenshots, console errors, API request hosts and mobile top/bottom
+safe areas. `scripts/verify_mobile_pwa_browser.py` is an executable example.
+
+The sections below are a March 2026 architecture snapshot. Some selectors,
+screens and legacy commands have since changed; inspect current source before
+using those details as implementation guidance.
 
 ════════════════════════════════════════════════════════════════
-NEW UI ARCHITECTURE (2026 — Current)
+MARCH 2026 UI ARCHITECTURE SNAPSHOT (HISTORICAL)
 ════════════════════════════════════════════════════════════════
 
 SCREENS (SPA routing via showScreen(name)):
@@ -323,8 +334,8 @@ CRITICAL GOTCHAS FOR AI EDITORS
 6. awaitingResponse is the ONLY mutex for input. If a code path fails
    to set it back to false, the UI permanently locks up.
 
-7. version.json must be bumped when frontend assets change. The frontend
-   fetches it to bust cache and display version in the header.
+7. Historical note only: version.json no longer needs a manual bump.
+   `backend/app/main.py` fingerprints the shell and serves hashed assets.
 
 8. The typewrite() Promise chain is critical. The done() callback
    MUST be called after typewriter finishes, or input never unlocks.

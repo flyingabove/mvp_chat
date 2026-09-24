@@ -81,3 +81,10 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [x] Hosted beta: desktop Chromium, iPhone WebKit and simulated standalone browser flows passed with API calls to `beta-api.storieschat.ai`; screenshots inspected for map, chat, swipe delete and bottom navigation. Live HTML/worker are no-store with matching shell revision `5ff480e89e359392`; beta manifest starts at `/beta/`.
 
 - Local evidence: real Chromium + iPhone WebKit + simulated standalone interaction/screenshot passes; old-worker upgrade passed Chromium/WebKit; 9 Node tests; full pytest 1096 passed / 1 expected failure before final integration.
+
+### 2026-09-24 Claude browser QA skill refresh
+
+- [x] Pull current beta and inspect the existing Claude skill, browser scripts and current test workflow.
+- [x] Replace stale viewport-only and missing-JS-harness guidance with real Chromium/WebKit/standalone commands and evidence checks.
+- [x] Improve the reusable browser verification script and document how Claude adapts it for future UI changes.
+- [x] Validate the skill, script and relevant tests; integrate latest beta; commit and push the documentation/code to beta; verify remote files. Local checks: 1139 pytest passed / 1 expected failure; 9 Node tests; Chromium, iPhone WebKit and simulated standalone baseline and deterministic UI flows passed. Real chat reply currently returns `story master is unavailable`.

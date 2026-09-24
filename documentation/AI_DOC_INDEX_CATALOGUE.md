@@ -77,7 +77,7 @@ Update that document when map metadata, coordinates, routes or map UI behavior c
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [UI_REDESIGN_2026.md](model_output_docs/UI_REDESIGN_2026.md) | ...UI screens, components, CSS system, or navigation changes. **Full 2026 design spec.** |
-| [AI_UI_WORKFLOW.md](ai_learnings_mistakes/AI_UI_WORKFLOW.md) | ...frontend architecture, build process, or UI development patterns change. |
+| [AI_UI_WORKFLOW.md](ai_learnings_mistakes/AI_UI_WORKFLOW.md) | ...frontend architecture, build process, or UI development patterns change. Its older UI inventory is historical; use `.claude/skills/ship-and-verify/BROWSER_QA.md` for current browser QA. |
 | [AI_CREATE_NEW_FLAG.md](ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md) | ...adding a new bracket command or game mode flag to the chat system. |
 
 ## Scorer / Debug System

@@ -2,6 +2,7 @@
 import argparse
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
 
 
@@ -9,20 +10,29 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--url', default='http://127.0.0.1:8899/')
     parser.add_argument('--output', required=True)
+    parser.add_argument('--expected-api-host', help='Require every API request to use this host')
+    parser.add_argument('--mode', choices=('all', 'desktop', 'iphone', 'standalone'), default='all')
+    parser.add_argument('--mock-chat-reply', action='store_true',
+                        help='Exercise UI with a deterministic reply if the external story model is unavailable')
     args = parser.parse_args()
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
-        for mode in ('desktop', 'iphone', 'standalone'):
+        modes = ('desktop', 'iphone', 'standalone') if args.mode == 'all' else (args.mode,)
+        for mode in modes:
             browser = (p.chromium if mode == 'desktop' else p.webkit).launch()
-            context = browser.new_context(**({'viewport': {'width': 1440, 'height': 1000}} if mode == 'desktop' else p.devices['iPhone 13']))
+            device = {'viewport': {'width': 1440, 'height': 1000}} if mode == 'desktop' else p.devices['iPhone 13']
+            context = browser.new_context(**device, service_workers='block' if args.mock_chat_reply else 'allow')
             context.add_init_script("localStorage.setItem('storieschat_ios_install_dismissed','1');")
             if mode == 'standalone':
                 context.add_init_script("Object.defineProperty(navigator, 'standalone', {value:true});")
             page = context.new_page()
-            errors, hosts = [], set()
+            errors, hosts, failed_api, http_api_errors = [], set(), [], []
             page.on('pageerror', lambda e: errors.append(str(e)))
-            page.on('request', lambda r: hosts.add(r.url.split('/')[2]) if '/api/' in r.url else None)
+            page.on('console', lambda message: errors.append('console: ' + message.text) if message.type == 'error' else None)
+            page.on('request', lambda r: hosts.add(urlsplit(r.url).netloc) if '/api/' in urlsplit(r.url).path else None)
+            page.on('requestfailed', lambda r: failed_api.append(urlsplit(r.url).path) if '/api/' in urlsplit(r.url).path else None)
+            page.on('response', lambda r: http_api_errors.append({'path': urlsplit(r.url).path, 'status': r.status}) if '/api/' in urlsplit(r.url).path and r.status >= 400 else None)
             try:
                 page.goto(args.url, wait_until='networkidle')
                 page.locator('#home-guest-pill').click()
@@ -57,19 +67,38 @@ def main():
                 assert 'Relax on the sofas' in page.locator('.atlas-detail').inner_text()
                 assert 'scene_derived' not in page.locator('.atlas-host').inner_text()
                 page.locator('#map-modal-close').click()
+                if args.mock_chat_reply:
+                    scripted = {
+                        'reply': 'Two housemates greet you.\n\nMizuki Shida: Welcome home!\n\nMakoto Hasegawa: Hey, good to meet you.',
+                        'segments': [
+                            {'kind': 'narration', 'text': 'Two housemates greet you.'},
+                            {'kind': 'dialogue', 'speaker_id': 'mizuki', 'speaker_name': 'Mizuki Shida',
+                             'portrait_url': '/img/characters/Mizuki_Shida.png', 'text': 'Welcome home!'},
+                            {'kind': 'dialogue', 'speaker_id': 'makoto', 'speaker_name': 'Makoto Hasegawa',
+                             'portrait_url': '/img/characters/Makoto_Hasegawa.png', 'text': 'Hey, good to meet you.'},
+                        ],
+                        'character': 'default', 'usage': {'total_tokens': 0},
+                    }
+                    page.route('**/api/chat', lambda route: route.fulfill(
+                        status=200, content_type='application/json',
+                        body=json.dumps(scripted, ensure_ascii=False)))
                 page.locator('#chat-text-input').fill('I introduce myself and ask two housemates to tell me their names and say hello.')
                 prior = page.locator('#chat-messages .msg-bubble.npc').count()
                 with page.expect_response(lambda r: '/api/chat' in r.url, timeout=180000) as chat_response:
                     page.locator('#chat-send-btn').click()
+                response = chat_response.value
+                payload = response.json()
+                (output / f'{mode}-reply.json').write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
+                assert response.ok and payload.get('reply'), {'status': response.status, 'payload': payload}
                 page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)
-                page.wait_for_function('(n)=>document.querySelectorAll("#chat-messages .msg-bubble.npc").length>n', arg=prior)
+                page.wait_for_function('(n)=>document.querySelectorAll("#chat-messages .msg-bubble.npc").length>n', arg=prior, timeout=120000)
                 page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)
-                (output / f'{mode}-reply.json').write_text(json.dumps(chat_response.value.json(), ensure_ascii=False), encoding='utf-8')
                 assert page.locator('#chat-messages .msg-bubble.npc').last.locator('.scene-speech').count() >= 1
                 portrait = page.locator('#chat-messages .msg-bubble.npc').last.locator('.scene-speech .speaker-portrait:has(img)').first
                 portrait.click()
                 assert page.locator('#portrait-viewer').evaluate('(e)=>e.open')
                 assert page.locator('#portrait-viewer .portrait-full img').count() == 1
+                page.screenshot(path=str(output / f'{mode}-portrait.png'))
                 page.locator('#portrait-viewer .portrait-close').click()
                 page.locator('#chat-messages').evaluate('(e)=>e.scrollTop=e.scrollHeight')
                 page.screenshot(path=str(output / f'{mode}-chat.png'))
@@ -102,7 +131,14 @@ def main():
                 assert 'storieschat-old-test' not in page.evaluate('async()=>await caches.keys()')
                 assert page.evaluate("localStorage.getItem('storieschat-reset-test')") is None
                 assert not errors, errors
-                print(json.dumps({'mode':mode,'result':'passed','api_hosts':sorted(hosts)}), flush=True)
+                assert not failed_api, failed_api
+                assert not http_api_errors, http_api_errors
+                if args.expected_api_host:
+                    assert hosts == {args.expected_api_host}, hosts
+                print(json.dumps({'mode':mode,'result':'passed','api_hosts':sorted(hosts),
+                    'mock_chat_reply':args.mock_chat_reply,
+                    'page_or_console_errors':errors,'failed_api_requests':failed_api,
+                    'http_api_errors':http_api_errors}), flush=True)
             except Exception:
                 page.screenshot(path=str(output / f'{mode}-failure.png'))
                 print(json.dumps({'mode':mode,'errors':errors,'url':page.url}), flush=True)
