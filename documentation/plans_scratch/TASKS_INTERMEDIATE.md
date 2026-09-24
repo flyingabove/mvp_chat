@@ -4,11 +4,6 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
-### Ship Jev design and persist beta completion rule (2026-09-23)
-
-- [x] Add standing end-of-task beta shipping instructions and record the correction.
-- [ ] Integrate latest beta, check documentation changes, commit, push and verify remote inclusion.
-
 ### Terrace in the City mobile/PWA and six-resident correctness
 
 - [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
@@ -30,6 +25,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
+
+- 2026-09-23: Pushed Jev arena design `181d618` and persistent beta completion instruction `82123ad` to `origin/beta`. Fetched the remote and verified design ancestry, document presence and the AGENTS.md rule. Documentation checks passed; no runtime code changes or runtime QA claimed.
 
 - 2026-09-23: Completed Jev game arena research/design against beta `3ffecea` on `codex/jev-game-evaluation-design`. Added `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md` and indexed it. Specifies paired adaptive games, response forks, complete world evidence, calibrated Jev judgments, independent correctness gates, Elo-equivalent intervals, costs and implementation acceptance criteria. Documentation only; no runtime implementation, paid model runs or deployment. Validation: source/API schema review, repository integration-path checks and `git diff --check`.
 
