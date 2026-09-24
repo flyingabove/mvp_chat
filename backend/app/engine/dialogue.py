@@ -15,7 +15,7 @@ MARKER = re.compile(r"\[SPEAKER:([^\]\n]+)\]|\[/SPEAKER\]", re.I)
 
 
 def dialogue_prompt(state) -> str:
-    cast = {key: ch.name for key, ch in (state.characters or {}).items()}
+    cast = {key: ch.name for key, ch in (state.characters or {}).items() if key != "player"}
     return (
         "\n\n[SPEAKER PRESENTATION CONTRACT]\n"
         "Return the JSON object required by the response schema. Its segments array "
@@ -48,7 +48,7 @@ def dialogue_prompt(state) -> str:
 
 def dialogue_response_format(state) -> dict:
     """Constrain speaker IDs and require an ordered scene on the generation call."""
-    ids = list((getattr(state, "characters", {}) or {}).keys())
+    ids = [key for key in (getattr(state, "characters", {}) or {}) if key != "player"]
     return {"type": "json_schema", "json_schema": {
         "name": "story_scene", "strict": True,
         "schema": {"type": "object", "additionalProperties": False,
@@ -104,7 +104,8 @@ def _explicit_speaker_parts(text: str, state) -> list[tuple[str, str | None]]:
     """
     characters = getattr(state, "characters", {}) or {}
     names = sorted(
-        ((str(ch.name).strip(), key) for key, ch in characters.items() if str(ch.name).strip()),
+        ((str(ch.name).strip(), key) for key, ch in characters.items()
+         if key != "player" and str(ch.name).strip()),
         key=lambda item: len(item[0]),
         reverse=True,
     )
@@ -148,6 +149,8 @@ def decode_dialogue_response(raw: str, state=None) -> str:
         text = MARKER.sub("", segment["text"])
         text = re.sub(r"\[\[STATE\]\].*?(?:\[\[/STATE\]\]|$)", "", text, flags=re.S)
         if segment.get("kind") == "dialogue":
+            if segment.get("speaker_id") == "player":
+                continue
             text = clean_spoken_text(text)
             speaker = segment.get("speaker_id") or "unknown"
             if not isinstance(speaker, str) or not re.fullmatch(r"[\w.-]+", speaker):

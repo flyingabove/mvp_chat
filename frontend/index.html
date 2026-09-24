@@ -1080,6 +1080,7 @@
       object-fit: contain;
       transition: transform 0.1s ease-out;
       cursor: grab;
+      touch-action: none;
     }
     .map-image.dragging { cursor: grabbing; }
     .map-image.pannable { cursor: grab; }
@@ -2735,7 +2736,7 @@ function addMessage(role, text, options){
     var playerName = (appState.session && appState.session.player_name) || appState.onboardName || "You";
     var playerLabel = document.createElement("div");
     playerLabel.className = "speaker-name";
-    playerLabel.textContent = playerName;
+    playerLabel.textContent = "You · " + playerName;
     bubble.insertBefore(playerLabel, bubble.firstChild);
     var playerPortrait = dialoguePresentation.portraitButton(playerName, getCharacterAvatarSrc("persona", playerName), true);
     playerPortrait.classList.add("user-avatar");
@@ -3137,13 +3138,34 @@ function setupMapInteraction(){
   var startX, startY, initialX, initialY;
   var scale = 1;
   var translateX = 0, translateY = 0;
+  var pinchDistance = 0;
+
+  function touchDistance(touches){
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  function zoomAt(x, y, nextScale){
+    nextScale = Math.max(1, Math.min(4, nextScale));
+    var factor = nextScale / scale;
+    var bounds = container.getBoundingClientRect();
+    var offsetX = x - bounds.left - bounds.width / 2;
+    var offsetY = y - bounds.top - bounds.height / 2;
+    translateX = offsetX - (offsetX - translateX) * factor;
+    translateY = offsetY - (offsetY - translateY) * factor;
+    scale = nextScale;
+    if (scale === 1) { translateX = 0; translateY = 0; }
+    imgEl.classList.toggle("pannable", scale > 1);
+    updateTransform();
+  }
 
   function updateTransform(){
     imgEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
   }
 
   imgEl._resetMap = function(){ scale = 1; translateX = 0; translateY = 0; updateTransform(); };
-  imgEl.addEventListener("dblclick", function(){ scale = scale === 1 ? 2 : 1; imgEl.classList.toggle("pannable", scale > 1); updateTransform(); });
+  imgEl.addEventListener("dblclick", function(e){ zoomAt(e.clientX, e.clientY, scale === 1 ? 2 : 1); });
 
   // Pan functionality
   imgEl.addEventListener("mousedown", function(e){
@@ -3176,6 +3198,12 @@ function setupMapInteraction(){
 
   // Touch events for mobile
   imgEl.addEventListener("touchstart", function(e){
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      isDragging = false;
+      pinchDistance = touchDistance(e.touches);
+      return;
+    }
     if (!imgEl.classList.contains("pannable") || e.touches.length !== 1) return;
     e.preventDefault();
     isDragging = true;
@@ -3188,6 +3216,17 @@ function setupMapInteraction(){
   });
 
   imgEl.addEventListener("touchmove", function(e){
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      var distance = touchDistance(e.touches);
+      if (pinchDistance) {
+        zoomAt((e.touches[0].clientX + e.touches[1].clientX) / 2,
+          (e.touches[0].clientY + e.touches[1].clientY) / 2,
+          scale * distance / pinchDistance);
+      }
+      pinchDistance = distance;
+      return;
+    }
     if (!isDragging || e.touches.length !== 1) return;
     e.preventDefault();
     var touch = e.touches[0];
@@ -3198,19 +3237,24 @@ function setupMapInteraction(){
     updateTransform();
   });
 
-  imgEl.addEventListener("touchend", function(){
+  imgEl.addEventListener("touchend", function(e){
+    pinchDistance = 0;
     isDragging = false;
     imgEl.classList.remove("dragging");
+    if (e.touches.length === 1 && scale > 1) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      initialX = translateX;
+      initialY = translateY;
+      isDragging = true;
+    }
   });
 
   // Zoom with mouse wheel
   imgEl.addEventListener("wheel", function(e){
-    if (!imgEl.classList.contains("pannable")) return;
     e.preventDefault();
     var zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    scale *= zoomFactor;
-    scale = Math.max(0.5, Math.min(3, scale)); // Limit zoom
-    updateTransform();
+    zoomAt(e.clientX, e.clientY, scale * zoomFactor);
   });
 }
 
@@ -3712,9 +3756,7 @@ function checkAppUpdate(){
   checkingUpdate = true;
   fetch("version.json", {cache: "no-store"}).then(function(r){ return r.json(); }).then(function(v){
     if (v.shell_revision && v.shell_revision !== SHELL_REVISION) {
-      // Keep typed, unsent input in place; the next check installs the update.
-      if ($("chat-text-input") && $("chat-text-input").value.trim()) return;
-      hardReloadApp();
+      hardReloadApp(false);
     }
   }).catch(function(){}).finally(function(){ checkingUpdate = false; });
 }
@@ -3734,8 +3776,31 @@ setInterval(checkAppUpdate, 60000);
   });
 })();
 
-function hardReloadApp(){
+function hardReloadApp(clearData){
   var steps = [];
+
+  // Refresh Cache is an explicit reset: remove saved browser identity and
+  // preferences as well as installed app files.
+  if (clearData !== false) {
+    try { localStorage.clear(); sessionStorage.clear(); } catch(e) {}
+    document.cookie.split(";").forEach(function(part){
+      var name = part.split("=")[0].trim();
+      if (!name) return;
+      ["/", "/beta/"].forEach(function(path){
+        document.cookie = name + "=; Max-Age=0; path=" + path + "; SameSite=Lax";
+      });
+    });
+    if (window.indexedDB && indexedDB.databases) {
+      steps.push(indexedDB.databases().then(function(databases){
+        return Promise.all(databases.filter(function(db){ return !!db.name; }).map(function(db){
+          return new Promise(function(resolve){
+            var request = indexedDB.deleteDatabase(db.name);
+            request.onsuccess = request.onerror = request.onblocked = resolve;
+          });
+        }));
+      }).catch(function(){}));
+    }
+  }
 
   // Unregister all service workers so a fresh one is installed on reload.
   if ("serviceWorker" in navigator) {

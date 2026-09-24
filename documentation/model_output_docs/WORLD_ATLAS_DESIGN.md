@@ -88,7 +88,8 @@ Install optional Playwright tooling in the `storieschat` environment to run it.
 ## Player-facing map presentation (2026-09-24)
 
 Startup and resume display only the clickable artwork. Tapping it opens the
-full-screen image; double-tapping zooms it. The map menu or `[M]`/`[MAP]` command
+full-screen image; double-tapping or pinching zooms it, and a zoomed image can
+be dragged. The map menu or `[M]`/`[MAP]` command
 opens the optional location browser. Descriptions are brief room/venue purposes;
 research status, episode references and internal geometry notes stay out of the
 player UI. Source research remains available in authored metadata. The world

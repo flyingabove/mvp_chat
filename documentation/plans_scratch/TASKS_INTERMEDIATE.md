@@ -73,6 +73,10 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [x] Slow = prior 1x, Normal = 2.5x, Fast = 3.5x; default Normal and persistent choices.
 - [x] Full-width My Games resume; swipe reveals accessible X delete button.
 - [x] Run regression/full tests and inspect desktop Chromium + iPhone WebKit local screenshots and interactions.
-- [ ] Integrate latest beta, resolve conflicts, retest, commit/push beta, verify remote SHA and hosted behavior.
+- [x] Merge latest beta and preserve both agents' changes.
+- [x] Incorporate user clarification: full manual browser-state reset, automatic deploy updates, short opening, pinch/drag map zoom, clear narrator/speaker/human groups, full-size portrait popup, confirmed delete.
+- [x] Retest desktop Chromium, iPhone WebKit, and simulated standalone locally after integration.
+- [x] Full regression suite: 1101 passed, 1 expected failure; 9 Node tests; legacy-worker upgrade in Chromium and WebKit.
+- [ ] Final beta integration, commit/push, remote SHA and hosted behavior.
 
 - Local evidence: real Chromium + iPhone WebKit + simulated standalone interaction/screenshot passes; old-worker upgrade passed Chromium/WebKit; 9 Node tests; full pytest 1096 passed / 1 expected failure before final integration.

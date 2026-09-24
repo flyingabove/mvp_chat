@@ -855,11 +855,11 @@
     }
   },
   "opening": {
-    "text": "Evening light catches the windows as you reach the house with your suitcase. Through the glass, a table is laid for six residents — you and five new housemates. The bell brings someone to the door. They make room at the genkan, welcome you inside, and point upstairs: your place is in the shared {{PLAYER_BEDROOM}}. The kitchen is warm with dinner sounds. Everyone here is beginning with a clean slate, carrying work, studies, ambitions, friendships, and whatever they hope might grow. [SPEAKER:mizuki]\"What should we call you? Tea, coffee, or something cold?\"",
+    "text": "You arrive at the house at dusk. Five housemates are inside. One opens the door and shows you the shared {{PLAYER_BEDROOM}}.",
     "variants": [
-      "Evening light catches the windows as you reach the house with your suitcase. Through the glass, a table is laid for six residents — you and five new housemates.\n\nThe bell brings someone to the door. They make room at the genkan, welcome you inside, and point upstairs: your place is in the shared {{PLAYER_BEDROOM}}.\n\nThe kitchen is warm with dinner sounds. Everyone here is beginning with a clean slate, carrying work, studies, ambitions, friendships, and whatever they hope might grow.\n\n“What should we call you? Tea, coffee, or something cold?”",
-      "You arrive at the glass-fronted house just as the lights come on. Inside, five housemates are settling around the open kitchen; with you, the house is complete at three men and three women.\n\nAt the door, a resident takes in your suitcase and smiles. “Come in. Your bed is upstairs in the shared {{PLAYER_BEDROOM}} — we saved you a spot.”\n\nShoes off, bag down, first evening underway. No one knows one another well yet, which makes even a simple introduction feel important.\n\n“Want to join us for dinner and tell us a little about yourself?”",
-      "A quiet residential street leads you to the house at dusk. Behind its windows, five people are moving through the small rituals of a first shared evening. You are not an extra arrival: you are one of the six residents.\n\nA housemate opens the door and gestures toward the stairs. “Welcome. You’ll share the {{PLAYER_BEDROOM}} with the other residents in your room.”\n\nFrom the dining table comes the soft clink of plates and a half-finished conversation. Workdays, studies, private goals, and new connections will make this house feel different every day.\n\n“Come meet everyone when you’re ready. What do you want us to call you?”"
+      "You reach the house at dusk. Five housemates are inside. One opens the door and points you toward the shared {{PLAYER_BEDROOM}}.",
+      "The house lights are on when you arrive. A housemate meets you at the door and shows you the shared {{PLAYER_BEDROOM}}.",
+      "You step into the house with your bag. The others are near the kitchen; a housemate shows you the shared {{PLAYER_BEDROOM}}."
     ]
   },
   "world_context": [

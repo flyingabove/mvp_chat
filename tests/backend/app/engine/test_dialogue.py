@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
-from backend.app.engine.dialogue import dialogue_prompt, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, clean_spoken_text
+from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, clean_spoken_text
 from backend.app.engine.state import Character, extract_state_tag
 
 
@@ -55,7 +55,9 @@ def test_contract_applies_to_each_story_and_authored_openings_are_segmented():
         assert all(key in prompt for key in s.characters)
         clean, blocks = present_dialogue(story['opening']['text'], s)
         assert '[SPEAKER:' not in clean
-        assert any(b['kind'] == 'dialogue' for b in blocks)
+        assert blocks
+        if not story['opening'].get('variants'):
+            assert any(b['kind'] == 'dialogue' for b in blocks)
 
 
 def test_segments_survive_history_pagination(tmp_path, monkeypatch):
@@ -187,3 +189,19 @@ def test_contract_fixes_second_person_player_point_of_view():
     prompt = dialogue_prompt(state())
     assert "second person" in prompt
     assert "The player is not a cast member" in prompt
+
+
+def test_player_can_never_be_an_ai_dialogue_speaker():
+    s = state()
+    s.characters["player"] = Character(key="player", name="Paul")
+    schema = dialogue_response_format(s)["json_schema"]["schema"]
+    speakers = schema["properties"]["segments"]["items"]["properties"]["speaker_id"]["enum"]
+    assert "player" not in speakers
+    assert '"player":' not in dialogue_prompt(s)
+    raw = json.dumps({"segments": [
+        {"kind": "dialogue", "speaker_id": "player", "text": "Hi, I'm Paul."},
+        {"kind": "dialogue", "speaker_id": "mizuki", "text": "Welcome, Paul."},
+    ], "state": {"emotion": "warm", "rel_delta": 0}})
+    prose, _ = extract_state_tag(decode_dialogue_response(raw, s))
+    assert "Hi, I'm Paul" not in prose
+    assert present_dialogue(prose, s)[1][0]["speaker_id"] == "mizuki"

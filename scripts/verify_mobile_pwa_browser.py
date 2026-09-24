@@ -32,6 +32,7 @@ def main():
                 opener = page.locator('#chat-messages .msg-bubble.npc').first
                 opener.wait_for(timeout=120000)
                 page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)
+                assert len(opener.inner_text()) < 260
                 assert page.locator('#chat-image-btn').count() == 0
                 assert page.locator('#chat-avatar img').get_attribute('src').endswith('six_strangers_house.jpg')
                 assert page.locator('.atlas-host').count() == 0
@@ -39,6 +40,14 @@ def main():
                 inline.click()
                 assert page.locator('#map-modal').evaluate('(e)=>e.classList.contains("fullscreen")')
                 assert page.locator('.atlas-host').count() == 0
+                page.locator('#map-modal-img').evaluate("""e=>{
+                  const touch=(type, points)=>{const ev=new Event(type,{bubbles:true,cancelable:true});
+                    Object.defineProperty(ev,'touches',{value:points.map(([clientX,clientY])=>({clientX,clientY}))});e.dispatchEvent(ev)};
+                  touch('touchstart',[[120,300],[220,300]]);
+                  touch('touchmove',[[90,300],[250,300]]);
+                  touch('touchend',[]);
+                }""")
+                assert 'scale(1.6)' in page.locator('#map-modal-img').get_attribute('style')
                 page.screenshot(path=str(output / f'{mode}-map.png'))
                 page.locator('#map-modal-close').click()
                 page.locator('#chat-text-input').fill('[MAP]')
@@ -57,6 +66,11 @@ def main():
                 page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)
                 (output / f'{mode}-reply.json').write_text(json.dumps(chat_response.value.json(), ensure_ascii=False), encoding='utf-8')
                 assert page.locator('#chat-messages .msg-bubble.npc').last.locator('.scene-speech').count() >= 1
+                portrait = page.locator('#chat-messages .msg-bubble.npc').last.locator('.scene-speech .speaker-portrait:has(img)').first
+                portrait.click()
+                assert page.locator('#portrait-viewer').evaluate('(e)=>e.open')
+                assert page.locator('#portrait-viewer .portrait-full img').count() == 1
+                page.locator('#portrait-viewer .portrait-close').click()
                 page.locator('#chat-messages').evaluate('(e)=>e.scrollTop=e.scrollHeight')
                 page.screenshot(path=str(output / f'{mode}-chat.png'))
                 nav = page.locator('#tab-update-app').evaluate('(e)=>e.parentElement.getBoundingClientRect().bottom')
@@ -81,10 +95,12 @@ def main():
                 page.locator('#confirm-cancel').click()
                 # Clear a deliberately seeded stale cache using the real bottom action.
                 page.evaluate("async()=>{const c=await caches.open('storieschat-old-test');await c.put('/stale-test',new Response('old'));}")
+                page.evaluate("localStorage.setItem('storieschat-reset-test','stale')")
                 page.locator('#tab-update-app').click()
                 page.wait_for_url('**_hr=*', timeout=30000)
                 page.wait_for_load_state('networkidle')
                 assert 'storieschat-old-test' not in page.evaluate('async()=>await caches.keys()')
+                assert page.evaluate("localStorage.getItem('storieschat-reset-test')") is None
                 assert not errors, errors
                 print(json.dumps({'mode':mode,'result':'passed','api_hosts':sorted(hosts)}), flush=True)
             except Exception:

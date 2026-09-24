@@ -59,6 +59,17 @@ def test_update_app_tab_reuses_the_cache_busting_hard_reload_action():
     assert "hardReloadApp();" in html
 
 
+def test_refresh_cache_clears_saved_browser_state_too():
+    html = _read_index_html()
+    start = html.index("function hardReloadApp")
+    end = html.index("/* ─── iOS INSTALL PROMPT", start)
+    fn_body = html[start:end]
+    assert "localStorage.clear()" in fn_body
+    assert "sessionStorage.clear()" in fn_body
+    assert "indexedDB.databases()" in fn_body
+    assert "document.cookie" in fn_body
+
+
 def test_text_speed_has_only_slow_normal_and_fast_at_requested_rates():
     html = _read_index_html()
     assert 'id="typewriter-speed" min="0" max="2"' in html

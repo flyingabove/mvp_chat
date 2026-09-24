@@ -208,9 +208,10 @@ def test_six_strangers_content_references_and_private_concerns_are_consistent():
     ), "Upcoming residents must not leak through seeded relationships"
     assert any(source in keys and target in keys for source, target in pairs)
 
-    opening = "\n".join(cfg["opening"].get("variants") or [cfg["opening"]["text"]])
-    assert "\n\n" in opening
-    assert "\\n" not in opening, "Opening paragraphs must use actual newlines"
+    variants = cfg["opening"].get("variants") or [cfg["opening"]["text"]]
+    opening = "\n".join(variants)
+    assert all(len(variant) < 160 for variant in variants)
+    assert "\\n" not in opening
     assert "guest room" not in opening.lower()
     content = json.dumps(cfg, ensure_ascii=False)
     assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", content, re.I)

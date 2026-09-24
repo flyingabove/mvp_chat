@@ -307,10 +307,12 @@ activation removes old StoriesChat caches before claiming clients. Its served
 bytes include a fingerprint of the HTML, styles, scripts and manifest, so every
 shell deployment changes the worker. Registration bypasses HTTP caches, and the
 app checks the shell revision on foreground return and every minute. Automatic
-revision checks defer while a chat request or unsent draft is present. First
-installation does not cause a competing reload. Refresh Cache clears worker
-registrations and Cache Storage, cache-busts the document, and preserves login
-and saved-game storage.
+revision checks defer during an active chat request, then reload even if a draft
+is present; they preserve login and saved games. First installation does not
+cause a competing reload. The user-triggered Refresh Cache action clears worker
+registrations, Cache Storage, local/session storage, accessible cookies and
+enumerable IndexedDB databases, then reloads a cache-busted document. It signs
+the player out and removes locally saved state by request.
 
 Beta manifests use `/beta/` for start URL, scope and identity; installing from
 beta must not send the player to production `/`. Existing production installs
@@ -327,6 +329,12 @@ fill the available width, distinguish taps from horizontal drags, and reveal an
 accessible X delete button. The bottom Refresh Cache button shares tab styling.
 Standalone viewport sizing uses the full inner height except when the keyboard
 is open.
+
+The opening beneath the Six Strangers map is now a short arrival scene. Each
+AI speaker has a named portrait bubble that opens a full-size portrait; narrator
+passages carry a separate label, and human messages are right-aligned with a
+"You" label. The structured dialogue schema excludes the player as an AI
+speaker and drops any invalid player dialogue segment returned by a provider.
 
 Validation scripts: `scripts/verify_mobile_pwa_browser.py` drives real desktop
 Chromium, iPhone WebKit and a simulated standalone flag; `scripts/verify_pwa_upgrade.py`

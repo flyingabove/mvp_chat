@@ -10,12 +10,15 @@
 #portrait-viewer h2 { font-size: 18px; margin: 18px 0 0; }
 .portrait-close { position: absolute; right: 10px; top: 8px; width: 36px; height: 36px; background: #ffffff10; border: 0; border-radius: 50%; color: #fff; font-size: 26px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .speaker-portrait { transition: none; } }
+.msg-bubble.user { border: 1px solid #728abd; }
+.msg-bubble.user .speaker-name { color: #d8e6ff; font-size: 11px; letter-spacing: .03em; margin-bottom: 4px; }
 .scene-narration { color: #c5c7d0; line-height: 1.55; }
+.scene-narration::before { content: "NARRATOR"; display: block; color: #9da2af; font-size: 10px; font-weight: 700; letter-spacing: .11em; margin-bottom: 5px; }
 .scene-narration + .scene-speech, .scene-speech + .scene-narration, .scene-speech + .scene-speech { margin-top: 16px; }
 .scene-speech { display: flex; align-items: flex-start; gap: 9px; }
 .scene-speech[hidden], .scene-narration[hidden] { display: none; }
 .scene-speech .speaker-portrait { width: 34px; height: 34px; flex-basis: 34px; border-radius: 50%; font-size: 12px; }
-.speech-bubble { min-width: 0; flex: 1; padding: 10px 12px; background: #ffffff09; border: 1px solid #ffffff0e; border-radius: 3px 14px 14px; }
+.speech-bubble { min-width: 0; flex: 1; padding: 10px 12px; background: #ffffff0d; border: 1px solid #ffffff1c; border-left: 2px solid #b39772; border-radius: 3px 14px 14px; }
 .speech-bubble .speaker-name { font-size: 12px; font-weight: 650; color: #e1c6a4; margin-bottom: 5px; }
 .speech-bubble p:first-child, .scene-narration p:first-child { margin-top: 0; }
 .speech-bubble p:last-child, .scene-narration p:last-child { margin-bottom: 0; }

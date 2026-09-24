@@ -1,12 +1,16 @@
 """Prove an installed legacy worker releases stale fixed-name assets on update."""
+import argparse
 import subprocess
 import threading
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from playwright.sync_api import sync_playwright
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--url', default='http://127.0.0.1:8899/')
+args = parser.parse_args()
 legacy = subprocess.check_output(['git', 'show', '37cdcfe:frontend/sw.js']).decode()
-current = urllib.request.urlopen('http://127.0.0.1:8899/sw.js').read().decode()
+current = urllib.request.urlopen(args.url.rstrip('/') + '/sw.js').read().decode()
 state = {'upgraded': False}
 
 class Handler(BaseHTTPRequestHandler):
