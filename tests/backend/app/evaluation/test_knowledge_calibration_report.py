@@ -69,6 +69,10 @@ def test_meets_expectations():
     assert meets("original_wins", 1.0) and not meets("original_wins", 0.5)
     assert meets("mutant_not_win", 0.5) and not meets("mutant_not_win", 0.0)
     assert meets("tie", 0.5) and meets("tie", None) is None
+    # verbosity probe: the longer original winning is a FAILURE
+    assert not meets("original_not_win", 1.0) and meets("original_not_win", 0.5)
+    shorten = next(m for m in MUTATIONS if m.kind == "shorten")
+    assert shorten.expectation == "original_not_win"
 
 
 @pytest.mark.asyncio
@@ -112,6 +116,7 @@ async def test_report_end_to_end_from_stored_artifacts(tmp_path):
     # vs prod in 6, so it's not a regression
     assert report["critical"]["regressions"] == []
     assert report["cost"]["judge_input_tokens"] > 0
+    assert report["length_confound"]["tiny"]["decided"] >= 1
     json.dumps(report)                                   # fully serialisable
     page = render_html(report, arms)
     assert "Jev Game Arena" in page and report["headline"].split("|")[0].strip() in page

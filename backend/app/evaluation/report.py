@@ -51,6 +51,33 @@ def critical_regressions(judgments: Sequence[Mapping[str, Any]], rubric: Rubric)
     return regressions, counts
 
 
+def length_confound(judgments, arms) -> dict[str, dict[str, Any]]:
+    """How often the release with longer replies won, per game. The judge
+    prefers length despite instructions (see calibration 'shorten'), so a
+    verdict that tracks length should be read with that bias in mind."""
+    out: dict[str, dict[str, Any]] = {}
+    for j in judgments:
+        if j.get("outcome") not in ("beta_win", "prod_win"):
+            continue
+        words = {}
+        for side in (BETA, PROD):
+            arm = arms.get(f"{j['pair_id']}.{side}")
+            if not arm or not arm.turns:
+                break
+            words[side] = sum(len(t.reply.split()) for t in arm.turns) / len(arm.turns)
+        if len(words) != 2 or words[BETA] == words[PROD]:
+            continue
+        row = out.setdefault(j["story_id"], {"decided": 0, "longer_side_wins": 0, "diffs": []})
+        row["decided"] += 1
+        row["longer_side_wins"] += (j["outcome"] == "beta_win") == (words[BETA] > words[PROD])
+        row["diffs"].append(words[BETA] - words[PROD])
+    for row in out.values():
+        diffs = row.pop("diffs")
+        row["longer_side_win_rate"] = row["longer_side_wins"] / row["decided"]
+        row["mean_beta_minus_prod_words"] = round(sum(diffs) / len(diffs), 1)
+    return out
+
+
 def dimension_table(judgments: Sequence[Mapping[str, Any]], rubric: Rubric) -> list[dict[str, Any]]:
     rows = []
     for dim in rubric.dimensions:
@@ -139,6 +166,7 @@ def build_report(manifest: ExperimentManifest, arms: Mapping[str, ArmTranscript]
         "strata": strata,
         "personas": {k: dict(v) for k, v in personas.items()},
         "dimensions": dimension_table(judgments, rubric),
+        "length_confound": length_confound(judgments, arms),
         "critical": {"regressions": regressions, "counts": critical_counts},
         "checks": dict(check_counts),
         "reliability": reliability,
@@ -278,6 +306,15 @@ def render_html(report: Mapping[str, Any], arms: Mapping[str, ArmTranscript], *,
                          for d in report["dimensions"]) +
                  "</table><p class=muted>Beta share: 1 = beta better, 0.5 = tie, 0 = prod better, over order-agreeing votes. "
                  "Bands are ordinal 0-4 diagnostics divided by 4, not probabilities.</p></div>")
+    lc = report.get("length_confound") or {}
+    if lc:
+        parts.append("<h2>Length check</h2><div class='panel scroll'><table><tr><th>Game</th><th>Decided</th>"
+                     "<th>Longer side won</th><th>Beta minus prod words per reply</th></tr>" +
+                     "".join(f"<tr><td>{esc(k)}</td><td>{v['decided']}</td><td>{v['longer_side_win_rate']:.0%}</td>"
+                             f"<td>{v['mean_beta_minus_prod_words']:+.0f}</td></tr>" for k, v in lc.items()) +
+                     "</table><p class=muted>The judge is told not to reward length but still favors it "
+                     "(see the calibration shorten row). A win rate far above 50% means the verdict is "
+                     "confounded with reply length.</p></div>")
     parts.append("<h2>By game and persona</h2><div class='panel cols'><div><table><tr><th>Game</th><th>Beta/Tie/Prod/Unres.</th><th>Elo</th></tr>" +
                  "".join(f"<tr><td>{esc(k)}</td><td>{v['counts']['beta_win']}/{v['counts']['tie']}/{v['counts']['prod_win']}/"
                          f"{v['counts']['unresolved']}</td><td>{esc(fmt_elo(v['elo_delta']))}</td></tr>" for k, v in report["strata"].items()) +
