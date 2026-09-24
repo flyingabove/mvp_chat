@@ -77,6 +77,7 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [x] Incorporate user clarification: full manual browser-state reset, automatic deploy updates, short opening, pinch/drag map zoom, clear narrator/speaker/human groups, full-size portrait popup, confirmed delete.
 - [x] Retest desktop Chromium, iPhone WebKit, and simulated standalone locally after integration.
 - [x] Full regression suite: 1101 passed, 1 expected failure; 9 Node tests; legacy-worker upgrade in Chromium and WebKit.
-- [ ] Final beta integration, commit/push, remote SHA and hosted behavior.
+- [x] Integrated parallel evaluation commits, pushed beta `b3fd435`, verified remote HEAD and Railway deployment `190789fd-8926-4434-9c0d-8d6bc7419a0d` serving that SHA.
+- [x] Hosted beta: desktop Chromium, iPhone WebKit and simulated standalone browser flows passed with API calls to `beta-api.storieschat.ai`; screenshots inspected for map, chat, swipe delete and bottom navigation. Live HTML/worker are no-store with matching shell revision `5ff480e89e359392`; beta manifest starts at `/beta/`.
 
 - Local evidence: real Chromium + iPhone WebKit + simulated standalone interaction/screenshot passes; old-worker upgrade passed Chromium/WebKit; 9 Node tests; full pytest 1096 passed / 1 expected failure before final integration.
