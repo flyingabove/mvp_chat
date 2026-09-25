@@ -6,7 +6,14 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ### 2026-09-24 iPhone PWA and speaker-aware story UI follow-up
 
-- [ ] Confirm the beta Home Screen install on the user's physical iPhone 14 after its automatic update; compare safe areas and keyboard positioning with the supplied screenshots.
+- [ ] Confirm a newly installed **StoriesChat Beta** Home Screen icon on the user's physical iPhone 14; compare safe areas and keyboard positioning with the supplied screenshots. An old **StoriesChat** icon launches production at `/` and cannot change channels through its own Update App button.
+
+### 2026-09-24 beta Home Screen install route repair
+
+- [x] Reproduce the user's old chat, bottom gap, keyboard/tab behavior, tiny map X, and absent pinch zoom offline using the production install manifest and WebKit.
+- [x] Reproduce the legacy root worker's cached `/beta/manifest.json` and prove a new beta manifest URL bypasses it.
+- [x] Give beta a distinct install URL and app identity; verify Refresh Cache stays on `/beta/`.
+- [ ] Run full tests, integrate current beta, deploy, and check the hosted beta install manifest and browser flows.
 
 ### Terrace in the City mobile/PWA and six-resident correctness
 

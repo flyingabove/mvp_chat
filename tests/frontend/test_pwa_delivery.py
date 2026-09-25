@@ -26,6 +26,22 @@ def test_beta_install_stays_on_beta():
     assert manifest['id'] == '/beta/'
 
 
+def test_beta_install_bypasses_legacy_root_worker_manifest_cache():
+    client = TestClient(app)
+    page = client.get('/beta/').text
+    assert 'rel="manifest" href="manifest-beta-v2.json"' in page
+    assert 'apple-mobile-web-app-title" content="StoriesChat Beta"' in page
+    assert 'StoriesChat <small class="beta-badge">Beta</small>' in page
+    response = client.get('/beta/manifest-beta-v2.json')
+    assert response.status_code == 200
+    assert 'no-store' in response.headers.get('cache-control', '')
+    manifest = response.json()
+    assert manifest['name'] == 'StoriesChat Beta'
+    assert manifest['short_name'] == 'StoriesChat Beta'
+    assert manifest['start_url'] == manifest['scope'] == manifest['id'] == '/beta/'
+    assert 'manifest-beta-v2.json' not in client.get('/').text
+
+
 def test_worker_contains_current_shell_revision():
     client = TestClient(app)
     worker = client.get('/beta/sw.js').text

@@ -42,6 +42,9 @@ def main():
             page.on('response', lambda r: http_api_errors.append({'path': urlsplit(r.url).path, 'status': r.status}) if '/api/' in urlsplit(r.url).path and r.status >= 400 else None)
             try:
                 page.goto(args.url, wait_until='networkidle')
+                if '/beta/' in urlsplit(args.url).path:
+                    assert page.locator('link[rel="manifest"]').get_attribute('href') == 'manifest-beta-v2.json'
+                    assert page.locator('meta[name="apple-mobile-web-app-title"]').get_attribute('content') == 'StoriesChat Beta'
                 page.locator('#home-guest-pill').click()
                 page.locator('.game-card').filter(has_text='Terrace in the City').first.click()
                 page.locator('#modal-play-btn').click()
@@ -172,6 +175,7 @@ def main():
                 page.locator('#tab-update-app').click()
                 page.wait_for_url('**_hr=*', timeout=30000)
                 page.wait_for_load_state('networkidle')
+                assert urlsplit(page.url).path == urlsplit(args.url).path, page.url
                 assert 'storieschat-old-test' not in page.evaluate('async()=>await caches.keys()')
                 assert page.evaluate("localStorage.getItem('storieschat-reset-test')") is None
                 assert not errors, errors

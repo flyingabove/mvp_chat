@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>StoriesChat</title>
+  <title>__APP_DISPLAY_NAME__</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="robots" content="noindex, nofollow" />
   <meta name="description" content="Narrative AI games — explore worlds, question suspects, uncover secrets." />
 
   <!-- PWA -->
-  <link rel="manifest" href="manifest.json" />
+  <link rel="manifest" href="__APP_MANIFEST_HREF__" />
   <meta name="theme-color" content="#141414" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="StoriesChat" />
+  <meta name="apple-mobile-web-app-title" content="__APP_DISPLAY_NAME__" />
 
   <!-- Automatically set base href based on environment -->
   <script>
@@ -111,6 +111,11 @@
     .top-bar .logo {
       font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
       color: var(--red); text-decoration: none; flex: 1;
+    }
+    .top-bar .beta-badge {
+      display: inline-block; vertical-align: middle; margin-left: 4px;
+      padding: 2px 6px; border-radius: 6px; background: var(--red);
+      color: #fff; font: 700 10px/1.2 var(--font); letter-spacing: 0;
     }
     .top-bar .top-actions { display: flex; gap: 8px; align-items: center; }
     .top-bar .icon-btn {
@@ -1313,7 +1318,7 @@
 ════════════════════════════════════════════════ -->
 <div id="screen-home" class="screen">
   <div class="top-bar">
-    <span class="logo">StoriesChat</span>
+    <span class="logo">StoriesChat __APP_CHANNEL_BADGE__</span>
     <div class="top-actions">
       <button class="guest-pill-btn" id="home-guest-pill" title="Play without signing in">✦ Play as Guest</button>
       <button class="icon-btn" id="home-hard-reload-btn" title="Force update the app (clears cache)" aria-label="Hard reload">⟳</button>
@@ -1639,7 +1644,7 @@
   <div class="ios-install-card">
     <button class="ios-install-close" id="ios-install-close">&times;</button>
     <div class="ios-install-icon">&#127918;</div>
-    <div class="ios-install-title">Install StoriesChat</div>
+    <div class="ios-install-title">Install __APP_DISPLAY_NAME__</div>
     <div class="ios-install-sub">Add this app to your home screen for the best experience — full screen, faster loads, and offline access.</div>
     <ol class="ios-install-steps">
       <li>

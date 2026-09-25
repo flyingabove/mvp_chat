@@ -54,11 +54,14 @@ def _shell_revision():
     return digest.hexdigest()[:16]
 
 
-def _game_page():
+def _game_page(*, beta: bool = False):
     html = _INDEX_HTML_PATH.read_text(encoding="utf-8")
     for name in _SHELL_ASSETS:
         html = re.sub(re.escape(name) + r'\?v=[^"\s]+', 'assets/' + _asset_name(name), html)
     html = html.replace('__SHELL_REVISION__', _shell_revision())
+    html = html.replace('__APP_DISPLAY_NAME__', 'StoriesChat Beta' if beta else 'StoriesChat')
+    html = html.replace('__APP_MANIFEST_HREF__', 'manifest-beta-v2.json' if beta else 'manifest.json')
+    html = html.replace('__APP_CHANNEL_BADGE__', '<small class="beta-badge">Beta</small>' if beta else '')
     return HTMLResponse(html, headers=_NO_STORE)
 
 
@@ -380,7 +383,7 @@ async def game_ui_prod():
 @app.get("/beta/", response_class=HTMLResponse)
 @app.get("/beta", response_class=HTMLResponse)
 async def game_ui_beta():
-    return _game_page()
+    return _game_page(beta=True)
 
 
 @app.get("/debug", response_class=HTMLResponse)
@@ -394,10 +397,15 @@ async def debug_ui_page():
 # --------------------------------------------------
 @app.get("/manifest.json")
 @app.get("/beta/manifest.json")
+@app.get("/beta/manifest-beta-v2.json")
 async def pwa_manifest(request: Request):
     manifest = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
     scope = '/beta/' if request.url.path.startswith('/beta/') else '/'
     manifest.update(start_url=scope, scope=scope, id=scope)
+    if scope == '/beta/':
+        manifest.update(name='StoriesChat Beta', short_name='StoriesChat Beta')
+        for icon in manifest.get('icons', []):
+            icon['src'] = icon['src'].replace('%E2%9C%A6', '%CE%B2')
     return JSONResponse(manifest, headers=_NO_STORE)
 
 

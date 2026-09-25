@@ -46,6 +46,17 @@ viewport transition in standalone mode. Its keyboard screenshot shows a blank
 area where the native iOS keyboard would be; it tests composer placement, not
 the keyboard's appearance. Inspect the screenshots, especially header overlap,
 top safe area, bottom navigation, and composer position.
+
+For an iOS Home Screen report, verify the **launch path**, not only the page's
+appearance. An older production install can launch `/` even when Safari shows
+`/beta/`; its Update App button reloads `/` again. Run
+`scripts/reproduce_ios_installed_app.py --url http://127.0.0.1:8899` to compare
+the committed production install with beta entirely offline. It asserts the
+old bottom gap, visible keyboard tab bar, small map close control, missing
+pinch zoom, and upload action against the beta equivalents. Check that the
+beta page uses `manifest-beta-v2.json`, that this manifest starts at `/beta/`,
+and that Refresh Cache leaves the page on `/beta/`. The older root worker cached
+`/beta/manifest.json`, so that filename alone is not an install check.
 Use it when those flows are relevant. For other changes, copy its Playwright
 pattern and add interactions and assertions for the changed feature. A home
 page load alone is never a feature test.
