@@ -49,6 +49,11 @@ The reusable world/location atlas schema, research mapping and routing policy ar
 documented in [WORLD_ATLAS_DESIGN.md](model_output_docs/WORLD_ATLAS_DESIGN.md).
 Update that document when map metadata, coordinates, routes or map UI behavior changes.
 
+The proposed living-world investigation and conversation mechanics are in
+[LIVING_WORLD_INVESTIGATION_AND_CONVERSATION_DESIGN.md](model_output_docs/LIVING_WORLD_INVESTIGATION_AND_CONVERSATION_DESIGN.md).
+Use it for evidence types, NPC routines and sleep, context obligations, probabilistic
+initiative, and social-scene handoffs; its runtime features are not yet implemented.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [GAME_DESIGN_SYSTEMS.md](model_output_docs/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). |
