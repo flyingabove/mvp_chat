@@ -77,7 +77,7 @@ Update that document when map metadata, coordinates, routes or map UI behavior c
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [UI_REDESIGN_2026.md](model_output_docs/UI_REDESIGN_2026.md) | ...UI screens, components, CSS system, or navigation changes. **Full 2026 design spec.** |
-| [AI_UI_WORKFLOW.md](ai_learnings_mistakes/AI_UI_WORKFLOW.md) | ...frontend architecture, build process, or UI development patterns change. |
+| [AI_UI_WORKFLOW.md](ai_learnings_mistakes/AI_UI_WORKFLOW.md) | ...frontend architecture, build process, or UI development patterns change. Its older UI inventory is historical; use `.claude/skills/ship-and-verify/BROWSER_QA.md` for current browser QA. |
 | [AI_CREATE_NEW_FLAG.md](ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md) | ...adding a new bracket command or game mode flag to the chat system. |
 
 ## Scorer / Debug System
@@ -86,12 +86,12 @@ The proposed controlled beta/prod evaluation system is documented in
 [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md).
 Update it when paired-game controls, Jev judge calibration, evidence contracts,
 rating statistics or the arena implementation plan change. Status: implemented in observational mode
-(`backend/app/evaluation/`, see its §13); server receipts/snapshots and human calibration are BACKLOG BL-19/BL-20.
+(local-only tooling in `.claude/skills/promote-to-prod/`, see its §13-14); server receipts/snapshots and human calibration are BACKLOG BL-19/BL-20.
 
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [AI_SCORER_SYSTEM.md](ai_learnings_mistakes/AI_SCORER_SYSTEM.md) | ...the debug system, scoring, player-agent loop, or grader changes. |
-| [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md) | ...the beta-vs-prod arena changes: rubric/weights, judge policy, pairing, rating math, checks, CLI, or its §13 implementation status. Code: `backend/app/evaluation/`, CLI `python -m scripts.eval.arena`. |
+| [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md) | ...the beta-vs-prod arena changes: rubric/weights, judge policy, pairing, rating math, checks, CLI, or its §13 implementation status. Code: `.claude/skills/promote-to-prod/arena/` (local-only, never deployed), CLI `python .claude/skills/promote-to-prod/arena_cli.py`, release procedure `/promote-to-prod`. |
 
 ## Data Models
 

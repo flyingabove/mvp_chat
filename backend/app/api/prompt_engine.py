@@ -50,7 +50,7 @@ from backend.app.utils.logging_utils import jlog as _log, truncate as _truncate
 
 from backend.app.config.settings import (
 
-    OPENAI_API_KEY, OPENAI_MODEL,
+    OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL,
     STORY_MASTER_BASE_URL, STORY_MASTER_API_KEY, STORY_MASTER_MODEL,
 
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
@@ -80,6 +80,7 @@ from backend.app.engine.state import (
 from backend.app.engine.dialogue import (
     present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo,
     dialogue_response_format, decode_dialogue_response,
+    has_unmarked_quotes, attribute_unmarked_quotes,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
@@ -468,6 +469,35 @@ def _sync_resident_locations(state: GameState) -> None:
     for key, location in state.character_locations.items():
         if location == "player_bedroom":
             state.character_locations[key] = bedroom
+
+
+def _gather_opening_residents(state: GameState) -> None:
+    """Place the opening cast where the opening scene happens.
+
+    Every active NPC starts at ``initial_active_location_id``. In
+    ``resident_slot`` mode the opening welcomes the player into that same
+    gathering (dinner in the Six Strangers house), so the player starts there
+    too: all six residents are home and physically present on turn 1. Before
+    this, the player stayed at the front entry while the NPCs sat in the
+    living room, the scene brief said "People present: none", and the model
+    invented whereabouts ("Yuto should be back from practice soon").
+    """
+    lifecycle = state.cast_lifecycle
+    config = (getattr(state, "story_cfg", None) or {}).get("cast_lifecycle") or {}
+    gathering = str(config.get("initial_active_location_id") or "living_room")
+    for key in lifecycle.active_ids():
+        state.character_locations.setdefault(key, gathering)
+    runtime = getattr(state, "world_runtime", None)
+    if config.get("player_mode") != "resident_slot" or runtime is None:
+        return
+    location = runtime.world_graph.locations.get(gathering)
+    if location is None:
+        return
+    state.location_id = gathering
+    state.location = location.name
+    state.location_uuid = getattr(location, "uuid", "")
+    for key in lifecycle.active_ids():
+        state.character_locations[key] = gathering
 
 
 def _remove_upcoming_relationships(state: GameState) -> None:
@@ -1178,7 +1208,7 @@ async def _translate_to_chinese(text: str) -> str:
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
+                f"{OPENAI_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
                 json=payload,
             )
@@ -1887,16 +1917,67 @@ def apply_placeholders(text: str, state: GameState) -> str:
         text.replace("{{PLAYER_NAME}}", name)
             .replace("{{HONORIFIC}}", honorific)
             .replace("{{PLAYER_BEDROOM}}", bedroom)
+            .replace("{{HOUSEMATE_MIX}}", _housemate_mix(state))
     )
+
+
+_COUNT_WORDS = ("no", "one", "two", "three", "four", "five", "six")
+
+
+def _housemate_mix(state: GameState) -> str:
+    """Describe the opening's gathered housemates, e.g. "two other men and three women".
+
+    The opening shows only two speakers; without this line the model assumed
+    the rest of the house was out and invented where they were.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not lifecycle.player_slot_group:
+        return "the whole household"
+    parts = []
+    for group, noun in (("men", "men"), ("women", "women")):
+        count = len(lifecycle.active_ids(group))
+        if not count:
+            continue
+        other = "other " if group == lifecycle.player_slot_group else ""
+        word = _COUNT_WORDS[count] if count < len(_COUNT_WORDS) else str(count)
+        singular = {"men": "man", "women": "woman"}[noun]
+        parts.append(f"{word} {other}{noun if count != 1 else singular}")
+    return " and ".join(parts) or "the whole household"
 
 
 def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
     """Choose an authored opening variant without making story text procedural.
 
-    Any story can provide ``opening.variants``; legacy stories retain their
-    single ``opening.text`` unchanged. Placeholders are resolved afterwards.
+    A story may author ordered JSON narration/speech segments. Runtime roles
+    resolve to residents actually present in this randomized opening cast.
+    Older stories retain their text/variant path unchanged. Placeholders are
+    resolved afterwards.
     """
     opening_cfg = story_def.get("opening", {}) or {}
+    authored = opening_cfg.get("segments") or []
+    if authored:
+        lifecycle = getattr(state, "cast_lifecycle", None)
+        active_ids = list(lifecycle.active_ids()) if lifecycle else [
+            key for key in (getattr(state, "characters", {}) or {}) if key != "player"
+        ]
+        chosen = secrets.SystemRandom().sample(active_ids, min(2, len(active_ids)))
+        role_ids = {
+            "@greeter": chosen[0] if chosen else "unknown",
+            "@second": chosen[1] if len(chosen) > 1 else (chosen[0] if chosen else "unknown"),
+        }
+        parts = []
+        for segment in authored:
+            if not isinstance(segment, dict) or not str(segment.get("text") or "").strip():
+                continue
+            body = str(segment["text"]).strip()
+            if segment.get("kind") == "dialogue":
+                speaker_id = role_ids.get(segment.get("speaker_id"), segment.get("speaker_id"))
+                if speaker_id not in active_ids:
+                    speaker_id = "unknown"
+                parts.append(f"[SPEAKER:{speaker_id}]{body}[/SPEAKER]")
+            else:
+                parts.append(body)
+        return "\n\n".join(parts)
     variants = [str(item) for item in (opening_cfg.get("variants") or []) if str(item).strip()]
     opening = secrets.choice(variants) if variants else str(
         opening_cfg.get("text", "The room is quiet. A story begins.")
@@ -2527,12 +2608,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             new_state.main_character_id = next(iter(new_state.cast_lifecycle.active_ids()), None)
 
         if new_state.cast_lifecycle:
-            default_location = str(
-                (new_state.story_cfg.get("cast_lifecycle", {}) or {}).get("initial_active_location_id")
-                or "living_room"
-            )
-            for key in new_state.cast_lifecycle.active_ids():
-                new_state.character_locations.setdefault(key, default_location)
+            _gather_opening_residents(new_state)
 
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
@@ -3194,6 +3270,18 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     clean, tag = extract_state_tag(reply)
     clean = sanitize_honorific_terms(clean, state)
+    # The structured storyteller response is authoritative. Jev is a bounded
+    # fallback only for quoted speech left in narration by an older adapter or
+    # a malformed speaker segment; it never rewrites already tagged dialogue.
+    if has_unmarked_quotes(clean):
+        from backend.app.config import settings as jev_settings
+        if jev_settings.TYPESAFE_ENABLED and jev_settings.TYPESAFE_API_KEY:
+            from backend.app.llm.providers.jev import JevClient
+            async with httpx.AsyncClient() as jev_http:
+                clean = await attribute_unmarked_quotes(
+                    clean, state, JevClient(jev_http),
+                    timeout_ms=jev_settings.JEV_TIMEOUT_MS,
+                )
     clean, segments = present_dialogue(clean, state)
     # The player already sees their own message; never let the scene hand it
     # to an NPC (arena-found beta regression, 2026-09-23).

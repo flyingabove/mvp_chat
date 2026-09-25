@@ -1,4 +1,4 @@
-.speaker-portrait { width: 46px; height: 46px; flex: 0 0 46px; padding: 0; border: 1px solid #71634f; border-radius: 15px; background: #302e35; color: #e0c8a6; position: relative; overflow: hidden; cursor: zoom-in; font-family: inherit; font-weight: 600; font-size: 16px; transition: border-color .15s, transform .15s; }
+.speaker-portrait { width: 68px; height: 68px; flex: 0 0 68px; padding: 0; border: 2px solid #8f7b62; border-radius: 50%; background: #302e35; color: #e0c8a6; position: relative; overflow: hidden; cursor: zoom-in; font-family: inherit; font-weight: 600; font-size: 19px; transition: border-color .15s, transform .15s; }
 .speaker-portrait.msg-avatar { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; font-size: 11px; }
 .speaker-portrait img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .speaker-portrait:hover { border-color: #f0cea0; transform: translateY(-2px) scale(1.04); }
@@ -10,3 +10,17 @@
 #portrait-viewer h2 { font-size: 18px; margin: 18px 0 0; }
 .portrait-close { position: absolute; right: 10px; top: 8px; width: 36px; height: 36px; background: #ffffff10; border: 0; border-radius: 50%; color: #fff; font-size: 26px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .speaker-portrait { transition: none; } }
+.msg-bubble.user { border: 1px solid #728abd; }
+.msg-bubble.npc { flex: 1; max-width: none; padding: 0; border: 0; background: transparent; }
+.msg-bubble.user .speaker-name { color: #d8e6ff; font-size: 11px; letter-spacing: .03em; margin-bottom: 4px; }
+.scene-narration { color: #d4d5dc; line-height: 1.55; padding: 14px 16px; background: #20232c; border: 1px solid #363b48; border-radius: 16px; }
+.scene-narration::before { content: "NARRATOR"; display: block; color: #9da2af; font-size: 10px; font-weight: 700; letter-spacing: .11em; margin-bottom: 5px; }
+.scene-narration + .scene-speech, .scene-speech + .scene-narration, .scene-speech + .scene-speech, .scene-narration + .scene-narration { margin-top: 12px; }
+.scene-speech { display: flex; align-items: flex-start; gap: 10px; }
+.scene-speech[hidden], .scene-narration[hidden] { display: none; }
+.scene-speech .speaker-portrait { width: 68px; height: 68px; flex-basis: 68px; border-radius: 50%; font-size: 19px; }
+.speech-bubble { min-width: 0; flex: 1; padding: 13px 15px; background: #292d37; border: 1px solid #424754; border-left: 3px solid #b39772; border-radius: 4px 16px 16px; }
+.speech-bubble .speaker-name { font-size: 14px; font-weight: 700; color: #e9cda7; margin-bottom: 6px; }
+.speech-bubble p:first-child, .scene-narration p:first-child { margin-top: 0; }
+.speech-bubble p:last-child, .scene-narration p:last-child { margin-bottom: 0; }
+@media (max-width: 480px) { .msg-bubble.npc { max-width: none; padding: 0; } .speech-bubble { padding: 11px 12px; } }

@@ -21,49 +21,41 @@ duplicating), and find the right doc to update for whatever you change.
 
 ## Phase 1 — Implement offline, prove it with unit tests
 
-1. `git pull --rebase origin beta` before starting (multi-agent workflow —
-   see `documentation/ai_learnings_mistakes/AI_LEARNINGS_PUSHING_CODE.md`).
+1. Work on `beta` only. Confirm the checkout is clean, then run
+   `git pull --no-rebase origin beta` before making changes. This shared checkout can receive another
+   agent's commits; read their intent before merging and never force-push.
 2. Activate the `storieschat` conda env for anything Python.
 3. For a bug fix: write a test that reproduces the bug FIRST, confirm it
    fails, then fix, then confirm it passes. For a new feature: write tests
    that verify the new behavior. No exceptions — this is a hard project rule,
    not a suggestion (`.claude/CLAUDE.md` §7).
-4. If you're changing frontend JS in `frontend/index.html` or
-   `frontend/debug.html`: there is no JS test harness in this repo. The
-   precedent (see `tests/frontend/test_beta_api_base.py`, from the BL-03 fix)
-   is a structural/string-level regression test asserting the specific
-   pattern you fixed is present and the specific bug pattern is absent. This
-   is a floor, not a substitute for the live browser check below — a
-   string assertion cannot catch a runtime JS error, a CORS rejection, or a
-   layout break.
-4a. **Any UI-visible change (frontend/index.html, frontend/debug.html, CSS,
-    manifest.json, sw.js) MUST be checked in a real browser against your
-    local dev server BEFORE you commit** — not just before calling the task
-    done. Use the Playwright MCP tools (`playwright@claude-plugins-official`
-    — confirm with `claude plugin list` if tools aren't showing up) to run
-    both of the following against `localhost`, using the exact procedure in
-    Phase 3 step 12 below:
-    - **Desktop Chromium** — default Playwright viewport/browser.
-    - **iPhone-sized WebKit** — `browser_resize` to 390×844 (or 430×932),
-      plus true WebKit engine + iOS Safari UA + touch emulation via
-      `browser_run_code_unsafe` (Playwright's `devices['iPhone 13']`
-      descriptor), per the detailed steps in Phase 3 step 12.
-    Check the console for JS errors in both, and actually click the golden
-    path for what you changed — don't just load and screenshot. **Always
-    inspect the resulting screenshots or live browser surface yourself before
-    committing**: evidence must visibly include the full top edge, the fixed
-    bottom navigation, and the safe-area region beneath it. This is mandatory
-    for iOS standalone/PWA work, where a technically successful load can
-    still leave clipped content or an empty black viewport band. If Playwright
-    tools are genuinely unavailable, say so explicitly and do not commit a
-    UI-visible change without this check; escalate to the user instead of
-    skipping it silently.
+4. Frontend tests exist: use Node's built-in test runner for
+   `tests/frontend/*.test.cjs` and structural pytest checks under
+   `tests/frontend/`. For PowerShell, run
+   `node --test (Get-ChildItem tests/frontend -Filter '*.test.cjs' | ForEach-Object FullName)`.
+   Add a regression check for the actual bug.
+   These tests cannot replace a browser pass.
+4a. **For every UI-visible change, run real browser checks locally before
+    committing.** Follow [BROWSER_QA.md](BROWSER_QA.md) with the `storieschat`
+    Python environment. Launch desktop Chromium (1440×1000), iPhone 13
+    **WebKit** (`playwright.devices["iPhone 13"]`), and simulated standalone
+    WebKit (`navigator.standalone = true` before page load). A resized desktop
+    Chromium page is not a WebKit/iOS check. Use
+    `scripts/verify_ui_browser.py` for baseline load, errors and screenshots,
+    then run or adapt `scripts/verify_mobile_pwa_browser.py` to click through
+    the feature. Check console/network errors, API host, touch interactions,
+    top and bottom edges, safe-area gap and overlays. Inspect the screenshots
+    yourself. If Playwright tooling is missing, install its Chromium/WebKit
+    browser binaries in the `storieschat` environment; do not silently skip
+    visual QA or claim a physical iOS device was tested.
 5. Run the full suite: `python -m pytest tests/ -x -q`. Must be 100% pass,
    zero skips (conftest.py hard-fails any skip attempt — this is
    intentional, don't work around it).
-6. `git pull --rebase origin beta` again before committing (catch parallel
-   agent pushes). If new commits landed, re-run the full suite — integration
-   with someone else's change is a real failure mode, not paranoia.
+6. Fetch current `origin/beta` again before shipping. Commit a checkpoint on
+   `beta` if substantial work needs protection, merge newer commits while
+   preserving both agents' intent, then rerun the full suite and any affected
+   browser flows. Resolve conflicts by reading the commits, not by choosing
+   blanket ours/theirs.
 
 ## Phase 2 — Ship it
 
@@ -109,63 +101,26 @@ don't silently skip this phase because polling is slower than you'd like.
     interchangeable — see BL-03; a page-level check alone would have missed
     that bug). Confirm the specific thing you changed actually behaves
     differently, not just that the server responds.
-12. **Drive it in a real browser** using the Playwright MCP tools (installed
-    via `claude plugin install playwright@claude-plugins-official` — if
-    those tools aren't available in your current tool list, the plugin was
-    installed after this session started and needs a Claude Code
-    restart/reconnect to load; say so explicitly rather than silently
-    skipping this step). This project is primarily played as an iOS
-    "Add to Home Screen" webapp, so **verify BOTH a standard desktop/website
-    view AND an iOS-simulated view — every time, not just for PWA/cache
-    changes**:
-    - **Website mode**: default Playwright viewport, navigate to
-      `https://storieschat.ai/beta/`.
-    - **iOS-simulated mode**: the Playwright MCP tools here don't expose a
-      device picker directly, so simulate iOS with what they do give you:
-      1. `browser_resize` to an iPhone viewport (390×844 for iPhone 13/14,
-         or 430×932 for a Pro Max) — this alone catches most layout/touch
-         sizing bugs.
-      2. For true Safari/WebKit engine + iOS user-agent + touch emulation
-         (not just viewport size), use
-         `browser_run_code_unsafe` to drive Playwright's own device
-         descriptors, e.g.:
-         `async (page) => { const { devices } = require('playwright'); /* if unavailable in this context, fall back to context.newPage with a manually-set userAgent + viewport + hasTouch:true, isMobile:true matching devices['iPhone 13'] */ }`
-         — if `browser_run_code_unsafe` can't load Playwright's `devices`
-         registry in this sandboxed context, at minimum set the iPhone
-         Safari UA string manually
-         (`Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)
-         AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0
-         Mobile/15E148 Safari/604.1`) alongside the resized viewport.
-      3. This project's PWA-specific behavior (service worker caching,
-         `standalone` display mode, `manifest.json`, the iOS install
-         prompt, the hard-reload button) is exactly the class of bug that
-         only reproduces under iOS Safari's cache/rendering quirks — a
-         desktop Chrome pass alone is not sufficient for any change
-         touching `sw.js`, `manifest.json`, or anything under the
-         `iOS INSTALL PROMPT` / `HARD RELOAD` blocks in
-         `frontend/index.html`.
-    - For BOTH modes: open the browser console and check for JS errors on
-      load and after each interaction — a silent console error is exactly
-      the class of bug unit tests and curl checks both miss.
-    - Actually click through the golden path relevant to your change (pick a
-      story card, send a chat message, navigate a menu — whatever you
-      touched), not just load the page and screenshot it.
-    - Take at least one screenshot per mode as evidence, inspect both images
-      yourself for clipping, safe-area gaps, and bottom-bar placement, and
-      note both in your report.
-    - Check the Network tab / requests for which host API calls actually hit
-      (this is how BL-03 would have been caught immediately instead of via
-      manual curl comparison).
-    If Playwright tools are genuinely unavailable this session, fall back to
-    API-level verification via curl/PowerShell against the real hosted
-    endpoints and say explicitly that browser-level QA (console errors,
-    visual layout, click-through, and the iOS-simulated pass) was not done
-    and why — never claim "smoke tested in browser" or "verified on iOS"
-    when you only checked curl output or a desktop-viewport pass.
+12. **Repeat the real browser flow against hosted beta.** Use the executable
+    commands in [BROWSER_QA.md](BROWSER_QA.md), substituting
+    `https://storieschat.ai/beta/` and an expected API host of
+    `beta-api.storieschat.ai`. Run desktop Chromium, iPhone 13 WebKit, and
+    simulated standalone WebKit in fresh contexts. `verify_ui_browser.py`
+    catches load, console and API failures; the task-specific feature script
+    must click the changed behavior. Save and personally inspect screenshots
+    in every mode, including the full top edge, fixed bottom navigation and
+    safe-area region. Inspect dialogs/maps/portraits and test their controls.
+    Check API request hosts and HTTP failures after interactions, not only on
+    initial page load. For PWA work, run the legacy-worker upgrade script
+    locally before shipping and check live no-store HTML/worker, hashed asset
+    URLs, matching shell revisions and `/beta/` manifest scope.
 
-    The same website-mode + iOS-simulated-mode pass applies locally too
-    (Phase 1/local dev server), not just against the deployed beta site —
-    catch layout/PWA regressions before they ever reach beta.
+    Playwright MCP tools may be used for exploration, but are optional when
+    the Python Playwright scripts are available. A resized Chromium viewport
+    cannot stand in for WebKit. If browser binaries are unavailable and cannot
+    be installed, state the exact gap; never claim iOS/visual QA from curl or
+    screenshots taken in desktop Chromium. Simulated standalone is not a
+    physical iPhone installation.
 13. If live verification finds a bug that local tests didn't catch: that's a
     real bug in production-adjacent (beta) infrastructure. Go back to Phase
     1 — write a test that would have caught it if at all feasible (matching

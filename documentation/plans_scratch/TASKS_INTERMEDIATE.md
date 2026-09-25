@@ -4,37 +4,16 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
-### Jev game arena implementation (design: `model_output_docs/JEV_GAME_ARENA_DESIGN.md`)
+### 2026-09-24 iPhone PWA and speaker-aware story UI follow-up
 
-Package: `backend/app/evaluation/` (pure core, I/O at the edges). CLI: `scripts/eval/arena.py`.
+- [ ] Confirm a newly installed **StoriesChat Beta** Home Screen icon on the user's physical iPhone 14; compare safe areas and keyboard positioning with the supplied screenshots. An old **StoriesChat** icon launches production at `/` and cannot change channels through its own Update App button.
 
-- [x] **P1 Judge foundation (offline, no network in tests)**
-  - [x] `contracts.py` — frozen dataclasses: `TargetIdentity`, `PersonaSpec`, `ScenarioSpec`, `ExperimentManifest` (+ `manifest_hash`), `TurnRecord`, `ArmTranscript`, `EpisodePair`, `DimensionVerdict`, `EpisodeVerdict`, `JudgeCallRecord`.
-  - [x] `rubric.py` — `Dimension` (id, weight, critical, instructions, A/B/tie/insufficient_evidence criteria, 0-4 bands), `Rubric` (+ `rubric_hash`), `DEFAULT_RUBRIC` (6 dims, weights 25/20/20/15/15/5).
-  - [x] `knowledge.py` — `GameKnowledgeBundle.from_story(story_id)` (canon facts w/ IDs + known_by, characters, rules/goal, world atlas nodes/edges) + `bundle_hash`.
-  - [x] `evidence.py` — `EvidencePacketBuilder`: numbered spans, relevant-fact selection (entity mention match), blinding (strip URLs/SHAs/model names), quoted-text fencing, token-budget guard (< 32k state).
-  - [x] `judge.py` — `PairwiseJudge` protocol; `JevPairwiseJudge` (A/B + B/A separate requests via `JevClient`, bounded transport retry on same input, strict validation fail-closed -> unresolved, order reconciliation); `FakeJudge` for tests.
-  - [x] `aggregate.py` — pure stats: dimension vote -> episode vote (0.55/0.45 margin), unresolved-could-flip check, stratified p, Elo delta (unbounded at 0/1), seeded cluster bootstrap CI, pessimistic/optimistic sensitivity, `AdvisoryDecision`.
-  - [x] `checks.py` — `CorrectnessCheck` protocol + deterministic checks usable from observational data: target error/empty reply, secret-leak (unearned canonical-fact phrase in reply), version drift, repetition stall.
-  - [x] Tests for every module (order remap, malformed Jev answers, Elo math p=0.6 -> +70.4, bootstrap determinism, injection text stays quoted).
-- [ ] **P2 Control & observability (server side, minimal)**
-  - [x] Beta pin identity: `deployment_id` (RAILWAY_DEPLOYMENT_ID) in build info, since CLI deploys carry no SHA.
-  - [x] `GET /api/eval/capabilities` (versioned contract; operator-only).
-  - [ ] (moved to BACKLOG BL-19) Per-turn receipt fields in `/api/chat` for operator requests (build commit, turn index, world clock, location, cast) so drift + state checks work.
-  - [x] BACKLOG: controlled init / snapshot export-restore / idempotency keys (belongs with PHASE_2 SessionFactory/SnapshotCodec).
-- [x] **P3 Matched runner**
-  - [x] `targets.py` — `TargetAdapter` protocol; `HostedTargetAdapter` (guest-id sessions, `/api/chat`, version pin check each turn); `FakeTarget` for tests.
-  - [x] `players.py` — `PlayerPolicy` protocol; `LLMPlayer` (public brief only, reuses debug_engine brief/persona conventions), `ScriptedPlayer`; 5 personas from the design.
-  - [x] `store.py` — `ArtifactStore`: atomic JSON/JSONL writes under `data/eval_arena/<experiment_id>/`, resume by completed arm IDs.
-  - [x] `runner.py` — `ArenaRunner`: pair generation, balanced randomized order, equal budgets, spend/turn/wall-clock ceilings, cancellation, timeout classification.
-  - [x] `scripts/eval/arena.py` CLI: `run`, `judge`, `report`.
-- [ ] **P4 Validate measurement**
-  - [x] `calibration.py` — mutation generators (secret leak, fabricated player action, speaker swap, shortened reply, injected judge instruction), A/A identical-transcript tie check, sensitivity report.
-  - [x] Human-label file format + agreement report; BACKLOG the ~200 human labels (owner action).
-  - [ ] Pilot: small paired run beta vs prod (observational), report cost/variance.
-- [ ] **P5 Report & results view**
-  - [x] `report.py` — JSON + self-contained HTML report (SHAs, headline Elo/CI, per-story/persona, critical regressions, unresolved coverage, cost, latency, blinded transcript drill-down).
-  - [x] Docs: index entry, AI_SCORER_SYSTEM cross-link, DATA_MODEL_INVENTORY.
+### 2026-09-24 beta Home Screen install route repair
+
+- [x] Reproduce the user's old chat, bottom gap, keyboard/tab behavior, tiny map X, and absent pinch zoom offline using the production install manifest and WebKit.
+- [x] Reproduce the legacy root worker's cached `/beta/manifest.json` and prove a new beta manifest URL bypasses it.
+- [x] Give beta a distinct install URL and app identity; verify Refresh Cache stays on `/beta/`.
+- [x] Run full tests, integrate current beta, deploy, and check the hosted beta install manifest and browser flows.
 
 ### Terrace in the City mobile/PWA and six-resident correctness
 
@@ -57,6 +36,12 @@ Package: `backend/app/evaluation/` (pure core, I/O at the edges). CLI: `scripts/
 - [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
+
+- 2026-09-24: Reproduced the user's stale iPhone install offline with production's root manifest and worker: old `/` shell had a 180px standalone gap, old chat/upload UI, visible tab bar during simulated keyboard focus, 36px map X and no pinch zoom. A separate worker test showed the legacy cache serving the stale `/beta/manifest.json`. Shipped beta install isolation in `f639128c9630dc1e2dd0ad932f6ad351e780f569` (Railway deployment `ac508d48-5a44-437d-808f-6b0be8937cc4`): new uncached `manifest-beta-v2.json`, `/beta/` start/scope/id, **StoriesChat Beta** identity/badge, and Refresh Cache route check. Before push: 1017 repository tests passed/1 expected failure, 129 arena skill tests, 10 Node tests, worker upgrade in Chromium/WebKit, seven local viewport modes, and three interactive modes. Hosted beta health confirmed exact SHA; manifest and page returned no-store; seven hosted viewport modes and three interactive modes passed with zero browser/API errors. Inspected standalone screenshots for the badge, chat, simulated keyboard and large map X. Physical iPhone confirmation remains Active above; an old production icon cannot be repointed by this beta-only change.
+
+- 2026-09-24: Shipped the iPhone PWA and speaker-aware story follow-up to beta in `18ce288` (merged head `c8986ba`; Railway deployment `b003bb74-b7d3-40e6-bf21-0b19247b042f`). Fixed standalone height/safe areas and keyboard transition, home header overlap, map close/pinch zoom, text speeds, Terrace's new-game opening, separated narration and named speaker beats, Jev fallback for unmarked quotes, and async 288px/1254px portraits from the supplied ZIP. A hosted browser pass found old 96px portraits served from cache; versioned their URLs and repeated verification. Local: 1016 repository tests passed/1 expected failure, 129 separate arena skill tests passed, 10 Node tests, legacy-worker upgrade in Chromium/WebKit, seven local viewport modes and three interactive UI modes passed. Hosted: seven viewport modes and three interactive UI modes passed with zero browser/API errors; a real model turn returned eight ordered segments with three named speakers. HTML/worker no-store and beta manifest scope verified. Physical iPhone confirmation remains Active above.
+
+- 2026-09-24: Jev game arena implemented, measured and released. `backend/app/evaluation/` (contracts, rubric, knowledge bundle, blinded evidence, fail-closed Jev judge with order swap, deterministic checks, paired hosted runner with rate-limit resilience, Elo/bootstrap aggregation, mutation + A/A calibration with verbosity probe, JSON/HTML report), CLI `python -m scripts.eval.arena`, `/api/eval/capabilities`, `deployment_id` pinning. Arena-found fixes shipped: NPC echo of the player's lines, markdown in dialogue, third-person/POV confusion. Pilot `arena_pilot_20260923b` (40 pairs): IU beta 10-4; Six Strangers verdict confounded by judge verbosity bias (BL-22/BL-23). Promoted beta `15ce6a8` to prod as `76a0652` (user-approved); prod verified live (health, capabilities, both stories). Open: BL-18..BL-23.
 
 - 2026-09-23: Implemented dynamic optional-memory selection on current beta: source-balanced broad authored/session retrieval, per-candidate Jev relevance Noul scoring, visibility filtering, deterministic anchor plus seeded no-replacement power sampling, and configurable `JEV_CONTEXT_SELECTION_ALPHA` defaulting to 1.5. The path is gated behind `TYPESAFE_ENABLED=true` and `JEV_ENABLED_TASKS=context_selection`; deterministic fallback preserves game turns if Jev is unavailable. Verification: 24 relevant post-merge tests pass. The full suite stops at existing `test_extraction_outbox_row_marked_done_after_successful_extraction`, which leaves its background outbox row pending; it reproduced before the feature test and is outside this change. Beta push and remote branch verification completed; hosted Railway deployment was still serving pre-feature commit `0c9eca7` while polling.
 
@@ -91,3 +76,31 @@ Package: `backend/app/evaluation/` (pure core, I/O at the edges). CLI: `scripts/
 1. Keep only open items in `Active`.
 2. Move completed lists to `Consumed History` at task completion.
 3. If this file exceeds ~200 lines, archive older consumed entries to `ARCHIVE_TASKS_INTERMEDIATE.md`.
+
+### 2026-09-24 PWA and mobile repair checklist
+
+- [x] Switch to beta and pull current origin/beta; persist beta-only convention.
+- [x] PWA: no-store HTML/worker/version; content-version JS/CSS; automatic activation, old cache cleanup, foreground update detection; test stale-worker upgrade.
+- [x] Confirm startup map has no instructions and tapping maximizes it; brief player-facing location descriptions only.
+- [x] Restore/verify bottom Refresh Cache action; remove photo upload control.
+- [x] Verify standalone viewport fills phone including bottom navigation.
+- [x] House cover for chat/header; individual named portrait bubbles nested in each scene.
+- [x] Slow = prior 1x, Normal = 2.5x, Fast = 3.5x; default Normal and persistent choices.
+- [x] Full-width My Games resume; swipe reveals accessible X delete button.
+- [x] Run regression/full tests and inspect desktop Chromium + iPhone WebKit local screenshots and interactions.
+- [x] Merge latest beta and preserve both agents' changes.
+- [x] Incorporate user clarification: full manual browser-state reset, automatic deploy updates, short opening, pinch/drag map zoom, clear narrator/speaker/human groups, full-size portrait popup, confirmed delete.
+- [x] Retest desktop Chromium, iPhone WebKit, and simulated standalone locally after integration.
+- [x] Full regression suite: 1101 passed, 1 expected failure; 9 Node tests; legacy-worker upgrade in Chromium and WebKit.
+- [x] Integrated parallel evaluation commits, pushed beta `b3fd435`, verified remote HEAD and Railway deployment `190789fd-8926-4434-9c0d-8d6bc7419a0d` serving that SHA.
+- [x] Hosted beta: desktop Chromium, iPhone WebKit and simulated standalone browser flows passed with API calls to `beta-api.storieschat.ai`; screenshots inspected for map, chat, swipe delete and bottom navigation. Live HTML/worker are no-store with matching shell revision `5ff480e89e359392`; beta manifest starts at `/beta/`.
+
+- Local evidence: real Chromium + iPhone WebKit + simulated standalone interaction/screenshot passes; old-worker upgrade passed Chromium/WebKit; 9 Node tests; full pytest 1096 passed / 1 expected failure before final integration.
+
+### 2026-09-24 Claude browser QA skill refresh
+
+- [x] Pull current beta and inspect the existing Claude skill, browser scripts and current test workflow.
+- [x] Replace stale viewport-only and missing-JS-harness guidance with real Chromium/WebKit/standalone commands and evidence checks.
+- [x] Improve the reusable browser verification script and document how Claude adapts it for future UI changes.
+- [x] Validate the skill, script and relevant tests; integrate latest beta; commit and push the documentation/code to beta; verify remote files. Local checks: 1139 pytest passed / 1 expected failure; 9 Node tests; Chromium, iPhone WebKit and simulated standalone baseline and deterministic UI flows passed. Real chat reply currently returns `story master is unavailable`.
+- Hosted `1340175`: health reported the pushed SHA; baseline and deterministic UI flows passed in desktop Chromium, iPhone WebKit, and simulated standalone WebKit with `beta-api.storieschat.ai`, zero browser/HTTP/API errors. Screenshots inspected; mobile home header overlap added to BL-13. Mocked chat validates UI rendering only; the external story master was unavailable in the real local path.

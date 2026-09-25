@@ -60,7 +60,8 @@ python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-coll
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `OPENAI_API_KEY` | Cloud LLM API key | `sk-...` |
-| `OPENAI_MODEL` | Default cloud model | `gpt-4o` |
+| `OPENAI_MODEL` | Model for extractors/translation (honored since 2026-09-24; previously hardcoded) | (unset = `gpt-4o-mini`) |
+| `OPENAI_BASE_URL` | Base URL for extractor/translation calls; arena offline mode points it at Ollama | (unset = `https://api.openai.com/v1`) |
 | `STORY_MASTER_BASE_URL` | Override story master API base | (unset = OpenAI) |
 | `STORY_MASTER_MODEL` | Override story master model | (unset = OPENAI_MODEL) |
 | `STORY_MASTER_API_KEY` | Override story master key | (unset = OPENAI_API_KEY) |
@@ -74,6 +75,7 @@ python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-coll
 | `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID | `123...apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret | `GOCSPX-...` |
 | `JWT_SECRET` | HS256 signing key for JWTs (365-day expiry) | 32+ char random hex |
+| `DEBUG_TOOLS_ENABLED` + `OPERATOR_TOKEN` | Unlock operator-only debug/authoring routes; fail closed when unset. Not needed for the game arena (local-only). | (unset on beta and prod) |
 
 ### Storage path detection (in code)
 ```python

@@ -61,3 +61,18 @@ it (strict mode). Unmarked `async def test_*` pass locally and fail in the build
 ("async def functions are not natively supported"), which blocks the deploy.
 Always decorate async tests with `@pytest.mark.asyncio`, and reproduce the build
 condition locally with: `python -m pytest <path> -c /dev/null --rootdir .`
+
+- 2026-09-24: The outbox completion regression must keep `TestClient` open as a
+  context manager while polling. Without it, Starlette closes the per-request
+  event loop and cancels extraction before the poll starts. Preserve the real
+  background task and database transition; do not skip the test or force-mark
+  the outbox row done.
+
+## The Docker build image has no `git` binary (2026-09-24)
+
+Tests that shell out to `git` (e.g. `git init` in a tmp repo) pass locally and fail
+the Railway build-time test gate with `FileNotFoundError: 'git'`, blocking the
+deploy. Skips are banned, so inject a fake instead (see
+`.claude/skills/promote-to-prod/tests/test_local_release.py` `fake_git`). Reproduce the
+build conditions locally (no git, no pytest.ini) with:
+`PATH="$(echo "$PATH" | tr ':' '\n' | grep -vi git | paste -sd:)" python -m pytest <path> -c /dev/null --rootdir .`

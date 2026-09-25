@@ -1,13 +1,16 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 import logging
 import os
 import time
 import threading
+import hashlib
+import json
+import re
 from pathlib import Path
 
 from backend.app.api.prompt_engine import router as chat_router
@@ -32,6 +35,34 @@ _INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.ht
 _MANIFEST_PATH    = Path(__file__).parent.parent.parent / "frontend" / "manifest.json"
 _SW_PATH          = Path(__file__).parent.parent.parent / "frontend" / "sw.js"
 _IMG_DIR          = Path(__file__).parent.parent.parent / "frontend" / "img"
+
+
+_NO_STORE = {"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"}
+_SHELL_ASSETS = ("dialogue.js", "dialogue.css", "world-map.js", "world-map.css")
+
+
+def _asset_name(name):
+    digest = hashlib.sha256((_INDEX_HTML_PATH.parent / name).read_bytes()).hexdigest()[:16]
+    stem, extension = name.rsplit('.', 1)
+    return f"{stem}.{digest}.{extension}"
+
+
+def _shell_revision():
+    digest = hashlib.sha256()
+    for name in ("index.html", "sw.js", "manifest.json", *_SHELL_ASSETS):
+        digest.update((_INDEX_HTML_PATH.parent / name).read_bytes())
+    return digest.hexdigest()[:16]
+
+
+def _game_page(*, beta: bool = False):
+    html = _INDEX_HTML_PATH.read_text(encoding="utf-8")
+    for name in _SHELL_ASSETS:
+        html = re.sub(re.escape(name) + r'\?v=[^"\s]+', 'assets/' + _asset_name(name), html)
+    html = html.replace('__SHELL_REVISION__', _shell_revision())
+    html = html.replace('__APP_DISPLAY_NAME__', 'StoriesChat Beta' if beta else 'StoriesChat')
+    html = html.replace('__APP_MANIFEST_HREF__', 'manifest-beta-v2.json' if beta else 'manifest.json')
+    html = html.replace('__APP_CHANNEL_BADGE__', '<small class="beta-badge">Beta</small>' if beta else '')
+    return HTMLResponse(html, headers=_NO_STORE)
 
 
 # --------------------------------------------------
@@ -346,13 +377,13 @@ app.mount("/img", StaticFiles(directory=str(_IMG_DIR)), name="img")
 # --------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 async def game_ui_prod():
-    return _INDEX_HTML_PATH.read_text(encoding="utf-8")
+    return _game_page()
 
 
 @app.get("/beta/", response_class=HTMLResponse)
 @app.get("/beta", response_class=HTMLResponse)
 async def game_ui_beta():
-    return _INDEX_HTML_PATH.read_text(encoding="utf-8")
+    return _game_page(beta=True)
 
 
 @app.get("/debug", response_class=HTMLResponse)
@@ -366,14 +397,32 @@ async def debug_ui_page():
 # --------------------------------------------------
 @app.get("/manifest.json")
 @app.get("/beta/manifest.json")
-async def pwa_manifest():
-    return FileResponse(str(_MANIFEST_PATH), media_type="application/manifest+json")
+@app.get("/beta/manifest-beta-v2.json")
+async def pwa_manifest(request: Request):
+    manifest = json.loads(_MANIFEST_PATH.read_text(encoding="utf-8"))
+    scope = '/beta/' if request.url.path.startswith('/beta/') else '/'
+    manifest.update(start_url=scope, scope=scope, id=scope)
+    if scope == '/beta/':
+        manifest.update(name='StoriesChat Beta', short_name='StoriesChat Beta')
+        for icon in manifest.get('icons', []):
+            icon['src'] = icon['src'].replace('%E2%9C%A6', '%CE%B2')
+    return JSONResponse(manifest, headers=_NO_STORE)
 
 
 @app.get("/sw.js")
 @app.get("/beta/sw.js")
 async def service_worker():
-    return FileResponse(str(_SW_PATH), media_type="application/javascript")
+    source = _SW_PATH.read_text(encoding="utf-8").replace('__SHELL_REVISION__', _shell_revision())
+    return Response(source, media_type="application/javascript", headers=_NO_STORE)
+
+
+@app.get('/assets/{filename}')
+@app.get('/beta/assets/{filename}')
+async def versioned_asset(filename: str):
+    for name in _SHELL_ASSETS:
+        if filename == _asset_name(name):
+            return FileResponse(str(_INDEX_HTML_PATH.parent / name), headers={"Cache-Control": "public, max-age=31536000, immutable"})
+    raise HTTPException(status_code=404, detail="Asset version no longer available")
 
 
 # --------------------------------------------------
@@ -393,27 +442,27 @@ async def version():
 @app.get("/version.json")
 @app.get("/beta/version.json")
 async def version_json():
-    return get_build_info()
+    return JSONResponse({**get_build_info(), "shell_revision": _shell_revision()}, headers=_NO_STORE)
 
 @app.get("/dialogue.js")
 @app.get("/beta/dialogue.js")
 async def dialogue_script():
-    return FileResponse(str(_INDEX_HTML_PATH.parent / "dialogue.js"), media_type="text/javascript")
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "dialogue.js"), media_type="text/javascript", headers=_NO_STORE)
 
 
 @app.get("/dialogue.css")
 @app.get("/beta/dialogue.css")
 async def dialogue_styles():
-    return FileResponse(str(_INDEX_HTML_PATH.parent / "dialogue.css"), media_type="text/css")
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "dialogue.css"), media_type="text/css", headers=_NO_STORE)
 
 
 @app.get("/world-map.js")
 @app.get("/beta/world-map.js")
 async def world_map_script():
-    return FileResponse(str(_INDEX_HTML_PATH.parent / "world-map.js"), media_type="text/javascript")
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "world-map.js"), media_type="text/javascript", headers=_NO_STORE)
 
 
 @app.get("/world-map.css")
 @app.get("/beta/world-map.css")
 async def world_map_styles():
-    return FileResponse(str(_INDEX_HTML_PATH.parent / "world-map.css"), media_type="text/css")
+    return FileResponse(str(_INDEX_HTML_PATH.parent / "world-map.css"), media_type="text/css", headers=_NO_STORE)

@@ -53,14 +53,30 @@ def test_hard_reload_handler_clears_service_worker_and_cache_storage():
 def test_update_app_tab_reuses_the_cache_busting_hard_reload_action():
     html = _read_index_html()
     assert 'id="tab-update-app"' in html
-    assert ">Update App<" in html
+    assert ">Refresh Cache<" in html
     assert 'data-action="hard-reload"' in html
     assert 'this.dataset.action === "hard-reload"' in html
     assert "hardReloadApp();" in html
 
 
-def test_text_speed_has_only_slow_normal_and_fast_at_requested_rates():
+def test_refresh_cache_clears_saved_browser_state_too():
+    html = _read_index_html()
+    start = html.index("function hardReloadApp")
+    end = html.index("/* ─── iOS INSTALL PROMPT", start)
+    fn_body = html[start:end]
+    assert "localStorage.clear()" in fn_body
+    assert "sessionStorage.clear()" in fn_body
+    assert "indexedDB.databases()" in fn_body
+    assert "document.cookie" in fn_body
+
+
+def test_text_speed_has_slower_normal_fast_and_instant():
     html = _read_index_html()
     assert 'id="typewriter-speed" min="0" max="2"' in html
-    assert 'var TYPEWRITER_SPEEDS = [10, 4, 2.5];' in html
-    assert 'var TYPEWRITER_LABELS = ["Slow", "Normal", "Fast"];' in html
+    assert 'var TYPEWRITER_SPEEDS = [4 / 0.6, (10 / 3.5) / 0.7, 0];' in html
+    assert 'var TYPEWRITER_LABELS = ["Normal", "Fast", "Instant"];' in html
+
+
+def test_replaced_portraits_get_fresh_asset_urls():
+    html = _read_index_html()
+    assert 'value += "?v=portrait-288-20260924"' in html

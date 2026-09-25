@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
-from backend.app.engine.dialogue import dialogue_prompt, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, clean_spoken_text
+from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
 from backend.app.engine.state import Character, extract_state_tag
 
 
@@ -38,6 +38,55 @@ def test_legacy_prose_is_not_guessed_from_mentioned_names():
     assert present_dialogue(text, state()) == (text, [{'kind': 'narration', 'text': text}])
 
 
+def test_explicit_named_lines_without_quotes_become_distinct_speakers():
+    raw = json.dumps({'segments': [
+        {'kind': 'narration', 'speaker_id': None,
+         'text': 'The kitchen door opens.\n\nMizuki Shida: Welcome home!\n\nIU: Tea is ready.'},
+    ], 'state': {'emotion': 'neutral', 'rel_delta': 0}})
+    decoded, _ = extract_state_tag(decode_dialogue_response(raw, state()))
+    _, blocks = present_dialogue(decoded, state())
+    assert [part['kind'] for part in blocks] == ['narration', 'dialogue', 'dialogue']
+    assert [part.get('speaker_name') for part in blocks[1:]] == ['Mizuki Shida', 'IU']
+
+
+def test_consecutive_dialogue_chunks_keep_their_boundaries():
+    _, blocks = present_dialogue(
+        '[SPEAKER:mizuki]First thought.[/SPEAKER]\n\n'
+        '[SPEAKER:mizuki]After a pause, another thought.[/SPEAKER]', state())
+    assert [part['text'] for part in blocks] == ['First thought.', 'After a pause, another thought.']
+
+
+@pytest.mark.asyncio
+async def test_jev_fallback_tags_only_unmarked_quoted_speech():
+    class FakeJev:
+        async def ask(self, batch, *, timeout_ms):
+            assert timeout_ms > 0
+            assert len(batch.decisions) == 1
+            return SimpleNamespace(answers={batch.decisions[0].id: SimpleNamespace(
+                kind='choice', choice='mizuki', confidence=.95)})
+
+    raw = '[SPEAKER:iu]Already tagged.[/SPEAKER] Mizuki leans in. “Come inside,” she says.'
+    assert has_unmarked_quotes(raw)
+    tagged = await attribute_unmarked_quotes(raw, state(), FakeJev())
+    _, blocks = present_dialogue(tagged, state())
+    assert [part['kind'] for part in blocks] == ['dialogue', 'narration', 'dialogue', 'narration']
+    assert blocks[0]['speaker_id'] == 'iu'
+    assert blocks[2]['speaker_id'] == 'mizuki'
+    assert blocks[2]['text'] == 'Come inside,'
+
+
+@pytest.mark.asyncio
+async def test_jev_fallback_never_guesses_on_low_confidence_or_failure():
+    class FakeJev:
+        async def ask(self, batch, *, timeout_ms):
+            return SimpleNamespace(answers={batch.decisions[0].id: SimpleNamespace(
+                kind='choice', choice='iu', confidence=.2)})
+
+    raw = 'Someone whispers, “Wait here.”'
+    assert await attribute_unmarked_quotes(raw, state(), FakeJev()) == raw
+    assert not has_unmarked_quotes('[SPEAKER:iu]“Wait here.”[/SPEAKER]')
+
+
 def test_portraits_only_accept_local_authored_assets():
     s = state()
     s.characters['iu'].meta['portrait_url'] = 'https://untrusted.example/a.png'
@@ -55,7 +104,26 @@ def test_contract_applies_to_each_story_and_authored_openings_are_segmented():
         assert all(key in prompt for key in s.characters)
         clean, blocks = present_dialogue(story['opening']['text'], s)
         assert '[SPEAKER:' not in clean
-        assert any(b['kind'] == 'dialogue' for b in blocks)
+        assert blocks
+        if not story['opening'].get('variants') and not story['opening'].get('segments'):
+            assert any(b['kind'] == 'dialogue' for b in blocks)
+
+
+def test_terrace_authored_json_opening_has_two_present_speakers_and_scene_beats():
+    from backend.app.api.prompt_engine import _opening_for_new_game
+    from backend.app.engine.story_loader import StoryDefinition
+
+    path = Path(__file__).resolve().parents[4] / 'backend/app/stories/7_six_strangers/six_strangers_story.json'
+    story = StoryDefinition.from_dict(json.loads(path.read_text(encoding='utf-8')))
+    class ActiveCast:
+        def active_ids(self): return ['mizuki', 'iu']
+    s = state()
+    s.cast_lifecycle = ActiveCast()
+    opening = _opening_for_new_game(story, s)
+    _, blocks = present_dialogue(opening, s)
+    assert [b['kind'] for b in blocks] == ['narration', 'dialogue', 'narration', 'dialogue', 'narration']
+    assert {b['speaker_id'] for b in blocks if b['kind'] == 'dialogue'} == {'mizuki', 'iu'}
+    assert 100 <= len(opening.split()) <= 200
 
 
 def test_segments_survive_history_pagination(tmp_path, monkeypatch):
@@ -68,7 +136,7 @@ def test_segments_survive_history_pagination(tmp_path, monkeypatch):
     assert entries[1]['content'] == 'Hello'
 
 
-def test_structured_state_never_leaks_into_scene_and_consecutive_speech_is_grouped():
+def test_structured_state_never_leaks_into_scene_and_consecutive_speech_stays_split():
     from backend.app.engine.state import extract_state_tag
     raw = json.dumps({'segments': [
         {'kind': 'dialogue', 'speaker_id': 'iu', 'text': 'Hello.'},
@@ -79,8 +147,7 @@ def test_structured_state_never_leaks_into_scene_and_consecutive_speech_is_group
     clean, blocks = present_dialogue(prose, state())
     assert tag == {'emotion': 'happy', 'rel_delta': 1}
     assert 'STATE' not in clean
-    assert len(blocks) == 1
-    assert blocks[0]['text'] == 'Hello.\n\nWelcome.'
+    assert [part['text'] for part in blocks] == ['Hello.', 'Welcome.']
 
 
 def test_truncated_json_cannot_be_displayed_as_story_prose():
@@ -151,6 +218,49 @@ def test_player_attributed_echo_and_short_or_original_npc_lines_are_kept():
     assert drop_player_echo(blocks, player) == blocks
 
 
+# Live prod 2026-09-24: the player typed "cool where are all the other guys at?
+# i want to say hi" and Makoto said "Cool! Where are all the other guys at? I
+# want to say hi." The one-word "Cool!" stopped the old per-sentence scan.
+
+def test_echo_led_by_a_short_interjection_is_dropped():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]Cool! Where are all the other guys at? I want to say hi.[/SPEAKER]", state())
+    assert drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi") == []
+
+
+def test_near_verbatim_echo_with_small_wording_changes_is_dropped():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]That sounds great. I could use a good meal after a long day.[/SPEAKER]", state())
+    assert drop_player_echo(blocks, "sounds great, i could really use a good meal after a long day") == []
+
+
+def test_near_verbatim_echo_prefix_is_stripped_and_reply_kept():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]Cool! Where are all the other guys at? I want to say hi. "
+        "Uchi is on the terrace, go say hello.[/SPEAKER]", state())
+    out = drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi")
+    assert [b["text"] for b in out] == ["Uchi is on the terrace, go say hello."]
+
+
+@pytest.mark.parametrize("npc_line", [
+    "Cool! Dinner is almost ready.",
+    "Everyone is right here in the kitchen. Say hi!",
+    "Hi! I want to say hi to you too, welcome.",
+])
+def test_npc_replies_that_share_words_with_the_player_are_kept(npc_line):
+    _, blocks = present_dialogue(f"[SPEAKER:mizuki]{npc_line}[/SPEAKER]", state())
+    assert drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi") == blocks
+
+
+def test_contract_lists_only_scene_eligible_cast_ids():
+    s = state()
+    s.characters["yuto"] = Character(key="yuto", name="Yuto Handa")
+    s.cast_lifecycle = SimpleNamespace(enabled=True, is_scene_eligible=lambda k: k != "yuto")
+    assert "Yuto" not in dialogue_prompt(s)
+    ids = dialogue_response_format(s)["json_schema"]["schema"]["properties"]["segments"]["items"]["properties"]["speaker_id"]["enum"]
+    assert "yuto" not in ids and "mizuki" in ids
+
+
 def test_contract_forbids_echoing_the_player():
     assert "Never repeat the player's own message" in dialogue_prompt(state())
 
@@ -187,3 +297,30 @@ def test_contract_fixes_second_person_player_point_of_view():
     prompt = dialogue_prompt(state())
     assert "second person" in prompt
     assert "The player is not a cast member" in prompt
+
+
+def test_player_can_never_be_an_ai_dialogue_speaker():
+    s = state()
+    s.characters["player"] = Character(key="player", name="Paul")
+    schema = dialogue_response_format(s)["json_schema"]["schema"]
+    speakers = schema["properties"]["segments"]["items"]["properties"]["speaker_id"]["enum"]
+    assert "player" not in speakers
+    assert '"player":' not in dialogue_prompt(s)
+    raw = json.dumps({"segments": [
+        {"kind": "dialogue", "speaker_id": "player", "text": "Hi, I'm Paul."},
+        {"kind": "dialogue", "speaker_id": "mizuki", "text": "Welcome, Paul."},
+    ], "state": {"emotion": "warm", "rel_delta": 0}})
+    prose, _ = extract_state_tag(decode_dialogue_response(raw, s))
+    assert "Hi, I'm Paul" not in prose
+    assert present_dialogue(prose, s)[1][0]["speaker_id"] == "mizuki"
+
+
+def test_unknown_voice_self_introduction_uses_matching_active_portrait():
+    s = state()
+    s.characters["yuto"] = Character(key="yuto", name="Yuto Handa")
+    s.cast_lifecycle = SimpleNamespace(active_ids=lambda: ["mizuki", "yuto"])
+    _, blocks = present_dialogue("[SPEAKER:unknown]And I'm Yuto Handa. Welcome home![/SPEAKER]", s)
+    assert blocks[0]["speaker_id"] == "yuto"
+    assert blocks[0]["portrait_url"].endswith("Yuto_Handa.png")
+    _, concealed = present_dialogue("[SPEAKER:unknown]Someone knocks at the door.[/SPEAKER]", s)
+    assert concealed[0]["speaker_id"] is None

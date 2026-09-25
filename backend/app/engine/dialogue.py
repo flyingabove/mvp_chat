@@ -8,21 +8,37 @@ from __future__ import annotations
 
 import json
 import re
+from difflib import SequenceMatcher
 
 from backend.app.engine.character_assets import resolve_character_avatar_url, DEFAULT_PERSONA_AVATAR
 
 MARKER = re.compile(r"\[SPEAKER:([^\]\n]+)\]|\[/SPEAKER\]", re.I)
+QUOTED_SPEECH = re.compile(r'“([^”\n]{2,})”|"([^"\n]{2,})"')
+
+
+def _contract_cast_ids(state) -> list[str]:
+    """Cast IDs the storyteller may voice: never the player, and never a
+    rotating-cast member who has not arrived (or has left). Listing all 17
+    Six Strangers names let the model mention unarrived residents as if they
+    lived there (live prod 2026-09-24: "Yuto should be back from practice")."""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    gated = lifecycle is not None and getattr(lifecycle, "enabled", False)
+    return [key for key in (getattr(state, "characters", {}) or {})
+            if key != "player" and (not gated or lifecycle.is_scene_eligible(key))]
 
 
 def dialogue_prompt(state) -> str:
-    cast = {key: ch.name for key, ch in (state.characters or {}).items()}
+    cast = {key: state.characters[key].name for key in _contract_cast_ids(state)}
     return (
         "\n\n[SPEAKER PRESENTATION CONTRACT]\n"
         "Return the JSON object required by the response schema. Its segments array "
         "contains the scene in reading order. Each segment has kind (narration or "
         "dialogue), speaker_id (null for narration, a cast ID for dialogue), and text. "
         "EVERY spoken passage MUST be a dialogue segment. Split at every change of "
-        "speaker, including within one paragraph. Dialogue text contains only the "
+        "speaker, including within one paragraph. Break longer narration and a "
+        "speaker's longer turn into readable scene beats of about 1-3 sentences "
+        "each; keep their order and label EVERY dialogue beat with its speaker_id, "
+        "even if the same person just spoke. Dialogue text contains only the "
         "spoken words: no quotation marks and no ** or other markdown, because the "
         "interface displays speech itself (this overrides any bold-quote formatting "
         "rule for prose). Keep actions and narration in "
@@ -34,7 +50,9 @@ def dialogue_prompt(state) -> str:
         "'call me Sam', nobody else says 'call me' with their own name). "
         "Never repeat the player's own message as anyone's "
         "dialogue; the player already sees what they wrote. Use speaker_id unknown for an unidentified "
-        "or unlisted voice. Do not reveal "
+        "or unlisted voice. A listed housemate introducing themselves is NOT an "
+        "unknown voice: use their exact cast ID on every line, including their "
+        "first greeting. Never substitute a first name or full name for the cast ID. Do not reveal "
         "a concealed identity through a speaker ID. These markers are presentation "
         "metadata; preserve all other story requirements. Put the focal character's "
         "emotion and relationship change (-1, 0, or 1) in the state object. Never "
@@ -46,7 +64,7 @@ def dialogue_prompt(state) -> str:
 
 def dialogue_response_format(state) -> dict:
     """Constrain speaker IDs and require an ordered scene on the generation call."""
-    ids = list((getattr(state, "characters", {}) or {}).keys())
+    ids = _contract_cast_ids(state)
     return {"type": "json_schema", "json_schema": {
         "name": "story_scene", "strict": True,
         "schema": {"type": "object", "additionalProperties": False,
@@ -102,14 +120,15 @@ def _explicit_speaker_parts(text: str, state) -> list[tuple[str, str | None]]:
     """
     characters = getattr(state, "characters", {}) or {}
     names = sorted(
-        ((str(ch.name).strip(), key) for key, ch in characters.items() if str(ch.name).strip()),
+        ((str(ch.name).strip(), key) for key, ch in characters.items()
+         if key != "player" and str(ch.name).strip()),
         key=lambda item: len(item[0]),
         reverse=True,
     )
     if not names:
         return [(text, None)]
     alternatives = "|".join(re.escape(name) for name, _ in names)
-    pattern = re.compile(rf"^\s*({alternatives})\s*:\s*(?=[\"“‘'])", re.I)
+    pattern = re.compile(rf"^\s*({alternatives})\s*:\s*(?=\S)", re.I)
     ids = {name.casefold(): key for name, key in names}
     parts: list[tuple[str, str | None]] = []
     for paragraph in re.split(r"\n\s*\n", text):
@@ -146,6 +165,8 @@ def decode_dialogue_response(raw: str, state=None) -> str:
         text = MARKER.sub("", segment["text"])
         text = re.sub(r"\[\[STATE\]\].*?(?:\[\[/STATE\]\]|$)", "", text, flags=re.S)
         if segment.get("kind") == "dialogue":
+            if segment.get("speaker_id") == "player":
+                continue
             text = clean_spoken_text(text)
             speaker = segment.get("speaker_id") or "unknown"
             if not isinstance(speaker, str) or not re.fullmatch(r"[\w.-]+", speaker):
@@ -175,6 +196,22 @@ def _segment(text: str, speaker: str | None, characters: dict) -> dict:
             "speaker_name": name, "portrait_url": portrait, "text": text}
 
 
+def _self_identified_speaker(text: str, state) -> str | None:
+    """Resolve only a clear first-person full-name introduction by active cast."""
+    characters = getattr(state, "characters", {}) or {}
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    active = set(lifecycle.active_ids()) if lifecycle else set(characters)
+    matches = []
+    for key in active:
+        if key == "player" or key not in characters:
+            continue
+        name = str(characters[key].name).strip()
+        if name and re.match(rf"^\s*(?:and\s+)?(?:i['’]m|i am|my name is)\s+{re.escape(name)}(?=\b|[,.!?])",
+                             text, re.I):
+            matches.append(key)
+    return matches[0] if len(matches) == 1 else None
+
+
 def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     """Strip transport markers and return ordered, validated presentation blocks.
 
@@ -188,30 +225,108 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     for match in MARKER.finditer(text):
         body = text[offset:match.start()].strip()
         if body:
-            segments.append(_segment(body, speaker, characters))
+            resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
+            segments.append(_segment(body, resolved or speaker, characters))
         speaker = match.group(1).strip() if match.group(1) is not None else None
         offset = match.end()
     body = text[offset:].strip()
     if body:
-        segments.append(_segment(body, speaker, characters))
+        resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
+        segments.append(_segment(body, resolved or speaker, characters))
     clean = MARKER.sub("", text).strip()
-    grouped = []
-    for segment in segments:
-        if (grouped and segment["kind"] == "dialogue" and grouped[-1]["kind"] == "dialogue"
-                and segment.get("speaker_id") is not None
-                and segment.get("speaker_id") == grouped[-1].get("speaker_id")):
-            grouped[-1]["text"] += "\n\n" + segment["text"]
-        else:
-            grouped.append(segment)
-    return clean, grouped
+    # Each authored/model segment is a readable scene beat, even when one
+    # character speaks twice. Coalescing them recreated the giant bubble.
+    return clean, segments
+
+
+def _unmarked_quotes(text: str) -> list[tuple[int, int, str]]:
+    """Find quoted passages outside trusted storyteller speaker markers."""
+    found: list[tuple[int, int, str]] = []
+    inside_speech = False
+    offset = 0
+    for marker in MARKER.finditer(text):
+        if not inside_speech:
+            for quote in QUOTED_SPEECH.finditer(text, offset, marker.start()):
+                found.append((quote.start(), quote.end(), quote.group(1) or quote.group(2)))
+        inside_speech = marker.group(1) is not None
+        offset = marker.end()
+    if not inside_speech:
+        for quote in QUOTED_SPEECH.finditer(text, offset):
+            found.append((quote.start(), quote.end(), quote.group(1) or quote.group(2)))
+    return found[:20]
+
+
+def has_unmarked_quotes(text: str) -> bool:
+    """Whether a structured reply still contains speech Jev may need to label."""
+    return bool(_unmarked_quotes(text))
+
+
+async def attribute_unmarked_quotes(text: str, state, jev, *, timeout_ms: int = 1000) -> str:
+    """Use one bounded Jev choice batch for quoted speech missed by JSON tags.
+
+    Jev chooses among cast IDs, an unknown voice, and non-spoken quotation.
+    Low-confidence or failed decisions leave the original prose untouched;
+    this fallback must never invent a confident speaker or delay a turn for
+    more than one short provider timeout.
+    """
+    from backend.app.llm.decisions.types import Criticality, Decision, DecisionBatch
+
+    quotes = _unmarked_quotes(text)
+    if not quotes:
+        return text
+    characters = getattr(state, "characters", {}) or {}
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    active = set(lifecycle.active_ids()) if lifecycle else set(characters)
+    cast = {key: str(ch.name) for key, ch in characters.items()
+            if key != "player" and key in active}
+    criteria = {"narration": "Quoted words are not spoken aloud in this scene",
+                "unknown": "Spoken aloud, but the speaker cannot be identified reliably"}
+    criteria.update({key: f"Spoken aloud by {name}" for key, name in cast.items()})
+    decisions = tuple(Decision(
+        id=f"quote_{i}", task="speaker_attribution", kind="choice",
+        instructions=f"Classify quoted passage {i}: {quote!r}. Use the surrounding scene. "
+                     "Choose a named speaker only when the scene clearly attributes the words; "
+                     "otherwise choose unknown or narration.",
+        criteria=criteria, criticality=Criticality.DEGRADABLE,
+        allowed=frozenset(criteria), none_option="narration", min_confidence=.8,
+    ) for i, (_, _, quote) in enumerate(quotes))
+    batch = DecisionBatch(name="speaker_attribution", state=text[:6000], decisions=decisions)
+    try:
+        result = await jev.ask(batch, timeout_ms=timeout_ms)
+    except Exception:
+        return text
+    replacements = []
+    for i, (start, end, quote) in enumerate(quotes):
+        answer = result.answers.get(f"quote_{i}")
+        choice = getattr(answer, "choice", None)
+        confidence = getattr(answer, "confidence", None)
+        if (getattr(answer, "kind", None) == "choice" and choice in criteria
+                and choice != "narration" and isinstance(confidence, (int, float))
+                and confidence >= .8):
+            replacements.append((start, end, f"[SPEAKER:{choice}]{clean_spoken_text(quote)}[/SPEAKER]"))
+    for start, end, replacement in reversed(replacements):
+        text = text[:start] + replacement + text[end:]
+    return text
 
 
 SENTENCE = re.compile(r"[^.!?…]+[.!?…]*[\"'”’]*")
 MIN_ECHO_WORDS = 3
+# Share of a passage's words that must appear, in order, in the player's
+# message for it to count as a reworded echo ("That sounds great." for
+# "sounds great"). Word order matters, so an NPC reusing a few of the
+# player's words in its own reply stays well below this.
+ECHO_COVERAGE = 0.8
 
 
 def normalized_words(text: str) -> str:
     return " ".join(re.findall(r"[\w']+", (text or "").casefold().replace("’", "'")))
+
+
+def _echo_coverage(words: list[str], said: list[str]) -> float:
+    if not words:
+        return 0.0
+    blocks = SequenceMatcher(None, words, said, autojunk=False).get_matching_blocks()
+    return sum(block.size for block in blocks) / len(words)
 
 
 def drop_player_echo(segments: list[dict], player_message: str, player_key: str = "player") -> list[dict]:
@@ -220,28 +335,39 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
     The structured scene forces every spoken passage onto a speaker_id, so when
     the model echoes the player's line it sometimes attributes it to a nearby
     NPC (live beta 2026-09-23: "Natsumi Saito: That sounds amazing. Do you all
-    cook together usually?" was the player's exact message). Leading sentences
-    of a non-player dialogue segment that appear verbatim (word-normalized, at
-    least MIN_ECHO_WORDS words) in the player's message are stripped; a segment
-    that was only the echo is dropped. Short lines ("Yes.") and the NPC's own
-    words are never touched.
+    cook together usually?" was the player's exact message; live prod
+    2026-09-24: "Makoto: Cool! Where are all the other guys at? I want to say
+    hi."). The longest run of leading sentences that appears verbatim
+    (word-normalized) in the player's message is stripped once it reaches
+    MIN_ECHO_WORDS words, so a short interjection ("Cool!") no longer hides
+    the echo behind it. A whole segment that is a lightly reworded copy of
+    the message (ECHO_COVERAGE of its words, in order) is dropped. Short
+    lines ("Yes.") and the NPC's own words are never touched.
     """
-    said = f" {normalized_words(player_message)} "
+    said_words = normalized_words(player_message).split()
+    said = f" {' '.join(said_words)} "
     if not said.strip():
         return segments
     out = []
     for seg in segments:
         if seg.get("kind") == "dialogue" and seg.get("speaker_id") != player_key:
-            text, cut = seg["text"], 0
+            text, cut, run = seg["text"], 0, []
             for match in SENTENCE.finditer(text):
-                words = normalized_words(match.group())
+                words = normalized_words(match.group()).split()
                 if not words:
-                    cut = match.end()
+                    if len(run) >= MIN_ECHO_WORDS:
+                        cut = match.end()
                     continue
-                if len(words.split()) >= MIN_ECHO_WORDS and f" {words} " in said:
+                if f" {' '.join(run + words)} " not in said:
+                    break
+                run += words
+                if len(run) >= MIN_ECHO_WORDS:
                     cut = match.end()
-                    continue
-                break
+            seg_words = normalized_words(text).split()
+            if (len(seg_words) >= MIN_ECHO_WORDS + 1
+                    and _echo_coverage(seg_words, said_words) >= ECHO_COVERAGE
+                    and _echo_coverage(said_words, seg_words) >= ECHO_COVERAGE):
+                continue
             if cut:
                 rest = text[cut:].strip()
                 if not rest:

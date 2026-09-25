@@ -161,6 +161,23 @@ Lifecycle filtering is defense in depth:
   already knew them — this filter only blocks a character who has *never yet
   arrived* from leaking their private facts early.
 
+- The speaker contract's `Cast IDs` list and the structured-output
+  `speaker_id` enum (`dialogue.py` `_contract_cast_ids`) contain only
+  scene-eligible members. Before 2026-09-24 all 17 Six Strangers names were
+  listed, and the model placed unarrived residents in the story ("Yuto should
+  be back from practice").
+- Authored self-knowledge lines that name a member who is not scene-eligible
+  (for example "no predetermined feelings for Hikaru") are withheld until that
+  member arrives (`prompt_builder.py` `_without_absent_cast_names`).
+- Resident whereabouts are authoritative prompt data. For resident-slot
+  stories the scene brief lists every active resident as man or woman with
+  their room (`_resident_whereabouts_line`), and the per-turn user header
+  repeats it next to the player's message (`_resident_whereabouts_header`),
+  saying "Nobody is out, away, upstairs" when everyone is present. The system
+  block alone did not work: live gpt-4o-mini runs still invented absences and
+  people ("Keiji and Taro went out"). With the header and the opening change
+  below, 5 of 5 live runs answered truthfully.
+
 The authored `is_main` flag remains a starting preference, not permanent
 membership. If that member departs, the runtime focal moves to the replacement,
 or to the deterministic first active character when the queue is empty. Static
@@ -235,6 +252,15 @@ The current game makes the player one of the six residents, sharing the
 gender-matched bedroom. Whether that player
 occupies a lifecycle slot is a product
 decision recorded in the story's profile, not an engine assumption.
+
+Opening placement (2026-09-24): in `resident_slot` mode the player and all
+five active NPCs start at `cast_lifecycle.initial_active_location_id`
+(`kitchen`; `prompt_engine.py` `_gather_opening_residents`), because the
+opening welcomes the player into that dinner. The story no longer authors
+`world.character_start_locations`, which described a fixed premiere roster
+that the random opening draw usually did not match. The opening narration's
+`{{HOUSEMATE_MIX}}` placeholder renders "two other men and three women" (or
+the reverse), so the transcript itself shows that everyone is home.
 
 ## 10. Verification contract
 
