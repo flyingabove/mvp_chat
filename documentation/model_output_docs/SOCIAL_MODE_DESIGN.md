@@ -149,9 +149,10 @@ The opening takes place in September 2015. The player is one of six residents
 as one of the six residents, sharing the gender-matched bedroom; the five NPC
 housemates
 remain NPCs (`mode.cast_size = 6`). This replaces the old four fictional
-housemates and empty-sixth-bedroom legend. Mizuki is the explicit focal NPC and
-greets the player at `front_entry`; other housemates are encountered naturally
-throughout the house. Initial relationships represent new acquaintances, with
+housemates and empty-sixth-bedroom legend. Two opposite-gender housemates from
+the randomized opening roster greet the player at `front_entry` (see §10); the
+first greeter is the opening focal NPC and other housemates are encountered
+naturally throughout the house. Initial relationships represent new acquaintances, with
 no predetermined romance or later-show knowledge. Every NPC has a distinct
 identity block, private concern, belief, and relationships in both directions
 with the player. Private concerns are invented, character-scoped information,
@@ -173,3 +174,40 @@ Start a new game to use the revised roster and locations. Existing sessions
 retain their saved characters and world snapshots; this content change does
 not migrate old saves. The story ID and title remain `six_strangers` / Six
 Strangers.
+
+## 10. Engine-backed opening welcome party (2026-09-24)
+
+Any story can decide, in the engine, who is physically with the player when the
+game starts by authoring `opening.welcome_party`:
+
+```json
+"opening": {"welcome_party": {"size": 2, "gender": "opposite_player", "exclusive": true}}
+```
+
+| Field | Meaning |
+|---|---|
+| `size` | Number of greeters (default 2). |
+| `gender` | `any` \| `opposite_player` \| `same_as_player` \| `M` \| `F`. Uses each character's authored `gender` (`"M"`/`"F"`). If too few match, the party is filled from the other candidates. |
+| `exclusive` | Default `true`: every other NPC in the player's start location is moved out, so the people present are exactly the party. |
+| `fallback_location_id` | Where displaced NPCs go; defaults to `cast_lifecycle.initial_active_location_id`. |
+
+`backend/app/engine/opening_scene.py::stage_opening_scene()` runs at new-game
+time after the cast lifecycle and start locations are seeded. It chooses from
+the active roster (lifecycle stories) or all NPCs, then writes real state:
+the greeters' `character_locations` = the player's start location, the focal
+`main_character_id` = the first greeter, and `GameState.opening_cast`. Because
+of that, every consumer agrees without special cases:
+
+- authored opening `segments` resolve `@greeter` / `@second` to `opening_cast`;
+- the per-turn people-present computation (from `character_locations`) lists
+  exactly the greeters in the first SCENE BRIEF;
+- `opening_scene_brief()` adds a first-reply-only line telling the storyteller
+  to continue the conversation with those greeters;
+- `opening_cast` and `main_character_id` persist in the saved state, so a
+  restored session keeps the same room and focal lens.
+
+Terrace in the City authors `gender` on all 17 members and
+`{"size": 2, "gender": "opposite_player", "exclusive": true}`: a male player is
+greeted by two women, a female player by two men. Stories without
+`welcome_party` keep the previous random-greeter behavior.
+

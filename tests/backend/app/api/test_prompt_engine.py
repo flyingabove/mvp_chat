@@ -5103,3 +5103,99 @@ def test_stage_ledger_durations_are_non_negative(client, monkeypatch):
         assert isinstance(ms, (int, float)), f"{name} duration is not numeric: {ms!r}"
         assert ms >= 0.0, f"{name} duration is negative: {ms}"
     assert ledger.get("total_ms", -1) >= 0.0
+
+
+@pytest.mark.parametrize("player_gender, greeter_gender", [("M", "F"), ("F", "M")])
+def test_six_strangers_opening_is_two_opposite_gender_greeters_in_the_room(
+    client, monkeypatch, player_gender, greeter_gender,
+):
+    """Terrace in the City: the engine (not just the prose) stages two
+    opposite-gender housemates with the player at the door, and the opening
+    dialogue, focal lens, people-present list and first-reply brief all
+    name those same two people."""
+    import json
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.active_characters import get_people_present_keys
+    from backend.app.engine.opening_scene import character_gender
+
+    captured = []
+    real_build_messages = pe_mod.build_messages
+
+    def _capture(*args, **kwargs):
+        result = real_build_messages(*args, **kwargs)
+        messages = result[0] if isinstance(result, tuple) else result
+        captured.append(messages[0]["content"])
+        return result
+
+    monkeypatch.setattr(pe_mod, "build_messages", _capture)
+
+    for attempt in range(8):  # the draw is random; the invariant must always hold
+        sid = f"welcome_party_{player_gender}_{attempt}"
+        start = client.post(
+            "/api/chat",
+            json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{player_gender}|Chris"},
+        )
+        assert start.status_code == 200
+        state = pe_mod.SESSIONS[sid]["state"]
+        party = state.opening_cast
+
+        assert len(party) == 2
+        assert all(character_gender(state.characters[key]) == greeter_gender for key in party)
+        assert set(party) <= set(state.cast_lifecycle.active_ids())
+        assert state.location_id == "kitchen"
+        others = set(state.cast_lifecycle.active_ids()) - set(party)
+        assert all(state.character_locations[key] == "living_room" for key in others)
+        npcs_here = {
+            key for key, loc in state.character_locations.items()
+            if loc == state.location_id and key != "player"
+        }
+        assert npcs_here == set(party)
+        assert get_people_present_keys(state) - {"player"} == set(party)
+        assert state.main_character_id in party
+
+        speakers = {seg.get("speaker_id") for seg in start.json()["segments"] if seg.get("speaker_id")}
+        assert speakers == set(party)
+
+        system_prompt = pe_mod.SESSIONS[sid]["log"][0]["content"]
+        names = [state.characters[key].name for key in party]
+        assert f"Opening scene: {names[0]} and {names[1]} just greeted the player" in system_prompt
+
+        saved = json.loads(pe_mod._serialize_state(state, []))
+        assert saved["opening_cast"] == party
+        assert saved["main_character_id"] == state.main_character_id
+
+        # The storyteller's first real prompt describes the same room.
+        captured.clear()
+        assert client.post("/api/chat", json={"session_id": sid, "message": "Hi, I'm Chris."}).status_code == 200
+        first_prompt = captured[-1]
+        assert f"Opening scene: {names[0]} and {names[1]} just greeted the player" in first_prompt
+        present_line = next(
+            line for line in first_prompt.splitlines()
+            if line.startswith("People present in this location right now")
+        )
+        assert present_line.startswith("People present in this location right now (2)")
+        assert all(name in present_line for name in names)
+        assert f"with {state.characters[state.main_character_id].name} as the focal lens" in first_prompt
+
+
+def test_restore_keeps_runtime_focal_character_and_opening_cast(client, monkeypatch):
+    """A DB round-trip must keep the staged greeters, their locations and the
+    focal lens - not snap back to the authored is_main resident."""
+    import backend.app.api.prompt_engine as pe_mod
+
+    sid = "welcome_party_restore"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|F|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    state_json = pe_mod._serialize_state(state, [])
+    monkeypatch.setattr(
+        "backend.app.db.repos.SessionRepo._get",
+        lambda **kwargs: {
+            "session_id": sid, "user_id": "u_wp", "story_id": "six_strangers",
+            "state_json": state_json, "flags_json": "{}",
+        },
+    )
+    restored = pe_mod._try_load_session_from_db(sid, "u_wp")["state"]
+    assert restored.opening_cast == state.opening_cast
+    assert restored.main_character_id == state.main_character_id
+    for key in state.opening_cast:
+        assert restored.character_locations[key] == restored.location_id

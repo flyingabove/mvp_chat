@@ -85,6 +85,7 @@ from backend.app.engine.dialogue import (
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
+from backend.app.engine.opening_scene import stage_opening_scene
 from backend.app.engine.world_calendar import PendingEvent, day_number
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
 from backend.app.engine.knowledge_chunks import normalize_parties, KnowledgeChunk
@@ -1537,6 +1538,8 @@ def _serialize_state(state: GameState, log: list) -> str:
             else str(getattr(state, "language_theme", LanguageTheme.ENGLISH_US.value))
         ),
         "character_locations": dict(getattr(state, "character_locations", {}) or {}),
+        "main_character_id": str(getattr(state, "main_character_id", "") or ""),
+        "opening_cast": list(getattr(state, "opening_cast", []) or []),
         "cast_lifecycle": (
             state.cast_lifecycle.to_dict()
             if getattr(state, "cast_lifecycle", None) is not None else None
@@ -1777,6 +1780,13 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
 
         _sync_resident_locations(restored)
 
+        restored.opening_cast = [str(k) for k in (saved.get("opening_cast") or []) if k]
+        # The runtime focal lens (e.g. an opening greeter, or a replacement
+        # arrival) outranks the authored is_main default.
+        saved_main = str(saved.get("main_character_id") or "").strip()
+        if saved_main and saved_main in (restored.characters or {}):
+            restored.main_character_id = saved_main
+
         if (
             restored.cast_lifecycle is not None
             and restored.main_character_id
@@ -1960,7 +1970,10 @@ def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
         active_ids = list(lifecycle.active_ids()) if lifecycle else [
             key for key in (getattr(state, "characters", {}) or {}) if key != "player"
         ]
-        chosen = secrets.SystemRandom().sample(active_ids, min(2, len(active_ids)))
+        # Prefer the engine-staged welcome party; legacy stories draw at random.
+        chosen = [key for key in (getattr(state, "opening_cast", None) or []) if key in active_ids]
+        if not chosen:
+            chosen = secrets.SystemRandom().sample(active_ids, min(2, len(active_ids)))
         role_ids = {
             "@greeter": chosen[0] if chosen else "unknown",
             "@second": chosen[1] if len(chosen) > 1 else (chosen[0] if chosen else "unknown"),
@@ -2609,6 +2622,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         if new_state.cast_lifecycle:
             _gather_opening_residents(new_state)
+
+        # Engine-backed opening: put the story's welcome party (if authored)
+        # in the player's start room so opening prose, people-present and the
+        # first storyteller reply all describe the same scene.
+        stage_opening_scene(new_state)
 
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
