@@ -20,7 +20,7 @@
 | P3 | **NPCs never reach out** | Nobody texts or calls when apart | No contact channel as a behavior | 7 |
 | P4 | **No NPC-to-NPC relationships** | Housemates have no history with each other; gossip is impossible | `character_graph` edges exist mostly player↔NPC (BL-11); NPC↔NPC state is never updated | 6 |
 | P5 | **Build order was investigation-first** | Terrace needs living routines and conversation first | Living-world §10 starts with evidence | (order below) |
-| P6 | **Authored lore never reaches the prompt** (confirmed, BL-26) | IU answers about her life from general model knowledge, not authored facts | `retrieve_knowledge` `_filter_by_namespace` drops every authored chunk (live path: 0 of 57 IU chunks; 8 without the filter) | 0, then 2 |
+| P6 | **Authored lore never reaches the prompt** (BL-26, step 0 fixed in `926bafe`) | IU answers about her life from general model knowledge, not authored facts | `retrieve_knowledge` `_filter_by_namespace` drops every authored chunk (live path: 0 of 57 IU chunks; 8 without the filter) | 0, then 2 |
 | P7 | **NPCs never move and are always available** (BL-24) | Whereabouts drift from the story; nobody leaves for work, sleeps or is busy | `character_locations` only changes on opening, arrival and departure; no awake/busy/out/asleep state | 1 (availability), 3 |
 | P8 | **Only the focal character has an inner life** | In group scenes, four of five speakers have no memory, mood or beliefs of their own | Mood/relationship live on `GameState` (focal only); retrieval, beliefs and knowledge filters key off `main_character_id` | 1, 2 |
 | P9 | **Character state is scattered** | Bugs where one prompt layer forgets a filter (whereabouts missing, unarrived names leaking) | One character's data spans ~10 `GameState` fields; the prompt builder stitches and filters each separately | 1 |
@@ -213,7 +213,7 @@ knowledge updates.
 
 | Step | Delivers | Solves |
 |---|---|---|
-| 0 | Fix the lore namespace filter as its own change, with the arena gate (BL-26) | P6 now |
+| 0 | ✅ Done `926bafe`: fix the lore namespace filter (BL-26); session memory keeps half the retrieval slots | P6 now |
 | 1 | Character object + `world.where/contents` + `move()` + `project()`; availability state; per-character mood/relationship | P7 (availability), P8, P9, P14 (foundation) |
 | 2 | Per-character memory (events, memories, provenance, `@id` refs) and per-speaker retrieval; delete dead stores | P6 permanently, P8, P10, P11, P12, P13 |
 | 3 | Routines + world stepper (availability changes over time) | P7 |
