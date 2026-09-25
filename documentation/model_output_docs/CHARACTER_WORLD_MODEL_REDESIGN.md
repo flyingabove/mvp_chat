@@ -13,22 +13,24 @@
 
 ## 1. Problems we are solving
 
-| # | Problem | What the player sees today | Root cause in code |
-|---|---|---|---|
-| P1 | **Who speaks is decided by the model** | Roll calls where 4-5 housemates talk every turn; one NPC dominates (BL-22) | No speaker-selection policy; the storyteller picks speakers freely |
-| P2 | **NPCs have no lives of their own** | Nothing moves forward without the player; no arcs (e.g. Momoka's audition) | No personal-thread or milestone model |
-| P3 | **NPCs never reach out** | Nobody texts or calls when apart | No contact channel as a behavior |
-| P4 | **No NPC-to-NPC relationships** | Housemates have no history with each other; gossip is impossible | `character_graph` edges exist mostly player↔NPC (BL-11); NPC↔NPC state is never updated |
-| P5 | **Build order was investigation-first** | Terrace needs living routines and conversation first | Living-world §10 starts with evidence |
-| P6 | **Authored lore never reaches the prompt** (confirmed, BL-26) | IU answers about her life from general model knowledge, not authored facts | `retrieve_knowledge` `_filter_by_namespace` drops every authored chunk (live path: 0 of 57 IU chunks; 8 without the filter) |
-| P7 | **NPCs never move** (BL-24) | Whereabouts drift from the story; nobody leaves for work or goes to bed | `character_locations` only changes on opening, arrival and departure |
-| P8 | **Only the focal character has an inner life** | In group scenes, four of five speakers have no memory, mood or beliefs of their own | Mood/relationship live on `GameState` (focal only); retrieval, beliefs and knowledge filters key off `main_character_id` |
-| P9 | **Character state is scattered** | Bugs where one prompt layer forgets a filter (whereabouts missing, unarrived names leaking) | One character's data spans ~10 `GameState` fields; the prompt builder stitches and filters each separately |
-| P10 | **Memories have no owner or source** | NPCs "know" things they never heard; a player's claim is treated as fact | `SessionChunkStore` chunks have no speaker, no audience, no provenance |
-| P11 | **Short, lossy conversation memory** | Anything older than about 3 exchanges is only loose sentences | Log trimmed to 6 rendered messages; no event records |
-| P12 | **No difference between truth and perspective** | No foundation for alibis, mistaken witnesses or lies | Canonical facts and beliefs are flat text; nothing records what actually happened vs. who perceived it |
-| P13 | **Dead and duplicate memory stores** | Harder to reason about; wasted code paths | `epistemic_log`, `observation_log`, `tells`, edge `narrative`/`disposition`, `extracted_chunks` table written but never read |
-| P14 | **Objects and evidence have no place in the world** | Nothing to notice in a room; the mystery can't use physical clues | No entity/location model for objects |
+| # | Problem | What the player sees today | Root cause in code | Fixed in step |
+|---|---|---|---|---|
+| P1 | **Who speaks is decided by the model** | Roll calls where 4-5 housemates talk every turn; one NPC dominates (BL-22) | No speaker-selection policy; the storyteller picks speakers freely | 4 |
+| P2 | **NPCs have no personal arcs** | Nobody's life moves forward: no audition, job decision or cover story under strain (e.g. Momoka's audition) | No personal-thread or milestone model | 5 |
+| P3 | **NPCs never reach out** | Nobody texts or calls when apart | No contact channel as a behavior | 7 |
+| P4 | **No NPC-to-NPC relationships** | Housemates have no history with each other; gossip is impossible | `character_graph` edges exist mostly player↔NPC (BL-11); NPC↔NPC state is never updated | 6 |
+| P5 | **Build order was investigation-first** | Terrace needs living routines and conversation first | Living-world §10 starts with evidence | (order below) |
+| P6 | **Authored lore never reaches the prompt** (confirmed, BL-26) | IU answers about her life from general model knowledge, not authored facts | `retrieve_knowledge` `_filter_by_namespace` drops every authored chunk (live path: 0 of 57 IU chunks; 8 without the filter) | 0, then 2 |
+| P7 | **NPCs never move and are always available** (BL-24) | Whereabouts drift from the story; nobody leaves for work, sleeps or is busy | `character_locations` only changes on opening, arrival and departure; no awake/busy/out/asleep state | 1 (availability), 3 |
+| P8 | **Only the focal character has an inner life** | In group scenes, four of five speakers have no memory, mood or beliefs of their own | Mood/relationship live on `GameState` (focal only); retrieval, beliefs and knowledge filters key off `main_character_id` | 1, 2 |
+| P9 | **Character state is scattered** | Bugs where one prompt layer forgets a filter (whereabouts missing, unarrived names leaking) | One character's data spans ~10 `GameState` fields; the prompt builder stitches and filters each separately | 1 |
+| P10 | **Memories have no owner or source** | NPCs "know" things they never heard; a player's claim is treated as fact | `SessionChunkStore` chunks have no speaker, no audience, no provenance | 2 |
+| P11 | **Short, lossy conversation memory** | Anything older than about 3 exchanges is only loose sentences | Log trimmed to 6 rendered messages; no event records | 2 |
+| P12 | **No difference between truth and perspective** | No foundation for alibis, mistaken witnesses or lies | Canonical facts and beliefs are flat text; nothing records what actually happened vs. who perceived it | 2, 8 |
+| P13 | **Dead and duplicate memory stores** | Harder to reason about; wasted code paths | `epistemic_log`, `observation_log`, `tells`, edge `narrative`/`disposition`, `extracted_chunks` table written but never read | 2 |
+| P14 | **Objects and evidence have no place in the world** | Nothing to notice in a room; the mystery can't use physical clues | No entity/location model for objects | 1, 8 |
+| P15 | **Promises are forgotten or invented** | An NPC who promised to save dinner forgets; or a favor "remembered" that was never promised | No commitment model; promises are just past dialogue that falls out of the ~3-exchange window | 5 |
+| P16 | **The world freezes when the player isn't watching** | Sleep or a time skip changes nothing; housemates never date, argue or make plans off-screen | No off-screen resolution; the clock advances but no NPC activity is simulated for the elapsed game time | 6 |
 
 ## 2. Owner decisions (constraints on every mechanic)
 
@@ -171,7 +173,7 @@ Each speaker has a small aim from their Mind. The storyteller writes only for th
 Routine envelopes (living-world §4): blocks by weekday and time with seeded variance, sleep as a real state, and
 commitments as exceptions. At a time boundary the stepper moves characters with `world.move` and updates availability.
 
-### 4.5 Off-screen resolution (P2, P4)
+### 4.5 Off-screen resolution (P4, P16)
 It runs only when a turn advances time without the player witnessing it (sleep, time skip, travel). The steps:
 1. Step routines chronologically through the interval.
 2. List feasible encounters: same place, both awake, long enough.
@@ -181,7 +183,7 @@ It runs only when a turn advances time without the player witnessing it (sleep, 
 
 A departure goes through `cast_lifecycle` `committed_intent`.
 
-### 4.6 Threads and commitments (P2)
+### 4.6 Threads and commitments (P2, P15)
 Threads carry milestones on the clock and advance whether or not the player helps. Their outcomes are committed
 events. Commitments are memories with `due`: when one comes due, it enters that character's **must address** lane. If
 no commitment exists, nothing is invented (no covered plate without a promise).
@@ -212,12 +214,12 @@ knowledge updates.
 | Step | Delivers | Solves |
 |---|---|---|
 | 0 | Fix the lore namespace filter as its own change, with the arena gate (BL-26) | P6 now |
-| 1 | Character object + `world.where/contents` + `move()` + `project()`; per-character mood/relationship | P8, P9, P14 (foundation) |
-| 2 | Per-character memory (events, memories, provenance, `@id` refs) and per-speaker retrieval; delete dead stores | P10, P11, P12, P13, P6 permanently |
-| 3 | Routines + stepper + availability | P7 |
+| 1 | Character object + `world.where/contents` + `move()` + `project()`; availability state; per-character mood/relationship | P7 (availability), P8, P9, P14 (foundation) |
+| 2 | Per-character memory (events, memories, provenance, `@id` refs) and per-speaker retrieval; delete dead stores | P6 permanently, P8, P10, P11, P12, P13 |
+| 3 | Routines + world stepper (availability changes over time) | P7 |
 | 4 | Speaker selection + initiative + varied endings | P1 |
-| 5 | Threads + commitments | P2 |
-| 6 | Off-screen resolution + NPC↔NPC edges + gossip | P2, P4 |
+| 5 | Threads + commitments | P2, P15 |
+| 6 | Off-screen resolution + NPC↔NPC edges + gossip | P4, P16 |
 | 7 | Contact channel | P3 |
 | 8 | Evidence ecology for mysteries | P12, P14 fully |
 
