@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
-from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
+from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, drop_repeated_lines, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
 from backend.app.engine.state import Character, extract_state_tag
 
 
@@ -250,6 +250,47 @@ def test_near_verbatim_echo_prefix_is_stripped_and_reply_kept():
 def test_npc_replies_that_share_words_with_the_player_are_kept(npc_line):
     _, blocks = present_dialogue(f"[SPEAKER:mizuki]{npc_line}[/SPEAKER]", state())
     assert drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi") == blocks
+
+
+def test_reworded_echo_sentence_with_an_added_word_is_stripped():
+    # Live prod 2026-09-24: "I could use a good meal after a long day too."
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]I could use a good meal after a long day too. It's nice to have everyone together.[/SPEAKER]",
+        state())
+    out = drop_player_echo(blocks, "that sounds great. i could use a good meal after a long day")
+    assert [b["text"] for b in out] == ["It's nice to have everyone together."]
+
+
+# Live prod 2026-09-24: every turn re-sent the opening's lines ("You found it.
+# Come in; we're just setting the table.") and the repeats snowballed because
+# each repeat went back into the history the model copies from.
+
+OPENING = ("The evening rain has just stopped in Higashi-Gotanda.\n\n"
+           "Mizuki Shida: You found it. Come in; we're just setting the table.\n\n"
+           "IU: There's enough for one more. Are you hungry?")
+
+
+def test_dialogue_repeated_from_recent_replies_is_dropped():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]You found it. Come in; we're just setting the table.[/SPEAKER]"
+        "[SPEAKER:iu]There's enough for one more. Are you hungry?[/SPEAKER]"
+        "[SPEAKER:mizuki]Everyone's here, so grab a plate.[/SPEAKER]", state())
+    out = drop_repeated_lines(blocks, [OPENING])
+    assert [b["text"] for b in out] == ["Everyone's here, so grab a plate."]
+
+
+def test_repeated_long_narration_is_dropped_but_short_lines_kept():
+    _, blocks = present_dialogue(
+        "The evening rain has just stopped in Higashi-Gotanda. "
+        "[SPEAKER:iu]Yes.[/SPEAKER][SPEAKER:mizuki]Welcome home.[/SPEAKER]", state())
+    out = drop_repeated_lines(blocks, [OPENING, "Mizuki Shida: Yes.\n\nIU: Welcome home."])
+    assert [b["text"] for b in out] == ["Yes.", "Welcome home."]
+
+
+def test_a_reply_made_only_of_repeats_is_kept_rather_than_emptied():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]You found it. Come in; we're just setting the table.[/SPEAKER]", state())
+    assert drop_repeated_lines(blocks, [OPENING]) == blocks
 
 
 def test_contract_lists_only_scene_eligible_cast_ids():

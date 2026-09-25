@@ -316,6 +316,14 @@ MIN_ECHO_WORDS = 3
 # "sounds great"). Word order matters, so an NPC reusing a few of the
 # player's words in its own reply stays well below this.
 ECHO_COVERAGE = 0.8
+# A single leading sentence counts as a reworded echo only when it is long and
+# almost entirely the player's words, so short agreement ("Me too!") survives.
+REWORDED_MIN_WORDS = 6
+REWORDED_COVERAGE = 0.85
+# Recent-reply repetition: dialogue this long, or narration this long, that
+# already appeared in the last few replies is a copy, not a new beat.
+REPEAT_MIN_DIALOGUE_WORDS = 4
+REPEAT_MIN_NARRATION_WORDS = 8
 
 
 def normalized_words(text: str) -> str:
@@ -359,6 +367,11 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
                         cut = match.end()
                     continue
                 if f" {' '.join(run + words)} " not in said:
+                    # A long sentence copied with a word added or dropped
+                    # ("...after a long day too.") is still the player's line.
+                    if len(words) >= REWORDED_MIN_WORDS and _echo_coverage(words, said_words) >= REWORDED_COVERAGE:
+                        run, cut = [], match.end()
+                        continue
                     break
                 run += words
                 if len(run) >= MIN_ECHO_WORDS:
@@ -375,6 +388,40 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
                 seg = {**seg, "text": rest}
         out.append(seg)
     return out
+
+
+def drop_repeated_lines(segments: list[dict], recent_replies: list[str]) -> list[dict]:
+    """Remove beats copied verbatim from the storyteller's recent replies.
+
+    Live prod 2026-09-24: every turn re-sent the opening's "You found it. Come
+    in; we're just setting the table." Each copy went back into the history
+    the model reads, so the repeats snowballed. A dialogue segment (at least
+    REPEAT_MIN_DIALOGUE_WORDS words) or narration segment (at least
+    REPEAT_MIN_NARRATION_WORDS) whose word-normalized text already appears in
+    a recent reply is dropped. If every segment is a repeat, the reply is
+    returned unchanged rather than emptied.
+    """
+    seen = _recent_text(recent_replies)
+    kept = [seg for seg in segments if not _is_repeat(seg, seen)]
+    return kept or segments
+
+
+def only_repeats(segments: list[dict], recent_replies: list[str]) -> bool:
+    """True when every beat of a reply was already said in recent replies."""
+    seen = _recent_text(recent_replies)
+    return bool(segments) and all(_is_repeat(seg, seen) for seg in segments)
+
+
+def _recent_text(recent_replies: list[str]) -> str:
+    return " ".join(f" {normalized_words(reply)} " for reply in recent_replies if reply)
+
+
+def _is_repeat(seg: dict, seen: str) -> bool:
+    if not seen.strip():
+        return False
+    words = normalized_words(seg.get("text", ""))
+    minimum = REPEAT_MIN_DIALOGUE_WORDS if seg.get("kind") == "dialogue" else REPEAT_MIN_NARRATION_WORDS
+    return len(words.split()) >= minimum and f" {words} " in seen
 
 
 def encode_dialogue(segments: list[dict]) -> str:

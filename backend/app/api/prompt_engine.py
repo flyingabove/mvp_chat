@@ -78,7 +78,7 @@ from backend.app.engine.state import (
 
 )
 from backend.app.engine.dialogue import (
-    present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo,
+    present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
     dialogue_response_format, decode_dialogue_response,
     has_unmarked_quotes, attribute_unmarked_quotes,
 )
@@ -3260,6 +3260,33 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     except ValueError:
         return {"error": "The scene response was incomplete. Please try again.", "character": "default"}
 
+    # A draft made only of recent lines (live 2026-09-24: turn 1 re-sent the
+    # whole opening) gets one regeneration; drop_repeated_lines below cannot
+    # fix it without leaving the player an empty reply.
+    _recent_replies = [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:]
+    _draft_segments = present_dialogue(extract_state_tag(reply)[0], state)[1]
+    if only_repeats(drop_player_echo(_draft_segments, msg), _recent_replies):
+        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id})
+        retry_messages = payload["messages"] + [
+            {"role": "assistant", "content": reply},
+            {"role": "user", "content": (
+                "That draft only repeated lines that were already said. Write a new beat "
+                "that responds to the player's latest message; do not repeat earlier lines.")},
+        ]
+        with stage_timer.stage("storyteller"):
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                retry = await client.post(
+                    f"{STORY_MASTER_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                    json={**payload, "messages": retry_messages, "model": STORY_MASTER_MODEL},
+                )
+        if 200 <= retry.status_code < 300:
+            try:
+                reply = decode_dialogue_response(str(retry.json()["choices"][0]["message"]["content"]), state)
+                data = retry.json()
+            except (ValueError, KeyError, IndexError):
+                pass  # keep the first draft; the repeat filter below still applies
+
     guess_match = re.search(
         r"\bis your name\s+([A-Za-z][A-Za-z\s'\-]{0,40})\??",
         reply,
@@ -3286,6 +3313,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # The player already sees their own message; never let the scene hand it
     # to an NPC (arena-found beta regression, 2026-09-23).
     segments = drop_player_echo(segments, msg)
+    # Nor re-send recent beats: copied opening lines snowballed on live prod
+    # because each copy re-entered the history (2026-09-24).
+    segments = drop_repeated_lines(
+        segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]

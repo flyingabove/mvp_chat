@@ -8,10 +8,22 @@
 
 ## Open
 
+### BL-25 — Six Strangers prompt/quality issues seen in the 2026-09-24 audit (source: whereabouts/echo audit)
+**What:** (a) The storyteller sometimes re-narrates the opening ("The evening rain has just stopped…") in narration shorter than or different from the verbatim filter's reach. (b) The murder-mystery "CANON CORRECTION" block (alive or dead, cause of death) is injected into the slice-of-life story's prompt as pure noise. (c) Pronoun and self-reference slips ("Yuki… her", although Yuki Adachi is a man; "Yuriko: I saw Yuriko earlier"). (d) Head-count slips ("just us five" when there are six residents including the player). (e) The arena shows beta Six Strangers replies are about 24 words longer than prod's; Jev's win there is length-confounded (BL-23).
+**Why deferred:** Separate from the echo/whereabouts fix; each needs its own measurement.
+**What's needed:** (b) gate the canon-correction layer on story mode (skip it for `social_sim`); (c) add pronouns to the Cast IDs entries and the whereabouts rows; (a, d) extend the live check script into a regression suite that counts re-narration and head-count errors across seeded rosters.
+**Touches:** `backend/app/engine/prompt_builder.py`, `backend/app/engine/dialogue.py`.
+
 ### BL-24 — NPC room positions are static after the opening (source: whereabouts fix, 2026-09-24)
 **What:** `state.character_locations` changes only at the opening, on arrivals and departures, and on old-save migration. When the narration moves a housemate ("Yuriko heads up to her room"), the authoritative whereabouts block still shows the old room, so a later "where is Yuriko?" answer can contradict the story.
 **Why deferred:** This needs an extractor field for NPC movement and a validated update path (per-character destination checked against the world graph). That is new turn-extraction scope, separate from the 2026-09-24 hallucination fix.
-**What's needed:** Add an `npc_movements: [{character_id, destination_id}]` decision to `TurnExtractor` (Jev-routable), validate it against eligible cast and world locations, apply it to `character_locations` after each reply, and cover it with a live check in which an NPC leaves the room.
+**What's needed (brainstorm 2026-09-24, recommended order):**
+1. Reactive tracking: add an `npc_movements: [{character_id, destination_id}]` decision to `TurnExtractor` (Jev-routable), check it against eligible cast, world locations and graph adjacency, and apply it to `character_locations` after each reply.
+2. Proactive routines: authored per-character daily blocks (for example "Makoto: baseball practice 07:00-11:00"). The engine moves residents when the clock or a time skip crosses a block, and the storyteller narrates the move it was given. This also closes BL-08 (no schedule engine).
+3. Hybrid (preferred end state): routines set the default, narration overrides it for the current scene, and routine moves never apply to someone who is in the scene with the player.
+4. Epistemic whereabouts: each NPC's last-seen place and time for each housemate, so answers become "Uchi left for work around 8" instead of the current simplification that the whole household knows everyone's location.
+5. Stopgap, only if the above is delayed: forbid moving a housemate out of the scene unless the player asks or a validated event says so.
+Cover each step with a live check in which an NPC leaves the room.
 **Touches:** `backend/app/engine/extractors/turn_extractor.py`, `backend/app/api/prompt_engine.py`.
 
 ### BL-23 — Arena judge (Jev) favors longer replies despite instructions (source: arena calibration, 2026-09-24)

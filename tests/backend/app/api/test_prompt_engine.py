@@ -252,6 +252,80 @@ def test_six_strangers_prompt_states_whereabouts_and_never_names_unarrived_resid
                 assert not re.search(rf"\b{re.escape(token)}\b", prompt), f"unarrived {token!r} leaked"
 
 
+def test_turn_drops_opening_lines_the_model_repeats(client, monkeypatch):
+    """Live prod 2026-09-24: each turn re-sent the opening's greeting lines."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_repeat_opening"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    greeter = state.cast_lifecycle.active_ids()[0]
+    scene = {"segments": [
+        {"kind": "dialogue", "speaker_id": greeter, "text": "You found it. Come in; we're just setting the table."},
+        {"kind": "dialogue", "speaker_id": greeter, "text": "Everyone is right here in the kitchen."},
+    ], "state": {"emotion": "warm", "rel_delta": 0}}
+
+    class _Resp:
+        status_code = 200
+        text = "ok"
+
+        def json(self):
+            return {"choices": [{"message": {"content": _json.dumps(scene)}}], "usage": {"total_tokens": 1}}
+
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Repeating(fake_client):
+        async def post(self, *args, **kwargs):
+            return _Resp()
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Repeating)
+    reply = client.post("/api/chat", json={"session_id": sid, "message": "where is everyone?"}).json()
+    assert [s["text"] for s in reply["segments"]] == ["Everyone is right here in the kitchen."]
+
+
+def test_turn_that_only_repeats_the_opening_is_regenerated_once(client, monkeypatch):
+    """Live check 2026-09-24: a whole turn-1 reply was the opening again."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "six_strangers_repeat_regenerate"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    greeter = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    drafts = [
+        [{"kind": "dialogue", "speaker_id": greeter, "text": "You found it. Come in; we're just setting the table."}],
+        [{"kind": "dialogue", "speaker_id": greeter, "text": "The whole house is here, pull up a chair."}],
+    ]
+    sent = []
+
+    class _Resp:
+        status_code = 200
+        text = "ok"
+
+        def __init__(self, segments):
+            self._segments = segments
+
+        def json(self):
+            scene = {"segments": self._segments, "state": {"emotion": "warm", "rel_delta": 0}}
+            return {"choices": [{"message": {"content": _json.dumps(scene)}}], "usage": {"total_tokens": 1}}
+
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Drafts(fake_client):
+        async def post(self, *args, **kwargs):
+            payload = kwargs.get("json") or {}
+            if "response_format" not in payload:  # other LLM helpers
+                return await super().post(*args, **kwargs)
+            sent.append(payload)
+            return _Resp(drafts[min(len(sent), len(drafts)) - 1])
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Drafts)
+    reply = client.post("/api/chat", json={"session_id": sid, "message": "where is everyone?"}).json()
+    assert len(sent) == 2
+    assert "repeated" in sent[1]["messages"][-1]["content"]
+    assert [s["text"] for s in reply["segments"]] == ["The whole house is here, pull up a chair."]
+
+
 def test_whereabouts_reports_a_resident_in_another_room(client):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.prompt_builder import build_messages
