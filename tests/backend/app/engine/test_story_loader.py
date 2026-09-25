@@ -319,12 +319,11 @@ def test_six_strangers_world_supports_return_travel_and_all_active_starting_char
     graph = loaded.world_graph
     locations = set(graph.locations)
     assert world_cfg["start_location_id"] == "front_entry"
-    starts = world_cfg["character_start_locations"]
-    assert starts == {
-        "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
-        "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
-    }
-    assert set(starts.values()) <= locations
+    # The roster is random, so there are no per-character premiere starts:
+    # the whole opening cast (and the player) gathers for the kitchen dinner.
+    assert "character_start_locations" not in world_cfg
+    assert story.as_dict()["cast_lifecycle"]["initial_active_location_id"] == "kitchen"
+    assert "kitchen" in locations
     assert {"boys_bedroom", "girls_bedroom", "terrace", "gotanda_station"} <= locations
     assert "player_bedroom" not in locations
     for start in locations:
@@ -384,7 +383,6 @@ def test_six_strangers_house_holds_exactly_six_residents_with_no_guest_room():
     #    slot displaces one same-gender NPC to the entry queue, so the house
     #    holds exactly six residents (player + 5 NPCs) at runtime rather than
     #    seven. Verified through the lifecycle, not by counting authored rows.
-    assert len(world_cfg["character_start_locations"]) == 6
     for gender, group in lifecycle["player_slot_groups"].items():
         built = CastLifecycleState.from_config(lifecycle)
         built.choose_initial_roster(group)

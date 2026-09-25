@@ -365,7 +365,7 @@
     "player_slot_groups": {"M": "men", "F": "women"},
     "player_bedrooms": {"men": "boys_bedroom", "women": "girls_bedroom"},
     "randomize_initial_roster": true,
-    "initial_active_location_id": "living_room",
+    "initial_active_location_id": "kitchen",
     "require_replacement": true,
     "rules_profile": "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. No imposed challenges, eliminations, prize, fixed romance, or win condition. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
     "slot_groups": {
@@ -414,15 +414,7 @@
       "speakers_source": "turn_runtime",
       "people_present_source": "world_graph_plus_character_locations"
     },
-    "world_map_image": "7_six_strangers/7_six_strangers.png",
-    "character_start_locations": {
-      "makoto": "living_room",
-      "minori": "living_room",
-      "yuki": "dining_room",
-      "mizuki": "front_entry",
-      "uchi": "boys_bedroom",
-      "yuriko": "girls_bedroom"
-    }
+    "world_map_image": "7_six_strangers/7_six_strangers.png"
   },
   "emotion": {
     "start": "curious, a little travel-worn"
@@ -859,7 +851,7 @@
     "segments": [
       {"kind": "narration", "text": "The evening rain has just stopped in Higashi-Gotanda. Bicycle tires hiss over the wet lane as you step out with your bag and find the house lit from within. Through a half-open window come the clatter of dishes and the tail end of a laugh. For a moment, you can stand outside and be nobody here yet."},
       {"kind": "dialogue", "speaker_id": "@greeter", "text": "You found it. Come in; we're just setting the table."},
-      {"kind": "narration", "text": "Warm kitchen air meets you at the door. A second housemate looks up from a stack of plates, and someone nudges an empty chair into place. Beyond the hall is the shared {{PLAYER_BEDROOM}}, where your bag will go; the voices in this room are still strangers."},
+      {"kind": "narration", "text": "Warm kitchen air meets you at the door. Everyone who lives here is already home: all five of your new housemates, {{HOUSEMATE_MIX}}, are gathered between the stove and the dining table. A second housemate looks up from a stack of plates, and someone nudges an empty chair into place. Beyond the hall is the shared {{PLAYER_BEDROOM}}, where your bag will go; the faces in this room are still strangers."},
       {"kind": "dialogue", "speaker_id": "@second", "text": "There's enough for one more. Are you hungry?"},
       {"kind": "narration", "text": "The door closes softly behind you. Dinner keeps moving, and for the first time tonight the next moment is yours."}
     ]

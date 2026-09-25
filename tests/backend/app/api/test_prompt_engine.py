@@ -193,6 +193,80 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
         assert future_id not in public_ids
 
 
+# Live prod 2026-09-24: the player arrived at the front entry while the NPCs
+# sat in the living room, so turn 1 said "People present: none" and a
+# housemate answered "where is everyone?" with "Yuto should be back from
+# practice soon" - Yuto had not even moved in (all 17 names were in Cast IDs).
+
+@pytest.mark.parametrize("gender", ["M", "F"])
+def test_six_strangers_opens_with_all_five_housemates_gathered_with_player(client, gender):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.active_characters import get_people_present_keys
+
+    sid = f"six_strangers_gathered_{gender}"
+    client.post("/api/chat", json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    active = set(state.cast_lifecycle.active_ids())
+    assert len(active) == 5
+    assert state.location_id == "kitchen"
+    assert {state.character_locations[k] for k in active} == {"kitchen"}
+    assert get_people_present_keys(state) == active
+    # The opening tells the player (and the model's history) that everyone is home.
+    mix = "two other men and three women" if gender == "M" else "three men and two other women"
+    assert f"all five of your new housemates, {mix}, are gathered" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
+
+
+def test_six_strangers_prompt_states_whereabouts_and_never_names_unarrived_residents(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sent = []
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Recording(fake_client):
+        async def post(self, *args, **kwargs):
+            sent.append(kwargs.get("json"))
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Recording)
+
+    for i in range(8):  # the opening roster is random; cover several draws
+        sid = f"six_strangers_whereabouts_{i}"
+        client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+        state = pe_mod.SESSIONS[sid]["state"]
+        client.post("/api/chat", json={"session_id": sid, "message": "where are all the other guys at?"})
+        prompt = sent[-1]["messages"][0]["content"]
+        active = state.cast_lifecycle.active_ids()
+        assert "People present in this location right now (5)" in prompt
+        assert "Where every resident is right now" in prompt
+        header = sent[-1]["messages"][-1]["content"]
+        assert "every housemate is home and here with you in Open Kitchen" in header
+        assert "Nobody is out, away, upstairs" in header
+        for key in active:
+            name = re.escape(state.characters[key].name)
+            assert re.search(rf"- {name} \((?:man|woman)\): Open Kitchen \(here with the player\)", prompt)
+            assert state.characters[key].name in header
+        for key, ch in state.characters.items():
+            if key == "player" or key in active:
+                continue
+            for token in {ch.name, ch.name.split()[0].strip('"')}:
+                assert not re.search(rf"\b{re.escape(token)}\b", prompt), f"unarrived {token!r} leaked"
+
+
+def test_whereabouts_reports_a_resident_in_another_room(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.prompt_builder import build_messages
+
+    sid = "six_strangers_whereabouts_elsewhere"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|F|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    away = state.cast_lifecycle.active_ids("men")[0]
+    state.character_locations[away] = "terrace"
+    messages = build_messages(state, [], "where is everyone?", [])
+    prompt, header = messages[0]["content"], messages[-1]["content"]
+    assert re.search(rf"- {re.escape(state.characters[away].name)} \(man\): Terrace / Pool Deck\n", prompt)
+    assert f"Elsewhere in the house: {state.characters[away].name} (man) in Terrace / Pool Deck." in header
+
+
 def test_player_visible_character_ids_excludes_upcoming_includes_player(client):
     """Phase 1.4: player_visible_character_ids is the shared policy the
     journal (and any future public view) filters through - unit-level check
@@ -2459,7 +2533,8 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert set(state.characters) == keys | {"player"}
     assert state.player_name == "Chris"
     assert state.main_character_id in active_keys
-    assert state.location_id == "front_entry"
+    # The opening welcomes the player into the kitchen dinner with everyone.
+    assert state.location_id == "kitchen"
     assert len(active_keys) == 5
     assert len(state.cast_lifecycle.active_ids("men")) == 2
     assert len(state.cast_lifecycle.active_ids("women")) == 3
@@ -4535,7 +4610,10 @@ def test_old_seventh_resident_save_migrates_once(client, gender, bedroom):
     legacy.pop("player_slot_group")
     legacy.pop("require_replacement")
     state.location_id = "player_bedroom"
-    state.character_locations = dict(state.story_cfg["world"]["character_start_locations"])
+    state.character_locations = {
+        "makoto": "living_room", "minori": "living_room", "yuki": "dining_room",
+        "mizuki": "front_entry", "uchi": "boys_bedroom", "yuriko": "girls_bedroom",
+    }
     pe._initialize_cast_lifecycle(state, legacy)
     pe._sync_resident_locations(state)
     assert state.location_id == bedroom

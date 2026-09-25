@@ -1,4 +1,5 @@
 # app/engine/prompt_builder.py
+import re
 from dataclasses import dataclass, field
 from backend.app.config.epistemic_flags import belief_enabled
 from backend.app.engine.state import GameState
@@ -1223,6 +1224,7 @@ def _character_identity_section(state) -> str:
     if main_goal_obj is not None:
         main_goal = (getattr(main_goal_obj, "current", "") or "").strip()
     main_voice = list(getattr(main_char, "voice", None) or [])
+    entries = _without_absent_cast_names(state, entries)
 
     blocks: list[str] = []
     if entries and _main_character_scene_eligible(state):
@@ -1237,7 +1239,7 @@ def _character_identity_section(state) -> str:
         ch = characters.get(key)
         if ch is None:
             continue
-        other_entries = list(getattr(ch, "self_knowledge", None) or [])
+        other_entries = _without_absent_cast_names(state, list(getattr(ch, "self_knowledge", None) or []))
         if not other_entries:
             continue
         other_name = (getattr(ch, "name", "") or key).strip() or key
@@ -1251,6 +1253,110 @@ def _character_identity_section(state) -> str:
     if not blocks:
         return ""
     return "".join(blocks)
+
+
+def _without_absent_cast_names(state: GameState, entries: list[str]) -> list[str]:
+    """Drop self-knowledge lines that name a rotating-cast member not in the house.
+
+    Authored disclaimers such as "no predetermined feelings for Hikaru" are
+    written against the full 17-person cast. When Hikaru has not arrived, the
+    line only hands the model a name to place somewhere, so it is withheld
+    until that person is scene-eligible. Non-lifecycle stories are unchanged.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not getattr(lifecycle, "enabled", False) or not entries:
+        return entries
+    chars = getattr(state, "characters", {}) or {}
+    names = set()
+    for key in getattr(lifecycle, "members", {}) or {}:
+        if key == "player" or lifecycle.is_scene_eligible(key) or key not in chars:
+            continue
+        full = (getattr(chars[key], "name", "") or "").strip()
+        if full:
+            names.update({full, full.split()[0].strip('"')})
+    if not names:
+        return entries
+    absent = re.compile(r"\b(?:" + "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True)) + r")\b")
+    return [entry for entry in entries if not absent.search(str(entry))]
+
+
+_SLOT_PERSON = {"men": "man", "women": "woman"}
+
+
+def _resident_whereabouts(state: GameState) -> list[tuple[str, str, str | None]]:
+    """(label, room name, None if with the player else room) per current resident.
+
+    Housemates can see who is home, so "where is everyone?" must be answered
+    from tracked state, not invented (live prod 2026-09-24: with no location
+    data the model sent housemates to "practice" and invented "Keiji and
+    Taro"). Labels carry man/woman so "the other guys" resolves correctly.
+    Empty for stories without a resident-slot cast lifecycle.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not getattr(lifecycle, "enabled", False) or not lifecycle.player_slot_group:
+        return []
+    runtime = getattr(state, "world_runtime", None)
+    locations = getattr(getattr(runtime, "world_graph", None), "locations", None) or {}
+    tracked = getattr(state, "character_locations", {}) or {}
+    chars = getattr(state, "characters", {}) or {}
+    player_room = str(getattr(state, "location_id", "") or "")
+
+    def _room(location_id: str) -> str:
+        location = locations.get(location_id)
+        return (getattr(location, "name", None) or location_id.replace("_", " ")).strip()
+
+    rows = []
+    for key in lifecycle.active_ids():
+        name = (getattr(chars.get(key), "name", None) or key).strip()
+        member = lifecycle.members.get(key)
+        person = _SLOT_PERSON.get(getattr(member, "slot_group", ""), "")
+        label = f"{name} ({person})" if person else name
+        location_id = str(tracked.get(key) or "")
+        if not location_id:
+            rows.append((label, "not tracked; do not state a specific place", "untracked"))
+        elif location_id == player_room:
+            rows.append((label, _room(location_id), None))
+        else:
+            rows.append((label, _room(location_id), location_id))
+    return rows
+
+
+def _resident_whereabouts_line(state: GameState, lifecycle) -> str:
+    """System-prompt block: the authoritative whereabouts of every resident."""
+    rows = _resident_whereabouts(state)
+    if not rows:
+        return ""
+    player_room = str(getattr(state, "location", "") or "")
+    person = _SLOT_PERSON.get(lifecycle.player_slot_group, "")
+    lines = [f"- {state.player_name or 'Player'} (the player{', ' + person if person else ''}): {player_room}"]
+    for label, room, elsewhere in rows:
+        lines.append(f"- {label}: {room}" + ("" if elsewhere else " (here with the player)"))
+    return (
+        "Where every resident is right now (authoritative; housemates who share the "
+        "house know this):\n" + "\n".join(lines) + "\n"
+        "When anyone asks where a housemate is, answer truthfully from this list: "
+        "someone here with the player is right here, and someone elsewhere is in the "
+        "listed room. Never invent practice, work, errands, trips, or absences for a "
+        "resident, never describe a listed resident as away, and never mention anyone "
+        "who is not on this list as living here.\n\n"
+    )
+
+
+def _resident_whereabouts_header(state: GameState) -> str:
+    """Per-turn reminder next to the player's message, where a small model
+    reliably honors it (the system block alone was ignored in live runs)."""
+    rows = _resident_whereabouts(state)
+    if not rows:
+        return ""
+    here = [label for label, _, elsewhere in rows if elsewhere is None]
+    away = [f"{label} in {room}" for label, room, elsewhere in rows if elsewhere is not None]
+    room = str(getattr(state, "location", "") or "this room")
+    if not away:
+        return (f"Whereabouts: every housemate is home and here with you in {room}: "
+                + ", ".join(here) + ". Nobody is out, away, upstairs, or on the way back, "
+                "and nobody else lives here.")
+    text = f"Whereabouts: here with you in {room}: " + (", ".join(here) if here else "no housemates") + "."
+    return text + " Elsewhere in the house: " + "; ".join(away) + ". Nobody else lives here."
 
 
 def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
@@ -1339,6 +1445,7 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
                 "through the automatic replacement queue; nobody leaves without a replacement. "
                 "When that queue is exhausted, the final residents stay.\n\n"
             )
+        roster_closure_line += _resident_whereabouts_line(state, lifecycle)
 
     main_present = _main_character_scene_eligible(state)
     if main_present:
@@ -1764,6 +1871,9 @@ def build_messages(
     ]
     header_parts.append(f"Current Emotion: {state.emotion}.")
     header_parts.append(f"Relationship: {state.relationship}.")
+    whereabouts = _resident_whereabouts_header(state)
+    if whereabouts:
+        header_parts.append(whereabouts)
 
     # OOC detection: message fully wrapped in () or [] means player is speaking
     # directly to the narrator/author — inject directive before other header parts.

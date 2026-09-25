@@ -8,6 +8,12 @@
 
 ## Open
 
+### BL-24 — NPC room positions are static after the opening (source: whereabouts fix, 2026-09-24)
+**What:** `state.character_locations` changes only at the opening, on arrivals and departures, and on old-save migration. When the narration moves a housemate ("Yuriko heads up to her room"), the authoritative whereabouts block still shows the old room, so a later "where is Yuriko?" answer can contradict the story.
+**Why deferred:** This needs an extractor field for NPC movement and a validated update path (per-character destination checked against the world graph). That is new turn-extraction scope, separate from the 2026-09-24 hallucination fix.
+**What's needed:** Add an `npc_movements: [{character_id, destination_id}]` decision to `TurnExtractor` (Jev-routable), validate it against eligible cast and world locations, apply it to `character_locations` after each reply, and cover it with a live check in which an NPC leaves the room.
+**Touches:** `backend/app/engine/extractors/turn_extractor.py`, `backend/app/api/prompt_engine.py`.
+
 ### BL-23 — Arena judge (Jev) favors longer replies despite instructions (source: arena calibration, 2026-09-24)
 **What:** Calibration's `shorten` control (same meaning, fewer words) lost to the longer original in 3/3 resolved cases (1 unresolved) although every question says not to prefer length. Previously miscounted as a pass; the expectation is now `original_not_win`, so reports show it failing, and every report carries a per-game "longer side won" table (`report.py` `length_confound`).
 **Why deferred:** Needs a design decision on mitigation, not a quick patch.

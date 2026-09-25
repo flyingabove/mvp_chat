@@ -218,6 +218,49 @@ def test_player_attributed_echo_and_short_or_original_npc_lines_are_kept():
     assert drop_player_echo(blocks, player) == blocks
 
 
+# Live prod 2026-09-24: the player typed "cool where are all the other guys at?
+# i want to say hi" and Makoto said "Cool! Where are all the other guys at? I
+# want to say hi." The one-word "Cool!" stopped the old per-sentence scan.
+
+def test_echo_led_by_a_short_interjection_is_dropped():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]Cool! Where are all the other guys at? I want to say hi.[/SPEAKER]", state())
+    assert drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi") == []
+
+
+def test_near_verbatim_echo_with_small_wording_changes_is_dropped():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]That sounds great. I could use a good meal after a long day.[/SPEAKER]", state())
+    assert drop_player_echo(blocks, "sounds great, i could really use a good meal after a long day") == []
+
+
+def test_near_verbatim_echo_prefix_is_stripped_and_reply_kept():
+    _, blocks = present_dialogue(
+        "[SPEAKER:mizuki]Cool! Where are all the other guys at? I want to say hi. "
+        "Uchi is on the terrace, go say hello.[/SPEAKER]", state())
+    out = drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi")
+    assert [b["text"] for b in out] == ["Uchi is on the terrace, go say hello."]
+
+
+@pytest.mark.parametrize("npc_line", [
+    "Cool! Dinner is almost ready.",
+    "Everyone is right here in the kitchen. Say hi!",
+    "Hi! I want to say hi to you too, welcome.",
+])
+def test_npc_replies_that_share_words_with_the_player_are_kept(npc_line):
+    _, blocks = present_dialogue(f"[SPEAKER:mizuki]{npc_line}[/SPEAKER]", state())
+    assert drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi") == blocks
+
+
+def test_contract_lists_only_scene_eligible_cast_ids():
+    s = state()
+    s.characters["yuto"] = Character(key="yuto", name="Yuto Handa")
+    s.cast_lifecycle = SimpleNamespace(enabled=True, is_scene_eligible=lambda k: k != "yuto")
+    assert "Yuto" not in dialogue_prompt(s)
+    ids = dialogue_response_format(s)["json_schema"]["schema"]["properties"]["segments"]["items"]["properties"]["speaker_id"]["enum"]
+    assert "yuto" not in ids and "mizuki" in ids
+
+
 def test_contract_forbids_echoing_the_player():
     assert "Never repeat the player's own message" in dialogue_prompt(state())
 

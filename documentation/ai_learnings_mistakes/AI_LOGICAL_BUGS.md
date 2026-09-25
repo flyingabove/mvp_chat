@@ -439,3 +439,30 @@ text throughout the conversation pipeline, and refresh destination scene
 presence before rendering. Regression coverage checks both extractor and
 heuristic movement, original text in the prompt/transcript, and destination
 identity blocks including empty-room transitions.
+
+## 2026-09-24 — NPC echoed the player's line; housemates' whereabouts were invented
+
+Live prod (Six Strangers): the player typed "cool where are all the other guys
+at? i want to say hi" and Makoto said it back word for word. A housemate then
+answered with "Yuto should be back from practice soon", although Yuto had not
+moved in.
+
+1. `drop_player_echo` only stripped echoed sentences of at least 3 words and
+   stopped at the first sentence that failed that test, so the one-word
+   "Cool!" hid the echo behind it. Fix: strip the longest leading run of
+   sentences that appears verbatim in the player's message once the run
+   reaches 3 words, and drop a whole segment that is a lightly reworded copy
+   (at least 80% of words matched in order in both directions).
+2. Turn 1 put the player at `front_entry` and the NPCs in `living_room`, so
+   the scene brief said "People present: none" and nothing told the model
+   where anyone was. Fix: gather the opening cast and the player in the
+   kitchen, and add the authoritative whereabouts block and per-turn header
+   described in CAST_LIFECYCLE_DESIGN §6.
+3. The `Cast IDs` list, the speaker enum and authored self-knowledge named
+   unarrived residents. Fix: filter all three by scene eligibility. A prompt
+   audit over 40 random rosters went from 56 unarrived-name mentions to 0.
+
+Remaining gap: NPC positions are never updated from narration, so whereabouts
+stay where the game started until arrivals or departures change them (BACKLOG
+BL-24).
+

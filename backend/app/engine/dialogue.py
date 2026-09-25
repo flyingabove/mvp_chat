@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from difflib import SequenceMatcher
 
 from backend.app.engine.character_assets import resolve_character_avatar_url, DEFAULT_PERSONA_AVATAR
 
@@ -15,8 +16,19 @@ MARKER = re.compile(r"\[SPEAKER:([^\]\n]+)\]|\[/SPEAKER\]", re.I)
 QUOTED_SPEECH = re.compile(r'“([^”\n]{2,})”|"([^"\n]{2,})"')
 
 
+def _contract_cast_ids(state) -> list[str]:
+    """Cast IDs the storyteller may voice: never the player, and never a
+    rotating-cast member who has not arrived (or has left). Listing all 17
+    Six Strangers names let the model mention unarrived residents as if they
+    lived there (live prod 2026-09-24: "Yuto should be back from practice")."""
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    gated = lifecycle is not None and getattr(lifecycle, "enabled", False)
+    return [key for key in (getattr(state, "characters", {}) or {})
+            if key != "player" and (not gated or lifecycle.is_scene_eligible(key))]
+
+
 def dialogue_prompt(state) -> str:
-    cast = {key: ch.name for key, ch in (state.characters or {}).items() if key != "player"}
+    cast = {key: state.characters[key].name for key in _contract_cast_ids(state)}
     return (
         "\n\n[SPEAKER PRESENTATION CONTRACT]\n"
         "Return the JSON object required by the response schema. Its segments array "
@@ -52,7 +64,7 @@ def dialogue_prompt(state) -> str:
 
 def dialogue_response_format(state) -> dict:
     """Constrain speaker IDs and require an ordered scene on the generation call."""
-    ids = [key for key in (getattr(state, "characters", {}) or {}) if key != "player"]
+    ids = _contract_cast_ids(state)
     return {"type": "json_schema", "json_schema": {
         "name": "story_scene", "strict": True,
         "schema": {"type": "object", "additionalProperties": False,
@@ -299,10 +311,22 @@ async def attribute_unmarked_quotes(text: str, state, jev, *, timeout_ms: int = 
 
 SENTENCE = re.compile(r"[^.!?…]+[.!?…]*[\"'”’]*")
 MIN_ECHO_WORDS = 3
+# Share of a passage's words that must appear, in order, in the player's
+# message for it to count as a reworded echo ("That sounds great." for
+# "sounds great"). Word order matters, so an NPC reusing a few of the
+# player's words in its own reply stays well below this.
+ECHO_COVERAGE = 0.8
 
 
 def normalized_words(text: str) -> str:
     return " ".join(re.findall(r"[\w']+", (text or "").casefold().replace("’", "'")))
+
+
+def _echo_coverage(words: list[str], said: list[str]) -> float:
+    if not words:
+        return 0.0
+    blocks = SequenceMatcher(None, words, said, autojunk=False).get_matching_blocks()
+    return sum(block.size for block in blocks) / len(words)
 
 
 def drop_player_echo(segments: list[dict], player_message: str, player_key: str = "player") -> list[dict]:
@@ -311,28 +335,39 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
     The structured scene forces every spoken passage onto a speaker_id, so when
     the model echoes the player's line it sometimes attributes it to a nearby
     NPC (live beta 2026-09-23: "Natsumi Saito: That sounds amazing. Do you all
-    cook together usually?" was the player's exact message). Leading sentences
-    of a non-player dialogue segment that appear verbatim (word-normalized, at
-    least MIN_ECHO_WORDS words) in the player's message are stripped; a segment
-    that was only the echo is dropped. Short lines ("Yes.") and the NPC's own
-    words are never touched.
+    cook together usually?" was the player's exact message; live prod
+    2026-09-24: "Makoto: Cool! Where are all the other guys at? I want to say
+    hi."). The longest run of leading sentences that appears verbatim
+    (word-normalized) in the player's message is stripped once it reaches
+    MIN_ECHO_WORDS words, so a short interjection ("Cool!") no longer hides
+    the echo behind it. A whole segment that is a lightly reworded copy of
+    the message (ECHO_COVERAGE of its words, in order) is dropped. Short
+    lines ("Yes.") and the NPC's own words are never touched.
     """
-    said = f" {normalized_words(player_message)} "
+    said_words = normalized_words(player_message).split()
+    said = f" {' '.join(said_words)} "
     if not said.strip():
         return segments
     out = []
     for seg in segments:
         if seg.get("kind") == "dialogue" and seg.get("speaker_id") != player_key:
-            text, cut = seg["text"], 0
+            text, cut, run = seg["text"], 0, []
             for match in SENTENCE.finditer(text):
-                words = normalized_words(match.group())
+                words = normalized_words(match.group()).split()
                 if not words:
-                    cut = match.end()
+                    if len(run) >= MIN_ECHO_WORDS:
+                        cut = match.end()
                     continue
-                if len(words.split()) >= MIN_ECHO_WORDS and f" {words} " in said:
+                if f" {' '.join(run + words)} " not in said:
+                    break
+                run += words
+                if len(run) >= MIN_ECHO_WORDS:
                     cut = match.end()
-                    continue
-                break
+            seg_words = normalized_words(text).split()
+            if (len(seg_words) >= MIN_ECHO_WORDS + 1
+                    and _echo_coverage(seg_words, said_words) >= ECHO_COVERAGE
+                    and _echo_coverage(said_words, seg_words) >= ECHO_COVERAGE):
+                continue
             if cut:
                 rest = text[cut:].strip()
                 if not rest:

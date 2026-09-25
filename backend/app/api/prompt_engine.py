@@ -471,6 +471,35 @@ def _sync_resident_locations(state: GameState) -> None:
             state.character_locations[key] = bedroom
 
 
+def _gather_opening_residents(state: GameState) -> None:
+    """Place the opening cast where the opening scene happens.
+
+    Every active NPC starts at ``initial_active_location_id``. In
+    ``resident_slot`` mode the opening welcomes the player into that same
+    gathering (dinner in the Six Strangers house), so the player starts there
+    too: all six residents are home and physically present on turn 1. Before
+    this, the player stayed at the front entry while the NPCs sat in the
+    living room, the scene brief said "People present: none", and the model
+    invented whereabouts ("Yuto should be back from practice soon").
+    """
+    lifecycle = state.cast_lifecycle
+    config = (getattr(state, "story_cfg", None) or {}).get("cast_lifecycle") or {}
+    gathering = str(config.get("initial_active_location_id") or "living_room")
+    for key in lifecycle.active_ids():
+        state.character_locations.setdefault(key, gathering)
+    runtime = getattr(state, "world_runtime", None)
+    if config.get("player_mode") != "resident_slot" or runtime is None:
+        return
+    location = runtime.world_graph.locations.get(gathering)
+    if location is None:
+        return
+    state.location_id = gathering
+    state.location = location.name
+    state.location_uuid = getattr(location, "uuid", "")
+    for key in lifecycle.active_ids():
+        state.character_locations[key] = gathering
+
+
 def _remove_upcoming_relationships(state: GameState) -> None:
     lifecycle = state.cast_lifecycle
     graph = state.character_graph
@@ -1888,7 +1917,32 @@ def apply_placeholders(text: str, state: GameState) -> str:
         text.replace("{{PLAYER_NAME}}", name)
             .replace("{{HONORIFIC}}", honorific)
             .replace("{{PLAYER_BEDROOM}}", bedroom)
+            .replace("{{HOUSEMATE_MIX}}", _housemate_mix(state))
     )
+
+
+_COUNT_WORDS = ("no", "one", "two", "three", "four", "five", "six")
+
+
+def _housemate_mix(state: GameState) -> str:
+    """Describe the opening's gathered housemates, e.g. "two other men and three women".
+
+    The opening shows only two speakers; without this line the model assumed
+    the rest of the house was out and invented where they were.
+    """
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is None or not lifecycle.player_slot_group:
+        return "the whole household"
+    parts = []
+    for group, noun in (("men", "men"), ("women", "women")):
+        count = len(lifecycle.active_ids(group))
+        if not count:
+            continue
+        other = "other " if group == lifecycle.player_slot_group else ""
+        word = _COUNT_WORDS[count] if count < len(_COUNT_WORDS) else str(count)
+        singular = {"men": "man", "women": "woman"}[noun]
+        parts.append(f"{word} {other}{noun if count != 1 else singular}")
+    return " and ".join(parts) or "the whole household"
 
 
 def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
@@ -2554,12 +2608,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             new_state.main_character_id = next(iter(new_state.cast_lifecycle.active_ids()), None)
 
         if new_state.cast_lifecycle:
-            default_location = str(
-                (new_state.story_cfg.get("cast_lifecycle", {}) or {}).get("initial_active_location_id")
-                or "living_room"
-            )
-            for key in new_state.cast_lifecycle.active_ids():
-                new_state.character_locations.setdefault(key, default_location)
+            _gather_opening_residents(new_state)
 
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
