@@ -78,13 +78,14 @@ from backend.app.engine.state import (
 
 )
 from backend.app.engine.dialogue import (
-    present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo,
+    present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
     dialogue_response_format, decode_dialogue_response,
     has_unmarked_quotes, attribute_unmarked_quotes,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
+from backend.app.engine.opening_scene import stage_opening_scene
 from backend.app.engine.world_calendar import PendingEvent, day_number
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
 from backend.app.engine.knowledge_chunks import normalize_parties, KnowledgeChunk
@@ -1537,6 +1538,8 @@ def _serialize_state(state: GameState, log: list) -> str:
             else str(getattr(state, "language_theme", LanguageTheme.ENGLISH_US.value))
         ),
         "character_locations": dict(getattr(state, "character_locations", {}) or {}),
+        "main_character_id": str(getattr(state, "main_character_id", "") or ""),
+        "opening_cast": list(getattr(state, "opening_cast", []) or []),
         "cast_lifecycle": (
             state.cast_lifecycle.to_dict()
             if getattr(state, "cast_lifecycle", None) is not None else None
@@ -1777,6 +1780,13 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
 
         _sync_resident_locations(restored)
 
+        restored.opening_cast = [str(k) for k in (saved.get("opening_cast") or []) if k]
+        # The runtime focal lens (e.g. an opening greeter, or a replacement
+        # arrival) outranks the authored is_main default.
+        saved_main = str(saved.get("main_character_id") or "").strip()
+        if saved_main and saved_main in (restored.characters or {}):
+            restored.main_character_id = saved_main
+
         if (
             restored.cast_lifecycle is not None
             and restored.main_character_id
@@ -1960,7 +1970,10 @@ def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
         active_ids = list(lifecycle.active_ids()) if lifecycle else [
             key for key in (getattr(state, "characters", {}) or {}) if key != "player"
         ]
-        chosen = secrets.SystemRandom().sample(active_ids, min(2, len(active_ids)))
+        # Prefer the engine-staged welcome party; legacy stories draw at random.
+        chosen = [key for key in (getattr(state, "opening_cast", None) or []) if key in active_ids]
+        if not chosen:
+            chosen = secrets.SystemRandom().sample(active_ids, min(2, len(active_ids)))
         role_ids = {
             "@greeter": chosen[0] if chosen else "unknown",
             "@second": chosen[1] if len(chosen) > 1 else (chosen[0] if chosen else "unknown"),
@@ -2609,6 +2622,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         if new_state.cast_lifecycle:
             _gather_opening_residents(new_state)
+
+        # Engine-backed opening: put the story's welcome party (if authored)
+        # in the player's start room so opening prose, people-present and the
+        # first storyteller reply all describe the same scene.
+        stage_opening_scene(new_state)
 
         # Load character relationship graph from story definition
         if isinstance(story_def, StoryDefinition) and story_def.relationships:
@@ -3260,6 +3278,38 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     except ValueError:
         return {"error": "The scene response was incomplete. Please try again.", "character": "default"}
 
+    # A draft made only of recent lines (live 2026-09-24: turn 1 re-sent the
+    # whole opening) or with nothing presentable left (local arena 2026-09-24:
+    # an empty segment list, or only an echo of the player) gets one
+    # regeneration; the filters below cannot fix it without leaving the
+    # player an empty reply.
+    _recent_replies = [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:]
+    _draft_segments = drop_player_echo(present_dialogue(extract_state_tag(reply)[0], state)[1], msg)
+    _draft_empty = not any(str(seg.get("text") or "").strip() for seg in _draft_segments)
+    if _draft_empty or only_repeats(_draft_segments, _recent_replies):
+        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id, "empty": _draft_empty})
+        retry_messages = payload["messages"] + [
+            {"role": "assistant", "content": reply},
+            {"role": "user", "content": (
+                "That draft had no new lines for the player." if _draft_empty else
+                "That draft only repeated lines that were already said."
+            ) + " Write a new beat that responds to the player's latest message; "
+                "do not repeat earlier lines or the player's own words."},
+        ]
+        with stage_timer.stage("storyteller"):
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                retry = await client.post(
+                    f"{STORY_MASTER_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                    json={**payload, "messages": retry_messages, "model": STORY_MASTER_MODEL},
+                )
+        if 200 <= retry.status_code < 300:
+            try:
+                reply = decode_dialogue_response(str(retry.json()["choices"][0]["message"]["content"]), state)
+                data = retry.json()
+            except (ValueError, KeyError, IndexError):
+                pass  # keep the first draft; the repeat filter below still applies
+
     guess_match = re.search(
         r"\bis your name\s+([A-Za-z][A-Za-z\s'\-]{0,40})\??",
         reply,
@@ -3286,6 +3336,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # The player already sees their own message; never let the scene hand it
     # to an NPC (arena-found beta regression, 2026-09-23).
     segments = drop_player_echo(segments, msg)
+    # Nor re-send recent beats: copied opening lines snowballed on live prod
+    # because each copy re-entered the history (2026-09-24).
+    segments = drop_repeated_lines(
+        segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]

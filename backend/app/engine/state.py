@@ -357,6 +357,10 @@ class GameState:
     # Update this dict whenever a character moves during gameplay.
     # ==============================================================
     character_locations: Dict[str, str] = field(default_factory=dict)
+    # NPC keys staged to greet the player at game start (story
+    # ``opening.welcome_party``; see engine/opening_scene.py). Empty when the
+    # story authors none.
+    opening_cast: List[str] = field(default_factory=list)
     world_start_datetime: str = ""
     last_travel_from_id: str = ""
     last_travel_to_id: str = ""

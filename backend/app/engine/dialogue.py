@@ -316,6 +316,14 @@ MIN_ECHO_WORDS = 3
 # "sounds great"). Word order matters, so an NPC reusing a few of the
 # player's words in its own reply stays well below this.
 ECHO_COVERAGE = 0.8
+# A single leading sentence counts as a reworded echo only when it is long and
+# almost entirely the player's words, so short agreement ("Me too!") survives.
+REWORDED_MIN_WORDS = 6
+REWORDED_COVERAGE = 0.85
+# Recent-reply repetition: dialogue this long, or narration this long, that
+# already appeared in the last few replies is a copy, not a new beat.
+REPEAT_MIN_DIALOGUE_WORDS = 4
+REPEAT_MIN_NARRATION_WORDS = 8
 
 
 def normalized_words(text: str) -> str:
@@ -349,6 +357,7 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
     if not said.strip():
         return segments
     out = []
+    orphan_tag_next = False
     for seg in segments:
         if seg.get("kind") == "dialogue" and seg.get("speaker_id") != player_key:
             text, cut, run = seg["text"], 0, []
@@ -359,22 +368,108 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
                         cut = match.end()
                     continue
                 if f" {' '.join(run + words)} " not in said:
+                    # A long sentence copied with a word added or dropped
+                    # ("...after a long day too.") is still the player's line.
+                    if len(words) >= REWORDED_MIN_WORDS and _echo_coverage(words, said_words) >= REWORDED_COVERAGE:
+                        run, cut = [], match.end()
+                        continue
                     break
                 run += words
                 if len(run) >= MIN_ECHO_WORDS:
                     cut = match.end()
             seg_words = normalized_words(text).split()
-            if (len(seg_words) >= MIN_ECHO_WORDS + 1
-                    and _echo_coverage(seg_words, said_words) >= ECHO_COVERAGE
-                    and _echo_coverage(said_words, seg_words) >= ECHO_COVERAGE):
+            whole_echo = (len(seg_words) >= MIN_ECHO_WORDS + 1
+                          and _echo_coverage(seg_words, said_words) >= ECHO_COVERAGE
+                          and _echo_coverage(said_words, seg_words) >= ECHO_COVERAGE)
+            rest = text[cut:].strip() if cut else text
+            if whole_echo or not rest:
+                _drop_leading_tag(out)
+                orphan_tag_next = True
                 continue
             if cut:
-                rest = text[cut:].strip()
-                if not rest:
-                    continue
                 seg = {**seg, "text": rest}
+        elif seg.get("kind") == "narration" and orphan_tag_next:
+            seg = _without_orphan_tag(seg)
+            orphan_tag_next = False
+            if seg is None:
+                continue
+        orphan_tag_next = False
         out.append(seg)
     return out
+
+
+# A narration beat that only attributes speech ("you murmur, ...", "You
+# whisper,"). Lowercase openings are continuations of the removed line.
+SPEECH_TAG = re.compile(
+    r"^\s*(?:(?:you|he|she|they)\s+)?(?:(?:lean\s+in\s+and|quietly|softly)\s+)?"
+    r"(?:say|says|said|murmur|murmurs|murmured|whisper|whispers|whispered|ask|asks|asked|"
+    r"reply|replies|replied|answer|answers|answered|add|adds|added|mutter|mutters|muttered|"
+    r"breathe|breathes|breathed|call|calls|called|promise|promises|promised|continue|continues|continued)\b",
+    re.I)
+SENTENCE_END = re.compile(r"[.!?…][\"'”’]*(?=\s|$)")
+
+
+def _without_orphan_tag(seg: dict) -> dict | None:
+    """Strip the speech tag that attributed a just-removed echo (arena
+    promote_37bbcb2, IU t3: "you murmur, your voice steadying with resolve."
+    survived its line and read as narrating the player's action). Only the
+    first sentence is examined; ordinary narration is returned unchanged."""
+    text = seg.get("text", "").lstrip()
+    first_end = SENTENCE_END.search(text)
+    first = text[:first_end.end()] if first_end else text
+    if not (SPEECH_TAG.match(first) or first[:1].islower()):
+        return seg
+    rest = text[len(first):].strip()
+    return {**seg, "text": rest} if rest else None
+
+
+def _drop_leading_tag(out: list[dict]) -> None:
+    """Remove a trailing "You lean in and whisper," that introduced a removed echo."""
+    if not out or out[-1].get("kind") != "narration":
+        return
+    text = out[-1]["text"].rstrip()
+    if not text.endswith((",", ":")):
+        return
+    ends = list(SENTENCE_END.finditer(text))
+    kept = text[:ends[-1].end()].strip() if ends else ""
+    if kept:
+        out[-1] = {**out[-1], "text": kept}
+    else:
+        out.pop()
+
+
+def drop_repeated_lines(segments: list[dict], recent_replies: list[str]) -> list[dict]:
+    """Remove beats copied verbatim from the storyteller's recent replies.
+
+    Live prod 2026-09-24: every turn re-sent the opening's "You found it. Come
+    in; we're just setting the table." Each copy went back into the history
+    the model reads, so the repeats snowballed. A dialogue segment (at least
+    REPEAT_MIN_DIALOGUE_WORDS words) or narration segment (at least
+    REPEAT_MIN_NARRATION_WORDS) whose word-normalized text already appears in
+    a recent reply is dropped. If every segment is a repeat, the reply is
+    returned unchanged rather than emptied.
+    """
+    seen = _recent_text(recent_replies)
+    kept = [seg for seg in segments if not _is_repeat(seg, seen)]
+    return kept or segments
+
+
+def only_repeats(segments: list[dict], recent_replies: list[str]) -> bool:
+    """True when every beat of a reply was already said in recent replies."""
+    seen = _recent_text(recent_replies)
+    return bool(segments) and all(_is_repeat(seg, seen) for seg in segments)
+
+
+def _recent_text(recent_replies: list[str]) -> str:
+    return " ".join(f" {normalized_words(reply)} " for reply in recent_replies if reply)
+
+
+def _is_repeat(seg: dict, seen: str) -> bool:
+    if not seen.strip():
+        return False
+    words = normalized_words(seg.get("text", ""))
+    minimum = REPEAT_MIN_DIALOGUE_WORDS if seg.get("kind") == "dialogue" else REPEAT_MIN_NARRATION_WORDS
+    return len(words.split()) >= minimum and f" {words} " in seen
 
 
 def encode_dialogue(segments: list[dict]) -> str:

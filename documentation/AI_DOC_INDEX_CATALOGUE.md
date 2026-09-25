@@ -11,10 +11,12 @@
 | [AI_FATAL_MISTAKES.md](ai_learnings_mistakes/AI_FATAL_MISTAKES.md) | ...a production-breaking mistake happens that must never be repeated. |
 | [AI_LEARNINGS_RUNNING_TESTS.md](ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md) | ...test runner behavior changes or new testing patterns are established. |
 | [AI_LEARNINGS_PUSHING_CODE.md](ai_learnings_mistakes/AI_LEARNINGS_PUSHING_CODE.md) | ...push/deploy workflow rules change (commit conventions, CI, deploy flow). |
+| [AI_PWA_IPHONE_WEBAPP_LEARNINGS.md](ai_learnings_mistakes/AI_PWA_IPHONE_WEBAPP_LEARNINGS.md) | ...an iPhone Home Screen install, PWA cache, standalone viewport, keyboard, map or mobile chat mismatch needs diagnosis or verification. |
 | [AI_TASK_WORKFLOW.md](ai_learnings_mistakes/AI_TASK_WORKFLOW.md) | ...intermediate task tracking location, consumption requirements, or cleanup policy changes. |
 | [AI_LOGICAL_BUGS.md](ai_learnings_mistakes/AI_LOGICAL_BUGS.md) | ...a new logic bug is discovered and resolved during an audit. |
 | [user_corrections.md](user_corrections.md) | ...the user corrects a mistake that should be remembered across sessions. |
-| [BACKLOG.md](BACKLOG.md) | ...work is knowingly deferred (audit finding, follow-up, manual owner action) instead of finished, or a backlog item is resolved. |
+| [backlog/](backlog/) | ...work is knowingly deferred (audit finding, follow-up, manual owner action): add one `BL-<n>-<slug>.md` file per item and delete it when fixed. Conventions: `/add-and-remove-from-backlog` skill (`.claude/skills/add-and-remove-from-backlog/SKILL.md`). |
+| [BACKLOG.md](BACKLOG.md) | ...legacy items BL-01..BL-25 only: move an item to `backlog/` when you work on it, and remove its entry when it is fixed. No new entries. |
 
 ## Prompt Engine & Turn Orchestration
 
@@ -49,11 +51,17 @@ The reusable world/location atlas schema, research mapping and routing policy ar
 documented in [WORLD_ATLAS_DESIGN.md](model_output_docs/WORLD_ATLAS_DESIGN.md).
 Update that document when map metadata, coordinates, routes or map UI behavior changes.
 
+The proposed living-world investigation and conversation mechanics are in
+[LIVING_WORLD_INVESTIGATION_AND_CONVERSATION_DESIGN.md](model_output_docs/LIVING_WORLD_INVESTIGATION_AND_CONVERSATION_DESIGN.md).
+Use it for evidence types, NPC routines and sleep, context obligations, probabilistic
+initiative, and social-scene handoffs; its runtime features are not yet implemented.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [GAME_DESIGN_SYSTEMS.md](model_output_docs/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). |
 | [NPC_SIDEQUEST_DESIGN.md](model_output_docs/NPC_SIDEQUEST_DESIGN.md) | ...NPC behavior, sidequest triggers, or quest logic changes. |
 | [SOCIAL_MODE_DESIGN.md](model_output_docs/SOCIAL_MODE_DESIGN.md) | ...the optional `mode` story-JSON schema, the mode prompt layer, or ensemble/slice-of-life ("social_sim") authoring guidance changes. |
+| [CHARACTER_WORLD_MODEL_REDESIGN.md](model_output_docs/CHARACTER_WORLD_MODEL_REDESIGN.md) | ...the problems list (P1-P14), the character object, world location index (`where`/`contents`, `move()`), events, memories (`@id` refs, descriptors, provenance), relationship edges, context projection, or the redesign build order change. **Agreed design, not implemented.** |
 | [CAST_LIFECYCLE_DESIGN.md](model_output_docs/CAST_LIFECYCLE_DESIGN.md) | ...characters can enter, leave, rotate through capacity-limited slots, or lifecycle eligibility/persistence changes. |
 
 ## Tests & Integration Playback

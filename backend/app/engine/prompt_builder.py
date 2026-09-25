@@ -6,6 +6,7 @@ from backend.app.engine.state import GameState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
 from backend.app.engine.cast_lifecycle import CastStatus
 from backend.app.engine.scene_context import SceneContext
+from backend.app.engine.opening_scene import opening_scene_brief
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -1481,6 +1482,7 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         f"{cast_pressure_line}"
         f"{roster_closure_line}"
         f"{arrival_intro_line}"
+        f"{opening_scene_brief(state)}"
         "Narrate only what the player's message actually states or implies. "
         "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote.\n\n"
         f"{user_line_text}\n"

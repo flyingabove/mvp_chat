@@ -49,6 +49,39 @@ _load_env_test_once()
 
 
 # ---------------------------------------------------------------------------
+# DEPLOY BUILD GUARD: no paid LLM traffic from the Docker test gate
+# ---------------------------------------------------------------------------
+# The Dockerfile runs `pytest -m "not integration"` with TESTS_BLOCK_LLM_NETWORK=1
+# and blank keys. Integration tests are deselected there; this guard makes any
+# other test that still reaches an LLM provider fail loudly instead of
+# silently spending tokens on every deploy (owner rule 2026-09-24).
+_BLOCKED_LLM_HOSTS = ("openai.com", "typesafe.ai", "langchain.com", "langsmith.com")
+
+
+def _block_llm_hosts() -> None:
+    import os
+    import socket
+
+    if os.environ.get("TESTS_BLOCK_LLM_NETWORK") != "1":
+        return
+    real_getaddrinfo = socket.getaddrinfo
+
+    def guarded_getaddrinfo(host, *args, **kwargs):
+        name = (host.decode() if isinstance(host, bytes) else str(host or "")).lower().rstrip(".")
+        if any(name == blocked or name.endswith("." + blocked) for blocked in _BLOCKED_LLM_HOSTS):
+            raise RuntimeError(
+                f"LLM network call to {name} during the deploy test gate. Mark the test "
+                "@pytest.mark.integration or mock the provider."
+            )
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    socket.getaddrinfo = guarded_getaddrinfo
+
+
+_block_llm_hosts()
+
+
+# ---------------------------------------------------------------------------
 # STORY / CHARACTER AUTO-DISCOVERY
 # ---------------------------------------------------------------------------
 def _discover_stories() -> list[dict]:

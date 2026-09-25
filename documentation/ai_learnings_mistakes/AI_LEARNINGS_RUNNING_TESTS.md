@@ -5,8 +5,22 @@ AI learnings: running tests on this repo
 
 POLICY: NO TESTS MAY BE SKIPPED — EVER
 ---------------------------------------
-All tests in `tests/` must run and pass in every environment (local, CI, Railway).
+All tests in `tests/` must run and pass locally (full suite, including
+`@pytest.mark.integration`, which call real LLM APIs via `.env.test`).
 pytest.skip(), @pytest.mark.skip, and @pytest.mark.skipif are BANNED.
+
+DEPLOY BUILD = UNIT TESTS ONLY, ZERO LLM CALLS (owner rule 2026-09-24)
+-----------------------------------------------------------------------
+The Railway Docker test gate and the GitHub CI unit job run
+`pytest -m "not integration"` with every LLM key blank and
+`TESTS_BLOCK_LLM_NETWORK=1`, which makes `tests/conftest.py` refuse DNS for
+openai.com / typesafe.ai / langchain.com / langsmith.com. Deselecting by marker
+is not a skip. Any test that needs a real provider MUST be marked
+`@pytest.mark.integration`; an unmarked one fails the build with
+"LLM network call to ... during the deploy test gate". Live tests at build time
+are opt-in only: Docker build arg `RUN_LIVE_LLM_TESTS=1` (+ `OPENAI_API_KEY`).
+Reproduce the gate locally (no `.env.test` in a clean worktree):
+`OPENAI_API_KEY= TESTS_BLOCK_LLM_NETWORK=1 python -m pytest tests -m "not integration"`.
 The conftest.py hook converts any skip attempt into a hard FAILURE.
 If a test needs an API key, the key MUST be available — never gate on it.
 
@@ -21,7 +35,7 @@ Context
 - OS: Windows (PowerShell terminals). Environment: conda env at C:\Users\Christian\Miniconda3.
 - .env.test exists and is auto-loaded by tests/conftest.py; it provides OPENAI_API_KEY.
 - Integration playback scenarios are discovered through the integration playback loader and canonical test modules under `tests/backend/app/**`.
-- Railway must have OPENAI_API_KEY set as an environment variable.
+- Railway needs OPENAI_API_KEY at RUNTIME only; the build test gate never uses it (see above).
 
 Commands that reliably work
 1) Full suite (default — run everything, always)

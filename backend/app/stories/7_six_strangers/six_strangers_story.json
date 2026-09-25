@@ -15,6 +15,7 @@
   "characters": [
     {
       "key": "makoto",
+      "gender": "M",
       "name": "Makoto Hasegawa",
       "role": "University student and baseball player, 22",
       "is_main": false,
@@ -35,6 +36,7 @@
     },
     {
       "key": "minori",
+      "gender": "F",
       "name": "Minori Nakada",
       "role": "University student and model, 21",
       "is_main": false,
@@ -55,6 +57,7 @@
     },
     {
       "key": "yuki",
+      "gender": "M",
       "name": "Yuki Adachi",
       "role": "Professional tap dancer, 28",
       "is_main": false,
@@ -75,6 +78,7 @@
     },
     {
       "key": "mizuki",
+      "gender": "F",
       "name": "Mizuki Shida",
       "role": "Office worker and barista, 22",
       "is_main": true,
@@ -96,6 +100,7 @@
     },
     {
       "key": "uchi",
+      "gender": "M",
       "name": "Tatsuya \"Uchi\" Uchihara",
       "role": "Hair stylist, 23",
       "is_main": false,
@@ -116,6 +121,7 @@
     },
     {
       "key": "yuriko",
+      "gender": "F",
       "name": "Yuriko Hayata",
       "role": "Sixth-year medical student, 23",
       "is_main": false,
@@ -136,6 +142,7 @@
     },
     {
       "key": "arman",
+      "gender": "M",
       "name": "Arman Bitaraf",
       "role": "Landscaper and aspiring firefighter, 24",
       "is_main": false,
@@ -156,6 +163,7 @@
     },
     {
       "key": "arisa",
+      "gender": "F",
       "name": "Arisa Ohata",
       "role": "Hat designer, 25",
       "is_main": false,
@@ -176,6 +184,7 @@
     },
     {
       "key": "hikaru",
+      "gender": "M",
       "name": "Hikaru Ota",
       "role": "Model and construction worker, 18",
       "is_main": false,
@@ -196,6 +205,7 @@
     },
     {
       "key": "natsumi",
+      "gender": "F",
       "name": "Natsumi Saito",
       "role": "Model, 26",
       "is_main": false,
@@ -216,6 +226,7 @@
     },
     {
       "key": "misaki",
+      "gender": "F",
       "name": "Misaki Tamori",
       "role": "Entertainer and television talent, 23",
       "is_main": false,
@@ -236,6 +247,7 @@
     },
     {
       "key": "yuto",
+      "gender": "M",
       "name": "Yuto Handa",
       "role": "Aspiring architect, 27",
       "is_main": false,
@@ -256,6 +268,7 @@
     },
     {
       "key": "riko",
+      "gender": "F",
       "name": "Riko Nagai",
       "role": "High-school student and gravure model, 18",
       "is_main": false,
@@ -276,6 +289,7 @@
     },
     {
       "key": "momoka",
+      "gender": "F",
       "name": "Momoka Mitsunaga",
       "role": "Ballerina, 20",
       "is_main": false,
@@ -296,6 +310,7 @@
     },
     {
       "key": "hayato",
+      "gender": "M",
       "name": "Hayato Terashima",
       "role": "Chef apprentice, 29",
       "is_main": false,
@@ -316,6 +331,7 @@
     },
     {
       "key": "yuuki_byrnes",
+      "gender": "M",
       "name": "Yuuki Byrnes",
       "role": "Hip-hop dancer, 23",
       "is_main": false,
@@ -336,6 +352,7 @@
     },
     {
       "key": "masako",
+      "gender": "F",
       "name": "Masako Endo",
       "role": "Model and aspiring childcare worker, 23",
       "is_main": false,
@@ -847,11 +864,12 @@
     }
   },
   "opening": {
+    "welcome_party": {"size": 2, "gender": "opposite_player", "exclusive": true, "fallback_location_id": "living_room"},
     "text": "Evening rain has just stopped in Higashi-Gotanda. The house is bright, dinner is underway, and your shared {{PLAYER_BEDROOM}} waits beyond the hall.",
     "segments": [
       {"kind": "narration", "text": "The evening rain has just stopped in Higashi-Gotanda. Bicycle tires hiss over the wet lane as you step out with your bag and find the house lit from within. Through a half-open window come the clatter of dishes and the tail end of a laugh. For a moment, you can stand outside and be nobody here yet."},
       {"kind": "dialogue", "speaker_id": "@greeter", "text": "You found it. Come in; we're just setting the table."},
-      {"kind": "narration", "text": "Warm kitchen air meets you at the door. Everyone who lives here is already home: all five of your new housemates, {{HOUSEMATE_MIX}}, are gathered between the stove and the dining table. A second housemate looks up from a stack of plates, and someone nudges an empty chair into place. Beyond the hall is the shared {{PLAYER_BEDROOM}}, where your bag will go; the faces in this room are still strangers."},
+      {"kind": "narration", "text": "Warm kitchen air meets you at the door. Everyone who lives here is home tonight, {{HOUSEMATE_MIX}} besides you: the others are settling around the living-room table next door, while these two keep you company in the kitchen. A second housemate nudges a stool your way. Beyond the hall is the shared {{PLAYER_BEDROOM}}, where your bag will go; for now these are the two faces in front of you, and they are still strangers."},
       {"kind": "dialogue", "speaker_id": "@second", "text": "There's enough for one more. Are you hungry?"},
       {"kind": "narration", "text": "The door closes softly behind you. Dinner keeps moving, and for the first time tonight the next moment is yours."}
     ]

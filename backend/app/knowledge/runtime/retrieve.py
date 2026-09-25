@@ -52,7 +52,7 @@ def retrieve_knowledge(
             for i in idxs:
                 if i < 0 or i >= len(chunks):
                     continue
-                if namespace and (chunks[i].get("namespace") or chunks[i].get("ns")) != namespace:
+                if not _namespace_allows(chunks[i], namespace):
                     continue
                 out.append(i)
                 if len(out) >= limit:
@@ -115,7 +115,7 @@ def retrieve_knowledge(
     for i, s in scored:
         if s <= 0:
             continue
-        if namespace and (chunks[i].get("namespace") or chunks[i].get("ns")) != namespace:
+        if not _namespace_allows(chunks[i], namespace):
             continue
         top.append(i)
         if len(top) >= k_final:
@@ -123,7 +123,7 @@ def retrieve_knowledge(
     if not top:
         # As a last resort, return the first few chunks to avoid empty retrieval.
         fallback_idxs = list(range(min(k_final, len(chunks))))
-        top = [i for i in fallback_idxs if not namespace or (chunks[i].get("namespace") or chunks[i].get("ns")) == namespace]
+        top = [i for i in fallback_idxs if _namespace_allows(chunks[i], namespace)]
     retrieved_chunks = [chunks[i] for i in top]
 
     session_hits, session_count = _merge_session_chunks(
@@ -138,6 +138,18 @@ def retrieve_knowledge(
     }
 
 
+def _namespace_allows(chunk: Dict[str, Any], namespace: Optional[str]) -> bool:
+    """A chunk tagged with another playthrough's namespace is isolated; an
+    untagged chunk is authored story lore and is always eligible.
+
+    BL-26: every turn passes a per-session namespace, and authored bundle
+    chunks carry none, so requiring an exact match dropped all lore (live IU
+    retrieval returned 0 of 57 chunks).
+    """
+    tagged = chunk.get("namespace") or chunk.get("ns")
+    return not namespace or not tagged or tagged == namespace
+
+
 def _merge_session_chunks(
     main_results: List[Dict[str, Any]],
     session_store: Optional["SessionChunkStore"],
@@ -146,17 +158,20 @@ def _merge_session_chunks(
 ) -> Tuple[List[Dict[str, Any]], int]:
     """Merge session-level chunks into main retrieval results.
 
-    Session chunks fill remaining slots up to k_final, deduplicated by chunk_id.
+    Conversation memory is guaranteed up to half of k_final when it has
+    relevant hits; lore fills whatever it leaves, and vice versa. Before BL-26
+    session chunks only filled spare slots, which was harmless while lore
+    retrieval returned nothing, but would let a large lore bundle crowd out
+    every recent fact the moment lore worked. Deduplicated by chunk_id.
     Returns (merged_list, number_of_session_chunks_added).
     """
-    if not session_store:
-        return main_results, 0
+    if not session_store or k_final <= 0:
+        return main_results[:k_final], 0
 
     seen_ids = {c.get("chunk_id") for c in main_results}
-    remaining = max(0, k_final - len(main_results))
-    if remaining == 0:
-        return main_results, 0
-
-    session_hits = session_store.query(query, top_k=remaining + 4)
-    added = [c for c in session_hits if c.get("chunk_id") not in seen_ids][:remaining]
-    return main_results + added, len(added)
+    session_hits = [c for c in session_store.query(query, top_k=k_final + 4)
+                    if c.get("chunk_id") not in seen_ids]
+    reserved = min(len(session_hits), k_final // 2)
+    kept = main_results[:k_final - reserved]
+    added = session_hits[:k_final - len(kept)]
+    return kept + added, len(added)

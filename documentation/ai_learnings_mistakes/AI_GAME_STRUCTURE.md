@@ -189,7 +189,7 @@ Instructions for AI to create a game
 1) Pick a unique id/folder `<int>_<slug>` (no integer reuse). Example: `3_newcase`.
 2) Author knowledge.json under backend\app\knowledge\characters\<id>/ with solid, sourced facts. If the person/entity is ambiguous, ask for clarification—do not invent.
 3) Generate chunks.jsonl from knowledge.json (windowed passages). Run the index builder so FAISS/BM25 artifacts exist beside chunks.jsonl.
-4) Create story JSON under backend\app\stories\<folder>/ as `<story_id>_story.json`. Include: goal, opening, rules, canonical_truth (explicit facts), knowledge_character_id, world_context array.
+4) Create story JSON under backend\app\stories\<folder>/ as `<story_id>_story.json`. Include: goal, opening, rules, canonical_truth (explicit facts), knowledge_character_id, world_context array. Optionally author `gender` ("M"/"F") per character and `opening.welcome_party` to stage who greets the player at game start (see `SOCIAL_MODE_DESIGN.md` §10).
    Set the world.file path using the actual folder name: "<folder>/<story_id>_world.json".
 5) Create world JSON (<story_id>_world.json) with locations/edges. Ensure descriptions encode ownership details (e.g., "Interview Room A is Steve's room"; "Interview Room B is Bob's room") so Location.description carries them after load.
    Also add `character_start_locations` to the story JSON's `world` section — every character needs a starting location.

@@ -4,17 +4,6 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
-### 2026-09-24 iPhone PWA and speaker-aware story UI follow-up
-
-- [ ] Confirm a newly installed **StoriesChat Beta** Home Screen icon on the user's physical iPhone 14; compare safe areas and keyboard positioning with the supplied screenshots. An old **StoriesChat** icon launches production at `/` and cannot change channels through its own Update App button.
-
-### 2026-09-24 beta Home Screen install route repair
-
-- [x] Reproduce the user's old chat, bottom gap, keyboard/tab behavior, tiny map X, and absent pinch zoom offline using the production install manifest and WebKit.
-- [x] Reproduce the legacy root worker's cached `/beta/manifest.json` and prove a new beta manifest URL bypasses it.
-- [x] Give beta a distinct install URL and app identity; verify Refresh Cache stays on `/beta/`.
-- [x] Run full tests, integrate current beta, deploy, and check the hosted beta install manifest and browser flows.
-
 ### Terrace in the City mobile/PWA and six-resident correctness
 
 - [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.
@@ -36,6 +25,12 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
+
+- 2026-09-24: User confirmed the newly installed **StoriesChat Beta** Home Screen app worked on their iPhone after beta install-route repair. Documented the full PWA/mobile UI incident, offline reproduction, standalone layout rules and future verification procedure in `documentation/ai_learnings_mistakes/AI_PWA_IPHONE_WEBAPP_LEARNINGS.md`. The report confirms the new install outcome; individual native-keyboard geometry was not measured on device.
+
+- 2026-09-24: Six Strangers echo and whereabouts fix. Root causes: `drop_player_echo` stopped at a leading short sentence ("Cool!"); the player started at the front entry while NPCs were in the living room, so the prompt said "People present: none"; all 17 names, including unarrived residents, were in the Cast IDs, the speaker enum and self-knowledge. Shipped to beta as `d300ef5` and promoted to prod as `d753f4e` on user request. Offline precheck `promote_d300ef5_precheck` PASS on reliability; prod predates offline routing, so the baseline was origin/beta. Hosted gate `promote_d300ef5` PASS: IU jev 0.5 / llm 0.5; Six Strangers jev 1.0 / llm 0.5; the Jev result is length-confounded (the longer side won 80%, beta +24 words per reply). 24 of 24 arms completed with 0 turn errors. Prod `wait-deploy` and `smoke` exit 0. The post-release live check on prod found the storyteller re-sending the opening's lines every turn. The follow-up fix (repeat filter, one regeneration and a reworded-echo sentence rule) went to beta; its prod promotion is pending user approval. Open: BL-24 (NPC movement), BL-25 (audit quality items).
+
+- 2026-09-24: Designed living-world detective and Terrace conversation mechanics from the beta play findings and current engine/Jev code. Mapped every player requirement to an authority boundary; specified evidence types, NPC schedules and sleep, a turn/context contract, narrow MUST-mention rules, probability/replay, anti-hallucination checks, social handoffs, and rollout proof. Indexed the design; eight document links and code-fence balance verified; documentation-only, no runtime change or deploy claim.
 
 - 2026-09-24: Reproduced the user's stale iPhone install offline with production's root manifest and worker: old `/` shell had a 180px standalone gap, old chat/upload UI, visible tab bar during simulated keyboard focus, 36px map X and no pinch zoom. A separate worker test showed the legacy cache serving the stale `/beta/manifest.json`. Shipped beta install isolation in `f639128c9630dc1e2dd0ad932f6ad351e780f569` (Railway deployment `ac508d48-5a44-437d-808f-6b0be8937cc4`): new uncached `manifest-beta-v2.json`, `/beta/` start/scope/id, **StoriesChat Beta** identity/badge, and Refresh Cache route check. Before push: 1017 repository tests passed/1 expected failure, 129 arena skill tests, 10 Node tests, worker upgrade in Chromium/WebKit, seven local viewport modes, and three interactive modes. Hosted beta health confirmed exact SHA; manifest and page returned no-store; seven hosted viewport modes and three interactive modes passed with zero browser/API errors. Inspected standalone screenshots for the badge, chat, simulated keyboard and large map X. Physical iPhone confirmation remains Active above; an old production icon cannot be repointed by this beta-only change.
 

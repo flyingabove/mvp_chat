@@ -466,3 +466,18 @@ Remaining gap: NPC positions are never updated from narration, so whereabouts
 stay where the game started until arrivals or departures change them (BACKLOG
 BL-24).
 
+
+## 2026-09-24 (follow-up) — Storyteller re-sent the opening's lines every turn
+
+The post-release check on prod found each turn repeating the opening greeting
+("You found it. Come in; we're just setting the table."). Each copy re-entered
+the history the model reads, so the repeats snowballed. One whole turn-1 reply
+was nothing but the opening. Fix (`dialogue.py`): `drop_repeated_lines`
+removes dialogue of at least 4 words and narration of at least 8 words that
+appeared verbatim in the last 3 replies. When `only_repeats` shows a draft has
+no new beat, `prompt_engine.py` regenerates once with a short correction and
+logs `storyteller_repeat_regenerated`. The echo filter also strips a long
+leading sentence that is at least 85% the player's words in order ("…after a
+long day too."). Note: a decoded reply still carries its `[[STATE]]` tag, so
+run `extract_state_tag` before judging a draft's segments, or the tag counts as
+a non-repeat narration beat.

@@ -14,7 +14,7 @@ because the bug only exists in the deployed/browser context, not in pytest).
 This skill closes that gap by treating "deployed and confirmed live" as part
 of the definition of done, not a separate follow-up step.
 
-Read `documentation/BACKLOG.md` and `documentation/AI_DOC_INDEX_CATALOGUE.md`
+Read `documentation/backlog/` and `documentation/AI_DOC_INDEX_CATALOGUE.md`
 first if you haven't already this session — check whether the thing you're
 about to do is already a tracked backlog item (update it instead of
 duplicating), and find the right doc to update for whatever you change.
@@ -65,8 +65,8 @@ duplicating), and find the right doc to update for whatever you change.
    from this message alone).
 8. Push to `beta` ONLY. Never `prod`, never `main` (deleted, don't recreate
    it). Only merge `beta` → `prod` when the user explicitly asks.
-9. If you touched `documentation/BACKLOG.md` items, move them to Done with
-   the closing commit SHA in the same push.
+9. If the change fixes a backlog item, delete its `documentation/backlog/BL-<n>-*.md`
+   file in the same commit and write `Closes BL-<n>` (see `/add-and-remove-from-backlog`).
 
 ## Phase 3 — Poll the real deploy, then actually use the feature
 
@@ -134,6 +134,6 @@ State plainly: what was tested offline (and how), what was pushed and when,
 how long the deploy took to go live, what was checked on the actual live
 site (curl-level and, if available, browser-level), and any gap you weren't
 able to close (tool unavailable, infra you can't verify from the repo,
-scoped-out follow-up) — add a `documentation/BACKLOG.md` entry for the last
+scoped-out follow-up) — add a `documentation/backlog/` file for the last
 category rather than letting it evaporate. Never report a feature as
 "working" or "deployed" based on local test results alone.

@@ -4,6 +4,17 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-24: Documentation-only changes do not need a beta push
+
+The user narrowed the 2026-09-23 rule below: a change that touches only
+documentation or Markdown instruction files does not need to be pushed to
+beta. Commit it locally on `beta`; it goes out with the next code push. Why:
+every push redeploys Railway beta (about 10 minutes) and invalidates any
+running arena precheck or gate. Never push documentation alone during an arena
+run. Code, story data, frontend, config, tests and scripts still follow the
+rule below. Updated `AGENTS.md` (End-of-task completion rule) and
+`.claude/CLAUDE.md` §7.
+
 ## 2026-09-23: Always finish repository work by pushing to beta
 
 The Jev arena design was left in a local feature-branch commit. The user corrected
@@ -55,3 +66,12 @@ guidance for Codex; beta remains the deployment target.
 **Rule:** Use the term `persona` for the human-controlled character layer, reserve `NPC`/`character` for story cast members, and default to the server-stored Paul Dingus persona unless the user chooses a temp persona. Keep the system reusable across both active games and avoid custom persona creation/storage in this pass.
 
 **Added to:** `backend/app/personas/persona_store.py`, `backend/app/engine/state.py`, `frontend/index.html`.
+
+## 2026-09-24: Deploys must never call OpenAI (or any LLM API)
+
+**What happened:** The Dockerfile passed `OPENAI_API_KEY` as a build arg so the Railway build-time test gate ran `@pytest.mark.integration` tests against the real API on every deploy. User: "we dont run any requests to openAI during deployment ... it should be unit test only unless otherwise configured."
+
+**Rule:** The deploy build runs unit tests only (`-m "not integration"`), with blank LLM keys and `TESTS_BLOCK_LLM_NETWORK=1` (conftest blocks LLM hosts). Real-API tests must carry `@pytest.mark.integration`. Live tests at build time only via explicit `RUN_LIVE_LLM_TESTS=1`. Never add evaluation or LLM calls to the Dockerfile, CI unit job, or app startup.
+
+**Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/model_output_docs/INFRASTRUCTURE.md`.
+
