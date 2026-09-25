@@ -170,3 +170,117 @@ def test_retrieve_knowledge_fallback_respects_namespace(monkeypatch):
 
     results_other, _ = retrieve_knowledge("gamma", k_final=2, namespace="other")
     assert [r["chunk_id"] for r in results_other] == ["d"]
+
+
+# --- BL-26: authored lore never reached the prompt ---------------------------
+# Every turn passes namespace=<user>-<story>-<instance>. Authored bundle chunks
+# carry no namespace, so the old filter dropped all of them: live retrieval for
+# IU returned 0 of 57 lore chunks (8 with namespace="").
+
+def _lore_and_tagged_bundle():
+    chunks = [
+        {"chunk_id": "lore_1", "text": "alpha authored lore"},                          # authored: no namespace
+        {"chunk_id": "mine", "text": "alpha playthrough fact", "namespace": "user-story-1"},
+        {"chunk_id": "theirs", "text": "alpha other playthrough", "namespace": "other-story-1"},
+    ]
+
+    class FakeBM25:
+        def get_scores(self, _):
+            return [3.0, 2.0, 1.0]
+
+    faiss = get_faiss()
+    index = faiss.IndexFlatIP(2)
+    vecs = np.array([[1.0, 0.0], [0.9, 0.1], [0.8, 0.2]], dtype="float32")
+    maybe_norm = faiss.normalize_L2(vecs)
+    index.add(maybe_norm if maybe_norm is not None else vecs)
+    return CharacterIndexBundle(
+        character_id="test_character", artifact_dir=Path("."), chunks=chunks,
+        chunk_ids=[c["chunk_id"] for c in chunks], bm25=FakeBM25(), faiss_index=index,
+    )
+
+
+def test_authored_chunks_without_namespace_survive_a_session_namespace(monkeypatch):
+    bundle = _lore_and_tagged_bundle()
+    IndexService.reset_for_tests()
+    monkeypatch.setattr(IndexService, "get", classmethod(lambda cls: bundle))
+    monkeypatch.setattr("backend.app.knowledge.build.embedder.embed_query", lambda q: [1.0, 0.0])
+
+    results, _ = retrieve_knowledge("alpha", k_bm25=3, k_faiss=3, k_final=3, namespace="user-story-1")
+    ids = {r["chunk_id"] for r in results}
+    assert "lore_1" in ids                 # authored lore is always eligible
+    assert "mine" in ids                   # this playthrough's tagged chunk
+    assert "theirs" not in ids             # another playthrough stays isolated
+
+
+def test_fallback_keeps_authored_chunks_under_a_namespace(monkeypatch):
+    chunks = [{"chunk_id": "lore", "text": "gamma lore"}, {"chunk_id": "x", "text": "gamma x", "namespace": "other"}]
+    bundle = CharacterIndexBundle(character_id="fb", artifact_dir=Path("."), chunks=chunks,
+                                  chunk_ids=["lore", "x"], bm25=None, faiss_index=None)
+    IndexService.reset_for_tests()
+    monkeypatch.setattr(IndexService, "get", classmethod(lambda cls: bundle))
+    results, _ = retrieve_knowledge("gamma", k_final=2, namespace="ns")
+    assert [r["chunk_id"] for r in results] == ["lore"]
+
+
+def test_real_iu_lore_is_retrieved_on_the_live_namespaced_path(monkeypatch):
+    from backend.app.api.prompt_engine import build_namespace_key
+
+    IndexService.reset_for_tests()
+    IndexService.set_active_character("1_iu")
+    dim = getattr(IndexService.get().faiss_index, "d", 768)
+    monkeypatch.setattr("backend.app.knowledge.build.embedder.embed_query",
+                        lambda q: np.ones((1, dim), dtype="float32"))
+    namespace = build_namespace_key(user_id="default_user", story_id="iu_murder_mystery", instance=1)
+    results, _ = retrieve_knowledge("IU song album released", namespace=namespace)
+    assert len(results) >= 4, "authored IU lore must survive the per-session namespace"
+    lore_ids = set(IndexService.get().chunk_ids)
+    assert all(r.get("chunk_id") in lore_ids for r in results)
+    IndexService.reset_for_tests()
+
+
+class _FakeSessionStore:
+    def __init__(self, chunks):
+        self._chunks = chunks
+
+    def query(self, query, top_k=4):
+        return self._chunks[:top_k]
+
+
+def test_session_memory_keeps_its_share_when_lore_fills_every_slot(monkeypatch):
+    """Once lore works, 8 static hits must not crowd out conversation memory."""
+    chunks = [{"chunk_id": f"lore_{i}", "text": f"alpha lore {i}"} for i in range(10)]
+
+    class FakeBM25:
+        def get_scores(self, _):
+            return [10.0 - i for i in range(10)]
+
+    faiss = get_faiss()
+    index = faiss.IndexFlatIP(2)
+    vecs = np.array([[1.0, 0.0]] * 10, dtype="float32")
+    maybe_norm = faiss.normalize_L2(vecs)
+    index.add(maybe_norm if maybe_norm is not None else vecs)
+    bundle = CharacterIndexBundle(character_id="t", artifact_dir=Path("."), chunks=chunks,
+                                  chunk_ids=[c["chunk_id"] for c in chunks], bm25=FakeBM25(), faiss_index=index)
+    IndexService.reset_for_tests()
+    monkeypatch.setattr(IndexService, "get", classmethod(lambda cls: bundle))
+    monkeypatch.setattr("backend.app.knowledge.build.embedder.embed_query", lambda q: [1.0, 0.0])
+    session = _FakeSessionStore([{"chunk_id": f"ai-{i}", "text": f"alpha said {i}"} for i in range(6)])
+
+    results, debug = retrieve_knowledge("alpha", namespace="user-story-1", session_store=session)
+    ids = [r["chunk_id"] for r in results]
+    assert len(ids) == 8
+    assert sum(i.startswith("ai-") for i in ids) == 4     # half the slots for conversation memory
+    assert sum(i.startswith("lore_") for i in ids) == 4
+    assert debug["session_chunks_added"] == 4
+
+
+def test_lore_fills_slots_session_memory_does_not_use(monkeypatch):
+    bundle = _lore_and_tagged_bundle()
+    IndexService.reset_for_tests()
+    monkeypatch.setattr(IndexService, "get", classmethod(lambda cls: bundle))
+    monkeypatch.setattr("backend.app.knowledge.build.embedder.embed_query", lambda q: [1.0, 0.0])
+    session = _FakeSessionStore([{"chunk_id": "ai-1", "text": "alpha said"}])
+    results, _ = retrieve_knowledge("alpha", k_bm25=3, k_faiss=3, k_final=3,
+                                    namespace="user-story-1", session_store=session)
+    assert [r["chunk_id"] for r in results][-1] == "ai-1"
+    assert {"lore_1", "mine"} <= {r["chunk_id"] for r in results}

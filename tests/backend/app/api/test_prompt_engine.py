@@ -379,6 +379,38 @@ def test_turn_with_no_presentable_lines_is_regenerated_once(client, monkeypatch,
     assert [s["text"] for s in reply["segments"]] == ["It's a ten-minute walk; I'll show you."]
 
 
+def test_authored_lore_reaches_the_storyteller_prompt(client, monkeypatch):
+    """BL-26: the live per-session namespace used to filter out every authored
+    lore chunk, so IU's knowledge bundle never reached the storyteller."""
+    import numpy as np
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.knowledge.runtime import retrieve as retrieve_mod
+    from backend.app.knowledge.runtime.index_service import IndexService
+
+    IndexService.reset_for_tests()
+    monkeypatch.setattr(pe_mod, "retrieve_knowledge", retrieve_mod.retrieve_knowledge)
+    monkeypatch.setattr("backend.app.knowledge.build.embedder.embed_query",
+                        lambda q: np.ones((1, 768), dtype="float32"))
+    sent = []
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Recording(fake_client):
+        async def post(self, *args, **kwargs):
+            sent.append(kwargs.get("json") or {})
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Recording)
+    sid = "iu_lore_reaches_prompt"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    client.post("/api/chat", json={"session_id": sid, "message": "What songs and albums have you released?"})
+
+    storyteller = [p for p in sent if "response_format" in p][-1]
+    system_prompt = storyteller["messages"][0]["content"]
+    lore = [c["text"] for c in IndexService.get("1_iu").chunks]
+    assert sum(text in system_prompt for text in lore) >= 3, "authored IU lore missing from the prompt"
+    IndexService.reset_for_tests()
+
+
 def test_whereabouts_reports_a_resident_in_another_room(client):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.prompt_builder import build_messages
