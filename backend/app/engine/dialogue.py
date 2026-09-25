@@ -357,6 +357,7 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
     if not said.strip():
         return segments
     out = []
+    orphan_tag_next = False
     for seg in segments:
         if seg.get("kind") == "dialogue" and seg.get("speaker_id") != player_key:
             text, cut, run = seg["text"], 0, []
@@ -377,17 +378,64 @@ def drop_player_echo(segments: list[dict], player_message: str, player_key: str 
                 if len(run) >= MIN_ECHO_WORDS:
                     cut = match.end()
             seg_words = normalized_words(text).split()
-            if (len(seg_words) >= MIN_ECHO_WORDS + 1
-                    and _echo_coverage(seg_words, said_words) >= ECHO_COVERAGE
-                    and _echo_coverage(said_words, seg_words) >= ECHO_COVERAGE):
+            whole_echo = (len(seg_words) >= MIN_ECHO_WORDS + 1
+                          and _echo_coverage(seg_words, said_words) >= ECHO_COVERAGE
+                          and _echo_coverage(said_words, seg_words) >= ECHO_COVERAGE)
+            rest = text[cut:].strip() if cut else text
+            if whole_echo or not rest:
+                _drop_leading_tag(out)
+                orphan_tag_next = True
                 continue
             if cut:
-                rest = text[cut:].strip()
-                if not rest:
-                    continue
                 seg = {**seg, "text": rest}
+        elif seg.get("kind") == "narration" and orphan_tag_next:
+            seg = _without_orphan_tag(seg)
+            orphan_tag_next = False
+            if seg is None:
+                continue
+        orphan_tag_next = False
         out.append(seg)
     return out
+
+
+# A narration beat that only attributes speech ("you murmur, ...", "You
+# whisper,"). Lowercase openings are continuations of the removed line.
+SPEECH_TAG = re.compile(
+    r"^\s*(?:(?:you|he|she|they)\s+)?(?:(?:lean\s+in\s+and|quietly|softly)\s+)?"
+    r"(?:say|says|said|murmur|murmurs|murmured|whisper|whispers|whispered|ask|asks|asked|"
+    r"reply|replies|replied|answer|answers|answered|add|adds|added|mutter|mutters|muttered|"
+    r"breathe|breathes|breathed|call|calls|called|promise|promises|promised|continue|continues|continued)\b",
+    re.I)
+SENTENCE_END = re.compile(r"[.!?…][\"'”’]*(?=\s|$)")
+
+
+def _without_orphan_tag(seg: dict) -> dict | None:
+    """Strip the speech tag that attributed a just-removed echo (arena
+    promote_37bbcb2, IU t3: "you murmur, your voice steadying with resolve."
+    survived its line and read as narrating the player's action). Only the
+    first sentence is examined; ordinary narration is returned unchanged."""
+    text = seg.get("text", "").lstrip()
+    first_end = SENTENCE_END.search(text)
+    first = text[:first_end.end()] if first_end else text
+    if not (SPEECH_TAG.match(first) or first[:1].islower()):
+        return seg
+    rest = text[len(first):].strip()
+    return {**seg, "text": rest} if rest else None
+
+
+def _drop_leading_tag(out: list[dict]) -> None:
+    """Remove a trailing "You lean in and whisper," that introduced a removed echo."""
+    if not out or out[-1].get("kind") != "narration":
+        return
+    text = out[-1]["text"].rstrip()
+    if not text.endswith((",", ":")):
+        return
+    ends = list(SENTENCE_END.finditer(text))
+    kept = text[:ends[-1].end()].strip() if ends else ""
+    if kept:
+        out[-1] = {**out[-1], "text": kept}
+    else:
+        out.pop()
 
 
 def drop_repeated_lines(segments: list[dict], recent_replies: list[str]) -> list[dict]:

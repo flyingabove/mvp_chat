@@ -252,6 +252,61 @@ def test_npc_replies_that_share_words_with_the_player_are_kept(npc_line):
     assert drop_player_echo(blocks, "cool where are all the other guys at? i want to say hi") == blocks
 
 
+# Arena promote_37bbcb2 (IU, t3): the player's line was echoed as dialogue and
+# correctly dropped, but its speech tag stayed behind as a dangling narration
+# beat - "you murmur, your voice steadying with resolve." - which the judge
+# flagged as the storyteller narrating the player's action.
+
+T3_PLAYER = ('I nod slowly, feeling that weight of her story wrap around me. "I will remember you, '
+             'but I need to know everything. Can you tell me how you ended up here? What happened?"')
+
+
+def test_speech_tag_orphaned_after_a_dropped_echo_is_removed():
+    _, blocks = present_dialogue(
+        "You nod slowly, feeling the weight of her story settle over you. "
+        "[SPEAKER:iu]I will remember you, but I need to know everything.[/SPEAKER]"
+        "you murmur, your voice steadying with resolve.\n\n"
+        "[SPEAKER:iu]It wasn't just one moment.[/SPEAKER]", state())
+    out = drop_player_echo(blocks, T3_PLAYER)
+    texts = [b["text"] for b in out]
+    assert "you murmur, your voice steadying with resolve." not in texts
+    assert texts == ["You nod slowly, feeling the weight of her story settle over you.", "It wasn't just one moment."]
+
+
+def test_tag_sentence_is_cut_but_the_rest_of_the_narration_kept():
+    _, blocks = present_dialogue(
+        "[SPEAKER:iu]I will remember you, but I need to know everything.[/SPEAKER]"
+        "You whisper, barely audible. The shadows lean closer.", state())
+    out = drop_player_echo(blocks, T3_PLAYER)
+    assert [b["text"] for b in out] == ["The shadows lean closer."]
+
+
+def test_speech_tag_leading_into_a_dropped_echo_is_removed():
+    _, blocks = present_dialogue(
+        "The room is cold. You lean in and whisper, "
+        "[SPEAKER:iu]I will remember you, but I need to know everything.[/SPEAKER]"
+        "[SPEAKER:iu]Then listen.[/SPEAKER]", state())
+    out = drop_player_echo(blocks, T3_PLAYER)
+    assert [b["text"] for b in out] == ["The room is cold.", "Then listen."]
+
+
+@pytest.mark.parametrize("narration", [
+    "You murmur a thanks and sit down.",          # not after a dropped echo
+    "She says nothing for a long moment.",
+])
+def test_narration_is_untouched_when_no_echo_was_dropped(narration):
+    _, blocks = present_dialogue(f"{narration} [SPEAKER:iu]Welcome home.[/SPEAKER]", state())
+    assert drop_player_echo(blocks, T3_PLAYER) == blocks
+
+
+def test_ordinary_narration_after_a_dropped_echo_is_kept():
+    _, blocks = present_dialogue(
+        "[SPEAKER:iu]I will remember you, but I need to know everything.[/SPEAKER]"
+        "The closet door creaks open an inch.", state())
+    out = drop_player_echo(blocks, T3_PLAYER)
+    assert [b["text"] for b in out] == ["The closet door creaks open an inch."]
+
+
 def test_reworded_echo_sentence_with_an_added_word_is_stripped():
     # Live prod 2026-09-24: "I could use a good meal after a long day too."
     _, blocks = present_dialogue(
