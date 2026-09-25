@@ -5472,3 +5472,52 @@ def test_iu_suspects_follow_their_routines_and_iu_stays_put(client):
     assert state.character_locations["park_so_jin"] == "sojin_home"
     # The late-night pressure call happened while the player was away.
     assert any("lyric page" in m.text for m in model.memories.of("yoo_min_ho"))
+
+
+def test_rate_limited_storyteller_call_is_retried_once_and_the_turn_succeeds(client, monkeypatch):
+    """QC 2026-09-25: arena gates hit 429s and players got 'story master unavailable'."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    fake_client = pe_mod.httpx.AsyncClient
+    state_holder = {"storyteller_calls": 0}
+
+    class _RateLimited:
+        status_code = 429
+        text = "Rate limit reached for gpt-4o-mini. Please try again in 5ms."
+        headers = {}
+
+    class _Once(fake_client):
+        async def post(self, *args, **kwargs):
+            if "response_format" in (kwargs.get("json") or {}):
+                state_holder["storyteller_calls"] += 1
+                if state_holder["storyteller_calls"] == 1:
+                    return _RateLimited()
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Once)
+    sid = "rate_limit_retry"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    reply = client.post("/api/chat", json={"session_id": sid, "message": "hello everyone"}).json()
+    assert "error" not in reply and reply.get("reply")
+    assert state_holder["storyteller_calls"] == 2
+
+
+def test_extracted_commitment_becomes_a_promise_that_comes_due(client, monkeypatch):
+    """QC 2026-09-25: promises come from the turn extractor, not a regex."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import CommitmentUpdate, TurnExtraction
+    from backend.app.engine.world_model.model import PLAYER
+
+    sid = "wm_commitment"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    greeter = pe_mod.SESSIONS[sid]["state"].world_model.present_with_player()[0]
+
+    async def _extract(*args, **kwargs):
+        return TurnExtraction(commitments=[CommitmentUpdate(greeter, "player", "save you a plate of curry", "tonight")])
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", _extract)
+    client.post("/api/chat", json={"session_id": sid, "message": "could someone save me some dinner?"})
+    model = pe_mod.SESSIONS[sid]["state"].world_model
+    own = [m for m in model.memories.of(greeter) if m.kind == "promise"]
+    assert len(own) == 1 and own[0].counterpart == PLAYER and "save you a plate of curry" in own[0].text
+    assert own[0].due == model.world.absolute_minute(0, "20:00")
+    assert [m for m in model.memories.of(PLAYER) if m.kind == "promise"]

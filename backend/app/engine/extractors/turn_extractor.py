@@ -152,6 +152,22 @@ class SocialShiftSignal:
 
 
 @dataclass(frozen=True)
+class CommitmentUpdate:
+    """A promise made in the previous exchange: `owner` committed to do `what`
+    for/with `counterpart` at `when` (free-text time phrase, e.g. "tonight",
+    "tomorrow morning", "at 7pm"). Includes accepted requests ("Sure, I'll
+    save you a plate", "let's do it"); excludes plain schedules ("I'm going to
+    be late"). Resolved into world-model promise memories by the engine."""
+    owner: str
+    counterpart: str
+    what: str
+    when: str = "later"
+
+
+MAX_COMMITMENTS = 3
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -165,6 +181,7 @@ class TurnExtraction:
     departure_signal: Optional[DepartureSignal] = None
     behavior_tags: List[BehaviorTagUpdate] = field(default_factory=list)
     social_shift_signal: Optional[SocialShiftSignal] = None
+    commitments: List[CommitmentUpdate] = field(default_factory=list)
 
 
 class TurnExtractor:
@@ -447,7 +464,25 @@ class TurnExtractor:
             departure_signal=departure_signal,
             behavior_tags=behavior_tags,
             social_shift_signal=social_shift_signal,
+            commitments=TurnExtractor._parse_commitments(obj.get("commitments"), allowed_character_keys),
         )
+
+    @staticmethod
+    def _parse_commitments(raw: Any, allowed_character_keys: set[str]) -> List[CommitmentUpdate]:
+        people = {str(k).strip().lower() for k in (allowed_character_keys or ())} | {"player"}
+        out: List[CommitmentUpdate] = []
+        for item in raw if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            owner = str(item.get("owner") or "").strip().lower()
+            counterpart = str(item.get("counterpart") or "").strip().lower()
+            what = " ".join(str(item.get("what") or "").split())[:120]
+            when = " ".join(str(item.get("when") or "later").split())[:40] or "later"
+            if owner in people and counterpart in people and owner != counterpart and what:
+                out.append(CommitmentUpdate(owner=owner, counterpart=counterpart, what=what, when=when))
+            if len(out) >= MAX_COMMITMENTS:
+                break
+        return out
 
     def _build_batches(
         self,
@@ -985,6 +1020,17 @@ class TurnExtractor:
             "    new state) or is still just a momentary/mixed pattern not yet a real change\n"
             "    (certainty=\"WISH\"). scope is \"goal\" (subject_id's own persistent objective changed)\n"
             "    or \"disposition\" (subject_id's stance toward target_id changed).\n"
+            "11) commitments: promises made in the PREVIOUS TURN (previous user message + previous assistant\n"
+            "    reply). A commitment is someone agreeing to do something for or with someone else at a later\n"
+            "    time, INCLUDING accepting a request (\"Can you save me dinner?\" -> \"Sure, I'll leave a plate\";\n"
+            "    \"Want to run later?\" -> \"Let's do it!\"). owner = the person who will DO it (if the player asks a\n"
+            "    character to do something and the character agrees, the CHARACTER is the owner and the player the\n"
+            "    counterpart; write `what` from the owner's side, e.g. \"show you around the terrace\");\n"
+            "    counterpart = for/with whom\n"
+            "    (\"player\" or a character key). what = short phrase in the owner's terms; when = the time phrase\n"
+            "    (\"tonight\", \"tomorrow morning\", \"at 7pm\", \"later\"). NOT commitments: plain schedules or\n"
+            "    plans with no one to keep them for (\"I'm going to be late tomorrow\"), wishes, hypotheticals,\n"
+            "    refusals. At most 3; omit when unsure.\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
@@ -994,7 +1040,8 @@ class TurnExtractor:
             '  "relationship_state_updates": [{"from_id": "player", "to_id": "character_key", "trust_delta": 0.0, "fear_delta": 0.0, "affection_delta": 0.0, "suspicion_delta": 0.0, "jealousy_delta": 0.0, "reason": "string"}],\n'
             '  "departure_signal": {"character_id": "character_key|null", "certainty": "NONE|WISH|DECISION", "reason": "string"},\n'
             '  "behavior_tags": [{"from_id": "character_key", "to_id": "character_key", "tag": "string"}],\n'
-            '  "social_shift_signal": {"certainty": "NONE|WISH|SHIFT", "scope": "goal|disposition", "subject_id": "character_key", "target_id": "character_key|null", "new_value": "string", "reason": "string"}\n'
+            '  "social_shift_signal": {"certainty": "NONE|WISH|SHIFT", "scope": "goal|disposition", "subject_id": "character_key", "target_id": "character_key|null", "new_value": "string", "reason": "string"},\n'
+            '  "commitments": [{"owner": "player|character_key", "counterpart": "player|character_key", "what": "string", "when": "string"}]\n'
             "}\n"
         )
 

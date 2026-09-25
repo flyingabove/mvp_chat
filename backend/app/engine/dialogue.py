@@ -337,6 +337,9 @@ REWORDED_COVERAGE = 0.85
 # already appeared in the last few replies is a copy, not a new beat.
 REPEAT_MIN_DIALOGUE_WORDS = 4
 REPEAT_MIN_NARRATION_WORDS = 8
+# Share of a narration beat's word trigrams already present in a recent reply
+# that makes it a re-telling rather than a new beat.
+NARRATION_REPEAT_OVERLAP = 0.6
 
 
 def normalized_words(text: str) -> str:
@@ -477,12 +480,26 @@ def _recent_text(recent_replies: list[str]) -> str:
     return " ".join(f" {normalized_words(reply)} " for reply in recent_replies if reply)
 
 
+def _trigrams(words: list[str]) -> set[tuple[str, ...]]:
+    return {tuple(words[i:i + 3]) for i in range(len(words) - 2)}
+
+
 def _is_repeat(seg: dict, seen: str) -> bool:
     if not seen.strip():
         return False
     words = normalized_words(seg.get("text", ""))
-    minimum = REPEAT_MIN_DIALOGUE_WORDS if seg.get("kind") == "dialogue" else REPEAT_MIN_NARRATION_WORDS
-    return len(words.split()) >= minimum and f" {words} " in seen
+    narration = seg.get("kind") != "dialogue"
+    minimum = REPEAT_MIN_NARRATION_WORDS if narration else REPEAT_MIN_DIALOGUE_WORDS
+    if len(words.split()) < minimum:
+        return False
+    if f" {words} " in seen:
+        return True
+    # Narration re-told with small edits (beta 79ef6f7 turn 1 re-narrated the
+    # opening paragraph) is still a repeat; dialogue must match exactly.
+    if narration:
+        mine = _trigrams(words.split())
+        return bool(mine) and len(mine & _trigrams(seen.split())) / len(mine) >= NARRATION_REPEAT_OVERLAP
+    return False
 
 
 def encode_dialogue(segments: list[dict]) -> str:

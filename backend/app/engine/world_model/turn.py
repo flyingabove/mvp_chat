@@ -14,7 +14,7 @@ import re
 from typing import Any, Callable, Iterable, Optional
 
 from backend.app.engine.world_model import bootstrap
-from backend.app.engine.world_model.commitments import (detect_promises, due_commitments, expire_commitments,
+from backend.app.engine.world_model.commitments import (due_commitments, expire_commitments, record_commitment,
                                                          resolve_commitment)
 from backend.app.engine.world_model.contact import deliver, queue_contacts
 from backend.app.engine.world_model.evidence import find_inspect_target, inspect
@@ -232,7 +232,6 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
         return
     now = model.world.minute
     present = set(model.present_with_player())
-    listener = model.view.plan.primary or PLAYER
     for seg in segments or []:
         speaker = seg.get("speaker_id")
         if seg.get("kind") != "dialogue" or speaker not in model.characters:
@@ -243,12 +242,25 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
             model.known_names.append(speaker)
         for cid in present | {speaker}:
             model.memories.add(cid, f"@{speaker} said: {text[:240]}", "witnessed", now, kind="dialogue")
-        detect_promises(model, speaker, PLAYER, text, now)
-    detect_promises(model, PLAYER, listener, message, now)
     last = next((s for s in reversed(segments or []) if str(s.get("text") or "").strip()), None)
     if last is not None:
         model.endings = (model.endings + [classify_ending(str(last.get("text")))])[-6:]
     _prune(model)
+
+
+def record_commitments(state: Any, updates: Iterable[Any]) -> list:
+    """Promises the turn extractor found in the previous exchange (CommitmentUpdate)."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state):
+        return []
+    now = int(getattr(state, "minute", 0) or model.world.minute)
+    recorded = []
+    for update in updates or []:
+        memory = record_commitment(model, str(getattr(update, "owner", "")), str(getattr(update, "counterpart", "")),
+                                   str(getattr(update, "what", "")), str(getattr(update, "when", "later")), now)
+        if memory is not None:
+            recorded.append(memory)
+    return recorded
 
 
 def _prune(model: WorldModel) -> None:

@@ -1,5 +1,5 @@
 """Step 5: personal threads and remembered promises."""
-from backend.app.engine.world_model.commitments import (add_commitment, detect_promises, due_commitments,
+from backend.app.engine.world_model.commitments import (add_commitment, due_commitments, record_commitment,
                                                          due_minute, expire_commitments)
 from backend.app.engine.world_model.model import PLAYER
 from backend.app.engine.world_model.threads import Milestone, Thread, advance_threads
@@ -49,14 +49,20 @@ def test_threads_of_characters_not_in_the_world_do_not_advance():
     assert advance_threads(model, 0, 10 * 1440) == []
 
 
-def test_promise_detection_is_conservative():
+def test_extracted_commitments_are_recorded_once_for_both_parties():
     model = make_model({"ann": "kitchen"})
-    made = detect_promises(model, "ann", PLAYER, "Don't worry, I'll save you some dinner tonight.", 10)
-    assert len(made) == 1 and made[0].due == model.world.absolute_minute(0, "20:00")
-    assert detect_promises(model, "ann", PLAYER, "I love cooking. I will be fine.", 10) == []
-    assert detect_promises(model, "ann", PLAYER, "Don't worry, I'll save you some dinner tonight.", 12) == []  # dedupe
+    made = record_commitment(model, "ann", PLAYER, "save you a plate of dinner", "tonight", 10)
+    assert made is not None and made.due == model.world.absolute_minute(0, "20:00")
+    assert record_commitment(model, "ann", PLAYER, "save you a plate of dinner", "tonight", 12) is None  # dedupe
     theirs = model.memories.of(PLAYER)
     assert theirs and theirs[0].source == "told_by:ann" and theirs[0].kind == "promise"
+
+
+def test_commitments_between_unknown_people_are_ignored():
+    model = make_model({"ann": "kitchen"})
+    assert record_commitment(model, "ghost", PLAYER, "x", "later", 0) is None
+    assert record_commitment(model, "ann", "ann", "x", "later", 0) is None
+    assert record_commitment(model, "ann", PLAYER, "  ", "later", 0) is None
 
 
 def test_due_minute_phrases():
@@ -68,6 +74,11 @@ def test_due_minute_phrases():
     assert due_minute(model, "at 8", 0) == w.absolute_minute(1, "08:00")
     assert due_minute(model, "after dinner", 30) == 120
     assert due_minute(model, "later", 30) == 210
+    assert due_minute(model, "tomorrow at 8pm", 0) == w.absolute_minute(1, "20:00")
+    assert due_minute(model, "this weekend", 0) == w.absolute_minute(3, "12:00")      # Wed -> Sat
+    assert due_minute(model, "Tomorrow Morning", 0) == w.absolute_minute(1, "09:00")
+    assert due_minute(model, "in the morning", 0) == w.absolute_minute(1, "09:00")
+    assert due_minute(model, "whenever", 30) == 210
 
 
 def test_due_and_expired_commitments():
@@ -79,3 +90,27 @@ def test_due_and_expired_commitments():
     assert own in expired and {m.owner for m in expired} == {"ann", PLAYER}     # both sides' copies
     assert all(m.status == "broken" for m in expired)
     assert due_commitments(model, 100 + 12 * 60) == []
+
+
+# --- live QC round 2 (extractor commitments): owner flips, meal times, near-duplicates ---
+
+def test_a_request_recorded_as_the_players_own_promise_is_flipped_to_the_doer():
+    model = make_model({"minori": "kitchen"})
+    made = record_commitment(model, PLAYER, "minori", "show me around the terrace", "tomorrow morning", 0)
+    assert made.owner == "minori" and made.counterpart == PLAYER
+    assert "show you around the terrace" in made.text
+
+
+def test_meal_words_set_the_due_time_when_the_phrase_has_no_clock():
+    model = make_model({"ann": "kitchen"})
+    w = model.world
+    assert record_commitment(model, "ann", PLAYER, "save you some dinner", "tomorrow", 0).due == w.absolute_minute(1, "19:00")
+    assert record_commitment(model, "ann", PLAYER, "make you breakfast", "tomorrow", 0).due == w.absolute_minute(1, "08:00")
+    assert record_commitment(model, "ann", PLAYER, "grab lunch together", "tomorrow at 1pm", 0).due == w.absolute_minute(1, "13:00")
+
+
+def test_near_duplicate_promises_are_recorded_once():
+    model = make_model({"ann": "kitchen"})
+    assert record_commitment(model, "ann", PLAYER, "save you some dinner", "tonight", 0) is not None
+    assert record_commitment(model, "ann", PLAYER, "save you dinner", "tonight", 1) is None
+    assert record_commitment(model, "ann", PLAYER, "go for a run", "later", 2) is not None

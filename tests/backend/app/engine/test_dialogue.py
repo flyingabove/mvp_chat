@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
-from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, drop_repeated_lines, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
+from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, drop_repeated_lines, only_repeats, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
 from backend.app.engine.state import Character, extract_state_tag
 
 
@@ -340,6 +340,27 @@ def test_repeated_long_narration_is_dropped_but_short_lines_kept():
         "[SPEAKER:iu]Yes.[/SPEAKER][SPEAKER:mizuki]Welcome home.[/SPEAKER]", state())
     out = drop_repeated_lines(blocks, [OPENING, "Mizuki Shida: Yes.\n\nIU: Welcome home."])
     assert [b["text"] for b in out] == ["Yes.", "Welcome home."]
+
+
+BETA_OPENING = ("Warm kitchen air meets you at the door. Everyone who lives here is home tonight, three men and two "
+                "other women besides you: the others are setting the table in the next room. A second housemate looks "
+                "up from a stack of plates, and someone nudges an empty chair into place.")
+
+
+def test_near_verbatim_narration_of_a_recent_reply_counts_as_a_repeat():
+    # Beta 79ef6f7 turn 1: the reply re-told the opening with small edits.
+    _, blocks = present_dialogue(
+        "Warm kitchen air meets you at the door. Everyone who lives here is home tonight, three men and two other "
+        "women besides you; the others are setting the table nearby. A second housemate looks up from a stack of "
+        "plates and someone nudges an empty chair into place.", state())
+    assert only_repeats(blocks, [BETA_OPENING])
+
+
+def test_fresh_narration_sharing_a_few_phrases_is_not_a_repeat():
+    _, blocks = present_dialogue(
+        "The kitchen smells of garlic. Hayato stirs the pot while Yuki sets out bowls for everyone at the table.",
+        state())
+    assert not only_repeats(blocks, [BETA_OPENING])
 
 
 def test_a_reply_made_only_of_repeats_is_kept_rather_than_emptied():

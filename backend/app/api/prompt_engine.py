@@ -63,6 +63,7 @@ from backend.app.config.epistemic_flags import set_master
 
 
 from backend.app.engine.world_model.model import WorldModel
+from backend.app.llm.retry import post_with_retry
 from backend.app.engine.world_model import turn as world_turn
 from backend.app.engine.state import (
 
@@ -3042,6 +3043,12 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             # they left" is here, not just in the extractor's prompt rules:
             # only DECISION-certainty signals naming a character CURRENTLY
             # in lifecycle.active_ids() are ever acted on.
+            # World model: promises made in the previous exchange (the extractor
+            # reads it whole, so accepted requests count, plain plans do not).
+            if extraction.commitments and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_commitments(state, extraction.commitments)
+
             _lifecycle = getattr(state, "cast_lifecycle", None)
             _signal = extraction.departure_signal
             if _lifecycle is not None and _lifecycle.enabled and _signal is not None:
@@ -3328,7 +3335,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # works against OpenAI (online) or a local Ollama instance (local dev).
     with stage_timer.stage("storyteller"):
         async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(
+            # One bounded retry on 429/5xx (arena gates saturate the shared
+            # rate limit; OpenAI says "try again in 322ms").
+            r = await post_with_retry(
+                client,
                 f"{STORY_MASTER_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
                 json={**payload, "model": STORY_MASTER_MODEL},
@@ -3374,7 +3384,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         ]
         with stage_timer.stage("storyteller"):
             async with httpx.AsyncClient(timeout=30.0) as client:
-                retry = await client.post(
+                retry = await post_with_retry(
+                    client,
                     f"{STORY_MASTER_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
                     json={**payload, "messages": retry_messages, "model": STORY_MASTER_MODEL},

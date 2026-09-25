@@ -1,50 +1,72 @@
 """Promises are memories with a due time. Nothing is invented: a housemate only
-points at a covered plate if they actually promised to save dinner."""
+points at a covered plate if they actually promised to save dinner.
+
+Promises come from the turn extractor (CommitmentUpdate), which reads the whole
+previous exchange; a regex detector was ~50% precise and missed accepted
+requests ("Let's do it!") in live measurement (QC 2026-09-25)."""
 from __future__ import annotations
 
 import re
 from typing import TYPE_CHECKING, Optional
 
 from backend.app.engine.world_model.memory import Memory
+from backend.app.engine.world_model.model import PLAYER
 
 if TYPE_CHECKING:
     from backend.app.engine.world_model.model import WorldModel
 
-# Conservative: first-person future statement + an explicit time phrase.
-PROMISE = re.compile(
-    r"\bI(?:'ll| will| promise(?: to| I'll)?| am going to|'m going to)\s+"
-    r"(?P<what>[^.!?\n]{3,90}?)\s*"
-    r"(?P<when>tomorrow(?: morning| afternoon| evening| night)?|tonight|this (?:morning|afternoon|evening)|"
-    r"later(?: today| tonight)?|after (?:dinner|work|class|practice)|at \d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b",
-    re.I)
 EXPIRE_AFTER_MIN = 12 * 60
 
 
-def due_minute(model: "WorldModel", when: str, now: int) -> int:
-    world, when = model.world, when.lower().strip()
-    if when.startswith("tomorrow"):
-        part = when.replace("tomorrow", "").strip() or "morning"
-        hhmm = {"morning": "09:00", "afternoon": "14:00", "evening": "19:00", "night": "21:00"}.get(part, "09:00")
-        return world.absolute_minute(world.day_index(now) + 1, hhmm)
-    if when in ("tonight", "later tonight", "this evening"):
-        target = world.absolute_minute(world.day_index(now), "20:00")
-        return target if target > now else now + 60
-    if when == "this morning":
-        return max(now + 30, world.absolute_minute(world.day_index(now), "11:00"))
-    if when == "this afternoon":
-        return max(now + 30, world.absolute_minute(world.day_index(now), "15:00"))
-    if when.startswith("after "):
-        return now + {"dinner": 90, "work": 8 * 60, "class": 3 * 60, "practice": 3 * 60}.get(when[6:], 120)
-    if when.startswith("at "):
-        match = re.match(r"at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?", when)
-        hour, minute, meridiem = int(match.group(1)), int(match.group(2) or 0), match.group(3)
-        if meridiem == "pm" and hour < 12:
-            hour += 12
-        if meridiem == "am" and hour == 12:
-            hour = 0
-        return world.next_minute_at(f"{hour % 24:02d}:{minute:02d}", now)
-    return now + 180            # "later", "later today"
+PARTS_OF_DAY = {"morning": "09:00", "afternoon": "14:00", "evening": "19:00", "night": "21:00", "noon": "12:00",
+                "breakfast": "08:00", "lunch": "12:30", "dinner": "19:00"}
+MEALS = {"breakfast": "breakfast", "lunch": "lunch", "dinner": "dinner", "supper": "dinner"}
+DUPLICATE_OVERLAP = 0.6
+CLOCK = re.compile(r"\bat (\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b")
+LATER_TODAY_MIN = 180
 
+
+def _clock_hhmm(match: re.Match) -> str:
+    hour, minute, meridiem = int(match.group(1)), int(match.group(2) or 0), match.group(3)
+    if meridiem == "pm" and hour < 12:
+        hour += 12
+    if meridiem == "am" and hour == 12:
+        hour = 0
+    return f"{hour % 24:02d}:{minute:02d}"
+
+
+def due_minute(model: "WorldModel", when: str, now: int, what: str = "") -> int:
+    """Map an extractor time phrase to a game minute ("tomorrow at 8", "tonight", "this weekend").
+
+    Without a clock time or part of day, a meal in the promised action sets
+    the time ("save you dinner" + "tomorrow" -> tomorrow 19:00, not 09:00)."""
+    world, when = model.world, " ".join((when or "").lower().split())
+    today = world.day_index(now)
+    if when.startswith("after "):            # relative: "after dinner" is ~90 min from now, not 19:00
+        return now + {"dinner": 90, "work": 8 * 60, "class": 3 * 60, "practice": 3 * 60}.get(when[6:], 120)
+    clock = CLOCK.search(when)
+    part = next((p for p in PARTS_OF_DAY if p in when), "")
+    if not clock and not part:
+        meal = next((m for m in MEALS if re.search(rf"\b{m}\b", (what or "").lower())), "")
+        if meal:
+            part = MEALS[meal]
+    if "tomorrow" in when:
+        hhmm = _clock_hhmm(clock) if clock else PARTS_OF_DAY.get(part, "09:00")
+        return world.absolute_minute(today + 1, hhmm)
+    if "weekend" in when:
+        days_to_saturday = (5 - world.weekday(now)) % 7 or 7
+        return world.absolute_minute(today + days_to_saturday, "12:00")
+    if "next week" in when:
+        return world.absolute_minute(today + 7, "12:00")
+    if clock:
+        return world.next_minute_at(_clock_hhmm(clock), now)
+    if "tonight" in when or part in ("evening", "night"):
+        target = world.absolute_minute(today, "20:00")
+        return target if target > now else now + 60
+    if part in ("morning", "afternoon", "noon", "breakfast", "lunch", "dinner"):
+        target = world.absolute_minute(today, PARTS_OF_DAY[part])
+        return target if target > now else world.absolute_minute(today + 1, PARTS_OF_DAY[part])
+    return now + LATER_TODAY_MIN            # "later", "soon", unrecognized
 
 def add_commitment(model: "WorldModel", owner: str, counterpart: str, what: str, due: int,
                    minute: int) -> tuple[Memory, Memory]:
@@ -56,19 +78,34 @@ def add_commitment(model: "WorldModel", owner: str, counterpart: str, what: str,
     return own, other
 
 
-def detect_promises(model: "WorldModel", speaker: str, listener: str, text: str, minute: int) -> list[Memory]:
-    """Find explicit time-bound promises in `speaker`'s words and record them."""
-    created = []
-    for match in PROMISE.finditer(text or ""):
-        what = re.sub(r"^(?:to|be)\s+", "", re.sub(r"\s+", " ", match.group("what")).strip(" ,"), flags=re.I)
-        when = match.group("when")
-        promise_text = f"{what} {when}".strip()
-        if any(m.kind == "promise" and m.status == "open" and promise_text in m.text
-               for m in model.memories.of(speaker)):
-            continue
-        own, _ = add_commitment(model, speaker, listener, promise_text, due_minute(model, when, minute), minute)
-        created.append(own)
-    return created
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z']+", (text or "").lower())) - {"a", "an", "the", "some", "you", "your", "to"}
+
+
+def _flip_request(owner: str, counterpart: str, what: str) -> tuple[str, str, str]:
+    """"Would you show me around?" accepted by an NPC sometimes comes back as the
+    PLAYER promising "show me around": the doer is the other party."""
+    if owner == PLAYER and re.search(r"\b(me|my)\b", what, re.I):
+        what = re.sub(r"\bme\b", "you", re.sub(r"\bmy\b", "your", what, flags=re.I), flags=re.I)
+        return counterpart, owner, what
+    return owner, counterpart, what
+
+
+def record_commitment(model: "WorldModel", owner: str, counterpart: str, what: str, when: str,
+                      minute: int) -> Optional[Memory]:
+    """Record an extracted promise once; people must both be in the world (or be the player)."""
+    known = set(model.characters) | {PLAYER}
+    if owner not in known or counterpart not in known or owner == counterpart or not what.strip():
+        return None
+    owner, counterpart, what = _flip_request(owner, counterpart, what.strip().rstrip("."))
+    mine = _words(what)
+    for m in model.memories.of(owner):
+        if m.kind == "promise" and m.status == "open" and m.counterpart == counterpart:
+            theirs = _words(m.text) - {"i", "promised"}
+            if mine and len(mine & theirs) / len(mine | theirs or {""}) >= DUPLICATE_OVERLAP:
+                return None
+    own, _ = add_commitment(model, owner, counterpart, what, due_minute(model, when, minute, what), minute)
+    return own
 
 
 def due_commitments(model: "WorldModel", now: int, owner: Optional[str] = None) -> list[Memory]:

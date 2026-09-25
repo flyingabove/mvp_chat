@@ -450,3 +450,30 @@ from backend.app.integration_playback.scenarios.scenario_location_extractor_llm 
 @pytest.mark.integration
 def test_location_extractor_playback():
     LocationExtractorScenario.run_as_test()
+
+
+@pytest.mark.asyncio
+async def test_should_attempt_survives_a_rate_limit(monkeypatch):
+    """BL-30: a 429 (e.g. during an arena gate) used to read as 'no movement'."""
+    import asyncio as _asyncio
+    extractor = LocationExtractor(model="test-model")
+    calls = {"n": 0}
+
+    class _Limited(_Resp):
+        text = "Rate limit reached. Please try again in 5ms."
+        headers = {}
+
+    async def fake_post(self, url, headers=None, json=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _Limited(429, {})
+        return _Resp(200, {"choices": [{"message": {"content": '{"is_movement_intent": true}'}}]})
+
+    async def no_wait(seconds):
+        return None
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post, raising=True)
+    monkeypatch.setattr(_asyncio, "sleep", no_wait)
+    assert await extractor._should_attempt("go to office lobby") is True
+    assert calls["n"] == 2

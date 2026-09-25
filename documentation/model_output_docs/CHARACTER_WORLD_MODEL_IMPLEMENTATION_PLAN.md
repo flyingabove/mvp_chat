@@ -326,3 +326,24 @@ Differences from the plan, found during implementation:
   `knowledge_resolution_extractor.py` are still referenced by tests or playback scenarios and stay.
 - Unrelated, found while running the suite: the live-LLM `test_location_extractor_playback` is flaky (BL-30).
 
+
+## 8. QC round 1 (2026-09-25): findings and plan
+
+| Item | Finding (measured) | Plan |
+|---|---|---|
+| Opening re-narration (BL-29) | 0/12 local turn-1 replies; about 1 in 8 on hosted beta. The failure is a *near*-verbatim retelling of the opening paragraph, which `drop_repeated_lines` (exact match only) misses. | Treat narration as a repeat when its word-trigram overlap with a recent reply is at least 0.6 (at least 8 words), so `only_repeats` triggers the existing single regeneration. Test with the observed beta text. |
+| BL-30 flaky playback test | 0/4 full-suite failures when idle; failures coincided with a concurrent arena gate. The legacy `LocationExtractor` maps a 429 to intent NONE, so `extract_expect_move` fails. It isn't used by the live turn pipeline. | Retry once on 429/5xx, honoring `Retry-After` / "try again in Xms" (capped at 2 s). Unit test: a 429 then a 200 gives MOVE. Close BL-30. |
+| Storyteller 429s (seen in gates) | The public "story master unavailable" error is returned on the first 429; OpenAI's body says "try again in 322ms". | The same bounded retry on the storyteller call (one retry, at most 2 s), with a test. Timeouts stay BL-28. |
+| Promise detection | Pattern-based. | Measure precision and recall on live dialogue first; move it to the extractor only if the numbers justify it. |
+| Six Strangers Jev 0.00 | Last gate: 2 prod wins, 10 unresolved, on nearly identical releases. | Run the hosted arena gate beta (world model) vs prod as QC after the fixes. Read the per-game table, the length table and the world-model-specific failures. |
+
+### QC round 1 results (2026-09-25)
+- **Promises:** moved to the turn extractor (`CommitmentUpdate`, rule 11), and the regex detector was deleted. Live, 6 games:
+  - regex: 12 detected, of which 6 were false positives ("I'm going to be late" recorded as a promise), and 0 NPC promises
+  - extractor: 24 detected, about 23 correct (one owner flip whose wording is already from the owner's side)
+  - NPC "save you dinner" caught in 6 of 6 games, and meal words set the due time (dinner -> 19:00)
+  - deterministic safety nets: request owner-flip ("show me" -> the doer owns it), near-duplicate dedupe
+- **Re-narration:** narration with >= 0.6 trigram overlap with a recent reply now counts as a repeat, so a turn that only
+  re-tells the opening triggers the single regeneration. Local turn-1 re-narration was 0 in 12 before the change.
+- **429s:** `backend/app/llm/retry.py`, one bounded retry (at most 2 s, honoring Retry-After and "try again in Xms"),
+  on both storyteller calls and the legacy location extractor. Closes BL-30.

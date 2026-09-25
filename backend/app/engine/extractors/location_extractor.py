@@ -73,7 +73,10 @@ class LocationExtractor:
         
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                r = await client.post(
+                # Deferred per test_engine_purity: engine/ keeps llm/ imports function-local.
+                from backend.app.llm.retry import post_with_retry
+                r = await post_with_retry(
+                    client,
                     f"{OPENAI_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
                     json=payload,
@@ -241,7 +244,10 @@ class LocationExtractor:
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                r = await client.post(
+                # Deferred per test_engine_purity: engine/ keeps llm/ imports function-local.
+                from backend.app.llm.retry import post_with_retry
+                r = await post_with_retry(
+                    client,
                     f"{OPENAI_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
                     json=payload,
