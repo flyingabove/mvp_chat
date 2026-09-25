@@ -13,7 +13,7 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [x] Reproduce the user's old chat, bottom gap, keyboard/tab behavior, tiny map X, and absent pinch zoom offline using the production install manifest and WebKit.
 - [x] Reproduce the legacy root worker's cached `/beta/manifest.json` and prove a new beta manifest URL bypasses it.
 - [x] Give beta a distinct install URL and app identity; verify Refresh Cache stays on `/beta/`.
-- [ ] Run full tests, integrate current beta, deploy, and check the hosted beta install manifest and browser flows.
+- [x] Run full tests, integrate current beta, deploy, and check the hosted beta install manifest and browser flows.
 
 ### Terrace in the City mobile/PWA and six-resident correctness
 
@@ -36,6 +36,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
+
+- 2026-09-24: Reproduced the user's stale iPhone install offline with production's root manifest and worker: old `/` shell had a 180px standalone gap, old chat/upload UI, visible tab bar during simulated keyboard focus, 36px map X and no pinch zoom. A separate worker test showed the legacy cache serving the stale `/beta/manifest.json`. Shipped beta install isolation in `f639128c9630dc1e2dd0ad932f6ad351e780f569` (Railway deployment `ac508d48-5a44-437d-808f-6b0be8937cc4`): new uncached `manifest-beta-v2.json`, `/beta/` start/scope/id, **StoriesChat Beta** identity/badge, and Refresh Cache route check. Before push: 1017 repository tests passed/1 expected failure, 129 arena skill tests, 10 Node tests, worker upgrade in Chromium/WebKit, seven local viewport modes, and three interactive modes. Hosted beta health confirmed exact SHA; manifest and page returned no-store; seven hosted viewport modes and three interactive modes passed with zero browser/API errors. Inspected standalone screenshots for the badge, chat, simulated keyboard and large map X. Physical iPhone confirmation remains Active above; an old production icon cannot be repointed by this beta-only change.
 
 - 2026-09-24: Shipped the iPhone PWA and speaker-aware story follow-up to beta in `18ce288` (merged head `c8986ba`; Railway deployment `b003bb74-b7d3-40e6-bf21-0b19247b042f`). Fixed standalone height/safe areas and keyboard transition, home header overlap, map close/pinch zoom, text speeds, Terrace's new-game opening, separated narration and named speaker beats, Jev fallback for unmarked quotes, and async 288px/1254px portraits from the supplied ZIP. A hosted browser pass found old 96px portraits served from cache; versioned their URLs and repeated verification. Local: 1016 repository tests passed/1 expected failure, 129 separate arena skill tests passed, 10 Node tests, legacy-worker upgrade in Chromium/WebKit, seven local viewport modes and three interactive UI modes passed. Hosted: seven viewport modes and three interactive UI modes passed with zero browser/API errors; a real model turn returned eight ordered segments with three named speakers. HTML/worker no-store and beta manifest scope verified. Physical iPhone confirmation remains Active above.
 
