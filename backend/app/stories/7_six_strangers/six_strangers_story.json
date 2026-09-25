@@ -869,7 +869,7 @@
     "segments": [
       {"kind": "narration", "text": "The evening rain has just stopped in Higashi-Gotanda. Bicycle tires hiss over the wet lane as you step out with your bag and find the house lit from within. Through a half-open window come the clatter of dishes and the tail end of a laugh. For a moment, you can stand outside and be nobody here yet."},
       {"kind": "dialogue", "speaker_id": "@greeter", "text": "You found it. Come in; we're just setting the table."},
-      {"kind": "narration", "text": "Warm kitchen air meets you at the door. Everyone who lives here is home tonight, {{HOUSEMATE_MIX}} besides you: the others are settling around the living-room table next door, while these two keep you company in the kitchen. A second housemate looks up from a stack of plates and nudges an empty stool your way. Beyond the hall is the shared {{PLAYER_BEDROOM}}, where your bag will go; for now these are the two faces in front of you, and they are still strangers."},
+      {"kind": "narration", "text": "Warm kitchen air meets you at the door. Everyone who lives here is home tonight, {{HOUSEMATE_MIX}} besides you: the others are settling around the living-room table next door, while these two keep you company in the kitchen. A second housemate nudges a stool your way. Beyond the hall is the shared {{PLAYER_BEDROOM}}, where your bag will go; for now these are the two faces in front of you, and they are still strangers."},
       {"kind": "dialogue", "speaker_id": "@second", "text": "There's enough for one more. Are you hungry?"},
       {"kind": "narration", "text": "The door closes softly behind you. Dinner keeps moving, and for the first time tonight the next moment is yours."}
     ]
