@@ -1,0 +1,37 @@
+# BL-29 — Narration retells the player's own action back in second person
+
+- **Type:** bug
+- **Found:** 2026-09-24, local Ollama arena `welcome_party_local_gate2` (Terrace, 6 paired games, 60 player turns per side)
+- **Severity:** medium. It happens on ~20% of turns and makes the storyteller feel like it parrots the player. It isn't a correctness/safety issue.
+
+## Problem
+The storyteller often opens its reply by restating the player's typed action nearly verbatim, just switched from first to
+second person, e.g. player "I walk over to the wall-mounted phone in the kitchen and start dialing." -> narration
+"You walk over to the wall-mounted phone in the kitchen and start dialing, the sound of the dial tone filling the room."
+It was 12 of 60 turns on both fbf2667 (feature) and ff4d924 (old beta). It's pre-existing, not a regression. Legacy BL-22 measured the same
+"restating of the player" at 12-14% on hosted runs.
+`backend/app/engine/dialogue.py` `drop_player_echo` only strips echoes attributed to **other speakers' dialogue**;
+narration segments are untouched, so this passes through.
+Scanner used: a longest-common-word-run check (>= 6 words, or >= 4 words covering 60% of the player message) between
+each narration line and the player message.
+
+## Fix direction
+1. Prompt: in the storyteller's narration rules (`backend/app/engine/prompt_builder.py`, near
+   "Narrate only what the player's message actually states or implies"), say not to restate the player's action.
+   Narrate its consequence or the world's reaction instead.
+2. Deterministic backstop in `dialogue.py`: a first-person->second-person normalized comparison
+   ("I/my/me" <-> "you/your") that trims a leading narration sentence covering >= ECHO_COVERAGE of the player
+   message. The rest of the segment stays.
+3. Regression tests: the two verbatim examples above as unit cases for the trimmer, and an end-to-end
+   `test_prompt_engine.py` case with a fake storyteller reply.
+
+## Why deferred / cautions
+Found during the 37bbcb2 promotion window. A prompt change alters every story's replies and needs its own arena
+gate (hosted, Jev + OpenAI). Watch BL-23 (the Jev length preference): trimming makes replies shorter, which that
+judge penalizes. Read the gate's length check before calling it a regression. Don't trim narration that adds new
+information after the restated clause.
+
+## Touches
+`backend/app/engine/prompt_builder.py`, `backend/app/engine/dialogue.py`, `backend/app/api/prompt_engine.py`
+(apply the trimmer next to `drop_player_echo`), `tests/backend/app/engine/test_dialogue*.py`,
+`tests/backend/app/api/test_prompt_engine.py`.
