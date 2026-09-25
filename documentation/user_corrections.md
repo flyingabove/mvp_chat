@@ -4,6 +4,17 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-24: Documentation-only changes do not need a beta push
+
+The user narrowed the 2026-09-23 rule below: a change that touches only
+documentation or Markdown instruction files does not need to be pushed to
+beta. Commit it locally on `beta`; it goes out with the next code push. Why:
+every push redeploys Railway beta (about 10 minutes) and invalidates any
+running arena precheck or gate. Never push documentation alone during an arena
+run. Code, story data, frontend, config, tests and scripts still follow the
+rule below. Updated `AGENTS.md` (End-of-task completion rule) and
+`.claude/CLAUDE.md` §7.
+
 ## 2026-09-23: Always finish repository work by pushing to beta
 
 The Jev arena design was left in a local feature-branch commit. The user corrected

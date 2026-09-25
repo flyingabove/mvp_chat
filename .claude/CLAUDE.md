@@ -69,6 +69,7 @@ If instructions every conflict with what is designed in the doc, always update t
   3. `git pull --rebase origin beta` **again before pushing** (catch parallel pushes)
   4. If new code was pulled in step 3, **run tests again** to catch integration issues
   5. Commit with detailed message (see AI_LEARNINGS_PUSHING_CODE.md for format), push
+- **Documentation-only changes do not need a beta push** (docs, Markdown instructions, `tasks/`). Commit them locally on `beta`; they go out with the next code push. Every push redeploys beta and invalidates a running arena gate, so never push documentation alone during one. `/ship-and-verify` does not apply to documentation-only work. See `AGENTS.md` "End-of-task completion rule".
 - **Commit messages must be detailed enough for another agent to resolve merge conflicts.** Include WHY, WHAT CHANGED (per file), and SIDE EFFECTS. See `documentation/ai_learnings_mistakes/AI_LEARNINGS_PUSHING_CODE.md` for full format.
 - If merge conflicts arise, read the other agent's commit messages to understand intent, then preserve both agents' work. Never blindly pick "ours" or "theirs".
 - All tests must pass before pushing. No skipped tests except xfail.
