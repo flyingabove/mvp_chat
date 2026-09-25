@@ -22,10 +22,10 @@ and "the sorrow in her eyes mirrored by your own feelings of helplessness" (t4).
 the same window (t3 "you murmur, your voice steadying with resolve.") is a separate `drop_player_echo` bug, fixed by
 another session. It isn't part of this item.
 
-Same family, reported by mvp-chat-6b while verifying 79ef6f7 on hosted beta (2026-09-25): a turn-1 reply re-narrated the
-opening ("Warm kitchen air meets you at the door...") instead of responding. `drop_repeated_lines` trimmed it to a single
-narration line with no dialogue. The regeneration in `_chat_handler_impl` only fires when *nothing* presentable is
-left (`only_repeats` / empty draft), so a mostly-repeated draft still ships thin.
+The turn-1 opening re-narration seen on 79ef6f7 is addressed in `09633b6`. `dialogue._is_repeat` now treats narration
+with >= 0.6 word-trigram overlap with a recent reply as a repeat, so a draft that only re-tells the opening triggers
+the single regeneration. It is no longer part of this item. What remains is prompt-side: restating the player's
+action and inventing their feelings or history.
 
 ## Fix direction
 1. Prompt: in the storyteller's narration rules (also: never assign the player feelings, memories or history they did not state) (`backend/app/engine/prompt_builder.py`, near
