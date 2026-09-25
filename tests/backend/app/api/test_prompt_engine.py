@@ -199,7 +199,10 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
 # practice soon" - Yuto had not even moved in (all 17 names were in Cast IDs).
 
 @pytest.mark.parametrize("gender", ["M", "F"])
-def test_six_strangers_opens_with_all_five_housemates_gathered_with_player(client, gender):
+def test_six_strangers_opens_with_greeters_in_kitchen_and_everyone_else_home(client, gender):
+    """Owner request 2026-09-24: exactly two opposite-gender housemates are with
+    the player at the start. The other three are still home and tracked (in the
+    living room), so "where is everyone?" stays answerable from state."""
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.active_characters import get_people_present_keys
 
@@ -207,13 +210,15 @@ def test_six_strangers_opens_with_all_five_housemates_gathered_with_player(clien
     client.post("/api/chat", json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris"})
     state = pe_mod.SESSIONS[sid]["state"]
     active = set(state.cast_lifecycle.active_ids())
-    assert len(active) == 5
+    party = set(state.opening_cast)
+    assert len(active) == 5 and len(party) == 2 and party <= active
     assert state.location_id == "kitchen"
-    assert {state.character_locations[k] for k in active} == {"kitchen"}
-    assert get_people_present_keys(state) == active
+    assert {state.character_locations[k] for k in party} == {"kitchen"}
+    assert {state.character_locations[k] for k in active - party} == {"living_room"}
+    assert get_people_present_keys(state) - {"player"} == party
     # The opening tells the player (and the model's history) that everyone is home.
     mix = "two other men and three women" if gender == "M" else "three men and two other women"
-    assert f"all five of your new housemates, {mix}, are gathered" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
+    assert f"Everyone who lives here is home tonight, {mix} besides you" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
 
 
 def test_six_strangers_prompt_states_whereabouts_and_never_names_unarrived_residents(client, monkeypatch):
@@ -236,14 +241,15 @@ def test_six_strangers_prompt_states_whereabouts_and_never_names_unarrived_resid
         client.post("/api/chat", json={"session_id": sid, "message": "where are all the other guys at?"})
         prompt = sent[-1]["messages"][0]["content"]
         active = state.cast_lifecycle.active_ids()
-        assert "People present in this location right now (5)" in prompt
+        assert "People present in this location right now (2)" in prompt
         assert "Where every resident is right now" in prompt
         header = sent[-1]["messages"][-1]["content"]
-        assert "every housemate is home and here with you in Open Kitchen" in header
-        assert "Nobody is out, away, upstairs" in header
+        assert "here with you in Open Kitchen:" in header
+        assert "Elsewhere in the house:" in header and "Nobody else lives here." in header
         for key in active:
             name = re.escape(state.characters[key].name)
-            assert re.search(rf"- {name} \((?:man|woman)\): Open Kitchen \(here with the player\)", prompt)
+            room = r"Open Kitchen \(here with the player\)" if key in state.opening_cast else "Living Room"
+            assert re.search(rf"- {name} \((?:man|woman)\): {room}", prompt)
             assert state.characters[key].name in header
         for key, ch in state.characters.items():
             if key == "player" or key in active:
@@ -326,6 +332,53 @@ def test_turn_that_only_repeats_the_opening_is_regenerated_once(client, monkeypa
     assert [s["text"] for s in reply["segments"]] == ["The whole house is here, pull up a chair."]
 
 
+@pytest.mark.parametrize("empty_draft", [
+    [],
+    [{"kind": "dialogue", "speaker_id": "@echo", "text": "How do I get to Gotanda Station from here?"}],
+])
+def test_turn_with_no_presentable_lines_is_regenerated_once(client, monkeypatch, empty_draft):
+    """Local Ollama arena 2026-09-24: the storyteller sometimes returned an
+    empty segment list (or only an echo of the player), and the player got a
+    blank turn. Such a draft gets the same single regeneration as a repeat."""
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = f"six_strangers_empty_regenerate_{len(empty_draft)}"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    speaker = pe_mod.SESSIONS[sid]["state"].opening_cast[0]
+    first = [dict(seg, speaker_id=speaker) for seg in empty_draft]
+    drafts = [first, [{"kind": "dialogue", "speaker_id": speaker, "text": "It's a ten-minute walk; I'll show you."}]]
+    sent = []
+
+    class _Resp:
+        status_code = 200
+        text = "ok"
+
+        def __init__(self, segments):
+            self._segments = segments
+
+        def json(self):
+            scene = {"segments": self._segments, "state": {"emotion": "warm", "rel_delta": 0}}
+            return {"choices": [{"message": {"content": _json.dumps(scene)}}], "usage": {"total_tokens": 1}}
+
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Drafts(fake_client):
+        async def post(self, *args, **kwargs):
+            payload = kwargs.get("json") or {}
+            if "response_format" not in payload:  # other LLM helpers
+                return await super().post(*args, **kwargs)
+            sent.append(payload)
+            return _Resp(drafts[min(len(sent), len(drafts)) - 1])
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Drafts)
+    reply = client.post(
+        "/api/chat", json={"session_id": sid, "message": "How do I get to Gotanda Station from here?"}
+    ).json()
+    assert len(sent) == 2
+    assert [s["text"] for s in reply["segments"]] == ["It's a ten-minute walk; I'll show you."]
+
+
 def test_whereabouts_reports_a_resident_in_another_room(client):
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.prompt_builder import build_messages
@@ -338,7 +391,8 @@ def test_whereabouts_reports_a_resident_in_another_room(client):
     messages = build_messages(state, [], "where is everyone?", [])
     prompt, header = messages[0]["content"], messages[-1]["content"]
     assert re.search(rf"- {re.escape(state.characters[away].name)} \(man\): Terrace / Pool Deck\n", prompt)
-    assert f"Elsewhere in the house: {state.characters[away].name} (man) in Terrace / Pool Deck." in header
+    assert "Elsewhere in the house:" in header
+    assert f"{state.characters[away].name} (man) in Terrace / Pool Deck" in header
 
 
 def test_player_visible_character_ids_excludes_upcoming_includes_player(client):

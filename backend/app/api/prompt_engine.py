@@ -3279,17 +3279,22 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         return {"error": "The scene response was incomplete. Please try again.", "character": "default"}
 
     # A draft made only of recent lines (live 2026-09-24: turn 1 re-sent the
-    # whole opening) gets one regeneration; drop_repeated_lines below cannot
-    # fix it without leaving the player an empty reply.
+    # whole opening) or with nothing presentable left (local arena 2026-09-24:
+    # an empty segment list, or only an echo of the player) gets one
+    # regeneration; the filters below cannot fix it without leaving the
+    # player an empty reply.
     _recent_replies = [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:]
-    _draft_segments = present_dialogue(extract_state_tag(reply)[0], state)[1]
-    if only_repeats(drop_player_echo(_draft_segments, msg), _recent_replies):
-        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id})
+    _draft_segments = drop_player_echo(present_dialogue(extract_state_tag(reply)[0], state)[1], msg)
+    _draft_empty = not any(str(seg.get("text") or "").strip() for seg in _draft_segments)
+    if _draft_empty or only_repeats(_draft_segments, _recent_replies):
+        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id, "empty": _draft_empty})
         retry_messages = payload["messages"] + [
             {"role": "assistant", "content": reply},
             {"role": "user", "content": (
-                "That draft only repeated lines that were already said. Write a new beat "
-                "that responds to the player's latest message; do not repeat earlier lines.")},
+                "That draft had no new lines for the player." if _draft_empty else
+                "That draft only repeated lines that were already said."
+            ) + " Write a new beat that responds to the player's latest message; "
+                "do not repeat earlier lines or the player's own words."},
         ]
         with stage_timer.stage("storyteller"):
             async with httpx.AsyncClient(timeout=30.0) as client:
