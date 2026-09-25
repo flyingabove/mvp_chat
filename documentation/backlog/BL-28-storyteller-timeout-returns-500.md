@@ -1,4 +1,4 @@
-# BL-27 — Storyteller timeout crashes the turn with HTTP 500
+# BL-28 — Storyteller timeout crashes the turn with HTTP 500
 
 - **Type:** bug (production code path)
 - **Found:** 2026-09-24, promotion precheck `promote_91385aa_precheck` (`empty_reply (major)` finding)
