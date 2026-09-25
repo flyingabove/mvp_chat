@@ -131,7 +131,7 @@ fails or smoke fails: tell the user immediately with the output; never
 
 - `documentation/plans_scratch/TASKS_INTERMEDIATE.md` -> Consumed History:
   candidate sha, merge sha, precheck + gate experiment ids and verdicts.
-- Anything knowingly deferred -> `documentation/BACKLOG.md`.
+- Anything knowingly deferred -> a file in `documentation/backlog/` (`/add-and-remove-from-backlog`).
 - Commit + push the docs to beta (normal flow).
 - Tell the user: what shipped, the gate table, prod verification output,
   and the report link/path.

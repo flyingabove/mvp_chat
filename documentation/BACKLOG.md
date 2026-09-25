@@ -6,6 +6,8 @@
 
 ---
 
+> **Legacy file.** New items go in `documentation/backlog/` (one file per item, deleted when fixed); see the `/add-and-remove-from-backlog` skill. No new entries here.
+
 ## Open
 
 ### BL-25 — Six Strangers prompt/quality issues seen in the 2026-09-24 audit (source: whereabouts/echo audit)
