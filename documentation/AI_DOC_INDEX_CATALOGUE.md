@@ -61,6 +61,7 @@ initiative, and social-scene handoffs; its runtime features are not yet implemen
 | [GAME_DESIGN_SYSTEMS.md](model_output_docs/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). |
 | [NPC_SIDEQUEST_DESIGN.md](model_output_docs/NPC_SIDEQUEST_DESIGN.md) | ...NPC behavior, sidequest triggers, or quest logic changes. |
 | [SOCIAL_MODE_DESIGN.md](model_output_docs/SOCIAL_MODE_DESIGN.md) | ...the optional `mode` story-JSON schema, the mode prompt layer, or ensemble/slice-of-life ("social_sim") authoring guidance changes. |
+| [CHARACTER_WORLD_MODEL_REDESIGN.md](model_output_docs/CHARACTER_WORLD_MODEL_REDESIGN.md) | ...the problems list (P1-P14), the character object, world location index (`where`/`contents`, `move()`), events, memories (`@id` refs, descriptors, provenance), relationship edges, context projection, or the redesign build order change. **Agreed design, not implemented.** |
 | [CAST_LIFECYCLE_DESIGN.md](model_output_docs/CAST_LIFECYCLE_DESIGN.md) | ...characters can enter, leave, rotate through capacity-limited slots, or lifecycle eligibility/persistence changes. |
 
 ## Tests & Integration Playback
