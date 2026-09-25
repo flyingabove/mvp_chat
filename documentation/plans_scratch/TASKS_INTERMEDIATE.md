@@ -6,11 +6,7 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ### 2026-09-24 iPhone PWA and speaker-aware story UI follow-up
 
-- [ ] Reproduce the supplied physical-iPhone screenshot issues in WebKit simulation and fix status-bar, keyboard, and bottom safe-area layout.
-- [ ] Keep long story replies readable as ordered narration and named speaker chunks; enlarge and improve portrait delivery.
-- [ ] Remove the obsolete image action, make map close and pinch zoom usable, and adjust the three text-speed choices.
-- [ ] Rewrite opening scenes and restore appropriate multi-character pacing without losing speaker attribution.
-- [ ] Test locally, integrate latest beta, push, then verify deployed beta in Chromium and WebKit; record the physical-device check separately.
+- [ ] Confirm the beta Home Screen install on the user's physical iPhone 14 after its automatic update; compare safe areas and keyboard positioning with the supplied screenshots.
 
 ### Terrace in the City mobile/PWA and six-resident correctness
 
@@ -33,6 +29,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [ ] Push the final beta-ready branch after the live validation step.
 
 ## Consumed History
+
+- 2026-09-24: Shipped the iPhone PWA and speaker-aware story follow-up to beta in `18ce288` (merged head `c8986ba`; Railway deployment `b003bb74-b7d3-40e6-bf21-0b19247b042f`). Fixed standalone height/safe areas and keyboard transition, home header overlap, map close/pinch zoom, text speeds, Terrace's new-game opening, separated narration and named speaker beats, Jev fallback for unmarked quotes, and async 288px/1254px portraits from the supplied ZIP. A hosted browser pass found old 96px portraits served from cache; versioned their URLs and repeated verification. Local: 1016 repository tests passed/1 expected failure, 129 separate arena skill tests passed, 10 Node tests, legacy-worker upgrade in Chromium/WebKit, seven local viewport modes and three interactive UI modes passed. Hosted: seven viewport modes and three interactive UI modes passed with zero browser/API errors; a real model turn returned eight ordered segments with three named speakers. HTML/worker no-store and beta manifest scope verified. Physical iPhone confirmation remains Active above.
 
 - 2026-09-24: Jev game arena implemented, measured and released. `backend/app/evaluation/` (contracts, rubric, knowledge bundle, blinded evidence, fail-closed Jev judge with order swap, deterministic checks, paired hosted runner with rate-limit resilience, Elo/bootstrap aggregation, mutation + A/A calibration with verbosity probe, JSON/HTML report), CLI `python -m scripts.eval.arena`, `/api/eval/capabilities`, `deployment_id` pinning. Arena-found fixes shipped: NPC echo of the player's lines, markdown in dialogue, third-person/POV confusion. Pilot `arena_pilot_20260923b` (40 pairs): IU beta 10-4; Six Strangers verdict confounded by judge verbosity bias (BL-22/BL-23). Promoted beta `15ce6a8` to prod as `76a0652` (user-approved); prod verified live (health, capabilities, both stories). Open: BL-18..BL-23.
 
