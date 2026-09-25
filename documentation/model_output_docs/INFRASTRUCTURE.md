@@ -52,9 +52,13 @@ Infrastructure Reference
 ### Build-time test gate
 Tests run during `docker build` (before deploy). A failing test aborts the build
 and Railway never deploys the broken image. Override with `RUN_TESTS=0` env var.
+The gate is unit tests only and makes **no LLM API calls** (owner rule 2026-09-24):
 ```
-python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-collection-errors
+OPENAI_API_KEY= TYPESAFE_API_KEY= LANGSMITH_API_KEY= TESTS_BLOCK_LLM_NETWORK=1 python -m pytest /srv/tests -m "not integration" --disable-warnings --tb=short -ra --continue-on-collection-errors
 ```
+Build arg `RUN_LIVE_LLM_TESTS=1` (with `OPENAI_API_KEY`) opts into also running the
+`@pytest.mark.integration` tests against real APIs. The runtime key is a Railway
+service variable and is never baked into the image.
 
 ### Environment variables (Railway dashboard)
 | Variable | Purpose | Example |

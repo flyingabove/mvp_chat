@@ -9,13 +9,14 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBUG_MODE=FALSE
 
-# Build-time secret — Railway passes this as a build arg so build-time
-# tests (below) can call OpenAI. A11 fix: this must NOT be promoted to ENV.
-# `ARG` values are available to subsequent RUN instructions in this same
-# build stage automatically, but (unlike ENV) are not written into the
-# final image's config/layer history, so the key never ends up embedded in
-# the shipped image. The real runtime key is injected by the deployment
-# platform (Railway service/environment variable), not by this build arg.
+# The build-time test gate is UNIT TESTS ONLY and makes no LLM API calls
+# (owner rule 2026-09-24): no provider key is available to the build, and
+# tests/conftest.py blocks LLM hosts when TESTS_BLOCK_LLM_NETWORK=1.
+# Opt-in only: set build arg RUN_LIVE_LLM_TESTS=1 (plus OPENAI_API_KEY) to
+# also run @pytest.mark.integration tests against the real API. ARG values
+# are not written into the final image, so a key passed that way is never
+# shipped; the runtime key comes from the Railway service variable.
+ARG RUN_LIVE_LLM_TESTS=0
 ARG OPENAI_API_KEY=""
 
 # ------------------------------------------------------------
@@ -86,7 +87,15 @@ RUN if [ "${RUN_TESTS}" != "0" ]; then \
         env | sort | grep -E '^(PYTHONPATH|KNOWLEDGE_CACHE_DIR|KNOWLEDGE_PERSIST_ROOT|FORCE_REBUILD_INDEX|RUN_TESTS|DEBUG_MODE)=' || true; \
         echo ""; \
       fi; \
-      python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-collection-errors; \
+      if [ "${RUN_LIVE_LLM_TESTS}" = "1" ]; then \
+        echo "RUN_LIVE_LLM_TESTS=1 -> unit + integration tests (real LLM API calls)"; \
+        python -m pytest /srv/tests --disable-warnings --tb=short -ra --continue-on-collection-errors; \
+      else \
+        echo "Unit tests only: integration deselected, LLM keys blank, LLM hosts blocked"; \
+        OPENAI_API_KEY= TYPESAFE_API_KEY= LANGSMITH_API_KEY= LANGCHAIN_API_KEY= \
+        LANGCHAIN_TRACING_V2=false TESTS_BLOCK_LLM_NETWORK=1 \
+        python -m pytest /srv/tests -m "not integration" --disable-warnings --tb=short -ra --continue-on-collection-errors; \
+      fi; \
     else \
       echo "⚠️ RUN_TESTS=0 → skipping build-time tests"; \
     fi

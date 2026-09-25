@@ -24,7 +24,9 @@ jobs:
           pip install pytest pytest-asyncio
 
       - name: Run unit tests
-        run: pytest tests/ -v --ignore=tests/backend/integration/
+        env:
+          TESTS_BLOCK_LLM_NETWORK: "1"
+        run: pytest tests/ -v -m "not integration" --ignore=tests/backend/integration/
 
   integration-tests:
     runs-on: ubuntu-latest
