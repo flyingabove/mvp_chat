@@ -5368,6 +5368,8 @@ def test_sleep_resolves_the_night_and_wakes_the_player_at_home(client, monkeypat
     assert model.world.minute_of_day() == 7 * 60 and state.minute > before
     assert state.location_id == "girls_bedroom" and model.world.where_is(PLAYER) == "girls_bedroom"
     assert "[Time skip] The night passes" in _storyteller_calls(sent)[-1]["messages"][-1]["content"]
+    assert model.view.transitions == []            # asleep: nothing of the night was seen
+    assert "Just happened in view of the player" not in _storyteller_calls(sent)[-1]["messages"][0]["content"]
     # Wake-up times vary (+/-30 min): late risers may still be asleep at 07:00,
     # but only ever in their own bedroom.
     for cid, c in model.characters.items():

@@ -1315,7 +1315,7 @@ def _world_view(state: GameState):
     """The current turn's world-model view, or None (disabled / not stepped yet)."""
     model = getattr(state, "world_model", None)
     view = getattr(model, "view", None) if model is not None else None
-    if view is None or not (view.cards or view.plan.speakers or view.must_address):
+    if view is None or view.allowed_speakers is None:     # not computed this turn
         return None
     from backend.app.engine.world_model.turn import enabled
     return view if enabled(state) else None

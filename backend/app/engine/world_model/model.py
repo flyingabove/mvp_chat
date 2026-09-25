@@ -84,7 +84,7 @@ class TurnView:
     transitions: list[str] = field(default_factory=list)
     perspectives: dict[str, list[str]] = field(default_factory=dict)
     ending_hint: str = ""
-    allowed_speakers: list[str] = field(default_factory=list)
+    allowed_speakers: Optional[list[str]] = None      # None = not computed; [] = nobody may speak
     time_text: str = ""
     cards: list[str] = field(default_factory=list)
     elsewhere: list[str] = field(default_factory=list)

@@ -67,9 +67,12 @@ def _allowed_speaker_ids(state) -> list[str]:
     (people physically present, unplaced characters, and the speaker plan)."""
     ids = _contract_cast_ids(state)
     view = getattr(getattr(state, "world_model", None), "view", None)
-    allowed = set(getattr(view, "allowed_speakers", None) or [])
-    narrowed = [key for key in ids if key in allowed]
-    return narrowed or ids
+    allowed = getattr(view, "allowed_speakers", None)
+    if allowed is None:
+        return ids
+    # An empty list is meaningful: nobody is with the player, so no named NPC
+    # may speak (live 2026-09-25: housemates talked into an empty bedroom).
+    return [key for key in ids if key in set(allowed)]
 
 
 def dialogue_response_format(state) -> dict:

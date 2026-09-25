@@ -28,9 +28,11 @@ from backend.app.engine.world_model.threads import advance_threads
 
 # First-person or imperative intent only: "Did you go to bed late?" must not put the player to sleep.
 SLEEP = re.compile(
-    r"(?:^|[.!?]\s+|\bI(?:'m| am|'ll| will)?\s+(?:(?:going|gonna|about)\s+(?:to\s+)?)?|\blet me\s+|\btime to\s+)"
-    r"(?:go|head|turn in|get)\s+(?:off\s+)?(?:to\s+)?(?:sleep|bed)\b"
-    r"|\bI(?:'m| am)?\s+(?:falling asleep|fall asleep|off to bed|calling it a night|call it a night)\b",
+    r"(?:^|[.!?]\s+|\bI(?:'m| am|'ll| will)?\s+|\blet me\s+)"
+    r"(?:(?:going|gonna|about)\s+(?:to\s+)?)?"
+    r"(?:go(?:ing)?|head(?:ing)?|turn(?:ing)? in|get(?:ting)?|off)\s+(?:off\s+)?(?:to\s+)?(?:sleep|bed)\b"
+    r"|\btime (?:to|for) (?:sleep|bed)\b"
+    r"|\bI(?:'m| am)?\s+(?:falling asleep|fall asleep|calling it a night|call it a night)\b",
     re.I)
 WAKE_TIME = "07:00"
 DIALOGUE_MEMORY_CAP = 80
@@ -139,7 +141,8 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         model.player_availability = "awake"
     model.world.minute = now
     mirror_locations(model, state)
-    view = _build_view(model, state, message, step, place_names)
+    # A sleeping player saw nothing of the night: no "came in / left" beats.
+    view = _build_view(model, state, message, None if sleeping else step, place_names)
     model.view = view
     return view
 

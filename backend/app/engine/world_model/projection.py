@@ -14,7 +14,7 @@ def _names(view: TurnView, ids: list[str]) -> str:
 
 
 def render_scene_section(view: TurnView) -> str:
-    if not (view.cards or view.must_address or view.plan.speakers or view.traces or view.transitions):
+    if view.allowed_speakers is None:
         return ""
     lines = [f"\n{RULE}\n### WORLD STATE (engine-authoritative, overrides guesses)\n{RULE}"]
     if view.time_text:
@@ -23,7 +23,9 @@ def render_scene_section(view: TurnView) -> str:
         lines.append("People with the player right now (location, activity and state are facts):")
         lines.extend(f"- {card}" for card in view.cards)
     else:
-        lines.append("Nobody else is physically with the player right now.")
+        lines.append("Nobody else is physically with the player right now: write narration only; no character "
+                     "speaks unless they are on a call with the player. Voices from other rooms stay muffled and "
+                     "unattributed.")
     if view.elsewhere:
         lines.append("Elsewhere (not visible to the player; answer 'where is X' from this only if the speaker "
                      "would plausibly know):")
