@@ -143,3 +143,24 @@ Test with identical starting snapshots and multiple player strategies, not just 
 - [Official OpenAI Structured Outputs documentation](https://developers.openai.com/api/docs/guides/structured-outputs): strict schema adherence is available for supported models; refusals and incomplete responses still need handling. This motivates typed proposals and explicit validation, not a claim that structured text is true.
 
 This is a design proposal. It does not assert that the schedule engine, evidence graph, dialogue handoff policy, or post-response semantic validation currently exists.
+
+## 12. NPC behavior addendum: owner decisions (2026-09-24)
+
+Status: design decisions; nothing below is implemented.
+
+**Decisions**
+
+1. **Full off-screen autonomy.** "Off-screen" means any world time the player does not witness: sleep, time skips, travel, or time spent elsewhere. During it, NPCs may start relationships, argue, make plans, and commit to leaving, driven by the world clock. The player has no control over it. Consequences persist and change later scenes.
+2. **No log UI.** There is never a house log, event feed or journal of off-screen happenings. The player learns only through the story: someone mentions it, a consequence is visible ("Hikaru and Yuto aren't speaking at breakfast"), a conversation is overheard, or they never learn it. Off-screen results are engine facts with per-character knowledge (§4 "records who actually heard what"), never player-facing summaries.
+3. **Generic first.** Every mechanism is engine code plus story data and works in every story. One routine resolver serves housemate schedules and suspect alibis. One off-screen resolver serves a housemate romance and suspects coordinating a story. Nothing is Terrace-specific unless it is authored data.
+
+**Off-screen resolution.** It runs only when a time interval passes without the player (§4's schedule boundaries), never on each chat turn. The steps: (1) the routine resolver moves every NPC through the interval in chronological order; (2) code lists the feasible co-presence encounters (who shared a place, awake, for long enough); (3) for each encounter, code builds a small feasible outcome set (nothing, conversation, a shared activity, conflict, an exchange of affection, a plan or commitment, or a fact passing between the two) weighted by relationship state, current aims and personal threads; (4) Jev optionally scores the set, with about one bounded call per interval and an authored-priority fallback at zero calls, and a seeded draw picks the outcome; (5) the results are committed as events, relationship-edge updates, knowledge records for the participants only, and visible traces (a changed seating pattern, a new plan, someone gone to bed early). A departure decision goes through the existing cast-lifecycle `committed_intent` path.
+
+**Extra layers beyond §4 and §8**
+
+- **Speaker selection (engine-owned):** 1-3 speakers per beat, chosen by who was addressed, who is present and can hear, interest in the topic, recency and one rotating initiative bid. This replaces model-chosen roll calls (BACKLOG BL-22).
+- **Personal threads:** each character has 2-3 authored threads (an audition, a job decision, and in a mystery a cover story under strain) with time-based milestones. They advance whether or not the player helps, and outcomes persist.
+- **Reaching out:** when apart from the player, an NPC may contact them by message or call, subject to availability and relationship. A generic channel, not a feed.
+- **NPC-to-NPC relationship edges** are a prerequisite for off-screen outcomes (BACKLOG BL-11).
+
+**Build order** (replaces §10 for social stories; evidence work from §10.1 follows for mysteries): (1) routine resolver and availability (BL-24); (2) speaker selection with conversation initiative (§8); (3) personal threads and commitment memory; (4) off-screen resolution with NPC-to-NPC edges and knowledge propagation; (5) contact channel; (6) evidence ecology (§3). Each step needs a live multi-roster check and arena comparison, and a sleep or time-skip scenario proving that consequences appear only through prose.
