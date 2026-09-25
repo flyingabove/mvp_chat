@@ -62,6 +62,8 @@ from backend.app.config.settings import (
 from backend.app.config.epistemic_flags import set_master
 
 
+from backend.app.engine.world_model.model import WorldModel
+from backend.app.engine.world_model import turn as world_turn
 from backend.app.engine.state import (
 
     init_state,
@@ -314,6 +316,28 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
         state.canonical_truth = seeded_texts
 
 
+def _world_place_names(state: GameState) -> dict[str, str]:
+    runtime = getattr(state, "world_runtime", None)
+    locations = getattr(getattr(runtime, "world_graph", None), "locations", None) or {}
+    names = {loc_id: getattr(loc, "name", loc_id) for loc_id, loc in locations.items()}
+    # Off-map routine places ("school", a suspect's home) named by the story.
+    cfg = getattr(state, "story_cfg", None) or {}
+    extra = ((cfg.get("world_model") or {}).get("place_names") or {}) if isinstance(cfg, dict) else {}
+    return {**{str(k): str(v) for k, v in extra.items()}, **names}
+
+
+def _lore_chunks_for(state: GameState) -> list[dict]:
+    """Authored knowledge-bundle chunks for the world model's per-character memory."""
+    bundle_id = str(getattr(state, "knowledge_character_id", "") or "")
+    if not bundle_id:
+        return []
+    try:
+        return list(IndexService.get(bundle_id).chunks or [])
+    except Exception:
+        logger.exception("lore bundle %s unavailable for world model", bundle_id)
+        return []
+
+
 def _seed_player_visibility(state: GameState) -> None:
     """Label all knowledge chunks with player visibility at game init.
 
@@ -408,6 +432,8 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         # prompt_builder mode layer emits nothing.
         "mode": src.get("mode") or {},
         "cast_lifecycle": src.get("cast_lifecycle") or {},
+        # Character & world model data: routines, threads, evidence, homes.
+        "world_model": src.get("world_model") or {},
     }
 
 
@@ -1540,6 +1566,7 @@ def _serialize_state(state: GameState, log: list) -> str:
         "character_locations": dict(getattr(state, "character_locations", {}) or {}),
         "main_character_id": str(getattr(state, "main_character_id", "") or ""),
         "opening_cast": list(getattr(state, "opening_cast", []) or []),
+        "world_model": (state.world_model.to_dict() if getattr(state, "world_model", None) is not None else None),
         "cast_lifecycle": (
             state.cast_lifecycle.to_dict()
             if getattr(state, "cast_lifecycle", None) is not None else None
@@ -1781,6 +1808,14 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         _sync_resident_locations(restored)
 
         restored.opening_cast = [str(k) for k in (saved.get("opening_cast") or []) if k]
+        # Character & world model: restore when saved; older saves rebuild it
+        # lazily on their next turn (world_model.turn.ensure_model).
+        if isinstance(saved.get("world_model"), dict):
+            try:
+                restored.world_model = WorldModel.from_dict(saved["world_model"])
+            except Exception:
+                logger.exception("world_model restore failed; it will be rebuilt")
+                restored.world_model = None
         # The runtime focal lens (e.g. an opening greeter, or a replacement
         # arrival) outranks the authored is_main default.
         saved_main = str(saved.get("main_character_id") or "").strip()
@@ -2230,6 +2265,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # runs here (once, for the full jump) instead of relying on the
     # per-turn advance_time() call later, which is sized for dialogue-length
     # deltas, not multi-hour/day jumps.
+    # World model: the interval this turn consumes is (minute_before, minute_after].
+    _wm_minute_before = int(getattr(state, "minute", 0) or 0) if state is not None else 0
+    _wm_player_words = msg
+    _wm_sleeping = False
     _time_skip = _parse_time_skip(msg)
     _is_time_skip_turn = False
     if _time_skip is not None and state is not None:
@@ -2248,6 +2287,28 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         ).display
         msg = f"[Time skip] {_skip_cue}. It is now {_new_ts}."
         _is_time_skip_turn = True
+        _wm_player_words = ""
+
+    # "I go to sleep": sleep until the next morning; the world keeps moving
+    # (routines, off-screen life) through the skipped hours. Turn-based: the
+    # whole night resolves in this one turn.
+    if not _is_time_skip_turn and state is not None and world_turn.enabled(state):
+        world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+        _sleep_for = world_turn.sleep_minutes(state, msg)
+        if _sleep_for > 0:
+            _home = getattr(state.world_model, "home_of_player", "")
+            _runtime = getattr(state, "world_runtime", None)
+            if _home and _runtime is not None and _home in _runtime.world_graph.locations:
+                state.location_id = _home
+                state.location = _runtime.world_graph.locations[_home].name
+                state.location_uuid = getattr(_runtime.world_graph.locations[_home], "uuid", "")
+            advance_time_by(state, _sleep_for)
+            _new_ts = WorldTimeFormatter.compute(
+                getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)
+            ).display
+            msg = f"{msg}\n[Time skip] The night passes; the player slept and wakes up. It is now {_new_ts}."
+            _is_time_skip_turn = True
+            _wm_sleeping = True
 
     # Sync epistemic master flag to this session's toggle.
     set_master(bool(sess.get("epistemic_state", True)))
@@ -2640,6 +2701,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         # Label all knowledge chunks with player visibility for debug player agent retrieval.
         _seed_player_visibility(new_state)
+
+        # Character & world model: seeded from the staged opening positions,
+        # canonical facts and the authored lore bundle (docs: CHARACTER_WORLD_MODEL_*).
+        world_turn.ensure_model(new_state, lore=_lore_chunks_for(new_state))
 
         opening = _opening_for_new_game(story_def, new_state)
         opening = apply_placeholders(opening, new_state)
@@ -3213,6 +3278,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             # Optional contextual variety must never make a valid turn fail.
             _log({"kind": "dynamic_context_selection_error", "error": str(exc)})
 
+    # Character & world model: step the world through this turn's interval,
+    # mirror locations, plan speakers, and build the per-turn view the prompt
+    # builder renders. Presence markers are refreshed from the moved cast.
+    _wm_view = world_turn.begin_turn(
+        state, _wm_player_words, _wm_minute_before,
+        place_names=_world_place_names(state), sleeping=_wm_sleeping,
+    )
+    if _wm_view is not None:
+        _people_present = get_people_present_keys(state)
+        _upsert_people_present_markers(state, _people_present)
+
     from backend.app.engine.prompt_builder import PromptInput
 
     prompt_input = PromptInput(
@@ -3340,6 +3416,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # because each copy re-entered the history (2026-09-24).
     segments = drop_repeated_lines(
         segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
+    world_turn.end_turn(state, _wm_player_words, segments)
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]

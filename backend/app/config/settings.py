@@ -39,6 +39,10 @@ TEMPERATURE: float = 0.8
 MEMORY_TURNS: int = 8
 EXTRACTOR_TURNS: int = 8
 TRANSIENT_KNOWLEDGE_TURNS: int = 8
+# Character & world model (engine/world_model/): routines, memories, speakers,
+# off-screen life. Kill switch: WORLD_MODEL_ENABLED=0 restores the previous
+# prompt exactly. Stories may also opt out with world_model.enabled=false.
+WORLD_MODEL_ENABLED: bool = _os.getenv("WORLD_MODEL_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
 
 # --- Phase 3 "Social life": behavior-tag accumulation window ---
 # How many recent behavior_tags per character pair before the engine

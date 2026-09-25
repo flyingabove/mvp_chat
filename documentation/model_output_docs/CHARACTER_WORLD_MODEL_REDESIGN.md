@@ -4,7 +4,7 @@
 > events, memories and relationship edges. Together these make the game world consistent and engaging.
 > Edit this doc when the data model, a mechanic, or the build order changes.
 >
-> Date: 2026-09-24. Status: **agreed design, not implemented.** Extends
+> Date: 2026-09-24. Status: **implemented 2026-09-25** (steps 0-8; see [CHARACTER_WORLD_MODEL_IMPLEMENTATION_PLAN.md](CHARACTER_WORLD_MODEL_IMPLEMENTATION_PLAN.md) §7 for as-built notes). Extends
 > [LIVING_WORLD_INVESTIGATION_AND_CONVERSATION_DESIGN.md](LIVING_WORLD_INVESTIGATION_AND_CONVERSATION_DESIGN.md)
 > (routines, turn packet, evidence, and the §12 owner decisions) and
 > [CAST_LIFECYCLE_DESIGN.md](CAST_LIFECYCLE_DESIGN.md).

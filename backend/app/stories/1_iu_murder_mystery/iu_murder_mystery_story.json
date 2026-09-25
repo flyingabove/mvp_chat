@@ -409,5 +409,206 @@
         "label": "A trainee from another label. Petty rivalry, possibly manipulated by others."
       }
     ]
+  },
+  "world_model": {
+    "enabled": true,
+    "place_names": {
+      "yoo_home": "Yoo Min-ho's apartment",
+      "han_home": "Han Jae-seo's residence",
+      "sojin_home": "Park So-jin's apartment",
+      "trainee_dorm": "the trainee dormitory",
+      "trainee_practice": "the trainee practice room"
+    },
+    "homes": {
+      "yoo_min_ho": "yoo_home",
+      "han_jae_seo": "han_home",
+      "park_so_jin": "sojin_home",
+      "rival_trainee": "trainee_dorm"
+    },
+    "routines": {
+      "characters": {
+        "yoo_min_ho": {
+          "blocks": [
+            {
+              "start": "09:00",
+              "end": "18:30",
+              "place": "workplace_hallway",
+              "activity": "managing schedules at the agency",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "19:00",
+              "end": "20:30",
+              "place": "local_cafe",
+              "activity": "unwinding at the cafe",
+              "availability": "awake",
+              "variance": 20,
+              "days": [
+                0,
+                2,
+                4
+              ]
+            }
+          ]
+        },
+        "han_jae_seo": {
+          "blocks": [
+            {
+              "start": "09:30",
+              "end": "19:00",
+              "place": "iu_office",
+              "activity": "running Aster Media from his office",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        "park_so_jin": {
+          "blocks": [
+            {
+              "start": "11:00",
+              "end": "21:00",
+              "place": "recording_studio",
+              "activity": "producing in the studio",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "rival_trainee": {
+          "blocks": [
+            {
+              "start": "10:00",
+              "end": "17:00",
+              "place": "trainee_practice",
+              "activity": "at trainee practice",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            {
+              "start": "17:30",
+              "end": "19:00",
+              "place": "local_cafe",
+              "activity": "at the cafe",
+              "availability": "awake",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "threads": [
+      {
+        "id": "han_jae_seo_thread",
+        "owner": "han_jae_seo",
+        "title": "The missing lyric page",
+        "topics": [
+          "lyric",
+          "notebook",
+          "page",
+          "release",
+          "contract"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 0,
+            "time": "22:00",
+            "text": "@han_jae_seo made a tense late-night call pressing @yoo_min_ho about the missing lyric page",
+            "visibility": "private",
+            "memory_for": [
+              "yoo_min_ho"
+            ]
+          }
+        ]
+      }
+    ],
+    "entities": [
+      {
+        "id": "closet_scuff",
+        "kind": "evidence",
+        "name": "closet",
+        "location": "iu_apartment_room",
+        "aliases": [
+          "closet door",
+          "closet jamb",
+          "jamb",
+          "scratches",
+          "scuff"
+        ],
+        "surfaces": [
+          {
+            "text": "faint, shallow scratches beneath the paint on the closet jamb"
+          },
+          {
+            "text": "under the paint the marks look older than one night",
+            "requires": {
+              "attention": "close"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cctv_side_entrance",
+        "kind": "evidence",
+        "name": "side entrance camera",
+        "location": "local_cafe",
+        "aliases": [
+          "camera",
+          "cctv",
+          "side entrance",
+          "security camera"
+        ],
+        "surfaces": [
+          {
+            "text": "a camera watches the side entrance; its status light is dark"
+          },
+          {
+            "text": "its cable has been unplugged at the junction box, as if someone switches it off on purpose",
+            "requires": {
+              "attention": "close"
+            }
+          }
+        ]
+      }
+    ]
   }
 }

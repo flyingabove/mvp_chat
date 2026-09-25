@@ -1217,5 +1217,969 @@
         "label": "Open to an easy roommate friendship; has not formed a judgment about how seriously he takes baseball."
       }
     ]
+  },
+  "world_model": {
+    "enabled": true,
+    "place_names": {
+      "university": "the university",
+      "riko_school": "Riko's high school",
+      "tv_studio": "a TV studio",
+      "hiphop_studio": "a hip-hop rehearsal studio",
+      "childcare_center": "a childcare center"
+    },
+    "routines": {
+      "templates": {
+        "resident": {
+          "free_place": "living_room",
+          "blocks": [
+            {
+              "start": "07:15",
+              "end": "08:00",
+              "place": "kitchen",
+              "activity": "having breakfast",
+              "availability": "awake",
+              "variance": 15
+            }
+          ]
+        }
+      },
+      "characters": {
+        "makoto": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "09:00",
+              "end": "15:00",
+              "place": "university",
+              "activity": "at classes",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "15:30",
+              "end": "18:30",
+              "place": "place_o03",
+              "activity": "at baseball practice",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "minori": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "09:30",
+              "end": "14:00",
+              "place": "university",
+              "activity": "at classes",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "15:00",
+              "end": "18:00",
+              "place": "place_o12",
+              "activity": "at a photo shoot",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                1,
+                3
+              ]
+            }
+          ]
+        },
+        "yuki": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "10:00",
+              "end": "17:00",
+              "place": "dance_studio",
+              "activity": "rehearsing tap",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "mizuki": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "08:30",
+              "end": "17:30",
+              "place": "place_o09",
+              "activity": "at the office",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "09:00",
+              "end": "15:00",
+              "place": "cafe",
+              "activity": "working a barista shift",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                5
+              ]
+            }
+          ]
+        },
+        "uchi": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "10:00",
+              "end": "19:00",
+              "place": "salon",
+              "activity": "styling at the salon",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "yuriko": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "08:30",
+              "end": "17:00",
+              "place": "place_o08",
+              "activity": "studying at the university",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "21:00",
+              "end": "22:30",
+              "place": "home",
+              "activity": "studying quietly in her room",
+              "availability": "busy",
+              "variance": 20
+            }
+          ]
+        },
+        "arman": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "08:00",
+              "end": "16:00",
+              "place": "place_e23",
+              "activity": "on a landscaping job",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        "arisa": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "10:00",
+              "end": "18:00",
+              "place": "place_o10",
+              "activity": "working in her hat workshop",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "hikaru": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "08:00",
+              "end": "16:00",
+              "place": "place_o11",
+              "activity": "on a construction shift",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "10:00",
+              "end": "15:00",
+              "place": "place_o12",
+              "activity": "on a modeling job",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                2,
+                5
+              ]
+            }
+          ]
+        },
+        "natsumi": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "10:00",
+              "end": "17:00",
+              "place": "place_o12",
+              "activity": "at a photo shoot",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                1,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        "misaki": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "11:00",
+              "end": "18:00",
+              "place": "tv_studio",
+              "activity": "filming for TV",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                0,
+                2,
+                4
+              ]
+            }
+          ]
+        },
+        "yuto": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "09:30",
+              "end": "18:00",
+              "place": "place_e28",
+              "activity": "working at the architecture studio",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        "riko": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "08:00",
+              "end": "15:30",
+              "place": "riko_school",
+              "activity": "at school",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "11:00",
+              "end": "16:00",
+              "place": "place_o12",
+              "activity": "at a photo shoot",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                5
+              ]
+            }
+          ]
+        },
+        "momoka": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "09:00",
+              "end": "13:00",
+              "place": "place_e38",
+              "activity": "in ballet class",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            {
+              "start": "14:00",
+              "end": "17:00",
+              "place": "place_e38",
+              "activity": "at rehearsal",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        "hayato": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "15:00",
+              "end": "22:30",
+              "place": "place_e50",
+              "activity": "working the dinner service",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "yuuki_byrnes": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "12:00",
+              "end": "18:00",
+              "place": "hiphop_studio",
+              "activity": "at hip-hop rehearsal",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "masako": {
+          "template": "resident",
+          "blocks": [
+            {
+              "start": "10:00",
+              "end": "16:00",
+              "place": "place_o12",
+              "activity": "on a modeling job",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                3
+              ]
+            },
+            {
+              "start": "09:00",
+              "end": "12:00",
+              "place": "childcare_center",
+              "activity": "observing at a childcare center",
+              "availability": "out",
+              "variance": 20,
+              "days": [
+                1,
+                4
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "threads": [
+      {
+        "id": "makoto_thread",
+        "owner": "makoto",
+        "title": "Proving baseball still matters",
+        "topics": [
+          "baseball",
+          "practice",
+          "league",
+          "coach"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "18:45",
+            "text": "@makoto stayed after practice taking extra swings until the field lights went off",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "18:30",
+            "text": "@makoto's coach asked @makoto to commit to the autumn league or step aside",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "minori_thread",
+        "owner": "minori",
+        "title": "Finding room to speak",
+        "topics": [
+          "modeling",
+          "shoot",
+          "study",
+          "exam",
+          "class"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "17:30",
+            "text": "@minori's photo shoot ran long and she missed a study group",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 2,
+            "time": "21:00",
+            "text": "@minori decided to tell someone at the house one honest thing about herself",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "yuki_thread",
+        "owner": "yuki",
+        "title": "Inviting the house to a performance",
+        "topics": [
+          "tap",
+          "performance",
+          "show",
+          "dance",
+          "ticket"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 2,
+            "time": "16:00",
+            "text": "@yuki's company set the date for the next performance, nine days away",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 4,
+            "time": "20:00",
+            "text": "@yuki left a small stack of performance flyers on the living room table",
+            "visibility": "public",
+            "trace": "A small stack of tap-performance flyers sits on the living room table",
+            "place": "living_room"
+          }
+        ]
+      },
+      {
+        "id": "mizuki_thread",
+        "owner": "mizuki",
+        "title": "Why coffee matters",
+        "topics": [
+          "coffee",
+          "barista",
+          "latte",
+          "cafe",
+          "office"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "17:30",
+            "text": "@mizuki's manager hinted at an opening for a full-time barista trainer",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "07:30",
+            "text": "@mizuki practiced latte art in the kitchen before work",
+            "visibility": "public",
+            "trace": "A row of practice lattes with careful foam hearts has been left in the kitchen",
+            "place": "kitchen"
+          }
+        ]
+      },
+      {
+        "id": "uchi_thread",
+        "owner": "uchi",
+        "title": "Suggesting an outing",
+        "topics": [
+          "hair",
+          "salon",
+          "outing",
+          "weekend",
+          "trip"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 2,
+            "time": "19:30",
+            "text": "@uchi booked two tickets for a weekend outing without deciding whom to invite",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 4,
+            "time": "12:00",
+            "text": "@uchi's senior stylist let @uchi take a client alone for the first time",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "yuriko_thread",
+        "owner": "yuriko",
+        "title": "Exams and a quiet hour",
+        "topics": [
+          "exam",
+          "medical",
+          "study",
+          "hospital",
+          "quiet"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "21:30",
+            "text": "@yuriko's practice exam results came back weaker than she hoped",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "22:00",
+            "text": "@yuriko started studying in the living room instead of her room",
+            "visibility": "public",
+            "trace": "Medical textbooks and highlighters are spread across the living room table",
+            "place": "living_room"
+          }
+        ]
+      },
+      {
+        "id": "arman_thread",
+        "owner": "arman",
+        "title": "The firefighter question",
+        "topics": [
+          "firefighter",
+          "application",
+          "surfing",
+          "garden",
+          "training",
+          "run"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "20:00",
+            "text": "@arman finally downloaded the firefighter application and read the fitness requirements",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "06:30",
+            "text": "@arman went for a dawn run to test himself against the fitness standard",
+            "visibility": "public",
+            "trace": "Muddy running shoes are drying by the front door",
+            "place": "front_entry"
+          }
+        ]
+      },
+      {
+        "id": "arisa_thread",
+        "owner": "arisa",
+        "title": "The delayed order",
+        "topics": [
+          "hats",
+          "hat",
+          "order",
+          "exhibition",
+          "workshop",
+          "design"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 2,
+            "time": "15:00",
+            "text": "@arisa's big hat order was delayed again by the client",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 4,
+            "time": "19:00",
+            "text": "@arisa secured a small gallery slot to show her hats",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "hikaru_thread",
+        "owner": "hikaru",
+        "title": "Too many jobs at once",
+        "topics": [
+          "construction",
+          "modeling",
+          "work",
+          "schedule",
+          "shift"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "16:30",
+            "text": "@hikaru double-booked a construction shift and a casting",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 2,
+            "time": "22:00",
+            "text": "@hikaru dropped his work gloves and hard hat by the sofa, too tired to put them away",
+            "visibility": "public",
+            "trace": "Work gloves and a hard hat have been dropped by the sofa",
+            "place": "living_room"
+          }
+        ]
+      },
+      {
+        "id": "natsumi_thread",
+        "owner": "natsumi",
+        "title": "Choosing work freely",
+        "topics": [
+          "modeling",
+          "bookings",
+          "career",
+          "future",
+          "agency"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "12:00",
+            "text": "@natsumi's agency cancelled another booking",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "20:00",
+            "text": "@natsumi looked up evening classes that have nothing to do with modeling",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "misaki_thread",
+        "owner": "misaki",
+        "title": "More than a TV persona",
+        "topics": [
+          "tv",
+          "show",
+          "variety",
+          "talent",
+          "camera"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 2,
+            "time": "18:00",
+            "text": "@misaki's TV segment was cut to thirty seconds",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 4,
+            "time": "21:30",
+            "text": "@misaki decided to turn her phone off for one evening",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "yuto_thread",
+        "owner": "yuto",
+        "title": "The unresolved portfolio",
+        "topics": [
+          "architecture",
+          "portfolio",
+          "design",
+          "competition",
+          "model"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "18:00",
+            "text": "@yuto's mentor called the final section of his portfolio 'safe'",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "23:00",
+            "text": "@yuto stayed up rebuilding a paper model at the dining table",
+            "visibility": "public",
+            "trace": "A half-rebuilt paper architecture model sits on the dining table",
+            "place": "dining_room"
+          }
+        ]
+      },
+      {
+        "id": "riko_thread",
+        "owner": "riko",
+        "title": "School or the shoot",
+        "topics": [
+          "school",
+          "test",
+          "modeling",
+          "shoot",
+          "homework"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "16:00",
+            "text": "@riko's manager asked @riko to skip a school test for a shoot",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 2,
+            "time": "20:00",
+            "text": "@riko told her manager she would take the test",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "momoka_thread",
+        "owner": "momoka",
+        "title": "The audition",
+        "topics": [
+          "ballet",
+          "audition",
+          "rehearsal",
+          "dance",
+          "teacher"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "13:00",
+            "text": "@momoka's teacher corrected her turns again in front of the class",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 2,
+            "time": "07:30",
+            "text": "@momoka taped her audition schedule to the fridge",
+            "visibility": "public",
+            "trace": "A ballet audition schedule has been taped to the fridge",
+            "place": "kitchen"
+          },
+          {
+            "id": "m3",
+            "day": 4,
+            "time": "10:00",
+            "text": "@momoka's audition was moved up to next week",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "hayato_thread",
+        "owner": "hayato",
+        "title": "Nearly thirty, still an apprentice",
+        "topics": [
+          "cooking",
+          "chef",
+          "kitchen",
+          "restaurant",
+          "knife"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "22:00",
+            "text": "@hayato's head chef let him plate the dessert course for the first time",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "16:00",
+            "text": "@hayato burned a sauce during service and was sent to wash dishes",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "yuuki_byrnes_thread",
+        "owner": "yuuki_byrnes",
+        "title": "The crew rehearsal offer",
+        "topics": [
+          "hip-hop",
+          "hiphop",
+          "dance",
+          "rehearsal",
+          "crew",
+          "battle"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "18:00",
+            "text": "@yuuki_byrnes was offered a spot in a crew rehearsal that runs every night next week",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 3,
+            "time": "19:00",
+            "text": "@yuuki_byrnes still had not answered the crew",
+            "visibility": "private"
+          }
+        ]
+      },
+      {
+        "id": "masako_thread",
+        "owner": "masako",
+        "title": "Toward childcare",
+        "topics": [
+          "childcare",
+          "kids",
+          "children",
+          "modeling",
+          "career",
+          "nursery"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 1,
+            "time": "11:00",
+            "text": "@masako spent a morning observing at a childcare center and loved it",
+            "visibility": "private"
+          },
+          {
+            "id": "m2",
+            "day": 4,
+            "time": "15:00",
+            "text": "@masako drafted an email to her agency about stepping back, but did not send it",
+            "visibility": "private"
+          }
+        ]
+      }
+    ]
   }
 }

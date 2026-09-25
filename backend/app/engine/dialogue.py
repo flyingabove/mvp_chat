@@ -62,9 +62,19 @@ def dialogue_prompt(state) -> str:
     )
 
 
+def _allowed_speaker_ids(state) -> list[str]:
+    """Contract cast narrowed to the world model's allowed speakers this turn
+    (people physically present, unplaced characters, and the speaker plan)."""
+    ids = _contract_cast_ids(state)
+    view = getattr(getattr(state, "world_model", None), "view", None)
+    allowed = set(getattr(view, "allowed_speakers", None) or [])
+    narrowed = [key for key in ids if key in allowed]
+    return narrowed or ids
+
+
 def dialogue_response_format(state) -> dict:
     """Constrain speaker IDs and require an ordered scene on the generation call."""
-    ids = _contract_cast_ids(state)
+    ids = _allowed_speaker_ids(state)
     return {"type": "json_schema", "json_schema": {
         "name": "story_scene", "strict": True,
         "schema": {"type": "object", "additionalProperties": False,

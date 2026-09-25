@@ -90,6 +90,21 @@ Use `kind="fact"`, `kind="claim"`, `kind="observation"` on `KnowledgeChunk` to d
 | `WorldDefinition` | `backend/app/engine/world/world_json.py` | Parsed world JSON: graph + exposure config + travel timing. Frozen. |
 | `WorldClock` | `backend/app/engine/world/clock.py` | Single source of truth for game time (minutes since world start). |
 
+
+## Character & World Model (`backend/app/engine/world_model/`, saved as `GameState.world_model`)
+
+| Class | File | What it is |
+|---|---|---|
+| `WorldModel` | `world_model/model.py` | Aggregate saved with a game: world, characters, memories, threads, contact queue, traces, seed, turn. `view` (TurnView) is per-turn and not saved. |
+| `World` | `world_model/world.py` | Location index `where` (entity -> place, the single source; `contents` derived), clock helpers, immutable `events`. `move()` is the only location writer. |
+| `Entity` | `world_model/entities.py` | Anything that can be somewhere: character, player, object, evidence (aliases, props/surfaces). |
+| `Event` | `world_model/events.py` | World truth: minute, place, participants, truth text (`@id` refs), kind, visibility. Never changes. |
+| `CharacterState` | `world_model/character.py` | Per-character body/mind: availability, activity, mood, routine, speaking recency, descriptor, slot group. `get_location()` reads the world index. |
+| `Memory` / `Ref` / `MemoryStore` | `world_model/memory.py` | One owner's perspective with a source channel (witnessed / told_by:x / overheard / authored / promised), confidence, event link, `@id` refs; `Ref.actual` is engine-only. |
+| `Routine` / `RoutineBlock` | `world_model/routine.py` | Time blocks (may wrap midnight, weekday filters, seeded jitter, `hard`), home and free place. |
+| `Thread` / `Milestone` | `world_model/threads.py` | Personal arcs with milestones on the clock; public milestones leave traces. |
+| `Trace` / `ContactMessage` / `SpeakerPlan` / `TurnView` | `world_model/model.py` | Noticeable consequences; queued texts/calls; engine-chosen speakers; the per-turn projection rendered into the prompt. |
+
 ---
 
 ## Travel

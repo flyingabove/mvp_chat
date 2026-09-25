@@ -5289,3 +5289,184 @@ def test_restore_keeps_runtime_focal_character_and_opening_cast(client, monkeypa
     assert restored.main_character_id == state.main_character_id
     for key in state.opening_cast:
         assert restored.character_locations[key] == restored.location_id
+
+
+
+# ============================================================================
+# Character & world model integration (docs: CHARACTER_WORLD_MODEL_*)
+# ============================================================================
+
+def _recording_client(pe_mod, monkeypatch):
+    sent = []
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Recording(fake_client):
+        async def post(self, *args, **kwargs):
+            sent.append(kwargs.get("json") or {})
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Recording)
+    return sent
+
+
+def _storyteller_calls(sent):
+    return [p for p in sent if "response_format" in p]
+
+
+@pytest.mark.parametrize("gender", ["M", "F"])
+def test_world_model_seeds_from_the_staged_welcome_party(client, gender):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_model.model import PLAYER
+
+    sid = f"wm_seed_{gender}"
+    client.post("/api/chat", json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    model = state.world_model
+    assert model is not None
+    assert set(model.characters) == set(state.cast_lifecycle.active_ids())
+    for cid in model.characters:
+        assert model.characters[cid].get_location(model.world) == state.character_locations[cid]
+    assert model.world.where_is(PLAYER) == state.location_id
+    assert set(state.opening_cast) <= set(model.present_with_player())
+    assert model.home_of_player in ("boys_bedroom", "girls_bedroom")
+    assert all(c.routine.blocks for c in model.characters.values())
+
+
+def test_first_turn_prompt_carries_world_state_speaker_plan_and_narrowed_schema(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_first_turn"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    client.post("/api/chat", json={"session_id": sid, "message": "hey everyone, what is cooking?"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    call = _storyteller_calls(sent)[-1]
+    system, header = call["messages"][0]["content"], call["messages"][-1]["content"]
+    assert "### WORLD STATE" in system and "SPEAKER PLAN" in system
+    assert "Speakers this beat:" in header
+    schema = call["response_format"]["json_schema"]["schema"]
+    enum = schema["properties"]["segments"]["items"]["properties"]["speaker_id"]["enum"]
+    allowed = set(state.world_model.view.allowed_speakers)
+    assert {e for e in enum if e not in ("unknown", None)} <= allowed
+    present = set(state.world_model.present_with_player())
+    heard = [m for m in state.world_model.memories.memories if "what is cooking" in m.text]
+    assert {m.owner for m in heard} == present          # only the people present heard it
+
+
+def test_sleep_resolves_the_night_and_wakes_the_player_at_home(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_model.model import PLAYER
+
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_sleep"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|F|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    before = state.minute
+    client.post("/api/chat", json={"session_id": sid, "message": "I am tired, I go to bed."})
+    state = pe_mod.SESSIONS[sid]["state"]          # the handler publishes a new state object
+    model = state.world_model
+    assert model.world.minute_of_day() == 7 * 60 and state.minute > before
+    assert state.location_id == "girls_bedroom" and model.world.where_is(PLAYER) == "girls_bedroom"
+    assert "[Time skip] The night passes" in _storyteller_calls(sent)[-1]["messages"][-1]["content"]
+    # Wake-up times vary (+/-30 min): late risers may still be asleep at 07:00,
+    # but only ever in their own bedroom.
+    for cid, c in model.characters.items():
+        if c.availability == "asleep":
+            assert model.world.place_of(cid) == c.routine.home
+    for cid in model.characters:
+        assert state.character_locations[cid] == model.world.place_of(cid)
+
+
+def test_a_question_about_bedtime_does_not_put_the_player_to_sleep(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_no_sleep"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    before = state.minute
+    client.post("/api/chat", json={"session_id": sid, "message": "Did you go to bed late last night?"})
+    assert pe_mod.SESSIONS[sid]["state"].minute - before < 60
+
+
+def test_world_model_survives_a_save_round_trip(client, monkeypatch):
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_restore"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    client.post("/api/chat", json={"session_id": sid, "message": "hello there"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    state_json = pe_mod._serialize_state(state, [])
+    assert _json.loads(state_json)["world_model"]["characters"]
+    monkeypatch.setattr("backend.app.db.repos.SessionRepo._get", lambda **kwargs: {
+        "session_id": sid, "user_id": "u_wm", "story_id": "six_strangers",
+        "state_json": state_json, "flags_json": "{}"})
+    restored = pe_mod._try_load_session_from_db(sid, "u_wm")["state"]
+    assert restored.world_model.to_dict() == state.world_model.to_dict()
+
+
+def test_old_saves_without_a_world_model_build_one_on_their_next_turn(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_lazy"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    state.world_model = None
+    client.post("/api/chat", json={"session_id": sid, "message": "hi"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.world_model is not None and state.world_model.turn == 1
+
+
+def test_kill_switch_restores_the_previous_behavior(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.config import settings
+
+    monkeypatch.setattr(settings, "WORLD_MODEL_ENABLED", False)
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_off"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    locations = dict(state.character_locations)
+    client.post("/api/chat", json={"session_id": sid, "message": "I go to bed"})
+    call = _storyteller_calls(sent)[-1]
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.world_model is None
+    assert "### WORLD STATE" not in call["messages"][0]["content"]
+    assert "Speakers this beat" not in call["messages"][-1]["content"]
+    assert "[Time skip]" not in call["messages"][-1]["content"]
+    assert state.character_locations == locations
+
+
+def test_iu_inspection_is_answered_from_authored_evidence_only(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_model.model import PLAYER
+
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_iu_closet"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    client.post("/api/chat", json={"session_id": sid, "message": "I look closely at the closet jamb."})
+    state = pe_mod.SESSIONS[sid]["state"]
+    system = _storyteller_calls(sent)[-1]["messages"][0]["content"]
+    assert "MUST ADDRESS" in system and "scratches beneath the paint" in system
+    assert "older than one night" in system
+    assert state.world_model.memories.search(PLAYER, "closet scratches", k=3)
+    assert "truth_event" not in system
+
+
+def test_iu_suspects_follow_their_routines_and_iu_stays_put(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_iu_routines"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    model = state.world_model
+    assert model.characters["iu"].routine.blocks == []
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:DAY"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    model = state.world_model
+    assert model.world.place_of("iu") == "iu_apartment_room"
+    # Thursday ~09:00: before So-jin's 11:00 studio block, after a night at home.
+    assert model.world.place_of("park_so_jin") == "sojin_home"
+    assert state.character_locations["park_so_jin"] == "sojin_home"
+    # The late-night pressure call happened while the player was away.
+    assert any("lyric page" in m.text for m in model.memories.of("yoo_min_ho"))

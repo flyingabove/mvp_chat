@@ -620,55 +620,6 @@ def _character_basics_section(state: GameState) -> str:
     )
 
 
-def _canonical_section(state: GameState) -> str:
-    facts = _canonical_facts_for_speaker(state)
-    if not facts:
-        return ""
-    return (
-        "\n────────────────────────────────────────\n"
-        "### STORY CANONICAL TRUTHS (SPEAKER-VISIBLE)\n"
-        "────────────────────────────────────────\n"
-        "Only use these as hard world truths. If something is missing, say you don't know.\n\n"
-        + "\n".join(f"- {f}" for f in facts)
-        + "\n"
-    )
-
-
-def _places_graph_section(state: GameState) -> str:
-    runtime = getattr(state, "world_runtime", None)
-    loc_id = getattr(state, "location_id", "") or ""
-    if not runtime or not loc_id:
-        return ""
-    try:
-        wg = getattr(runtime, "world_graph", None)
-        if wg is None:
-            return ""
-        loc = wg.get_location(loc_id)
-        loc_name = getattr(loc, "name", "") or loc_id
-        loc_desc = getattr(loc, "description", "") or ""
-        outgoing = []
-        for edge in wg.get_outgoing(loc_id).to_tuple()[:8]:
-            to_loc = wg.get_location(edge.to_id.value)
-            outgoing.append(f"- {to_loc.name} ({int(edge.minutes)} min)")
-
-        section_lines = [f"Current place: {loc_name}"]
-        if loc_desc:
-            section_lines.append(f"Description: {loc_desc}")
-        if outgoing:
-            section_lines.append("Reachable places:")
-            section_lines.extend(outgoing)
-
-        return (
-            "\n────────────────────────────────────────\n"
-            "### PLACES GRAPH (CANONICAL)\n"
-            "────────────────────────────────────────\n"
-            + "\n".join(section_lines)
-            + "\n"
-        )
-    except Exception:
-        return ""
-
-
 def _transient_buffer_section(state: GameState) -> str:
     return ""
 
@@ -1360,6 +1311,32 @@ def _resident_whereabouts_header(state: GameState) -> str:
     return text + " Elsewhere in the house: " + "; ".join(away) + ". Nobody else lives here."
 
 
+def _world_view(state: GameState):
+    """The current turn's world-model view, or None (disabled / not stepped yet)."""
+    model = getattr(state, "world_model", None)
+    view = getattr(model, "view", None) if model is not None else None
+    if view is None or not (view.cards or view.plan.speakers or view.must_address):
+        return None
+    from backend.app.engine.world_model.turn import enabled
+    return view if enabled(state) else None
+
+
+def _world_model_section(state: GameState) -> str:
+    view = _world_view(state)
+    if view is None:
+        return ""
+    from backend.app.engine.world_model.projection import render_scene_section
+    return render_scene_section(view)
+
+
+def _world_model_header(state: GameState) -> str:
+    view = _world_view(state)
+    if view is None:
+        return ""
+    from backend.app.engine.world_model.projection import render_header
+    return render_header(view)
+
+
 def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
     main_char = getattr(state, "main_character", None)
     main_name = (getattr(main_char, "name", "") or "the main character").strip() or "the main character"
@@ -1719,6 +1696,7 @@ but the character's spoken words must still carry the correction.
     character_identity = _character_identity_section(state)
 
     scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)
+    world_section = _world_model_section(state)
 
     knowledge_stack_section, knowledge_stack_debug = _format_labeled_knowledge_stack(state, knowledge_chunks or [])
 
@@ -1774,6 +1752,7 @@ EXAMPLE (WRONG — do NOT do this):
         + persona_section
         + mode_context
         + scene_brief
+        + world_section
         + knowledge_stack_section
         + relationship_section
         + character_identity
@@ -1876,6 +1855,9 @@ def build_messages(
     whereabouts = _resident_whereabouts_header(state)
     if whereabouts:
         header_parts.append(whereabouts)
+    world_header = _world_model_header(state)
+    if world_header:
+        header_parts.append(world_header)
 
     # OOC detection: message fully wrapped in () or [] means player is speaking
     # directly to the narrator/author — inject directive before other header parts.

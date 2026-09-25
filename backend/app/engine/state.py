@@ -361,6 +361,10 @@ class GameState:
     # ``opening.welcome_party``; see engine/opening_scene.py). Empty when the
     # story authors none.
     opening_cast: List[str] = field(default_factory=list)
+    # Character & world model (engine/world_model/model.py WorldModel): the
+    # world location index, per-character state, memories, threads and
+    # off-screen life. None = disabled or not built yet (built lazily).
+    world_model: Optional[Any] = None
     world_start_datetime: str = ""
     last_travel_from_id: str = ""
     last_travel_to_id: str = ""
