@@ -11,7 +11,7 @@
 - **`BACKLOG.md`** — legacy items BL-01..BL-25 only. No new entries; move an item into `backlog/` when you start working on it.
 - **`ai_learnings_mistakes/`** — process rules and postmortems, not gameplay/architecture design.
 - **`human_north_star_docs/`** — vision only, human-owned.
-- **`auto_update_docs/`** — auto-generated; currently **stale** (last regenerated January, describes a pre-rewrite "Terminal Frontend" and predates auth, world_model, and Jev). Don't hand-edit; regenerate or delete.
+- **`auto_update_docs/`** — deleted 2026-09-26 (was stale since January, described a pre-rewrite "Terminal Frontend", and no generator script exists in the repo to refresh it). Recreate it only if a real doc-generation tool is added.
 - **`research/`**, **`plans_scratch/`** — supporting material, unchanged by this reorg.
 
 A doc's status is either implied by its folder (`reference`/`proposals`/`archive`) or spelled out inline when a single doc is a mix (mostly-done docs kept in `reference/` still note their open items in the table below).
@@ -163,13 +163,6 @@ now defaults off (`67d9c4d`) — not yet reflected in the doc.
 | [NorthStar.md](human_north_star_docs/NorthStar.md) | ...the long-term product vision or user experience goals change. **Vision only, no technical details.** Goals with no design doc or code yet: NPCs that can exploit/betray the player, new-stories/shared-world-history across players. Goals designed but not built: post-milestone loop, hidden quests, clue decay (see the Not Yet Built section above). |
 | [EpistemicStateJennieIntegrationTestExample.md](human_north_star_docs/epistemic_state/EpistemicStateJennieIntegrationTestExample.md) | ...the epistemic state example for Jennie scenario needs updating. |
 
-## Auto-Generated References (Do Not Manually Edit)
-
-| Doc | Edit this doc if... |
-|-----|---------------------|
-| [QUICK_REFERENCE.md](auto_update_docs/QUICK_REFERENCE.md) | ...regenerating documentation snapshots (auto-generated). **Stale (January, pre-rewrite "Terminal Frontend"); regenerate or delete rather than trust as-is.** |
-| [COMPREHENSIVE_DOCUMENTATION.md](auto_update_docs/COMPREHENSIVE_DOCUMENTATION.md) | ...regenerating documentation snapshots (auto-generated). **Same staleness as above.** |
-
 ## Archive / Historical (Read-Only Reference)
 
 | Doc | Purpose |
@@ -182,8 +175,6 @@ now defaults off (`67d9c4d`) — not yet reflected in the doc.
 | [SPEAKER_DIALOGUE_UI.md](archive/SPEAKER_DIALOGUE_UI.md) | Superseded by `frontend/dialogue.js`'s per-speaker portraits and Slow/Normal/Fast speeds — this doc describes an earlier single-bubble design. |
 | [BETA_MANUAL_PLAY_REVIEW_2026_09_25.md](archive/BETA_MANUAL_PLAY_REVIEW_2026_09_25.md) | Dated observational report: 10 Terrace + 12 IU manually chosen turns, logic/engagement grades, evidence for BL-30 through BL-32. Later playtests should be separate dated reports, not edits to this one. |
 | [SOCIAL_V2_HOSTED_PLAY_2026_09_26.md](archive/SOCIAL_V2_HOSTED_PLAY_2026_09_26.md) | Dated hosted-play review of the in-progress social engine v2 build (two 10-turn guest sessions on Terrace). Later social-v2 playtests should be separate dated reports, not edits to this one. |
-| [ARCHIVE_EPISTEMIC_ENGINE_TODO.md](archive/ARCHIVE_EPISTEMIC_ENGINE_TODO.md) | Historical epistemic engine TODO list. Points at paths that no longer exist. |
-| [ARCHIVE_TODO_REGISTER.md](archive/ARCHIVE_TODO_REGISTER.md) | Historical TODO register. Points at paths that no longer exist. |
 | [ARCHIVE_EPISTEMIC_REDESIGN.md](archive/ARCHIVE_EPISTEMIC_REDESIGN.md) | Historical epistemic redesign notes. Its `TurnContract`/forbidden-fact and `MemoryTrigger` ideas were never built and still have no home — read before designing an evidence-lock or unlock-rule system. StoryPackage v2 was abandoned; ignore it. |
 | [ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md](archive/ARCHIVE_AUDIT_NORTH_STAR_GAPS_2026_02_20.md) | Historical audit of NorthStar gaps. Most gaps are still open (see `human_north_star_docs/NorthStar.md` row above) — read the current status there, not this doc's original claims. |
 
