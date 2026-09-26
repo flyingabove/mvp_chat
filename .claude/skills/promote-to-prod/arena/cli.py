@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -182,10 +183,27 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
+# Owner decision 2026-09-25: LLM arena runs are DISABLED by default. Every
+# command that plays games or calls a judge model refuses to start unless
+# ARENA_LLM_ENABLED=1 is set explicitly. No code is removed; release helpers
+# (wait-deploy, smoke) and report rendering stay available.
+LLM_COMMANDS = frozenset({"run", "judge", "calibrate", "all", "local", "precheck", "tiered"})
+ARENA_LLM_FLAG = "ARENA_LLM_ENABLED"
+
+
+def arena_llm_enabled() -> bool:
+    return os.environ.get(ARENA_LLM_FLAG, "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parser().parse_args(argv)
     if args.turns is not None and args.turns < MIN_TURNS:
         raise SystemExit(f"--turns must be at least {MIN_TURNS}: shorter games barely leave the opening scene")
+    if args.command in LLM_COMMANDS and not arena_llm_enabled():
+        raise SystemExit(
+            f"arena '{args.command}' is disabled: LLM arena runs are off by owner decision (2026-09-25). "
+            f"Set {ARENA_LLM_FLAG}=1 to run it deliberately."
+        )
     if args.command in ("local", "precheck"):
         if args.command == "precheck" or "--profile" not in (argv or sys.argv):
             args.profile = "smoke"          # local models are slow; smoke unless asked otherwise
