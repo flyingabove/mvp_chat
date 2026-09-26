@@ -10,7 +10,9 @@ import re
 from typing import TYPE_CHECKING, Optional
 
 from backend.app.engine.world_model.memory import Memory
-from backend.app.engine.world_model.agreements import record_unilateral_promise, resolve as resolve_agreement
+from backend.app.engine.world_model.agreements import (record_unilateral_promise, resolve as resolve_agreement,
+                                                       decide as decide_agreement)
+from backend.app.engine.world_model.drama import register_conflict
 from backend.app.engine.world_model.model import PLAYER
 
 if TYPE_CHECKING:
@@ -101,11 +103,30 @@ def record_commitment(model: "WorldModel", owner: str, counterpart: str, what: s
         return None
     owner, counterpart, what = _flip_request(owner, counterpart, what.strip().rstrip("."))
     mine = _words(what)
+    for agreement in model.agreements.items:
+        if (agreement.status == "accepted" and agreement.decisions.get(owner) == "accepted"
+                and counterpart in agreement.decisions):
+            theirs = _words(agreement.activity)
+            if mine and theirs and len(mine & theirs) / len(mine | theirs) >= DUPLICATE_OVERLAP:
+                return None
     for m in model.memories.of(owner):
         if m.kind == "promise" and m.status == "open" and m.counterpart == counterpart:
             theirs = _words(m.text) - {"i", "promised"}
             if mine and len(mine & theirs) / len(mine | theirs or {""}) >= DUPLICATE_OVERLAP:
                 return None
+    for agreement in model.agreements.items:
+        if (agreement.status == "proposed" and agreement.proposer == counterpart
+                and agreement.counterpart == owner):
+            other_words = _words(agreement.activity)
+            if mine and other_words and len(mine & other_words) / len(mine | other_words) >= DUPLICATE_OVERLAP:
+                decide_agreement(model.agreements, agreement.id, owner, "accepted", minute)
+                own = model.memories.add(owner, f"I agreed with @{counterpart} to {agreement.activity}",
+                                         "promised", minute, kind="promise", due=agreement.due,
+                                         counterpart=counterpart, agreement_id=agreement.id)
+                model.memories.add(counterpart, f"@{owner} agreed to {agreement.activity}",
+                                   f"told_by:{owner}", minute, kind="promise", due=agreement.due,
+                                   counterpart=owner, agreement_id=agreement.id)
+                return own
     own, _ = add_commitment(model, owner, counterpart, what, due_minute(model, when, minute, what), minute)
     return own
 
@@ -117,19 +138,97 @@ def due_commitments(model: "WorldModel", now: int, owner: Optional[str] = None) 
 
 
 def expire_commitments(model: "WorldModel", now: int) -> list[Memory]:
+    for agreement in model.agreements.items:
+        if agreement.status == "proposed" and agreement.due is not None and now >= agreement.due:
+            agreement.status = "expired"
+        if agreement.status == "accepted" and agreement.due is not None and now >= agreement.due + EXPIRE_AFTER_MIN:
+            resolve_agreement(model.agreements, agreement.id, "expired", now)
+            event = model.world.add_event(now, model.world.place_of(agreement.proposer) or "",
+                                          (agreement.proposer, agreement.counterpart),
+                                          f"The agreed activity went unfulfilled: {agreement.activity}",
+                                          kind="agreement_expired",
+                                          operation_id=f"agreement:{agreement.id}:expired",
+                                          payload={"agreement_id": agreement.id})
+            register_conflict(model.drama, (agreement.proposer, agreement.counterpart), event.id,
+                              now, f"@{agreement.proposer} and @{agreement.counterpart} "
+                                   "have an unfulfilled plan to discuss")
     expired = []
     for memory in model.memories.open_promises():
         if memory.due is not None and now >= memory.due + EXPIRE_AFTER_MIN:
-            memory.status = "broken"
-            if memory.agreement_id:
-                agreement = model.agreements.get(memory.agreement_id)
-                if agreement.status == "accepted":
-                    # Passing the grace period without fulfillment is evidence
-                    # for expiry, not proof that anyone deliberately broke it.
-                    resolve_agreement(model.agreements, agreement.id, "expired", now)
+            memory.status = "expired"
             expired.append(memory)
     return expired
 
 
 def resolve_commitment(memory: Memory, kept: bool = True) -> None:
     memory.status = "kept" if kept else "broken"
+
+
+_PERFORMANCE_VERBS = frozenset("cook cooked cooking spend spent save saved make made help helped "
+                               "teach taught finish finished do did walk walked call called show showed "
+                               "start started prepare prepared practice practiced hang hung".split())
+_ACTION_STOP = frozenset("i you your a an the with for to together me my we later tomorrow evening".split())
+
+
+def _action_tokens(text: str) -> set[str]:
+    forms = {"cooked": "cook", "cooking": "cook", "spent": "spend", "saved": "save",
+             "made": "make", "helped": "help", "taught": "teach", "finished": "finish",
+             "did": "do", "walked": "walk", "called": "call", "showed": "show",
+             "started": "start", "prepared": "prepare", "practiced": "practice", "hung": "hang"}
+    return {forms.get(word, word) for word in re.findall(r"[a-z]+", text.lower()) if word not in _ACTION_STOP}
+
+
+def _performed(text: str, activity: str, counterpart_name: str) -> bool:
+    sentence = str(text or "").strip().strip('"“”')
+    if not sentence or "?" in sentence.split(".")[0]:
+        return False
+    match = re.match(r"^I\s+(?:have\s+|just\s+)?([a-z]+)\b", sentence, re.I)
+    if match is None or match.group(1).lower() not in _PERFORMANCE_VERBS:
+        return False
+    if not re.search(rf"\b(?:{re.escape(counterpart_name)}|you)\b", sentence, re.I):
+        return False
+    wanted = _action_tokens(activity)
+    actual = _action_tokens(sentence)
+    shared = wanted & actual
+    return bool(shared) and len(shared) >= min(2, len(wanted))
+
+
+def complete_actions(model: "WorldModel", player_message: str, segments: list[dict]) -> list[str]:
+    """Commit only explicit performance by an accepted participant in scene.
+
+    A statement of future intent or an observer's prediction is never enough.
+    This conservative adapter supports common activities; other activities
+    remain open until a typed action extractor is available.
+    """
+    present = set(model.present_with_player())
+    now = model.world.minute
+    names = model.names()
+    completed: list[str] = []
+    for agreement in model.agreements.items:
+        if agreement.status != "accepted" or agreement.due is None:
+            continue
+        people = {agreement.proposer, agreement.counterpart}
+        if not (people - {PLAYER}) <= present:
+            continue
+        witnesses: list[str] = []
+        if agreement.decisions.get(PLAYER) == "accepted":
+            counterpart = next((p for p in people if p != PLAYER), "")
+            if counterpart and _performed(player_message, agreement.activity, names[counterpart]):
+                witnesses.append(PLAYER)
+        # Dialogue is testimony about an action, not an observation of it.
+        # A typed witnessed-action extractor can add NPC completion later;
+        # accepting "I cooked" here would silently convert a claim to fact.
+        if not witnesses:
+            continue
+        actor = witnesses[0]
+        event = model.world.add_event(now, model.player_place(), tuple(sorted(people)),
+                                      f"@{actor} carried out the agreed activity: {agreement.activity}",
+                                      kind="agreement_completed",
+                                      operation_id=f"agreement:{agreement.id}:completed",
+                                      payload={"agreement_id": agreement.id, "actor": actor})
+        resolve_agreement(model.agreements, agreement.id, "completed", now, event.id)
+        for memory in model.memories.memories:
+            if memory.agreement_id == agreement.id:
+                memory.status = "kept"
+        completed.append(agreement.id)
+    return completed

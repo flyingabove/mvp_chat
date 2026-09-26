@@ -10,6 +10,19 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class Observation:
+    id: str
+    owner: str
+    event_id: str
+    channel: str
+    details: str
+    minute: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return vars(self).copy()
+
+
+@dataclass(frozen=True)
 class Proposition:
     id: str
     text: str
@@ -76,36 +89,52 @@ class Belief:
 
 @dataclass
 class EpistemicLedger:
+    observations: list[Observation] = field(default_factory=list)
     propositions: list[Proposition] = field(default_factory=list)
     assertions: list[Assertion] = field(default_factory=list)
     transmissions: list[Transmission] = field(default_factory=list)
     beliefs: list[Belief] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"propositions": [p.to_dict() for p in self.propositions],
+        return {"observations": [o.to_dict() for o in self.observations],
+                "propositions": [p.to_dict() for p in self.propositions],
                 "assertions": [a.to_dict() for a in self.assertions],
                 "transmissions": [t.to_dict() for t in self.transmissions],
                 "beliefs": [b.to_dict() for b in self.beliefs]}
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "EpistemicLedger":
-        return cls([Proposition(**p) for p in raw.get("propositions") or []],
+        return cls([Observation(**o) for o in raw.get("observations") or []],
+                   [Proposition(**p) for p in raw.get("propositions") or []],
                    [Assertion(**a) for a in raw.get("assertions") or []],
                    [Transmission(**t) for t in raw.get("transmissions") or []],
                    [Belief.from_dict(b) for b in raw.get("beliefs") or []])
 
 
+def observe_event(ledger: EpistemicLedger, owner: str, event_id: str,
+                  channel: str, details: str, minute: int) -> Observation:
+    if not owner or not event_id or channel not in {"heard", "seen", "read", "participant"}:
+        raise ValueError("invalid observation")
+    prior = next((o for o in ledger.observations if o.owner == owner and o.event_id == event_id
+                  and o.channel == channel), None)
+    if prior is not None:
+        if prior.details != details:
+            raise ValueError("observation replay changed perceived details")
+        return prior
+    item = Observation(f"O{len(ledger.observations) + 1}", owner, event_id, channel, details, minute)
+    ledger.observations.append(item)
+    return item
+
+
 def belief_for(ledger: EpistemicLedger, owner: str, proposition_id: str) -> Belief:
     found = next((b for b in ledger.beliefs if b.owner == owner and b.proposition_id == proposition_id), None)
-    if found is not None:
-        return found
-    belief = Belief(owner, proposition_id)
-    ledger.beliefs.append(belief)
-    return belief
+    return found if found is not None else Belief(owner, proposition_id)
 
 
 def _learn(ledger: EpistemicLedger, owner: str, assertion: Assertion) -> None:
     belief = belief_for(ledger, owner, assertion.proposition_id)
+    if belief not in ledger.beliefs:
+        ledger.beliefs.append(belief)
     roots = belief.support_roots if assertion.stance == "affirm" else belief.opposing_roots
     roots.add(assertion.id)
 

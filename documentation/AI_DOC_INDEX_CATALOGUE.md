@@ -47,7 +47,7 @@ planned.
 
 ## Game Design Systems
 
-The proposed next-stage social engine is specified in [SOCIAL_ENGINE_V2_DESIGN.md](model_output_docs/SOCIAL_ENGINE_V2_DESIGN.md): typed actions/events, transactional turns, gossip provenance, character-local beliefs, agreements, NPC intentions, drama selection, migration and release gates. This is a design proposal, not shipped v2 behavior.
+The staged social engine is specified in [SOCIAL_ENGINE_V2_DESIGN.md](model_output_docs/SOCIAL_ENGINE_V2_DESIGN.md): typed actions/events, transactional turns, gossip provenance, character-local beliefs, agreements, NPC intentions, drama selection, migration and release gates. Section 18 distinguishes implemented slices from remaining v2 acceptance work.
 
 The reusable world/location atlas schema, research mapping and routing policy are
 documented in [WORLD_ATLAS_DESIGN.md](model_output_docs/WORLD_ATLAS_DESIGN.md).

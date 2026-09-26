@@ -88,7 +88,7 @@ def test_due_and_expired_commitments():
     assert due_commitments(model, 100) == [own]
     expired = expire_commitments(model, 100 + 12 * 60)
     assert own in expired and {m.owner for m in expired} == {"ann", PLAYER}     # both sides' copies
-    assert all(m.status == "broken" for m in expired)
+    assert all(m.status == "expired" for m in expired)
     assert due_commitments(model, 100 + 12 * 60) == []
 
 

@@ -99,10 +99,23 @@ class World:
 
     # -- events ----------------------------------------------------------------
     def add_event(self, minute: int, place: str, participants: Iterable[str], truth: str,
-                  kind: str = "scene", visibility: str = "private") -> Event:
+                  kind: str = "scene", visibility: str = "private", operation_id: str = "",
+                  payload: Optional[dict[str, Any]] = None, cause_ids: Iterable[str] = ()) -> Event:
         """Commit an immutable event with a monotonic ID (stable across save/replay)."""
+        participants = tuple(participants)
+        cause_ids = tuple(cause_ids)
+        payload = dict(payload or {})
+        if operation_id:
+            prior = next((e for e in self.events if e.operation_id == operation_id), None)
+            if prior is not None:
+                if (prior.minute, prior.place, prior.participants, prior.truth, prior.kind,
+                        prior.visibility, prior.payload, prior.cause_ids) != (
+                        int(minute), place, participants, truth, kind, visibility, payload, cause_ids):
+                    raise ValueError("operation ID reused with different event content")
+                return prior
         event = Event(id=f"E{len(self.events) + 1}", minute=int(minute), place=place,
-                      participants=tuple(participants), truth=truth, kind=kind, visibility=visibility)
+                      participants=participants, truth=truth, kind=kind, visibility=visibility,
+                      operation_id=operation_id, payload=payload, cause_ids=cause_ids)
         self.events.append(event)
         return event
 

@@ -15,5 +15,7 @@ Requires integration with relationship edges, offscreen outcomes, schedules and 
 
 **Initial implementation (2026-09-25):** the optional `mode.romance_goal` prompt identifies active potential partners and rivals from authored genders. In a feasible offscreen mixed-gender encounter, if both the player and the same-gender rival have already shown affection toward the potential partner, the world resolver increases the odds of a durable plan/affection event; its normal time, place, availability, memory, relationship and seeded draw paths remain in force. The remaining work is proactive on-screen rivalry, candidate-specific aims, feedback the player can act on, and measurement across many rosters.
 
+**Further implementation (2026-09-26):** Interested, co-present same-gender rivals can now propose a competing invitation at most once per day. It remains a proposal until the target accepts, and the plan persists in the agreement book. Remaining: broader independent aims, target preference and refusal policies, offscreen plans with the same decision contract, cast-rotation tests and roster-scale measurement.
+
 ## Touches
 Terrace story data, `backend/app/engine/world_model/offscreen.py`, `threads.py`, relationship graph, prompt projection and tests.

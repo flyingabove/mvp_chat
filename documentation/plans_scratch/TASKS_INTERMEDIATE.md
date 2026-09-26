@@ -10,6 +10,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 - [ ] Implement epistemic gossip provenance, agreements, NPC intentions, drama pacing and validated endings with tests.
 - [ ] Run full regression suite, integrate beta, deploy, then personally play Terrace and IU on hosted beta and record findings.
 
+Progress: the first cross-phase runtime slice has event identity and causes, observed speech, gossip roots, canonical agreements, rival invitations, conflict focus, explicit relationship/departure decisions and a terminal cast transition. The full acceptance contract remains open. Deterministic tests and local desktop Chromium, iPhone WebKit and standalone WebKit feature checks pass. Next: hosted campaigns, then repair live failures and finish the remaining architecture and scale gates.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.

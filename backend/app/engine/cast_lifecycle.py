@@ -398,6 +398,29 @@ class CastLifecycleState:
         member.departure_reason = str(reason or "")
         return self._record("depart", minute, member.slot_group, departing_id=character_id, reason=reason)
 
+    def depart_for_ending(self, character_id: str, *, minute: int, event_id: str,
+                          reason: str = "story ending") -> CastTransition:
+        """Commit a terminal departure without recruiting a replacement.
+
+        This operation is reserved for an already validated game ending. The
+        ordinary `depart` and `replace` policies still govern ongoing play.
+        """
+        event_id = str(event_id or "").strip()
+        if not event_id or not self.enabled:
+            raise ValueError("terminal departure requires an enabled lifecycle and event ID")
+        prior = next((item for item in self.history if item.event_id == event_id), None)
+        if prior is not None:
+            return prior
+        minute = _non_negative_int(minute, "terminal departure minute")
+        member = self._require_member(character_id)
+        if member.status is not CastStatus.ACTIVE:
+            raise ValueError(f"terminal departure requires an active member: {character_id!r}")
+        member.status = CastStatus.DEPARTED
+        member.departed_minute = minute
+        member.departure_reason = reason
+        return self._record("terminal_depart", minute, member.slot_group,
+                            departing_id=character_id, reason=reason, event_id=event_id)
+
     def replace(
         self,
         departing_id: str,

@@ -215,6 +215,10 @@ def win_condition_detected(text: str, state) -> bool:
 
     cfg = getattr(state, "story_cfg", {}) or {}
 
+    if ((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"):
+        model = getattr(state, "world_model", None)
+        return bool(model is not None and getattr(model, "romance_outcome", "") == "mutual_departure")
+
     patterns = (cfg.get("win_detection") or {}).get("regex") or []
     if not patterns:
         return False

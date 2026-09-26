@@ -1330,6 +1330,24 @@ def test_different_request_id_still_processes_normally(client):
     )
 
 
+def test_turn_without_request_id_invalidates_older_retry_token(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "dedup_no_id_followup"
+    headers = {"X-Guest-Id": "44444444-5555-4666-8777-888888888888"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    assert client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                      "request_id": "old-request"}, headers=headers).status_code == 200
+    assert client.post("/api/chat", json={"session_id": sid, "message": "new topic"},
+                       headers=headers).status_code == 200
+    before = pe_mod.SESSIONS[sid]["state"].turns
+    response = client.post("/api/chat", json={"session_id": sid, "message": "different turn",
+                           "request_id": "old-request"}, headers=headers)
+    assert response.status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].turns == before + 1
+
+
 def test_anon_session_skips_dedup_check(client):
     """Anon sessions never persist to SQLite (existing `user_id != "anon"`
     guard at the save point), so they have no durable identity to dedup
@@ -1618,6 +1636,8 @@ def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, m
 
     async def _capture_save(*args, **kwargs):
         captured["state_json"] = kwargs.get("state_json")
+        captured["last_request_id"] = kwargs.get("last_request_id")
+        captured["last_reply_json"] = kwargs.get("last_reply_json")
         return await orig_create(*args, **kwargs)
 
     monkeypatch.setattr(pe_mod.SessionRepo, "create_or_update_session", _capture_save)
@@ -1633,7 +1653,7 @@ def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, m
 
     r2 = client.post(
         "/api/chat",
-        json={"session_id": sid, "message": "hello there"},
+        json={"session_id": sid, "message": "hello there", "request_id": "req-atomic-1"},
         headers=guest_headers,
     )
     assert r2.status_code == 200
@@ -1644,6 +1664,8 @@ def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, m
     assert saved["last_turn_user_msg"] == state.last_turn_user_msg == "hello there"
     assert saved["last_turn_assistant_reply"] == state.last_turn_assistant_reply
     assert saved["over"] == state.over
+    assert captured["last_request_id"] == "req-atomic-1"
+    assert _json.loads(captured["last_reply_json"]) == r2.json()
 
 
 def test_beliefs_and_observation_log_round_trip_through_restore(client):

@@ -13,5 +13,7 @@ Represent proposed, accepted, declined, kept and broken plans, with participants
 ## Why deferred / cautions
 The engine already records some extracted commitments; this item targets the remaining user-visible contract and knowledge provenance. Do not infer broken memory solely from a missed answer in one reply. Keep privacy mechanics consistent with BL-27.
 
+**Further implementation (2026-09-26):** Canonical agreement proposal, decision, due, completion and expiry records now back legacy promise memories. Due scenes alone do not complete a plan; NPC dialogue about an action remains testimony. Missed accepted plans emit an expiry consequence. Speech observations and gossip transmissions retain their hearing/source path. Remaining: typed witnessed NPC actions, per-participant attendance and breach evidence, schedule/travel validation, privacy movement and full same-turn invitation extraction.
+
 ## Touches
 `backend/app/engine/world_model/commitments.py`, `memory.py`, `turn.py`, prompt projection, extractor and tests.

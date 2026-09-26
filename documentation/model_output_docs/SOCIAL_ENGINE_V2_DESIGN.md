@@ -1,6 +1,6 @@
 # Social engine v2: causality, knowledge, and consequential relationships
 
-Status: engineering proposal, 2026-09-26. This document specifies future work; it does not describe a shipped v2. Scope: a reusable engine for Terrace and other social stories, with epistemic infrastructure reusable by IU. No four-week deadline is enabled by this proposal.
+Status: engineering target with an initial implementation in progress, 2026-09-26. Section 18 records implemented slices and remaining acceptance gaps. Scope: a reusable engine for Terrace and other social stories, with epistemic infrastructure reusable by IU. No four-week deadline is enabled by this proposal.
 
 ## 1. Architectural decision
 
@@ -276,4 +276,12 @@ Run synthetic 6/30/100-character scale fixtures after each phase that changes pl
 
 Each phase completion entry appended below must contain: status (planned/in progress/blocked/complete), implementation commits, exact enabled scope, deterministic/integration scenario IDs and results, hosted SHA and artifact references, migration/rollback result, performance comparison, remaining backlog items, and the next permitted phase. A checked box without evidence is not a completion record. For a rollback, re-run the compatible-session routing scenario and preserve committed outcomes rather than loading newer saves into an older writer.
 
-**Current status:** Phases 1–5 are planned. The next implementation task is Phase 1's movement/speech transaction slice and reusable scenario harness, followed by expansion to existing consequential writers. This document update itself implements no runtime phase.
+**Current status:** A cross-phase implementation is in progress. The initial implementation covers event IDs and cause links, durable request/reply persistence, observed speech and gossip provenance, canonical agreements, rival invitations, conflict focus, and explicit relationship/departure decisions. The entire acceptance campaign above has not passed; the numbered phases are not marked complete.
+
+## 18. Cross-phase implementation record, 2026-09-26
+
+The current change set adds an idempotent event adapter, a versioned world-model snapshot, and an epistemic ledger with observations, assertions, transmissions, and root sources. Gossip can retain the original source across relays, and a second independent account can remain distinct. Protected confessional content and unheard remote speech are excluded from ordinary housemate memory. The session save stores state and the exact reply under the same request ID; a retry can return that reply. This is a useful compatibility bridge, not a full event-replayed transaction: world operations still have multiple mutation paths, the JSONL side log is separate, and cross-worker optimistic concurrency is not implemented.
+
+Plans now have canonical proposal/decision/status records while legacy promise memories act as projections. Due scenes do not automatically fulfill agreements; accepted plans can expire, and completed actions require direct player performance. NPC testimony alone is insufficient. Rival invitations and a conflict focus are bounded and deterministic. The romance path records independently stated relationship and departure choices, validates the eligible present cast, supports withdrawal and solo departure, and bases victory on saved state. A successful ending removes the couple from the world and records a terminal cast departure for the partner without recruiting a replacement after the game ends. These literal speech adapters do not yet cover all natural paraphrases or a fully typed action/consent protocol.
+
+The remaining mandatory acceptance work includes one canonical reducer for all consequential writes, same-turn scene validation before presentation, revision-checked commit/replay across workers, source reliability and contradictory belief support, delivery/read gating for all channels, detailed obligation attendance, complete NPC intention and activity libraries, stronger dramatic cooldown/arc logic, IU evidence-ledger integration, time-skip interruption, 6/30/100-character scale runs, and the three hosted campaigns in Section 17. Keep BL-33 through BL-38 open until their own acceptance criteria pass. Test and hosted evidence for this change set should be appended here after verification rather than presumed from unit tests.

@@ -105,6 +105,18 @@ def test_full_house_disallows_departure_without_atomic_replacement():
     assert state.to_dict() == before
 
 
+def test_validated_story_ending_departs_without_replacement_and_replays_once():
+    state = _state()
+    state.require_replacement = True
+    transition = state.depart_for_ending("w", minute=42, event_id="romance-ending:w")
+    assert transition.event_type == "terminal_depart"
+    assert state.members["w"].status is CastStatus.DEPARTED
+    assert not state.is_scene_eligible("w")
+    assert state.depart_for_ending("w", minute=99, event_id="romance-ending:w") is transition
+    restored = CastLifecycleState.from_dict(state.to_dict())
+    assert restored.members["w"].status is CastStatus.DEPARTED
+
+
 def test_propose_departure_does_not_change_status():
     """The audit's 'a decision to leave next week is not immediate removal':
     proposing a departure must leave the member ACTIVE and scene-eligible."""

@@ -1059,6 +1059,20 @@ def _mode_context_section(state) -> str:
             "and a freely chosen decision by both people to leave the house together. "
             "A date, a friendly answer, or the player's wish alone does not complete this objective."
         )
+        current_model = getattr(state, "world_model", None)
+        relationship_partner = str(getattr(current_model, "romance_relationship_partner", "") or "")
+        if relationship_partner in active and relationship_partner in characters:
+            desc_bits.append(
+                f"The player and {characters[relationship_partner].name} have mutually chosen a romantic "
+                "relationship. A joint departure still requires each of them to decide for themselves."
+            )
+        else:
+            desc_bits.append("No mutual romantic relationship has been established in engine state yet.")
+        desc_bits.append(
+            "If a resident freely accepts a relationship or a joint departure, let them say their own "
+            "decision directly in first person. If they hesitate or refuse, make that clear. "
+            "Do not report that anyone left before the player and that resident have both decided."
+        )
         desc_bits.append(
             "Active potential partners: " + (", ".join(partners) or "none currently eligible")
             + ". Same-gender potential rivals: " + (", ".join(rivals) or "none currently active")

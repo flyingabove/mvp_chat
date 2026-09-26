@@ -15,5 +15,7 @@ Work can ship in stages, but a prose-only goal is not a completed mechanic. The 
 
 **Initial implementation (2026-09-25):** Terrace now displays the goal on its story card and public story brief, sets `mode.open_ended=false`, and renders only active gender-eligible partners/rivals in storyteller context. No regex win detector was added. The remaining work is relationship choice/state, independent acceptance, player and partner departure, alternate endings, and hosted proof of those endings.
 
+**Further implementation (2026-09-26):** An opted-in engine path now records explicit reciprocal relationship and departure decisions in the saved world model; it checks gender, active cast and current presence, permits withdrawal, and supports a solo ending. Victory reads the validated outcome state; terminal departure removes both people from the world and records the partner in cast history. Remaining: natural-language decision coverage, explicit refusal and coercion cases, reload/long-skip scenarios, and hosted proof for both player genders.
+
 ## Touches
 `backend/app/stories/7_six_strangers/six_strangers_story.json`, `backend/app/engine/`, `backend/app/api/prompt_engine.py`, public story/brief routes, tests and UI as needed.

@@ -15,12 +15,17 @@ from typing import Any, Callable, Iterable, Optional
 
 from backend.app.engine.world_model import bootstrap
 from backend.app.engine.world_model.commitments import (due_commitments, expire_commitments, record_commitment,
-                                                         resolve_commitment)
+                                                         complete_actions)
 from backend.app.engine.world_model.contact import deliver, queue_contacts
 from backend.app.engine.world_model.evidence import find_inspect_target, inspect
 from backend.app.engine.world_model.memory import render
 from backend.app.engine.world_model.model import PLAYER, TurnView, WorldModel
 from backend.app.engine.world_model.offscreen import resolve_offscreen
+from backend.app.engine.world_model.intentions import propose_rival_invitations
+from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
+                                                    record_solo_departure)
+from backend.app.engine.world_model.epistemics import observe_event
+from backend.app.engine.world_model.drama import choose_conflict, record_repair_dialogue
 from backend.app.engine.world_model.projection import classify_ending, ending_hint
 from backend.app.engine.world_model.speakers import addressed_ids, select_speakers
 from backend.app.engine.world_model.stepper import step_world
@@ -160,13 +165,29 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         model.player_availability = "awake"
     model.world.minute = now
     mirror_locations(model, state)
+    if message.strip() and not sleeping and not PRIVATE_ASIDE.fullmatch(message):
+        present = model.present_with_player()
+        event = model.world.add_event(now, model.player_place(), (PLAYER, *present),
+                                      f"@{PLAYER} said: {message.strip()[:300]}", kind="utterance",
+                                      operation_id=f"utterance:{model.turn}:player" if model.turn else "",
+                                      payload={"speaker": PLAYER, "text": message.strip()[:300]})
+        observe_event(model.epistemics, PLAYER, event.id, "participant", event.truth, now)
+        for cid in present:
+            observe_event(model.epistemics, cid, event.id, "heard", event.truth, now)
+            model.memories.add(cid, event.truth, f"told_by:{PLAYER}", now,
+                               kind="dialogue", event_id=event.id)
+    propose_rival_invitations(model, rivalry_context(state),
+                              GraphRelationships(getattr(state, "character_graph", None)), now)
+    conflict_focus = choose_conflict(model.drama, set(model.present_with_player()), model.world.day_index(now))
     # A sleeping player saw nothing of the night: no "came in / left" beats.
-    view = _build_view(model, state, message, None if sleeping else step, place_names)
+    view = _build_view(model, state, message, None if sleeping else step, place_names,
+                       None if sleeping else conflict_focus)
     model.view = view
     return view
 
 
-def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_names: dict[str, str]) -> TurnView:
+def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_names: dict[str, str],
+                conflict_focus: Any = None) -> TurnView:
     names = model.names()
     view = TurnView(names=names)
     here = model.player_place()
@@ -174,6 +195,11 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     asleep_here = [c for c in model.present_with_player(include_asleep=True) if c not in present]
     view.present = present
     view.time_text = model.world.datetime_at().strftime("%A %H:%M")
+    if conflict_focus is not None:
+        view.must_address.append("There is a visible tension in this scene: "
+                                 + render(conflict_focus.surface, names)
+                                 + ". Let the people involved respond if the player engages; "
+                                   "do not reveal an unseen cause as fact.")
     for cid in present:
         c = model.characters[cid]
         activity = c.activity or "here"
@@ -222,10 +248,6 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         elif promise.owner == PLAYER and promise.counterpart in present_set:
             view.must_address.append(f"The player promised {names[promise.counterpart]}: {render(promise.text, names)}. "
                                      f"{names[promise.counterpart]} may remind them.")
-    if message.strip() and not PRIVATE_ASIDE.fullmatch(message):
-        for cid in present:
-            model.memories.add(cid, f"@{PLAYER} said: {message.strip()[:300]}", f"told_by:{PLAYER}", now,
-                               kind="dialogue")
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
     view.plan = select_speakers(model, candidates, message, warmth_fn(state))
     _, mentioned = addressed_ids(model, message, list(model.characters))
@@ -251,7 +273,7 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
         return
     now = model.world.minute
     present = set(model.present_with_player())
-    for seg in segments or []:
+    for index, seg in enumerate(segments or []):
         speaker = seg.get("speaker_id")
         if seg.get("kind") != "dialogue" or speaker not in model.characters:
             continue
@@ -262,8 +284,37 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
         # A remote call is heard by its participants, not every resident
         # standing next to the player's phone.
         listeners = present | {speaker} if speaker in present else {speaker}
+        listeners.add(PLAYER)
+        event = model.world.add_event(now, model.world.place_of(speaker) or "",
+                                      tuple(sorted(listeners)), f"@{speaker} said: {text[:240]}",
+                                      kind="utterance", visibility="private",
+                                      operation_id=f"utterance:{model.turn}:{index}:{speaker}" if model.turn else "",
+                                      payload={"speaker": speaker, "text": text[:240]})
         for cid in listeners:
-            model.memories.add(cid, f"@{speaker} said: {text[:240]}", "witnessed", now, kind="dialogue")
+            observe_event(model.epistemics, cid, event.id, "participant" if cid == speaker else "heard",
+                          event.truth, now)
+            if cid != PLAYER:
+                model.memories.add(cid, event.truth, "witnessed", now, kind="dialogue", event_id=event.id)
+    prior_relationship_partner = model.romance_relationship_partner
+    record_relationship_decisions(state, message, segments)
+    record_departure_decisions(state, message, segments, prior_relationship_partner)
+    record_solo_departure(state, message)
+    completed = complete_actions(model, message, segments)
+    repaired = record_repair_dialogue(model, message, segments)
+    relationships = GraphRelationships(getattr(state, "character_graph", None))
+    for agreement_id in completed:
+        agreement = model.agreements.get(agreement_id)
+        event = next((e for e in model.world.events if e.id == agreement.outcome_event_id), None)
+        if event is not None:
+            actor = str(event.payload.get("actor") or "")
+            other = agreement.counterpart if actor == agreement.proposer else agreement.proposer
+            relationships.adjust(other, actor, trust_delta=0.05,
+                                 narrative=f"Kept agreement {agreement_id}: {agreement.activity}")
+    for thread_id in repaired:
+        thread = model.drama.get(thread_id)
+        a, b = thread.participants[:2]
+        relationships.adjust(a, b, trust_delta=0.03, narrative=f"Reconciled after {thread.cause_event_id}")
+        relationships.adjust(b, a, trust_delta=0.03, narrative=f"Reconciled after {thread.cause_event_id}")
     last = next((s for s in reversed(segments or []) if str(s.get("text") or "").strip()), None)
     if last is not None:
         model.endings = (model.endings + [classify_ending(str(last.get("text")))])[-6:]

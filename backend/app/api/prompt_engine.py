@@ -8,7 +8,7 @@ from backend.app.engine.extractors.turn_extractor import (
     TurnKnowledgeResolution,
 )
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
 from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 
@@ -3489,7 +3489,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     except Exception:
         pass
 
-    if win_condition_detected(clean, state):
+    if getattr(getattr(state, "world_model", None), "romance_outcome", "") == "solo_departure":
+        state.over = True
+        clean += f"\n\nEND GAME -- You chose to leave the house alone. Turns: {state.turns}"
+    elif win_condition_detected(clean, state):
         state.over = True
         clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
 
@@ -3499,6 +3502,64 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     state.last_turn_user_msg = msg
     state.last_turn_assistant_reply = clean
     state.last_turn_retrieved_chunks = [dict(c) for c in (retrieved or [])]
+
+    _log({
+        "kind": "chat_response",
+        "req_id": req_id,
+        "session_id": session_id,
+        "latency_ms": int((time.time() - t0) * 1000),
+        "usage": data.get("usage", {}),
+        "assistant_reply_preview": _truncate(clean, 1200),
+    })
+
+    # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
+    ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
+
+    # Start with clean reply (no timestamp prefix).
+    reply = clean
+
+    # Build debug_box as structured data for frontend rendering (never added to LLM context).
+    debug_box = None
+    if bool(sess.get("debug_mode", False)):
+        user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
+        speakers = _debug_speakers(state)
+
+        raw_entries = getattr(state, "transient_entries", []) or []
+        debug_box = {
+            "timestamp": ts,
+            "location": user_loc,
+            "location_uuid": getattr(state, "location_uuid", ""),
+            "speakers": speakers if speakers else None,
+            "people_present": _debug_people_present(state) or None,
+            "transient_count": len(raw_entries),
+            "transient_entries": [
+                {"text": e.text, "turns_remaining": e.turns_remaining}
+                for e in raw_entries
+            ],
+        }
+
+    # Apply Chinese translation if chinese_mode is enabled
+    if bool(sess.get("chinese_mode", False)):
+        reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
+
+    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
+    # prompt_debug carries the FULL assembled system prompt (all canonical
+    # facts, character secrets, retrieval chunk text) and is only for the
+    # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
+    # which authenticates its own internal /api/chat calls with the same
+    # operator token). It must never reach an ordinary player: unlike the
+    # `debug_mode` toggle below, which is a harmless player-facing "[D]"
+    # bracket command, is_operator_request() checks the real trust boundary
+    # (DEBUG_TOOLS_ENABLED + a matching X-Operator-Token/operator_token),
+    # so typing "[D]" alone cannot unlock it.
+    if is_operator_request(request):
+        result["prompt_debug"] = prompt_debug
+    if knowledge_resolution_updates:
+        result["knowledge_resolution_updates"] = knowledge_resolution_updates
+    if debug_box is not None:
+        if knowledge_resolution_updates:
+            debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
+        result["debug_box"] = debug_box
 
     # Persist state + raw log after every turn (authenticated users only).
     # All in-memory mutations for this turn (including `over` and
@@ -3527,6 +3588,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     }),
                     last_message=clean[:120],
                     turns=state.turns,
+                    last_request_id=client_request_id or "",
+                    last_reply_json=json.dumps(result) if client_request_id else "",
                 )
                 await ConversationRepo.append_turns(
                     user_id=user_id,
@@ -3538,8 +3601,23 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     ai_msg_id=ai_msg_id,
                     segments=segments,
                 )
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
+            raise HTTPException(status_code=503, detail="Your turn could not be saved. Please try again.") from exc
+
+    # Include the completed save in the per-stage ledger.
+    _log(stage_timer.as_ledger({
+        "kind": "turn_stage_ledger",
+        "req_id": req_id,
+        "session_id": session_id,
+        "user_id": user_id,
+        "story": state.story or "",
+        "turn": state.turns,
+        "model": STORY_MASTER_MODEL,
+        "prompt_tokens": (data.get("usage") or {}).get("prompt_tokens"),
+        "completion_tokens": (data.get("usage") or {}).get("completion_tokens"),
+        "cached_tokens": ((data.get("usage") or {}).get("prompt_tokens_details") or {}).get("cached_tokens"),
+    }))
 
     # Fire background fact extraction (non-blocking).
     # Extracted facts are stored in state.session_chunk_store with IDs:
@@ -3640,80 +3718,6 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             except Exception:
                 pass
 
-    _log({
-        "kind": "chat_response",
-        "req_id": req_id,
-        "session_id": session_id,
-        "latency_ms": int((time.time() - t0) * 1000),
-        "usage": data.get("usage", {}),
-        "assistant_reply_preview": _truncate(clean, 1200),
-    })
-
-    # Phase 0B: per-stage timing/cost ledger for this turn. Separate log line
-    # (kind=turn_stage_ledger) rather than folded into chat_response above, so
-    # a ledger-only query/dashboard doesn't have to also parse reply previews.
-    _log(stage_timer.as_ledger({
-        "kind": "turn_stage_ledger",
-        "req_id": req_id,
-        "session_id": session_id,
-        "user_id": user_id,
-        "story": state.story or "",
-        "turn": state.turns,
-        "model": STORY_MASTER_MODEL,
-        "prompt_tokens": (data.get("usage") or {}).get("prompt_tokens"),
-        "completion_tokens": (data.get("usage") or {}).get("completion_tokens"),
-        "cached_tokens": ((data.get("usage") or {}).get("prompt_tokens_details") or {}).get("cached_tokens"),
-    }))
-
-    # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
-    ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
-
-    # Start with clean reply (no timestamp prefix).
-    reply = clean
-
-    # Build debug_box as structured data for frontend rendering (never added to LLM context).
-    debug_box = None
-    if bool(sess.get("debug_mode", False)):
-        user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
-        speakers = _debug_speakers(state)
-
-        raw_entries = getattr(state, "transient_entries", []) or []
-        debug_box = {
-            "timestamp": ts,
-            "location": user_loc,
-            "location_uuid": getattr(state, "location_uuid", ""),
-            "speakers": speakers if speakers else None,
-            "people_present": _debug_people_present(state) or None,
-            "transient_count": len(raw_entries),
-            "transient_entries": [
-                {"text": e.text, "turns_remaining": e.turns_remaining}
-                for e in raw_entries
-            ],
-        }
-
-    # Apply Chinese translation if chinese_mode is enabled
-    if bool(sess.get("chinese_mode", False)):
-        reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
-
-    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
-    # prompt_debug carries the FULL assembled system prompt (all canonical
-    # facts, character secrets, retrieval chunk text) and is only for the
-    # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
-    # which authenticates its own internal /api/chat calls with the same
-    # operator token). It must never reach an ordinary player: unlike the
-    # `debug_mode` toggle below, which is a harmless player-facing "[D]"
-    # bracket command, is_operator_request() checks the real trust boundary
-    # (DEBUG_TOOLS_ENABLED + a matching X-Operator-Token/operator_token),
-    # so typing "[D]" alone cannot unlock it.
-    if is_operator_request(request):
-        result["prompt_debug"] = prompt_debug
-    if knowledge_resolution_updates:
-        result["knowledge_resolution_updates"] = knowledge_resolution_updates
-    if debug_box is not None:
-        if knowledge_resolution_updates:
-            debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
-        result["debug_box"] = debug_box
-
     # Phase 1.1: publish the working clone back to the live session cache.
     # This is the ONE place `SESSIONS[session_id]` is updated for a regular
     # turn — every mutation since the clone point above happened on
@@ -3726,17 +3730,5 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # token alone).
     sess["state"] = state
     sess["log"] = log
-
-    # BL-02: record this turn's dedup token now that `result` (the exact
-    # client-facing reply) is fully built, so a retry with the same
-    # request_id can replay it verbatim instead of reprocessing. A separate
-    # lightweight UPDATE rather than folding into the main session save
-    # above, so the existing atomic-turn-save ordering (over/last_turn_*
-    # must precede that save - see BL-01) is untouched.
-    if client_request_id and user_id != "anon":
-        try:
-            await SessionRepo.update_last_request(session_id, user_id, client_request_id, json.dumps(result))
-        except Exception:
-            logger.exception("Failed to persist request-id dedup token for session %s", session_id)
 
     return result

@@ -9,13 +9,14 @@ from typing import Any, Iterable, Optional
 from backend.app.engine.world_model.character import CharacterState
 from backend.app.engine.world_model.agreements import AgreementBook
 from backend.app.engine.world_model.epistemics import EpistemicLedger
+from backend.app.engine.world_model.drama import DramaBook
 from backend.app.engine.world_model.memory import MemoryStore
 from backend.app.engine.world_model.threads import Thread
 from backend.app.engine.world_model.world import World
 
 PLAYER = "player"
 TRACE_LIFETIME_MIN = 36 * 60
-VERSION = 1
+VERSION = 2
 
 
 @dataclass
@@ -100,6 +101,7 @@ class WorldModel:
     memories: MemoryStore = field(default_factory=MemoryStore)
     agreements: AgreementBook = field(default_factory=AgreementBook)
     epistemics: EpistemicLedger = field(default_factory=EpistemicLedger)
+    drama: DramaBook = field(default_factory=DramaBook)
     threads: list[Thread] = field(default_factory=list)
     contacts: list[ContactMessage] = field(default_factory=list)
     traces: list[Trace] = field(default_factory=list)
@@ -110,6 +112,13 @@ class WorldModel:
     player_name: str = "the player"
     known_names: list[str] = field(default_factory=list)   # character IDs whose names the player has learned
     home_of_player: str = ""
+    initiative_last_day: dict[str, int] = field(default_factory=dict)
+    romance_player_choice: str = ""
+    romance_npc_choice: str = ""
+    romance_outcome: str = ""
+    romance_relationship_player_choice: str = ""
+    romance_relationship_npc_choice: str = ""
+    romance_relationship_partner: str = ""
     view: TurnView = field(default_factory=TurnView)       # transient
 
     # -- queries -----------------------------------------------------------------
@@ -150,20 +159,31 @@ class WorldModel:
         return {"version": VERSION, "world": self.world.to_dict(),
                 "characters": {cid: c.to_dict() for cid, c in self.characters.items()},
                 "memories": self.memories.to_dict(), "agreements": self.agreements.to_dict(),
-                "epistemics": self.epistemics.to_dict(),
+                "epistemics": self.epistemics.to_dict(), "drama": self.drama.to_dict(),
                 "threads": [t.to_dict() for t in self.threads],
                 "contacts": [c.to_dict() for c in self.contacts], "traces": [t.to_dict() for t in self.traces],
                 "seed": self.seed, "turn": self.turn, "endings": list(self.endings),
                 "player_availability": self.player_availability, "player_name": self.player_name,
-                "known_names": list(self.known_names), "home_of_player": self.home_of_player}
+                "known_names": list(self.known_names), "home_of_player": self.home_of_player,
+                "initiative_last_day": dict(self.initiative_last_day),
+                "romance_player_choice": self.romance_player_choice,
+                "romance_npc_choice": self.romance_npc_choice,
+                "romance_outcome": self.romance_outcome,
+                "romance_relationship_player_choice": self.romance_relationship_player_choice,
+                "romance_relationship_npc_choice": self.romance_relationship_npc_choice,
+                "romance_relationship_partner": self.romance_relationship_partner}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
+        version = int(data.get("version") or 1)
+        if version > VERSION or version < 1:
+            raise ValueError(f"unsupported world model version {version}")
         return cls(world=World.from_dict(data.get("world") or {}),
                    characters={cid: CharacterState.from_dict(c) for cid, c in (data.get("characters") or {}).items()},
                    memories=MemoryStore.from_dict(data.get("memories") or {}),
                    agreements=AgreementBook.from_dict(data.get("agreements") or {}),
                    epistemics=EpistemicLedger.from_dict(data.get("epistemics") or {}),
+                   drama=DramaBook.from_dict(data.get("drama") or {}),
                    threads=[Thread.from_dict(t) for t in data.get("threads") or []],
                    contacts=[ContactMessage.from_dict(c) for c in data.get("contacts") or []],
                    traces=[Trace.from_dict(t) for t in data.get("traces") or []],
@@ -172,4 +192,12 @@ class WorldModel:
                    player_availability=str(data.get("player_availability") or "awake"),
                    player_name=str(data.get("player_name") or "the player"),
                    known_names=list(data.get("known_names") or []),
-                   home_of_player=str(data.get("home_of_player") or ""))
+                   home_of_player=str(data.get("home_of_player") or ""),
+                   initiative_last_day={str(k): int(v) for k, v in
+                                        (data.get("initiative_last_day") or {}).items()},
+                   romance_player_choice=str(data.get("romance_player_choice") or ""),
+                   romance_npc_choice=str(data.get("romance_npc_choice") or ""),
+                   romance_outcome=str(data.get("romance_outcome") or ""),
+                   romance_relationship_player_choice=str(data.get("romance_relationship_player_choice") or ""),
+                   romance_relationship_npc_choice=str(data.get("romance_relationship_npc_choice") or ""),
+                   romance_relationship_partner=str(data.get("romance_relationship_partner") or ""))
