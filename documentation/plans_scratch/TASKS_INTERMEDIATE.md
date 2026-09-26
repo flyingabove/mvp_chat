@@ -32,6 +32,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Consumed History
 
+- 2026-09-26: Expanded SOCIAL_ENGINE_V2_DESIGN.md with ordered implementation phases, concrete scenario IDs and expected state/knowledge outcomes, hosted acceptance requirements, dependency handoffs, cross-phase campaigns and evidence-based completion records. Documentation-only change; no runtime phase is marked implemented. Checked document structure/whitespace before shipping to beta.
+
 - 2026-09-26: Completed the user-requested social-engine engineering sketch in `SOCIAL_ENGINE_V2_DESIGN.md`, grounded in the current world-model, gossip, promise and extraction code. Specified typed events, atomic response/state commits, observation/assertion/transmission provenance, bounded NPC planning, agreements, drama pacing, migration and mechanical/engagement gates. Indexed it and added BL-38 for cross-cutting authority/epistemic work; existing feature backlogs remain open. Documentation-only scope; validation is document links, whitespace and remote-file verification, not runtime deployment testing.
 
 - 2026-09-25: Personally played 10 Terrace turns on hosted beta `09633b6` and 12 IU turns on `67d9c4d` via the simulator's live chat API. Captured all 26 setup/gameplay responses, public debug, segments, latency and build metadata in a local evidence bundle outside git. Browser simulator was stuck Connecting with an initialization TypeError; protected system prompts were unavailable. Added a dated review with per-turn logic/engagement grades, BL-30 clock divergence, BL-31 missing speaker/presence identity and BL-32 simulator failure; appended live evidence to BL-29. Documentation only; no runtime fix or production deployment claimed.

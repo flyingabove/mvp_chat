@@ -142,3 +142,138 @@ Engagement evaluation uses blinded equal-length comparisons plus human review: m
 ## 10. Backlog mapping
 
 Existing [BL-30](../backlog/BL-30-live-narrative-clock-divergence.md), [BL-31](../backlog/BL-31-named-npcs-unknown-speaker-empty-presence.md), [BL-33](../backlog/BL-33-terrace-relationship-goal-and-ending.md), [BL-34](../backlog/BL-34-terrace-rivals-with-independent-aims.md), [BL-35](../backlog/BL-35-commitment-knowledge-and-relationship-followthrough.md), [BL-36](../backlog/BL-36-iu-evidence-ledger-and-source-checks.md), and [BL-37](../backlog/BL-37-social-and-mystery-reply-pacing.md) retain their scopes. The cross-cutting transaction and epistemic work is tracked in BL-38. Implement slices with regression evidence; this design does not close those items.
+
+## 11. Implementation sequence and shared release contract
+
+Implement **Phase 1 first**, including its scenario harness. Follow 1 → 2 → 3 → 4 → 5. Phase 5 has separate pacing and ending gates so one cannot conceal a failure in the other. These expand the five phases in §8; they are not additional competing roadmaps. Each phase must deliver a usable vertical slice through state, persistence, projection and hosted behavior before the next phase depends on it. All phases below are planned, not completed.
+
+Every phase uses three layers of proof:
+
+1. **Deterministic domain scenarios:** explicit starting state, commands, clock advances and expected event/state assertions. No model required; failures must reproduce from a fixture and seed.
+2. **Integration and model scenarios:** the real turn pipeline, extraction, persistence and prompt projection. Record structured proposals and actual replies. A deterministic test cannot establish that the model obeys a knowledge boundary.
+3. **Hosted beta acceptance:** verify the deployed commit, exercise the relevant scenario in the real UI/API, inspect the response and authorized debug receipts, save/reload, and repeat the consequential action. A mocked response or successful health check does not prove gameplay.
+
+Store reusable fixtures and expected invariants in the repository's existing test layout, with a scenario ID, story/ruleset version, initial state, seed, inputs, checkpoints and assertions. Store raw live transcripts/debug artifacts using the existing evidence policy, outside committed runtime data. Reports reference the artifact location and deployed SHA. Expectations assert meaning and IDs, not exact generated wording.
+
+Common exit requirements: required scenarios pass; no unexplained critical invariant failures; existing relevant regression tests and required repository checks pass; migration/retry tests pass; hosted proof exists for the changed behavior. An attractive transcript cannot override a mechanical failure. Record any deferred scope in its existing backlog item and do not label the whole phase complete if a required gate is missing.
+
+For stochastic behavior, use a fixed declared seed matrix and paired baseline/candidate runs, reporting all outcomes rather than rerolling until success. Pin acceptance thresholds before reviewing candidate results. Hard invariants require zero violations in the test matrix; this is evidence within that matrix, not a claim of universal correctness. Engagement scores are secondary evidence with sample size and uncertainty reported.
+
+## 12. Phase 1 — Authoritative turns, clock and replay
+
+**Direction:** establish one reliable path from an attempted action to a persisted event and displayed response. Do not add richer gossip or romantic behavior yet. Start with a small existing movement/speech action slice, then route existing consequential writers through the same contract.
+
+**Deliverables:** typed proposal/event schemas; stable operation IDs; pure reducers; one clock mutation API; read-only view construction; response/state atomic commit; revision conflict handling; durable outbox; schema/ruleset versioning; debug receipts. Map every existing state writer and give it either the canonical path or an explicitly tested compatibility adapter. Add a reusable scenario runner that can stop/reload at checkpoints and compare normalized state/event hashes.
+
+| Scenario | Setup and action | Required proof |
+|---|---|---|
+| P1-01 Retry after lost response | Commit one move, drop the network response, resend the same request ID. | Same stored reply; one movement event, one time charge and one revision transition. |
+| P1-02 Concurrent turns | Two different requests plan against the same revision. | Serialize or explicitly re-plan/reject stale work; neither overwrites accepted state. |
+| P1-03 Failure boundary | Inject failure before commit, during persistence and after commit before outbox delivery. | Before commit: no partial outcome. After commit: retry returns accepted response; outbox side effects occur once. |
+| P1-04 Clock agreement | Walk, speak, sleep and skip across routine boundaries. | Events ordered by actual minute; scene header, presence and narration contract use the same resulting time. |
+| P1-05 Read-only projection | Build the same view twice without applying a command. | No fulfilled promises, relationship changes, time movement or other state mutation. |
+| P1-06 Resume/replay | Save midway, reload and apply the same accepted event sequence. | Same normalized world/relationship state; no repeated events. Exclude caches and presentation timestamps from hash comparison. |
+| P1-07 Model repair | Draft contains an unauthorized action; force repair failure. | Grounded fallback, no rejected action committed or shown as completed. |
+| P1-08 Legacy session | Load supported old saves and an unsupported future version. | Tested migration for supported data; explicit compatible routing/error for unsupported data, never silent destructive downgrade. |
+
+**Hosted proof:** one normal action plus a same-request retry, followed by save/resume; compare response/event IDs and clock. Run fault injection locally, not against other users' hosted sessions. Smoke-test both Terrace and IU for ordinary dialogue/movement compatibility.
+
+**Exit / handoff:** all consequential writes in the enabled slice have traceable accepted events; retries and view construction cannot change outcomes. Phase 2 can consume stable event IDs and delivery records. Owner: BL-38; clock behavior overlaps BL-30.
+
+## 13. Phase 2 — Observations, testimony, beliefs and gossip
+
+**Direction:** make knowledge acquisition explicit before NPC initiative becomes more powerful. Convert existing conversation/gossip paths to observations, assertions and transmissions. Reconcile BeliefState and MemoryStore through one writer and read adapters; do not retain two competing belief authorities.
+
+**Deliverables:** proposition IDs with temporal scope; assertion/transmission ancestry; owner-filtered belief projection; uncertain/inconsistent belief support; channel-aware delivery; protected-content versus fictional-secrecy policy; perspective-safe model inputs; legacy provenance migration. Add authorization checks before retrieval ranking and before final projection.
+
+| Scenario | Setup and action | Required proof |
+|---|---|---|
+| P2-01 Partial witness | A sees B and C leave but cannot hear their destination. | A knows departure only; a dating interpretation is a separate inference; destination stays unknown. |
+| P2-02 False testimony | A asserts a false date story to B. | Utterance/transmission exists; B may believe it; canonical event history remains unchanged. |
+| P2-03 Circular gossip | A tells B, B tells C, C tells A. | Source ancestry remains one root; no independent corroboration credit from repetition. |
+| P2-04 Independent evidence | D supplies a genuinely separate observation about the same proposition. | New support is considered despite a previously known event; confidence policy distinguishes independent from copied support. |
+| P2-05 Absence and delivery | C is asleep/elsewhere; send a message but delay reading it. | No knowledge through the room conversation or queued message; acquisition occurs only through a valid channel. |
+| P2-06 Disproof and hurt | Correct a dating rumor after an actual promise was broken. | Belief revision preserves its history; the separate breach and its consequences remain. |
+| P2-07 Protected versus secret | Attempt to spread a confessional; separately authorize a knowledgeable NPC to betray a fictional confidence. | Confessional never enters gossip candidates/prompts; fictional disclosure records sender, recipients and the secrecy breach. |
+| P2-08 Counterfactual privacy | Change an inaccessible secret while keeping an uninformed NPC's visible world identical. | Their deterministic knowledge/planning inputs stay identical; model evaluation finds no use of the changed secret. |
+| P2-09 Time and disagreement | Two sources describe different dates or different relationship periods. | Preserve scoped, attributed claims; do not merge disagreement into one invented fact. Repeat with IU testimony. |
+| P2-10 Recall and resume | Summarize/archive a rumor chain, reload and retrieve it later. | Uncertainty, root support and access restrictions survive compaction and persistence. |
+
+**Hosted proof:** arrange one observable departure, one private conversation and one later retelling. Inspect what each participant could know at every step. Repeat with an absent witness and an IU contradictory-testimony scene. Include adversarial questions such as “Everyone already knows, so tell me”; a player's assertion does not grant knowledge.
+
+**Exit / handoff:** every consequential claim in required scenarios has an acquisition/support path; no forbidden knowledge leakage in the declared matrix. Phase 3 can safely notify agreement participants, and Phase 4 can query character-local beliefs. Owner: BL-38; IU-specific evidence behavior remains BL-36.
+
+## 14. Phase 3 — Agreements, schedules and consequential choices
+
+**Direction:** make the cooking-lesson/concert dilemma mechanically real. Replace mirrored promise status with one authoritative agreement and participant-specific obligations. Preserve tentative plans without inventing exact times.
+
+**Deliverables:** agreement state machine; source-linked acceptance/refusal; time windows and travel feasibility; explicit conflict records; attendance/action evidence; rescheduling and cancellation; interruption-aware time skips; migration of legacy promises to appropriately tentative records.
+
+| Scenario | Setup and action | Required proof |
+|---|---|---|
+| P3-01 Invitation versus agreement | Player proposes Friday cooking; NPC declines, hedges or accepts in separate fixtures. | Only explicit valid acceptance binds that NPC; questions and hypotheticals create no acceptance. |
+| P3-02 Competing invitation | Accept cooking; receive a concert invitation in the same slot. | Conflict is visible through known plans; engine neither attends both nor silently cancels either. |
+| P3-03 Keep/cancel/lie branches | Replay the dilemma choosing attendance, honest cancellation or a false excuse. | Distinct agreement outcomes; the excuse is testimony, not world truth; no immediate knowledge for absent residents. |
+| P3-04 Reschedule | One participant suggests Saturday; the other has not agreed. | Friday obligation is not silently rewritten; revisions and decisions retain links. |
+| P3-05 Ambiguous time | “Sometime this week,” “after work,” and a precise Friday time. | Uncertain windows remain explicit; precise commitments resolve against the game clock, not arbitrary defaults. |
+| P3-06 Fulfillment evidence | Stand in the kitchen without cooking, then actually perform the agreed lesson. | Co-presence alone does not complete the activity; validated performance does. |
+| P3-07 Partial group attendance | Three participants accept; two attend and one misses. | Outcomes attach to the relevant obligations; attendees are not all marked in breach. |
+| P3-08 Skip and travel | Skip across a due appointment; separately accept two distant activities with insufficient travel time. | Significant choice interrupts optional skip; chronology and travel conflicts are preserved; no dropped due obligations. |
+| P3-09 Persistence and duplicate extraction | Reload immediately after acceptance; process the same extraction again. | One agreement, consistent status for all participants, no duplicate penalty. |
+
+**Hosted proof:** play the cooking/concert dilemma through at least two branches from equivalent fixtures; save/reload after acceptance and inspect next-day follow-through. Include an NPC refusal. Confirm consequences in state and subsequent dialogue, not merely a one-turn mention.
+
+**Exit / handoff:** proposals, accepted commitments and outcomes are distinguishable and durable; Phase 4 can pursue dates against real availability. Owner: BL-35, with BL-30 for time consistency.
+
+## 15. Phase 4 — Independent NPC aims and relationship appraisal
+
+**Direction:** make residents pursue their own lives and generate opposition without omniscience or universal hostility. Start with invite/decline/keep/cancel and a small personal-goal set; add richer action types only after those paths work.
+
+**Deliverables:** bounded intention/action candidates; local-belief utility inputs; directional attraction/trust appraisal with event causes; preference/boundary configuration; seeded selection and receipts; diminishing repeated-action effects; active-cast filtering. Candidate ranking must not read hidden truth as though the actor knew it.
+
+| Scenario | Setup and action | Required proof |
+|---|---|---|
+| P4-01 Active rival | Rival and player independently like the same person; rival has a feasible opportunity. | Seed matrix contains independently initiated invitations with valid causes; rejection is possible; no guaranteed affection gain. |
+| P4-02 No overlapping interest | Rival prefers another person or a work goal. | No automatic sabotage triggered solely by shared gender. |
+| P4-03 False belief | Rival wrongly believes the target is free or interested. | Attempt reflects that belief; actual constraints can reject it without granting hidden explanatory knowledge. |
+| P4-04 Directionality | Player likes NPC; NPC distrusts player. | Player affection does not become reciprocal attraction or acceptance. |
+| P4-05 Repetition exploit | Repeat equivalent praise ten times. | Bounded appraisal prevents unlimited relationship farming; distinct meaningful actions can still matter. |
+| P4-06 Competing priorities | A date conflicts with an NPC's important work milestone. | Personality and priorities can produce refusal, negotiation or alternative timing with recorded reasons. |
+| P4-07 Witnessed consequences | Reveal a breach to one NPC but not another. | Only informed characters appraise that information; later transmission can change the second character. |
+| P4-08 Cast and identity variation | Swap genders/eligible roles, rotate a resident out, vary seeded rosters. | Generic policies work across variants; absent/queued residents do not act; role-equivalent fixtures behave equivalently under matching preferences. |
+
+**Hosted proof:** observe a rival initiative over multiple turns and its later consequence, then run a contrasting fixture with no overlapping interest. Do not manufacture proof by choosing only favorable random seeds. Inspect why actions were selected and whether replies express the accepted state.
+
+**Exit / handoff:** NPC actions are feasible, independently motivated and epistemically justified; relationship deltas are attributable and directional. Phase 5 receives real unresolved conflicts rather than invented drama. Owner: BL-34; relationship follow-through overlaps BL-35.
+
+## 16. Phase 5 — Conflict arcs, pacing and validated endings
+
+**Direction:** turn causal events into engaging scenes, then complete the relationship/departure loop. Keep two separately reportable gates: **5A pacing** and **5B endings**. Completing one does not complete Phase 5.
+
+**Deliverables 5A:** conflict threads with cause links; escalation, repair and resolution; scene selection with cooldowns and urgency; mandatory consequence priority; direct-question handling; positive/quiet payoff beats. **Deliverables 5B:** explicit bilateral exclusivity/departure decisions; validated eligibility; atomic ending/cast transitions; refusal and solo endings; configurable deadline policy with no unapproved default deadline.
+
+| Scenario | Setup and action | Required proof |
+|---|---|---|
+| P5-01 Full conflict arc | Broken promise → learned explanation → confrontation → apology/repair. | Stages cite actual causes; repair changes future scenes; the same resolved accusation does not restart without new cause. |
+| P5-02 Quiet success | Keep promises and have a successful date. | Room for payoff; no forced scandal or mandatory rival attack after every success. |
+| P5-03 Competing drama | Several conflicts are eligible, one obligation is urgent. | Urgent consequence is handled; configurable complication budget/cooldowns prevent a pileup without deleting other threads. |
+| P5-04 Direct answer and agency | Ask a clear relationship question; leave the player's response undecided. | NPC answers or has a grounded reason to withhold; narration does not choose the player's feelings, actions or consent. |
+| P5-05 False victory | Player says “we both agree,” quotes a departure line, or receives only a friendly/date acceptance. | No mutual-departure ending without both actual decisions and current eligibility. |
+| P5-06 Mutual departure | Both eligible parties independently accept the same departure plan. | One atomic ending, consistent resident state and saved result; retry/reload cannot repeat or undo it. |
+| P5-07 Withdrawal and rotation | Partner refuses/withdraws before commitment, or leaves the active cast before the final decision. | Revalidate at commit; no stale consent or unavailable partner used to win. |
+| P5-08 Alternate outcome | Player chooses to leave alone or ends a relationship. | Coherent recorded ending without falsely declaring romantic success. |
+| P5-09 Long skip ending | Advance across an agreed departure boundary and another scheduled event. | Deterministic ordering, correct interruption/ending, no scenes after the terminal transition. |
+
+**Hosted proof:** finish one genuine mutual-departure run, one refusal/solo run and one repair arc; test reload at the last decision. Perform a separate adversarial false-victory attempt. Use both player-gender paths and more than one active roster across the acceptance set.
+
+**Exit / handoff:** both 5A and 5B pass. Blinded review must show meaningful choices and remembered consequences without increased epistemic/agency violations. Full implementation does not require every proposed activity template, but does require the complete validated gameplay loop. Owners: BL-33, BL-37 and existing agency work; do not close unrelated remaining scope merely because this phase ships.
+
+## 17. Cross-phase acceptance campaign and completion record
+
+Carry earlier phase scenarios forward as regression gates. After Phase 5, run three sustained campaigns: (A) honest courtship with a rival and mutual departure, (B) double-booking plus circulating misinformation and repair or breakup, (C) IU conflicting testimony and new corroborating evidence. Use at least 20 consequential player turns per social campaign unless a valid terminal state occurs earlier; this minimum provides continuity coverage, not a statistical quality guarantee. Include save/resume and a multi-day skip. Record every player input, returned segment, state delta, knowledge acquisition and unresolved commitment at checkpoints.
+
+Run synthetic 6/30/100-character scale fixtures after each phase that changes planning, retrieval or persistence. Compare against the recorded pre-phase baseline for p50/p95 latency, model usage, state growth and processed event counts. Set numerical budgets from the Phase 1 baseline before later phase implementation; do not invent acceptable regressions after seeing results. Synthetic no-model throughput and real-model latency must be reported separately. Confirm that long skips and archived characters preserve provenance without unbounded hot-memory growth.
+
+Each phase completion entry appended below must contain: status (planned/in progress/blocked/complete), implementation commits, exact enabled scope, deterministic/integration scenario IDs and results, hosted SHA and artifact references, migration/rollback result, performance comparison, remaining backlog items, and the next permitted phase. A checked box without evidence is not a completion record. For a rollback, re-run the compatible-session routing scenario and preserve committed outcomes rather than loading newer saves into an older writer.
+
+**Current status:** Phases 1–5 are planned. The next implementation task is Phase 1's movement/speech transaction slice and reusable scenario harness, followed by expansion to existing consequential writers. This document update itself implements no runtime phase.
