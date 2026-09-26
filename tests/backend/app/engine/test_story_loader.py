@@ -217,8 +217,13 @@ def test_six_strangers_content_references_and_private_concerns_are_consistent():
     assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", content, re.I)
     assert cfg["mode"]["type"] == "social_sim"
     assert cfg["mode"]["cast_size"] == len(active_keys)
-    assert cfg["mode"]["open_ended"] is True
-    assert "goal" not in cfg and "win_detection" not in cfg
+    assert cfg["mode"]["open_ended"] is False
+    assert cfg["mode"]["romance_goal"]["enabled"] is True
+    assert cfg["mode"]["romance_goal"]["partner_gender"] == "opposite_player"
+    assert cfg["mode"]["romance_goal"]["rival_gender"] == "same_as_player"
+    assert "leave the house together" in cfg["goal"]["win_text_rule"].lower()
+    # A prose match cannot prove mutual consent or a committed departure.
+    assert "win_detection" not in cfg
 
 
 def test_six_strangers_cast_lifecycle_catalog_and_queue_are_consistent():

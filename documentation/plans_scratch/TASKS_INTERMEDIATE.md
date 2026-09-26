@@ -4,6 +4,12 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### 2026-09-25 Terrace goal and rival mechanics
+
+- [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.
+- [x] Implement the initial Terrace objective and rival pressure with gender-specific active eligibility and durable offscreen plan/affection weighting; BL-33/34 retain the unfinished mutual-departure ending and fuller rival system.
+- [ ] Add regression tests and update game-design documentation, run full offline checks, integrate beta, push, and verify hosted turns. Focused tests and 1198-test suite passed; local desktop Chromium / iPhone WebKit / standalone WebKit goal-card checks passed.
+
 ### Terrace in the City mobile/PWA and six-resident correctness
 
 - [x] Add reachable cache-clearing Update App navigation action and simplify text-speed choices.

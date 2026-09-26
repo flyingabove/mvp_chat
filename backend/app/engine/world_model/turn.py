@@ -66,6 +66,23 @@ def warmth_fn(state: Any) -> Callable[[str], float]:
     return warmth
 
 
+def rivalry_context(state: Any) -> Optional[dict]:
+    """Project only the active, authored cast into an optional romance contest."""
+    cfg = getattr(state, "story_cfg", {}) or {}
+    goal = ((cfg.get("mode") or {}).get("romance_goal") or {}) if isinstance(cfg, dict) else {}
+    if not goal.get("enabled") or goal.get("partner_gender") != "opposite_player" \
+            or goal.get("rival_gender") != "same_as_player":
+        return None
+    gender = str(getattr(state, "gender", "") or "").upper()
+    if gender not in ("M", "F"):
+        return None
+    eligible = set(bootstrap.eligible_ids(state))
+    return {"enabled": True, "player_gender": gender, "genders": {
+        str(char.get("key")): str(char.get("gender") or "").upper()
+        for char in (cfg.get("characters") or []) if isinstance(char, dict) and char.get("key") in eligible
+    }}
+
+
 def enabled(state: Any) -> bool:
     from backend.app.config import settings
     return bool(getattr(settings, "WORLD_MODEL_ENABLED", True)) and bootstrap.enabled_for(state)
@@ -135,7 +152,8 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         model.player_availability = "asleep" if sleeping else "awake"
         step = step_world(model, minute_before, now, protected, player_asleep=sleeping)
         advance_threads(model, minute_before, now)
-        resolve_offscreen(model, step, GraphRelationships(getattr(state, "character_graph", None)), scorer)
+        resolve_offscreen(model, step, GraphRelationships(getattr(state, "character_graph", None)),
+                          scorer, rivalry_context(state))
         expire_commitments(model, now)
         queue_contacts(model, minute_before, now, warmth_fn(state))
         model.player_availability = "awake"

@@ -374,6 +374,7 @@ _BASIC_CHARACTER_KEYS = {
     "knowledge_character_id",
     "uuid",
     "tags",
+    "gender",
 }
 
 
@@ -392,6 +393,7 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
             "knowledge_character_id": ch.get("knowledge_character_id") or "",
             "uuid": ch.get("uuid") or "",
             "tags": list(ch.get("tags") or []),
+            "gender": str(ch.get("gender") or "").upper(),
             # Phase 3 "Social life": preserve author-time goal content for
             # any consumer of story_cfg["characters"] - previously silently
             # dropped here even though Character.from_dict (the primary

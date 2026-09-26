@@ -10,7 +10,7 @@ memories for the two participants only, edge deltas and visible traces.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Optional, Protocol
+from typing import TYPE_CHECKING, Callable, Optional, Protocol, Mapping
 
 from backend.app.engine.world_model.commitments import add_commitment
 from backend.app.engine.world_model.gossip import share_memory, shareable
@@ -73,7 +73,8 @@ def find_encounters(result: StepResult) -> list[Encounter]:
 
 
 def outcome_weights(model: "WorldModel", enc: Encounter, relationships: Relationships,
-                    scorer: Optional[Callable[[Encounter, dict[str, float]], dict[str, float]]] = None) -> dict[str, float]:
+                    scorer: Optional[Callable[[Encounter, dict[str, float]], dict[str, float]]] = None,
+                    rivalry: Optional[Mapping] = None) -> dict[str, float]:
     ab, ba = relationships.feelings(enc.a, enc.b), relationships.feelings(enc.b, enc.a)
     warmth = (ab.get("trust", 0) + ab.get("affection", 0) + ba.get("trust", 0) + ba.get("affection", 0)) / 2
     affection = (ab.get("affection", 0) + ba.get("affection", 0)) / 2
@@ -85,6 +86,23 @@ def outcome_weights(model: "WorldModel", enc: Encounter, relationships: Relation
     weights["nothing"] *= 1 + max(0.0, -warmth)
     if not (shareable(model, enc.a, enc.b) or shareable(model, enc.b, enc.a)):
         weights["gossip"] = 0.0
+    # A story-authored competition only changes the odds of a feasible
+    # off-screen encounter. It cannot assign the partner's feelings, create
+    # an encounter, or make every same-gender resident a rival by default.
+    if rivalry and rivalry.get("enabled") and rivalry.get("player_gender") in ("M", "F"):
+        player_gender = rivalry["player_gender"]
+        genders = rivalry.get("genders") or {}
+        for rival_id, partner_id in ((enc.a, enc.b), (enc.b, enc.a)):
+            if genders.get(rival_id) != player_gender or genders.get(partner_id) == player_gender:
+                continue
+            if genders.get(partner_id) not in ("M", "F"):
+                continue
+            player_interest = relationships.feelings("player", partner_id).get("affection", 0)
+            rival_interest = relationships.feelings(rival_id, partner_id).get("affection", 0)
+            if player_interest >= 0.25 and rival_interest >= 0.1:
+                weights["plan"] *= 2.0
+                weights["affection"] *= 1.5
+                break
     if scorer is not None:
         for kind, factor in (scorer(enc, dict(weights)) or {}).items():
             if kind in weights:
@@ -129,10 +147,10 @@ def _commit(model: "WorldModel", enc: Encounter, kind: str, relationships: Relat
 
 
 def resolve_offscreen(model: "WorldModel", result: StepResult, relationships: Relationships,
-                      scorer: Optional[Callable] = None) -> list[Outcome]:
+                      scorer: Optional[Callable] = None, rivalry: Optional[Mapping] = None) -> list[Outcome]:
     outcomes = []
     for enc in find_encounters(result):
-        weights = outcome_weights(model, enc, relationships, scorer)
+        weights = outcome_weights(model, enc, relationships, scorer, rivalry)
         total = sum(weights.values())
         if total <= 0:
             continue

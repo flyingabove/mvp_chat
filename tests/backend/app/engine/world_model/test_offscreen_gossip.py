@@ -1,7 +1,10 @@
 """Step 6: off-screen resolution, NPC<->NPC edges, gossip."""
+from types import SimpleNamespace
+
 from backend.app.engine.world_model.gossip import share_memory, to_third_person
 from backend.app.engine.world_model.offscreen import MAX_ENCOUNTERS, find_encounters, outcome_weights, resolve_offscreen
 from backend.app.engine.world_model.stepper import StepResult, step_world
+from backend.app.engine.world_model.turn import rivalry_context
 from tests.backend.app.engine.world_model.helpers import FakeRelationships, make_model
 
 
@@ -60,6 +63,41 @@ def test_hostile_edges_make_conflict_likelier_and_warm_edges_affection():
     w_cold, w_warm = outcome_weights(model, enc, cold), outcome_weights(model, enc, warm)
     assert w_cold["conflict"] > w_warm["conflict"] and w_warm["affection"] > w_cold["affection"]
     assert w_cold["gossip"] == 0.0                      # nothing to share yet
+
+
+def test_romance_rivalry_weights_require_player_interest_and_rival_interest():
+    model = make_model({"rival": "k", "partner": "k"})
+    snap = {"rival": ("k", "awake"), "partner": ("k", "awake")}
+    enc = find_encounters(_timeline([(0, snap), (30, snap)]))[0]
+    config = {"enabled": True, "player_gender": "M", "genders": {"rival": "M", "partner": "F"}}
+    rel = FakeRelationships({("player", "partner"): {"affection": 0.4},
+                             ("rival", "partner"): {"affection": 0.3},
+                             ("partner", "rival"): {"affection": 0.1}})
+    baseline = outcome_weights(model, enc, rel)
+    rival = outcome_weights(model, enc, rel, rivalry=config)
+    assert rival["plan"] > baseline["plan"]
+    assert rival["affection"] > baseline["affection"]
+    assert rival["conflict"] == baseline["conflict"]
+    assert outcome_weights(model, enc, FakeRelationships(), rivalry=config) == outcome_weights(
+        model, enc, FakeRelationships())
+    assert outcome_weights(model, enc, rel, rivalry={**config, "enabled": False}) == baseline
+    assert outcome_weights(model, enc, rel, rivalry={**config, "genders": {"rival": "F", "partner": "F"}}) == baseline
+
+
+def test_rivalry_context_uses_active_cast_and_story_opt_in():
+    state = SimpleNamespace(
+        gender="F", characters={key: object() for key in ("partner", "rival", "queued")},
+        cast_lifecycle=SimpleNamespace(enabled=True, is_scene_eligible=lambda key: key != "queued"),
+        story_cfg={"mode": {"romance_goal": {"enabled": True,
+                                             "partner_gender": "opposite_player",
+                                             "rival_gender": "same_as_player"}},
+                   "characters": [{"key": "partner", "gender": "M"}, {"key": "rival", "gender": "F"},
+                                  {"key": "queued", "gender": "M"}]},
+    )
+    assert rivalry_context(state) == {"enabled": True, "player_gender": "F",
+                                     "genders": {"partner": "M", "rival": "F"}}
+    state.story_cfg["mode"]["romance_goal"]["enabled"] = False
+    assert rivalry_context(state) is None
 
 
 def test_scorer_hook_can_reweight():

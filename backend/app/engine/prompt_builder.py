@@ -1036,6 +1036,41 @@ def _mode_context_section(state) -> str:
         if rhythm_text:
             desc_bits.append(f"Typical daily texture: {rhythm_text}")
 
+    romance_goal = mode_cfg.get("romance_goal")
+    if isinstance(romance_goal, dict) and romance_goal.get("enabled"):
+        gender = str(getattr(state, "gender", "") or "").upper()
+        partner_gender = {"M": "F", "F": "M"}.get(gender)
+        lifecycle = getattr(state, "cast_lifecycle", None)
+        if lifecycle is not None and getattr(lifecycle, "enabled", False):
+            active = set(lifecycle.active_ids())
+        else:
+            active = set(getattr(state, "characters", {}) or {})
+        characters = getattr(state, "characters", {}) or {}
+        authored_gender = {
+            str(character.get("key")): str(character.get("gender") or "").upper()
+            for character in (cfg.get("characters") or []) if isinstance(character, dict)
+        }
+        partners = [characters[cid].name for cid in sorted(active & set(characters))
+                    if partner_gender and authored_gender.get(cid) == partner_gender]
+        rivals = [characters[cid].name for cid in sorted(active & set(characters))
+                  if gender in ("M", "F") and authored_gender.get(cid) == gender]
+        desc_bits.append(
+            "The player's objective is a mutual romantic relationship with an opposite-gender resident "
+            "and a freely chosen decision by both people to leave the house together. "
+            "A date, a friendly answer, or the player's wish alone does not complete this objective."
+        )
+        desc_bits.append(
+            "Active potential partners: " + (", ".join(partners) or "none currently eligible")
+            + ". Same-gender potential rivals: " + (", ".join(rivals) or "none currently active")
+            + ". These are engine roster facts for scene planning, not a cast list to reveal to the player."
+        )
+        desc_bits.append(
+            "A rival can pursue the same person through their own invitations, plans, and time together. "
+            "Their interest must grow from their character and actual encounters; do not make every rival hostile, "
+            "teleport anyone, or decide the potential partner's feelings for them. "
+            "Romance and departure require each person's independent choice."
+        )
+
     lines = [
         "\n────────────────────────────────────────",
         "### GAME MODE CONTEXT",

@@ -8,6 +8,12 @@ The engine's four primitives (State, Time, Incentives, Constraints — see `GAME
 
 The `mode` object is a small, purely additive prompt layer that gives the storyteller model the right tone and conventions for non-mystery ensemble games, without touching anything else. If a story doesn't declare `mode`, nothing changes — this is the backward-compatibility guarantee, and it's enforced by a test (`test_mode_context_section_byte_identical_prompt_for_existing_story` in `tests/backend/app/engine/test_prompt_builder.py`).
 
+### Terrace relationship objective (2026-09-25)
+
+Terrace now has a player-facing `goal.win_text_rule` and optional `mode.romance_goal` with `enabled`, `partner_gender: "opposite_player"`, `rival_gender: "same_as_player"`, and `outcome: "leave the house together"`. The mode prompt projects only active cast members matching the player-selected gender into potential partners and rivals; queued cast stays hidden. Author-time `characters[].gender` is now retained in the canonical session story config for that projection. A date, friendliness or a player's wish does not satisfy the goal. There is deliberately no `win_detection.regex`: a prose phrase cannot establish both people's independent consent or complete the resident departure workflow (BL-33).
+
+The world-model offscreen encounter resolver can weight a feasible rival/partner encounter toward a plan or growing affection when the player has already shown interest in that partner **and** the rival has independent interest. The event still requires co-location, availability, elapsed time and the seeded outcome draw; it commits through the existing event, memory and relationship-edge path. This adds pressure to active play without inventing a rival or forcing the potential partner's choice. BL-34 tracks broader rival initiative, visible competition and outcome calibration.
+
 ## 2. The `mode` schema
 
 Optional top-level key in story JSON:
@@ -80,7 +86,7 @@ No new mechanics were built. Everything below reuses primitives that already exi
 | `epistemic_seed.belief_seeds` | Suspects' self-serving beliefs | Housemates' private, sometimes self-deceiving beliefs about themselves or the house |
 | `relationships.edges` | Suspect↔victim/detective trust-fear-affection-suspicion | Housemate↔player bonds **and** housemate↔housemate bonds (NPC-NPC edges), so the graph is genuinely ensemble, not hub-and-spoke |
 | `opening.text` | The crime discovery scene | Move-in day — first impressions of the house and every housemate |
-| `goal`/`win_detection` | A confession regex | **Omitted entirely** for an open-ended game — confirmed by `gameplay.py::win_condition_detected()` returning `False` whenever `win_detection.regex` is absent |
+| `goal`/`win_detection` | A confession goal and regex | Omitted for an open-ended game. Terrace now has a romance/departure goal but no regex win detector; BL-33 tracks the validated ending. |
 | `motive` (character field) | Why a suspect might have done it | Repurposed as a personal-life-goal/insecurity summary for authoring flavor (surfaced via the same transient story-detail path suspects already use — it isn't read by any dedicated prompt layer for either genre) |
 
 ## 5. `character_self_knowledge` is per-character, gated by scene presence (BL-07, resolved)
@@ -123,9 +129,9 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 5. **`epistemic_seed.canonical_facts`**: house lore everyone knows (`known_by: ["all_characters"]`) plus one private-secret fact per character (`known_by: [<key>]`) for things the player should discover through conversation, not be told upfront.
 6. **`relationships.edges`**: seed every housemate→player edge, and at least one NPC-NPC edge, so `ROOM DYNAMICS` prose reflects real ensemble relationships when multiple characters share a scene.
 7. **`opening.text`**: write real, evocative move-in-day (or equivalent) prose — this is a creative deliverable, not boilerplate.
-8. **No `goal`/`win_detection`** if the game is meant to be open-ended — just omit both keys.
+8. **Goal and ending**: an open-ended game omits `goal`/`win_detection`. Terrace now authors `goal.win_text_rule` and `mode.romance_goal`; it still omits regex `win_detection` because a string match cannot prove mutual departure. BL-33 tracks the remaining validated endgame transition.
 9. **`mode`**: add the block from §2 with `type: "social_sim"`. Optionally add `narrator_asides` (see §2) if your game wants the storyteller to occasionally step outside the scene in its own wry, external-observer voice — `six_strangers` uses this for a "documentary aside" device; The Common Room does not use it and is unaffected (backward-compatible, see the field's test above).
-10. **Test**: the parametrized `test_every_catalogued_story_initializes_end_to_end` in `tests/backend/app/api/test_prompt_engine.py` automatically picks up any story returned by `all_stories()`/the registry — no per-story test needed, but do add a targeted `win_condition_detected` test if you're omitting `goal`/`win_detection` (see `test_win_condition_detected_false_for_common_room_open_ended_story` / `test_win_condition_detected_false_for_six_strangers_open_ended_story` in `tests/backend/app/engine/test_gameplay.py`), plus a per-character `self_knowledge` sanity test if you author more than one character (see `test_six_strangers_all_characters_have_distinct_self_knowledge` in `tests/backend/app/engine/test_story_loader.py`).
+10. **Test**: the parametrized `test_every_catalogued_story_initializes_end_to_end` in `tests/backend/app/api/test_prompt_engine.py` picks up every catalogued story. For open-ended stories, test that `win_condition_detected` remains false without `win_detection`. For Terrace, assert the authored goal and active, gender-eligible prompt context while arbitrary prose still cannot declare victory. Add per-character identity/voice checks when authoring an ensemble.
 
 ## 8. Explicit limitations (read before assuming more exists)
 

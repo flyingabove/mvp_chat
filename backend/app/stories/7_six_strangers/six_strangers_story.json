@@ -2,7 +2,7 @@
   "id": "six_strangers",
   "title": "Terrace in the City",
   "theme": "shared_house_city",
-  "description": "Tokyo, 2015. A fictional shared-house story with six residents total, including you. Work, dreams, awkward dinners, and pool-deck conversations make each new chapter feel personal.",
+  "description": "Tokyo, 2015. Move into a six-person house, win the heart of an opposite-gender housemate, and choose to leave together. Same-gender residents have their own romantic plans, and nobody's affection is guaranteed.",
   "genre": "Slice of Life / Ensemble Drama",
   "thumbnail_url": "/img/six_strangers_house.jpg",
   "featured": true,
@@ -384,7 +384,7 @@
     "randomize_initial_roster": true,
     "initial_active_location_id": "kitchen",
     "require_replacement": true,
-    "rules_profile": "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. No imposed challenges, eliminations, prize, fixed romance, or win condition. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
+    "rules_profile": "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. The player's goal is to build a mutual relationship with an opposite-gender resident and leave the house together. Same-gender residents may compete for the same person's affection through their own choices and plans; no particular couple or rival is predetermined. There are no imposed challenges, eliminations or prizes. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
     "slot_groups": {
       "men": {"capacity": 3, "label": "Men's resident slots"},
       "women": {"capacity": 3, "label": "Women's resident slots"}
@@ -408,6 +408,9 @@
       "momoka": {"slot_group": "women", "initial_status": "upcoming", "sequence": 7},
       "masako": {"slot_group": "women", "initial_status": "upcoming", "sequence": 8}
     }
+  },
+  "goal": {
+    "win_text_rule": "Build a mutual romantic relationship with a housemate of the opposite gender, then both choose to leave the house together. The other residents of your gender may seek the same person's affection and make competing plans. A date or friendly agreement alone is not a win."
   },
   "protagonist": {
     "role": "One of six housemates, with three men and three women including you",
@@ -876,15 +879,21 @@
   },
   "world_context": [
     "An unofficial fictional adaptation of the original Boys & Girls in the City cast and the supplied Tokyo setting; all dialogue and inner lives here are invented.",
-    "The player is one of six residents, alongside five active NPC housemates. Preserve their independent work, studies, boundaries, and friendships; do not assume the player must pursue romance.",
+    "The player is one of six residents, alongside five active NPC housemates. Their goal is a reciprocal romance with an opposite-gender resident and a jointly chosen departure. Preserve everyone's independent work, studies, boundaries, and friendships; no housemate owes the player affection.",
     "Introduce people through encounters rather than a cast roll call. Do not use later episode outcomes as foreknowledge or force a scripted replay.",
     "City venues and the detailed house floor plan are game inventions. Keep encounters grounded in established locations and travel rather than teleporting housemates to wherever the player is."
   ],
   "mode": {
     "type": "social_sim",
     "setting": "Tokyo in September 2015, a modern shared house in Higashi-Gotanda, Shinagawa",
-    "open_ended": true,
+    "open_ended": false,
     "cast_size": 6,
+    "romance_goal": {
+      "enabled": true,
+      "partner_gender": "opposite_player",
+      "rival_gender": "same_as_player",
+      "outcome": "leave the house together"
+    },
     "confessional": {
       "enabled": true,
       "convention": "If the player writes a private diary or [confessional: ...] aside, treat it as their unspoken reflection. No housemate hears it or gains its information. Do not solicit forced confessionals or turn ordinary conversation into a producer interview."
@@ -894,12 +903,12 @@
       "style": "Sparingly, between scene beats, offer a short, warm, wry studio-panel-style observation for the audience, then return to the house. Keep the panel unnamed and outside the world: housemates cannot hear it. Comment only on observable behavior, never disclose private thoughts, predict televised outcomes, or mock someone cruelly."
     },
     "daily_rhythm": [
-      "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. No imposed challenges, eliminations, prize, fixed romance, or win condition. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
+      "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. The player's goal is to build a mutual relationship with an opposite-gender resident and leave the house together. Same-gender residents may compete for the same person's affection through their own choices and plans; no particular couple or rival is predetermined. There are no imposed challenges, eliminations or prizes. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
       "A resident may leave only after clearly committing to that choice. On the next day, the next eligible resident in the same slot group arrives; chronology determines only arrival order, never relationships or outcomes.",
       "Mornings involve office hours, coffee shifts, salon appointments, baseball practice, dance rehearsal, modeling, and study. These are narrative commitments, not a mechanically enforced schedule.",
       "Evenings gather around the open kitchen and dining table: cooking, washing up, gentle teasing, questions about work, and silences that need not become confrontations.",
       "A pool-deck conversation, a cafe stop, or a trip into the city can grow out of a small invitation. Nobody owes a date or an explanation for declining one.",
-      "Keep the perspective observational. Show changes in trust through actions; let mundane problems, ambitions, and relationships matter without assigning missions, manufacturing crises, or revealing other people's private concerns."
+      "Keep the perspective observational. Give same-gender rivals credible chances to pursue someone the player likes through invitations, time, and care; let the potential partner choose freely. Show changes in trust through actions, and let mundane problems and ambitions matter without manufacturing crises or revealing private concerns."
     ]
   },
   "relationships": {

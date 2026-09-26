@@ -1025,6 +1025,36 @@ def test_mode_context_section_injected_for_social_sim_story():
     assert "never have an NPC" in sysmsg or "react to" in sysmsg
 
 
+def test_terrace_goal_uses_active_gender_eligible_cast_and_rivals():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.story_loader import load_story
+    from backend.app.api.prompt_engine import _canonicalize_story_cfg
+    cfg = load_story("six_strangers").as_dict()
+    assert _canonicalize_story_cfg(cfg)["characters"][0]["gender"] in ("M", "F")
+    for gender, partner_gender in (("M", "F"), ("F", "M")):
+        st = init_state()
+        st.story_cfg = {**cfg, "characters": [
+            {"key": "candidate", "gender": partner_gender},
+            {"key": "rival", "gender": gender},
+            {"key": "queued", "gender": partner_gender},
+        ]}
+        st.gender = gender
+        st.characters = {
+            "candidate": Character(key="candidate", name="Candidate", role="housemate"),
+            "rival": Character(key="rival", name="Rival", role="housemate"),
+            "queued": Character(key="queued", name="Queued", role="housemate"),
+        }
+        # The renderer must use the active roster, not all authored future entrants.
+        st.cast_lifecycle = type("ActiveCast", (), {
+            "enabled": True, "active_ids": lambda self: ["candidate", "rival"]
+        })()
+        section = pb._mode_context_section(st)
+        assert "Candidate" in section and "Rival" in section
+        assert "Queued" not in section
+        assert "leave the house together" in section
+        assert "mutual" in section.lower()
+
+
 def test_mode_context_section_omitted_confessional_block():
     """confessional.enabled False (or absent) means no confessional text."""
     from backend.app.engine import prompt_builder as pb
