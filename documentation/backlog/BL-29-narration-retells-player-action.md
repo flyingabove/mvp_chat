@@ -27,7 +27,10 @@ with >= 0.6 word-trigram overlap with a recent reply as a repeat, so a draft tha
 the single regeneration. It is no longer part of this item. What remains is prompt-side: restating the player's
 action and inventing their feelings or history.
 
+Additional hosted evidence from the [2026-09-25 manual review](../model_output_docs/BETA_MANUAL_PLAY_REVIEW_2026_09_25.md): Terrace turns 7 and 10 invent feeling "more at ease"; turn 3 adds "a sense of purpose". IU turn 9 assigns "anticipation and caution"; turns 10 and 12 add unchosen nods and other social actions. These are independent live samples (10 Terrace / 12 IU turns), not a new prevalence estimate.
+
 ## Fix direction
+
 1. Prompt: in the storyteller's narration rules (also: never assign the player feelings, memories or history they did not state) (`backend/app/engine/prompt_builder.py`, near
    "Narrate only what the player's message actually states or implies"), say not to restate the player's action.
    Narrate its consequence or the world's reaction instead.
