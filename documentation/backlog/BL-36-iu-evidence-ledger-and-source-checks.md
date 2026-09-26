@@ -17,5 +17,7 @@ The user asked to focus current implementation on Terrace; keep IU as engine con
 
 **Partial correction awaiting beta retest:** the inspection result now distinguishes first discovery from reinspection and tells the storyteller when no new surface was found. This does not itself prevent invented testimony provenance or guarantee the model follows the clue instruction; the item remains open.
 
+**Hosted retest:** beta `c1050c9` correctly answered a second closet inspection with no new evidence. The invented source attribution from the original ten-turn run remains unresolved.
+
 ## Touches
 `backend/app/engine/world_model/evidence.py`, `events.py`, `memory.py`, IU story leads, journal route and tests.

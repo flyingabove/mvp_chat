@@ -14,6 +14,8 @@ Progress: the first cross-phase runtime slice has event identity and causes, obs
 
 Hosted `1045464`: completed ten-turn Terrace and ten-turn IU campaigns with full raw records; see `SOCIAL_V2_HOSTED_PLAY_2026_09_26.md`. Local corrections after that build handle explicit natural waiting and reject unidentified speech in an empty social scene. Awaiting full retest, corrective beta deploy and hosted recheck. Remaining 44-scenario architecture/quality gates stay open.
 
+Corrective beta `c1050c9`: hosted natural-wait and empty-room replay passed; IU reinspection acknowledged no new clue; hosted desktop Chromium, iPhone WebKit and standalone WebKit interactions passed. Full social-v2 acceptance remains open (especially IU attribution, player agency, scene/commit transactions and scale campaigns).
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.

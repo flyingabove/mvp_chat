@@ -15,5 +15,7 @@ Prompt changes alter both games and need arena and human review; this is not a r
 
 **Hosted reproduction (2026-09-26, beta `1045464`):** Terrace turn 3 ignored the direct request for Misaki to confirm a 7 pm plan and let Masako volunteer instead; turn 4 required the player to restate the boundary. IU turn 4 narrated "the weight of her words" while IU gave no answer to a direct source question; turn 5 required repetition. IU turn 10 did not answer whether any new physical evidence existed. The same atmosphere phrases and player feelings recur in both ten-turn runs. The current social-only scene guard removes some player-internal narration and unidentified speech in empty rooms, but direct-answer and mystery pacing gates remain open.
 
+**Hosted retest:** beta `c1050c9` desktop/iPhone/standalone screenshots still contain player-feeling narration such as “You can feel the potential for connection.” The narrow scene guard is insufficient for agency and repetitive-atmosphere acceptance; this item stays open.
+
 ## Touches
 `backend/app/engine/prompt_builder.py`, `dialogue.py`, Terrace voice data, tests and hosted evaluation.
