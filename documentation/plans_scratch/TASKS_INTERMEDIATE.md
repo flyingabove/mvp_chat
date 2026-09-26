@@ -4,6 +4,12 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### 2026-09-26 Social engine v2 implementation and hosted play
+
+- [ ] Implement the authoritative turn/event and replay contracts with unit and integration scenarios.
+- [ ] Implement epistemic gossip provenance, agreements, NPC intentions, drama pacing and validated endings with tests.
+- [ ] Run full regression suite, integrate beta, deploy, then personally play Terrace and IU on hosted beta and record findings.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.

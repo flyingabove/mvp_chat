@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional, Protocol, Mapping
 
-from backend.app.engine.world_model.commitments import add_commitment
+from backend.app.engine.world_model.agreements import propose, decide
 from backend.app.engine.world_model.gossip import share_memory, shareable
 from backend.app.engine.world_model.memory import render
 from backend.app.engine.world_model.stepper import StepResult
@@ -136,8 +136,10 @@ def _commit(model: "WorldModel", enc: Encounter, kind: str, relationships: Relat
         model.memories.add(owner, truth, "witnessed", minute, event_id=event.id)
         relationships.adjust(owner, other, narrative=note, **deltas)
     if kind == "plan":
-        add_commitment(model, a, b, "hang out tomorrow evening",
-                       model.world.absolute_minute(model.world.day_index(minute) + 1, "19:00"), minute)
+        agreement = propose(model.agreements, a, b, "hang out tomorrow evening",
+                            model.world.absolute_minute(model.world.day_index(minute) + 1, "19:00"),
+                            minute, source_event_id=event.id)
+        decide(model.agreements, agreement.id, b, "accepted", minute)
     if kind == "gossip":
         share_memory(model, a, b, minute, rng)
         share_memory(model, b, a, minute, rng)

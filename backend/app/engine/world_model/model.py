@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
 from backend.app.engine.world_model.character import CharacterState
+from backend.app.engine.world_model.agreements import AgreementBook
+from backend.app.engine.world_model.epistemics import EpistemicLedger
 from backend.app.engine.world_model.memory import MemoryStore
 from backend.app.engine.world_model.threads import Thread
 from backend.app.engine.world_model.world import World
@@ -96,6 +98,8 @@ class WorldModel:
     world: World
     characters: dict[str, CharacterState] = field(default_factory=dict)
     memories: MemoryStore = field(default_factory=MemoryStore)
+    agreements: AgreementBook = field(default_factory=AgreementBook)
+    epistemics: EpistemicLedger = field(default_factory=EpistemicLedger)
     threads: list[Thread] = field(default_factory=list)
     contacts: list[ContactMessage] = field(default_factory=list)
     traces: list[Trace] = field(default_factory=list)
@@ -145,7 +149,9 @@ class WorldModel:
     def to_dict(self) -> dict[str, Any]:
         return {"version": VERSION, "world": self.world.to_dict(),
                 "characters": {cid: c.to_dict() for cid, c in self.characters.items()},
-                "memories": self.memories.to_dict(), "threads": [t.to_dict() for t in self.threads],
+                "memories": self.memories.to_dict(), "agreements": self.agreements.to_dict(),
+                "epistemics": self.epistemics.to_dict(),
+                "threads": [t.to_dict() for t in self.threads],
                 "contacts": [c.to_dict() for c in self.contacts], "traces": [t.to_dict() for t in self.traces],
                 "seed": self.seed, "turn": self.turn, "endings": list(self.endings),
                 "player_availability": self.player_availability, "player_name": self.player_name,
@@ -156,6 +162,8 @@ class WorldModel:
         return cls(world=World.from_dict(data.get("world") or {}),
                    characters={cid: CharacterState.from_dict(c) for cid, c in (data.get("characters") or {}).items()},
                    memories=MemoryStore.from_dict(data.get("memories") or {}),
+                   agreements=AgreementBook.from_dict(data.get("agreements") or {}),
+                   epistemics=EpistemicLedger.from_dict(data.get("epistemics") or {}),
                    threads=[Thread.from_dict(t) for t in data.get("threads") or []],
                    contacts=[ContactMessage.from_dict(c) for c in data.get("contacts") or []],
                    traces=[Trace.from_dict(t) for t in data.get("traces") or []],

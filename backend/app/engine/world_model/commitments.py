@@ -10,6 +10,7 @@ import re
 from typing import TYPE_CHECKING, Optional
 
 from backend.app.engine.world_model.memory import Memory
+from backend.app.engine.world_model.agreements import record_unilateral_promise, resolve as resolve_agreement
 from backend.app.engine.world_model.model import PLAYER
 
 if TYPE_CHECKING:
@@ -71,10 +72,11 @@ def due_minute(model: "WorldModel", when: str, now: int, what: str = "") -> int:
 def add_commitment(model: "WorldModel", owner: str, counterpart: str, what: str, due: int,
                    minute: int) -> tuple[Memory, Memory]:
     """Record a promise for BOTH parties (each remembers it from their side)."""
+    agreement = record_unilateral_promise(model.agreements, owner, counterpart, what, due, minute)
     own = model.memories.add(owner, f"I promised @{counterpart} to {what}", "promised", minute,
-                             kind="promise", due=due, counterpart=counterpart)
+                             kind="promise", due=due, counterpart=counterpart, agreement_id=agreement.id)
     other = model.memories.add(counterpart, f"@{owner} promised to {what}", f"told_by:{owner}", minute,
-                               kind="promise", due=due, counterpart=owner)
+                               kind="promise", due=due, counterpart=owner, agreement_id=agreement.id)
     return own, other
 
 
@@ -119,6 +121,12 @@ def expire_commitments(model: "WorldModel", now: int) -> list[Memory]:
     for memory in model.memories.open_promises():
         if memory.due is not None and now >= memory.due + EXPIRE_AFTER_MIN:
             memory.status = "broken"
+            if memory.agreement_id:
+                agreement = model.agreements.get(memory.agreement_id)
+                if agreement.status == "accepted":
+                    # Passing the grace period without fulfillment is evidence
+                    # for expiry, not proof that anyone deliberately broke it.
+                    resolve_agreement(model.agreements, agreement.id, "expired", now)
             expired.append(memory)
     return expired
 

@@ -37,6 +37,7 @@ SLEEP = re.compile(
 WAKE_TIME = "07:00"
 DIALOGUE_MEMORY_CAP = 80
 MAX_PERSPECTIVE = 3
+PRIVATE_ASIDE = re.compile(r"^\s*\[confessional\s*:[\s\S]*\]\s*$", re.I)
 
 
 class GraphRelationships:
@@ -216,12 +217,12 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     for promise in due_commitments(model, now):
         if promise.owner in present_set and promise.counterpart == PLAYER:
             view.must_address.append(f"{names[promise.owner]} promised earlier: {render(promise.text, names)}. "
-                                     f"It is due now; {names[promise.owner]} acts on it or brings it up.")
-            resolve_commitment(promise, kept=True)
+                                     f"It is due now; {names[promise.owner]} can act on it or bring it up. "
+                                     "Do not describe it as completed unless the action actually occurs.")
         elif promise.owner == PLAYER and promise.counterpart in present_set:
             view.must_address.append(f"The player promised {names[promise.counterpart]}: {render(promise.text, names)}. "
                                      f"{names[promise.counterpart]} may remind them.")
-    if message.strip():
+    if message.strip() and not PRIVATE_ASIDE.fullmatch(message):
         for cid in present:
             model.memories.add(cid, f"@{PLAYER} said: {message.strip()[:300]}", f"told_by:{PLAYER}", now,
                                kind="dialogue")
@@ -258,7 +259,10 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
         model.characters[speaker].record_spoke(model.turn)
         if speaker not in model.known_names:
             model.known_names.append(speaker)
-        for cid in present | {speaker}:
+        # A remote call is heard by its participants, not every resident
+        # standing next to the player's phone.
+        listeners = present | {speaker} if speaker in present else {speaker}
+        for cid in listeners:
             model.memories.add(cid, f"@{speaker} said: {text[:240]}", "witnessed", now, kind="dialogue")
     last = next((s for s in reversed(segments or []) if str(s.get("text") or "").strip()), None)
     if last is not None:

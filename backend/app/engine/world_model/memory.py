@@ -16,7 +16,7 @@ from typing import Any, Iterable, Optional
 REF = re.compile(r"@([A-Za-z0-9_]+)")
 TOKEN = re.compile(r"[\w']+")
 SOURCES = ("witnessed", "overheard", "authored", "promised")   # plus told_by:<id>
-KINDS = ("fact", "lore", "promise", "contact", "dialogue")
+KINDS = ("fact", "lore", "promise", "contact", "dialogue", "claim")
 STOPWORDS = frozenset("the a an and or of to in on at is are was were i you he she it we they my your "
                       "me him her them this that what who where when do did have has be been with for".split())
 
@@ -54,6 +54,11 @@ class Memory:
     status: str = "open"               # promises: open | kept | broken
     private: bool = False              # never gossiped
     counterpart: str = ""              # promises: the other party
+    root_source_id: str = ""           # one independent observation/claim across gossip hops
+    parent_memory_id: str = ""          # immediate transmission ancestor
+    agreement_id: str = ""             # recall projection of authoritative agreement
+    assertion_id: str = ""             # epistemic claim behind a retelling
+    transmission_id: str = ""          # immediate delivery in the claim ledger
 
     def __post_init__(self) -> None:
         if not valid_source(self.source):
@@ -69,7 +74,10 @@ class Memory:
         return {"id": self.id, "owner": self.owner, "text": self.text, "source": self.source,
                 "minute": self.minute, "confidence": self.confidence, "kind": self.kind,
                 "event_id": self.event_id, "refs": [r.to_dict() for r in self.refs], "due": self.due,
-                "status": self.status, "private": self.private, "counterpart": self.counterpart}
+                "status": self.status, "private": self.private, "counterpart": self.counterpart,
+                "root_source_id": self.root_source_id, "parent_memory_id": self.parent_memory_id,
+                "agreement_id": self.agreement_id, "assertion_id": self.assertion_id,
+                "transmission_id": self.transmission_id}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Memory":
@@ -79,7 +87,12 @@ class Memory:
                    event_id=str(data.get("event_id") or ""),
                    refs=tuple(Ref.from_dict(r) for r in data.get("refs") or []),
                    due=data.get("due"), status=str(data.get("status") or "open"),
-                   private=bool(data.get("private")), counterpart=str(data.get("counterpart") or ""))
+                   private=bool(data.get("private")), counterpart=str(data.get("counterpart") or ""),
+                   root_source_id=str(data.get("root_source_id") or ""),
+                   parent_memory_id=str(data.get("parent_memory_id") or ""),
+                   agreement_id=str(data.get("agreement_id") or ""),
+                   assertion_id=str(data.get("assertion_id") or ""),
+                   transmission_id=str(data.get("transmission_id") or ""))
 
 
 def _tokens(text: str) -> list[str]:
