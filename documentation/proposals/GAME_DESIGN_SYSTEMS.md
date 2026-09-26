@@ -22,7 +22,7 @@ Everything else emerges.
 Worlds can opt into a reusable researched atlas and shortest-time routing via
 their world JSON. Atomic locations drive both map exploration and gameplay;
 area containers never become travel destinations. Straight-line geography and
-estimated travel minutes are separate data. See [WORLD_ATLAS_DESIGN.md](WORLD_ATLAS_DESIGN.md).
+estimated travel minutes are separate data. See [WORLD_ATLAS_DESIGN.md](../reference/WORLD_ATLAS_DESIGN.md).
 
 Each game defines:
 - characters

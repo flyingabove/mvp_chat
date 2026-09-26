@@ -15,5 +15,5 @@ This document is archived to avoid stale planning conflicts.
 - `tests/backend/app/engine/test_prompt_builder.py`
 - `tests/backend/app/engine/test_active_characters.py`
 - `tests/backend/integration/test_iu_identity_correction.py`
-- `documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md`
-- `documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md`
+- `documentation/reference/STORYTELLER_PROMPT_REDESIGN.md`
+- `documentation/reference/EPISTEMIC_ENGINE_DESIGN.md`

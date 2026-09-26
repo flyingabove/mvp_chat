@@ -55,7 +55,7 @@ VALIDATION
 ---
 
 ACCOMPLISHED (in progress and completed)
-- Added canonical Python style doc: documentation/model_output_docs/PYTHON_CODING_STYLE_GUIDE.md
+- Added canonical Python style doc: documentation/reference/PYTHON_CODING_STYLE_GUIDE.md
 - Renamed runtime helper from _apply_knowledge_resolution_updates to apply_knowledge_resolution_updates in backend/app/api/prompt_engine.py
 - Added one MASTER prompt engine unit test in tests/backend/app/api/test_prompt_engine.py
 - Enforced test filename normalization so tests map to source file stems:
@@ -70,7 +70,7 @@ ACCOMPLISHED (in progress and completed)
     - tests/backend/app/knowledge/test_retrieve.py
 - Rewrote documentation/ai_1_guide_to_docs.md as single searchable index and added coding style + verification ledger links.
 - Deleted mirror index file `documentation/guide_to_docs.md`; `documentation/ai_1_guide_to_docs.md` is now the single index.
-- Renamed documentation/model_output_docs/layer_coverage_mapping.md to documentation/model_output_docs/LAYER_COVERAGE_MAPPING.md for pattern-driven naming.
+- Renamed documentation/model_output_docs/layer_coverage_mapping.md to documentation/reference/LAYER_COVERAGE_MAPPING.md for pattern-driven naming.
 - Updated integration docs to canonical test layout language (moved away from old tests/backend/integration path assumptions where stale).
 - Standardized AI-routing headers (`Purpose`, `Load When`, `Canonical Code`) in key runtime docs:
    - MESSAGE_TO_PROMPT_FLOW_TRACE.md

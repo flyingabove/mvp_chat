@@ -8,9 +8,9 @@ The prior phase checklist drifted from current implementation details and create
 
 ## Use these docs instead
 
-- `documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md`
-- `documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md`
-- `documentation/model_output_docs/STORYTELLER_PROMPT_REDESIGN.md`
+- `documentation/reference/EPISTEMIC_ENGINE_DESIGN.md`
+- `documentation/reference/TRANSIENT_BUFFER_DESIGN.md`
+- `documentation/reference/STORYTELLER_PROMPT_REDESIGN.md`
 
 ## Runtime source of truth
 

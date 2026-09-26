@@ -8,7 +8,7 @@ Current as of 2026-09-24: `frontend/index.html` remains the SPA shell, with
 major components. FastAPI serves content-addressed JS/CSS URLs. Shell and
 worker revisions are derived from file contents in `backend/app/main.py`;
 there is no manual `version.json` bump. See
-`documentation/model_output_docs/UI_REDESIGN_2026.md` for current behavior.
+`documentation/reference/UI_REDESIGN_2026.md` for current behavior.
 
 For UI development, follow `.claude/skills/ship-and-verify/SKILL.md` and its
 `BROWSER_QA.md`. Run `scripts/verify_ui_browser.py` in real desktop Chromium,

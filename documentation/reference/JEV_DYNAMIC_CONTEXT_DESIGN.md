@@ -323,6 +323,6 @@ Official pages checked 2026-09-23:
 - [Jev 1.13 limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13): motivation for focused state, code-owned arithmetic and independent enforcement.
 - [Models](https://docs.typesafe.ai/models): checked model ID, token limits and pricing; revalidate operational values at implementation time.
 
-Repository companions: [Epistemic engine](EPISTEMIC_ENGINE_DESIGN.md), [Transient buffer](TRANSIENT_BUFFER_DESIGN.md), [Social mode](SOCIAL_MODE_DESIGN.md), [Cast lifecycle](CAST_LIFECYCLE_DESIGN.md), [World atlas](WORLD_ATLAS_DESIGN.md), [Jev provider architecture](../JEV_PROVIDER_ARCHITECTURE_2026_09_22.md).
+Repository companions: [Epistemic engine](EPISTEMIC_ENGINE_DESIGN.md), [Transient buffer](TRANSIENT_BUFFER_DESIGN.md), [Social mode](SOCIAL_MODE_DESIGN.md), [Cast lifecycle](CAST_LIFECYCLE_DESIGN.md), [World atlas](WORLD_ATLAS_DESIGN.md), [Jev provider architecture](JEV_PROVIDER_ARCHITECTURE_2026_09_22.md).
 
 This document specifies a design grounded in code inspection and vendor documentation. No new live Jev trials, gameplay implementation, measured quality gain or runtime deployment verification were performed for this documentation task.

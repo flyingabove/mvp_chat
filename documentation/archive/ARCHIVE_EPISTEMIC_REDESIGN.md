@@ -10,9 +10,9 @@ This file is historical context only.
 5. Relationship graph is useful, but should be adopted incrementally.
 
 ## Current source of truth
-- `documentation/model_output_docs/EPISTEMIC_ENGINE_DESIGN.md`
-- `documentation/model_output_docs/ARCHIVE_EPISTEMIC_ENGINE_TODO.md`
-- `documentation/model_output_docs/TRANSIENT_BUFFER_DESIGN.md`
+- `documentation/reference/EPISTEMIC_ENGINE_DESIGN.md`
+- `documentation/archive/ARCHIVE_EPISTEMIC_ENGINE_TODO.md`
+- `documentation/reference/TRANSIENT_BUFFER_DESIGN.md`
 
 ## Note
 The remaining sections in this file are legacy exploratory material and may include superseded detail.

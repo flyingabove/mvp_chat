@@ -48,4 +48,4 @@ Non-goals
 ---------
 
 - This workflow is for intermediate execution tracking, not product design docs.
-- Long-term architecture decisions should still be recorded in the relevant model_output_docs files.
+- Long-term architecture decisions should still be recorded in the relevant `documentation/reference/` (as-built) or `documentation/proposals/` (designed, not built) files.

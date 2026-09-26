@@ -82,4 +82,4 @@ The single extractor receives:
 ## Ownership
 - Runtime implementation: `backend/app/engine/extractors/turn_extractor.py`
 - Prompt-engine integration: `backend/app/api/prompt_engine.py`
-- Flow trace: `documentation/model_output_docs/MESSAGE_TO_PROMPT_FLOW_TRACE.md`
+- Flow trace: `documentation/reference/MESSAGE_TO_PROMPT_FLOW_TRACE.md`

@@ -49,7 +49,7 @@ guidance for Codex; beta remains the deployment target.
 
 **Rule:** Treat localhost as debug/scorer-only (`/beta/debug`). App login and Google OAuth callbacks should be documented and configured for hosted domains.
 
-**Added to:** `documentation/model_output_docs/AUTH_AND_PERSISTENCE_DESIGN.md`, `documentation/model_output_docs/INFRASTRUCTURE.md`.
+**Added to:** `documentation/reference/AUTH_AND_PERSISTENCE_DESIGN.md`, `documentation/reference/INFRASTRUCTURE.md`.
 
 ## 2026-03-21: Use one canonical intermediate task file
 
@@ -73,5 +73,5 @@ guidance for Codex; beta remains the deployment target.
 
 **Rule:** The deploy build runs unit tests only (`-m "not integration"`), with blank LLM keys and `TESTS_BLOCK_LLM_NETWORK=1` (conftest blocks LLM hosts). Real-API tests must carry `@pytest.mark.integration`. Live tests at build time only via explicit `RUN_LIVE_LLM_TESTS=1`. Never add evaluation or LLM calls to the Dockerfile, CI unit job, or app startup.
 
-**Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/model_output_docs/INFRASTRUCTURE.md`.
+**Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/reference/INFRASTRUCTURE.md`.
 

@@ -56,4 +56,4 @@ Pattern:
 No naked test filenames are allowed. Test filenames must directly reveal the target module.
 
 ## Documentation consistency rule
-If docs describe runtime behavior that differs from code, update docs immediately and record the correction in `documentation/model_output_docs/ERRORS.md`.
+If docs describe runtime behavior that differs from code, update docs immediately and record the correction in `documentation/reference/ERRORS.md`.

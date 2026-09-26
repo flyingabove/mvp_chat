@@ -70,7 +70,7 @@ The mode layer sits in `system_prompt()` immediately after `base_prompt` (the st
 6. Character self-knowledge (identity facts — see §5 for the ensemble caveat)
 7. Truth override (debug mode only)
 
-This mirrors the position described in `documentation/model_output_docs/LAYER_COVERAGE_MAPPING.md` / the MEMORY "System Prompt Layers" list — logically it belongs right next to the base prompt/style layer, since it's tone-setting context the model should internalize before anything else, and its position is now also reflected there and in `MESSAGE_TO_PROMPT_FLOW_TRACE.md`.
+This mirrors the position described in `documentation/reference/LAYER_COVERAGE_MAPPING.md` / the MEMORY "System Prompt Layers" list — logically it belongs right next to the base prompt/style layer, since it's tone-setting context the model should internalize before anything else, and its position is now also reflected there and in `MESSAGE_TO_PROMPT_FLOW_TRACE.md`.
 
 `build_messages()`'s `return_debug=True` path also exposes it as `prompt_layers["mode_context"]` for the debug UI, alongside the existing `base_prompt`, `character_identity`, etc. keys.
 
