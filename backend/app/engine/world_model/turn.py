@@ -233,9 +233,14 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     target = find_inspect_target(model, message)
     if target is not None:
         result = inspect(model, target, message, witnesses=tuple(present))
-        if result.noticed:
-            view.must_address.append(f"The player inspects {target.name}: they notice {'; '.join(result.noticed)}. "
+        if result.newly_noticed:
+            view.must_address.append(f"The player inspects {target.name} and newly notices "
+                                     f"{'; '.join(result.newly_noticed)}. "
                                      "Describe exactly this; invent no other clue.")
+        elif result.noticed:
+            view.must_address.append(f"The player re-inspects {target.name}. They already recorded "
+                                     f"{'; '.join(result.noticed)}. There is no newly discovered evidence here. "
+                                     "Answer a question about new evidence directly; do not stage the old clue as a discovery.")
         else:
             view.must_address.append(f"The player inspects {target.name} and notices nothing unusual"
                                      + (" at a glance" if result.missed else "") + ". Invent no clue.")

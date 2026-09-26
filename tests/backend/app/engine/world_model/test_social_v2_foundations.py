@@ -404,6 +404,27 @@ def test_dialogue_observation_proves_speech_only_for_audible_witnesses():
     assert not model.memories.of("cat")
 
 
+def test_social_scene_gate_drops_unknown_speech_in_empty_room_and_player_feelings():
+    from backend.app.engine.dialogue import ground_social_scene
+
+    model = make_model({"ann": "outside"})
+    state = SimpleNamespace(world_model=model, minute=60, location="Open Kitchen",
+                            world_start_datetime="2025-01-01 08:00 PM",
+                            story_cfg={"mode": {"romance_goal": {"enabled": True}}})
+    segments = [{"kind": "narration", "text": "Ann enters the room."},
+                {"kind": "dialogue", "speaker_id": None, "text": "I am here!"}]
+    result = ground_social_scene(segments, state)
+    assert len(result) == 1 and "09:00 PM" in result[0]["text"]
+    assert "Ann" not in result[0]["text"] and "I am here" not in result[0]["text"]
+
+    model.world.move("ann", "kitchen")
+    segments = [{"kind": "narration", "text": "You feel happy. Ann holds up the recipe."},
+                {"kind": "dialogue", "speaker_id": "ann", "text": "Ready?"}]
+    result = ground_social_scene(segments, state)
+    assert result[0]["text"] == "Ann holds up the recipe."
+    assert result[1]["speaker_id"] == "ann"
+
+
 def test_player_utterance_is_observed_by_present_people_but_confessional_is_not():
     from backend.app.engine.world_model.turn import begin_turn
 

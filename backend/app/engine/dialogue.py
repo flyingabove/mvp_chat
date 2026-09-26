@@ -252,6 +252,50 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     return clean, segments
 
 
+_PLAYER_INTERNAL_STATE = re.compile(
+    r"\b(?:you\s+(?:feel|sense|realize|find\s+yourself|can't\s+help\s+but)|"
+    r"your\s+(?:anticipation|excitement|confusion|thoughts|feelings)\b|"
+    r"(?:brings|bring)\s+a\s+smile\s+to\s+your\s+face)", re.I,
+)
+
+
+def ground_social_scene(segments: list[dict], state) -> list[dict]:
+    """Reject ungrounded social speech and narrator-assigned player feelings.
+
+    This is a narrow post-generation gate for the opted-in social story. The
+    model can still describe fictional atmosphere, but its unknown speaker
+    cannot become an action or agreement, and an empty room cannot acquire
+    dialogue just because the model wrote it.
+    """
+    cfg = getattr(state, "story_cfg", {}) or {}
+    if not isinstance(cfg, dict) or not ((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"):
+        return segments
+    model = getattr(state, "world_model", None)
+    if model is None:
+        return segments
+    present = set(model.present_with_player())
+    invalid_speech = any(segment.get("kind") == "dialogue" and not segment.get("speaker_id")
+                         for segment in segments)
+    if invalid_speech and not present:
+        from backend.app.engine.time_utils import WorldTimeFormatter
+        timestamp = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""),
+                                               getattr(state, "minute", 0)).display
+        location = str(getattr(state, "location", "") or "this room")
+        return [{"kind": "narration", "text": f"It is {timestamp}. {location} is quiet; no one is here to answer."}]
+    grounded: list[dict] = []
+    for segment in segments:
+        if segment.get("kind") == "dialogue":
+            if segment.get("speaker_id"):
+                grounded.append(segment)
+            continue
+        text = str(segment.get("text") or "")
+        sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
+        kept = [sentence for sentence in sentences if not _PLAYER_INTERNAL_STATE.search(sentence)]
+        if kept:
+            grounded.append({**segment, "text": " ".join(kept).strip()})
+    return grounded or [{"kind": "narration", "text": "The scene remains quiet for a moment."}]
+
+
 def _unmarked_quotes(text: str) -> list[tuple[int, int, str]]:
     """Find quoted passages outside trusted storyteller speaker markers."""
     found: list[tuple[int, int, str]] = []

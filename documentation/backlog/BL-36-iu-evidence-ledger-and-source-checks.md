@@ -13,5 +13,9 @@ Track each observation, statement and corroboration separately with source, spea
 ## Why deferred / cautions
 The user asked to focus current implementation on Terrace; keep IU as engine consistency follow-up. A suspect's shifting answer must remain possible rather than being deterministically "corrected" into honesty.
 
+**Hosted reproduction (2026-09-26, beta `1045464`, new IU session):** turn 3 established closet scratches and turn 4 photographed them. Turn 5 correctly distinguished IU's lack of memory of making them. On turn 6 IU invented that Mira had told her additional items were missing; on turns 7–8 she repeated that attribution after Mira explicitly denied ever saying it. Turn 9 presented the same scratches as a fresh discovery and turn 10 repeated IU's earlier reaction. This requires source/path validation and discovered-clue deduplication, not merely another storyteller instruction. Full raw turn records are in the local social-v2 hosted-play artifact folder.
+
+**Partial correction awaiting beta retest:** the inspection result now distinguishes first discovery from reinspection and tells the storyteller when no new surface was found. This does not itself prevent invented testimony provenance or guarantee the model follows the clue instruction; the item remains open.
+
 ## Touches
 `backend/app/engine/world_model/evidence.py`, `events.py`, `memory.py`, IU story leads, journal route and tests.

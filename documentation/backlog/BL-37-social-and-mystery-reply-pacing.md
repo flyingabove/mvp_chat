@@ -13,5 +13,7 @@ Give an addressed, answerable question a concise answer or honest inability; pri
 ## Why deferred / cautions
 Prompt changes alter both games and need arena and human review; this is not a reason to simply cap all replies. Do not force disagreement every turn or punish deliberate uncertainty in a mystery.
 
+**Hosted reproduction (2026-09-26, beta `1045464`):** Terrace turn 3 ignored the direct request for Misaki to confirm a 7 pm plan and let Masako volunteer instead; turn 4 required the player to restate the boundary. IU turn 4 narrated "the weight of her words" while IU gave no answer to a direct source question; turn 5 required repetition. IU turn 10 did not answer whether any new physical evidence existed. The same atmosphere phrases and player feelings recur in both ten-turn runs. The current social-only scene guard removes some player-internal narration and unidentified speech in empty rooms, but direct-answer and mystery pacing gates remain open.
+
 ## Touches
 `backend/app/engine/prompt_builder.py`, `dialogue.py`, Terrace voice data, tests and hosted evaluation.

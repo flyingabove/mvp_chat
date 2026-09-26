@@ -59,8 +59,12 @@ def test_inspection_returns_only_perceivable_surfaces_and_records_memories():
     assert find_inspect_target(model, "I examine the closet") is closet
     glance = inspect(model, closet, "I examine the closet", witnesses=("ann",))
     assert glance.noticed == ["faint scratches beneath the paint"] and glance.missed == 2
+    assert glance.newly_noticed == glance.noticed
+    repeated = inspect(model, closet, "I examine the closet")
+    assert repeated.noticed == glance.noticed and repeated.newly_noticed == []
     close = inspect(model, closet, "I look closely at the jamb")
     assert "the marks look older than one night" in close.noticed
+    assert close.newly_noticed == ["the marks look older than one night"]
     assert model.memories.search(PLAYER, "closet scratches", k=5)
     assert model.memories.search("ann", "examined closet", k=1)
 

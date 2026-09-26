@@ -13,5 +13,7 @@ Trace initialization and `WorldTimeFormatter` against story start time, then nat
 ## Why deferred / cautions
 This task is a playtest/review, not an implementation. Exact runtime cause and feature-flag state were not established; public debug is not a full state receipt. Do not assume the dedicated skip control has the same defect. Preserve existing schedule/commitment behavior and verify hosted natural-language turns after a fix.
 
+**Hosted reproduction (2026-09-26, beta `1045464`):** Terrace turn 5 said "I wait until tomorrow at 7 pm" but the reply remained on the previous evening. The dedicated `DAY` skip on turn 6 advanced the clock to about 8:45 pm the next day, yet the narrator claimed "At 7 PM" and staged the date as if on time; turn 7 gave the actual 8:45 pm time. A narrow first-person "wait until tomorrow at HH[:MM] am/pm" adapter now advances the authoritative clock in local tests; general natural waits, interruptions, wrong exact times in generated prose and IU chronology remain open pending hosted retest.
+
 ## Touches
 `backend/app/api/prompt_engine.py`, `backend/app/engine/state.py`, time formatting/gameplay and turn extraction, `backend/app/engine/world_model/`, `backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json`.

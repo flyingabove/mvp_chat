@@ -23,6 +23,7 @@ class Inspection:
     entity: Entity
     noticed: list[str]
     missed: int
+    newly_noticed: list[str]
 
 
 def find_inspect_target(model: "WorldModel", message: str, viewer: str = PLAYER) -> Optional[Entity]:
@@ -52,13 +53,14 @@ def inspect(model: "WorldModel", entity: Entity, message: str, viewer: str = PLA
             witnesses: tuple[str, ...] = ()) -> Inspection:
     surfaces = list(entity.props.get("surfaces") or [])
     noticed = [s["text"] for s in surfaces if _perceivable(s, model, viewer, message)]
+    newly_noticed = [text for text in noticed
+                     if not model.memories.has_text(viewer, f"{entity.name}: {text}")]
     minute, place = model.world.minute, model.world.place_of(viewer) or ""
     if noticed:
         event = model.world.add_event(minute, place, (viewer, *witnesses),
                                       f"@{viewer} inspected {entity.name}", kind="inspection")
-        for text in noticed:
-            if not model.memories.has_text(viewer, f"{entity.name}: {text}"):
-                model.memories.add(viewer, f"{entity.name}: {text}", "witnessed", minute, event_id=event.id)
+        for text in newly_noticed:
+            model.memories.add(viewer, f"{entity.name}: {text}", "witnessed", minute, event_id=event.id)
         for witness in witnesses:
             model.memories.add(witness, f"@{viewer} examined {entity.name}", "witnessed", minute, event_id=event.id)
-    return Inspection(entity, noticed, len(surfaces) - len(noticed))
+    return Inspection(entity, noticed, len(surfaces) - len(noticed), newly_noticed)

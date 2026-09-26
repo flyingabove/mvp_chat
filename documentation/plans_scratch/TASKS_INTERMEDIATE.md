@@ -12,6 +12,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 Progress: the first cross-phase runtime slice has event identity and causes, observed speech, gossip roots, canonical agreements, rival invitations, conflict focus, explicit relationship/departure decisions and a terminal cast transition. The full acceptance contract remains open. Deterministic tests and local desktop Chromium, iPhone WebKit and standalone WebKit feature checks pass. Next: hosted campaigns, then repair live failures and finish the remaining architecture and scale gates.
 
+Hosted `1045464`: completed ten-turn Terrace and ten-turn IU campaigns with full raw records; see `SOCIAL_V2_HOSTED_PLAY_2026_09_26.md`. Local corrections after that build handle explicit natural waiting and reject unidentified speech in an empty social scene. Awaiting full retest, corrective beta deploy and hosted recheck. Remaining 44-scenario architecture/quality gates stay open.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.

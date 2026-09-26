@@ -95,6 +95,8 @@ initiative, and social-scene handoffs; its runtime features are not yet implemen
 
 The [2026-09-25 manual beta play review](model_output_docs/BETA_MANUAL_PLAY_REVIEW_2026_09_25.md) records 10 personally chosen Terrace turns and 12 IU turns, subjective logic/engagement grades, deployment scope, and evidence for BL-30 through BL-32. Preserve it as a dated observational report; later playtests should be separate reports.
 
+The [2026-09-26 social-v2 hosted play review](model_output_docs/SOCIAL_V2_HOSTED_PLAY_2026_09_26.md) records ten fresh Terrace turns and ten IU turns against beta `1045464`, with the complete raw exchanges stored locally. It identifies clock, private-plan, unknown-speaker, player-agency, evidence-source and repeated-clue failures, and distinguishes subsequent local corrections from hosted proof.
+
 The proposed controlled beta/prod evaluation system is documented in
 [JEV_GAME_ARENA_DESIGN.md](model_output_docs/JEV_GAME_ARENA_DESIGN.md).
 Update it when paired-game controls, Jev judge calibration, evidence contracts,

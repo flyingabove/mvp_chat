@@ -3327,6 +3327,16 @@ def test_parse_time_skip_token_detection():
     assert pe_mod._parse_time_skip("let's skip ahead a few hours") is None
 
 
+def test_explicit_natural_wait_until_tomorrow_advances_to_requested_clock_time():
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = types.SimpleNamespace(world_start_datetime="2025-01-01 08:00 PM", minute=12)
+    result = pe_mod._parse_natural_wait("I wait until tomorrow at 7 pm in the kitchen.", state)
+    assert result is not None and result[0] == 1368
+    assert pe_mod._parse_natural_wait("Would Yuriko wait until tomorrow at 7 pm?", state) is None
+    assert pe_mod._parse_natural_wait("I plan to wait until tomorrow at 7 pm.", state) is None
+
+
 def test_map_toggle_no_llm_call(client):
     """Verify that MAP toggle does not invoke LLM (0 tokens)."""
     # Start new game

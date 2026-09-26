@@ -83,7 +83,7 @@ from backend.app.engine.state import (
 from backend.app.engine.dialogue import (
     present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
     dialogue_response_format, decode_dialogue_response,
-    has_unmarked_quotes, attribute_unmarked_quotes,
+    has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
@@ -1080,6 +1080,35 @@ def _parse_time_skip(msg: str) -> Optional[tuple[int, str]]:
         return None
     preset_key = text[len(TIME_SKIP_PREFIX):].strip().upper()
     return TIME_SKIP_PRESETS.get(preset_key)
+
+
+def _parse_natural_wait(msg: str, state: GameState) -> Optional[tuple[int, str]]:
+    """Resolve an explicit first-person wait until tomorrow's clock time.
+
+    Keep this narrow: a question, wish, or plan about waiting must not move
+    the world. A fully general time intent needs the typed action extractor.
+    """
+    from datetime import datetime, timedelta
+
+    match = re.search(
+        r"(?:^I\s+wait|\bthen\s+(?:I\s+)?wait)\s+until\s+tomorrow\s+at\s+"
+        r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", str(msg or ""), re.I,
+    )
+    if match is None:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    if not 1 <= hour <= 12 or not 0 <= minute < 60:
+        return None
+    now = datetime.fromisoformat(WorldTimeFormatter.compute(
+        getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0),
+    ).iso)
+    target = (now + timedelta(days=1)).replace(
+        hour=hour % 12 + (12 if match.group(3).lower() == "pm" else 0),
+        minute=minute, second=0, microsecond=0,
+    )
+    elapsed = int((target - now).total_seconds() // 60)
+    return (elapsed, "The player waited until the requested time") if elapsed > 0 else None
 
 
 def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
@@ -2272,7 +2301,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     _wm_minute_before = int(getattr(state, "minute", 0) or 0) if state is not None else 0
     _wm_player_words = msg
     _wm_sleeping = False
-    _time_skip = _parse_time_skip(msg)
+    _time_skip = _parse_time_skip(msg) or (_parse_natural_wait(msg, state) if state is not None else None)
     _is_time_skip_turn = False
     if _time_skip is not None and state is not None:
         _skip_minutes, _skip_cue = _time_skip
@@ -2288,7 +2317,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         _new_ts = WorldTimeFormatter.compute(
             getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)
         ).display
-        msg = f"[Time skip] {_skip_cue}. It is now {_new_ts}."
+        msg = f"{msg}\n[Time skip] {_skip_cue}. It is now {_new_ts}."
         _is_time_skip_turn = True
         _wm_player_words = ""
 
@@ -3429,6 +3458,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # because each copy re-entered the history (2026-09-24).
     segments = drop_repeated_lines(
         segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
+    segments = ground_social_scene(segments, state)
     world_turn.end_turn(state, _wm_player_words, segments)
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
