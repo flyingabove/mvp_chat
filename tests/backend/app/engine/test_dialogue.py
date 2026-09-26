@@ -4,6 +4,24 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, drop_repeated_lines, only_repeats, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
+
+
+def test_narrated_player_echo_drops_restatement_but_keeps_new_consequence():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+
+    player = "I walk over to the wall-mounted phone in the kitchen and start dialing."
+    segments = [{"kind": "narration", "text": "You walk over to the wall-mounted phone in the kitchen and start dialing, the sound of the dial tone filling the room."},
+                {"kind": "dialogue", "speaker_id": "iu", "text": "Who are you calling?"}]
+    result = drop_narrated_player_echo(segments, player)
+    assert result[0]["text"] == "The sound of the dial tone filling the room."
+    assert result[1] == segments[1]
+
+
+def test_narrated_player_echo_keeps_unrelated_scene_action():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+
+    segments = [{"kind": "narration", "text": "IU glances at the empty phone cradle."}]
+    assert drop_narrated_player_echo(segments, "I pick up the phone.") == segments
 from backend.app.engine.state import Character, extract_state_tag
 
 

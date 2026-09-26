@@ -6,15 +6,22 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ### 2026-09-26 Social engine v2 implementation and hosted play
 
-- [ ] Implement the authoritative turn/event and replay contracts with unit and integration scenarios.
-- [ ] Implement epistemic gossip provenance, agreements, NPC intentions, drama pacing and validated endings with tests.
-- [ ] Run full regression suite, integrate beta, deploy, then personally play Terrace and IU on hosted beta and record findings.
+- [ ] Phase 1: canonical turn/event reducer, durable retry/revision/outbox, one clock, save/replay and scene validation; pass P1-01..08.
+- [ ] Phase 2: sourced observations/testimony/gossip, character-local belief projection and privacy; pass P2-01..10.
+- [ ] Phase 3: participant decisions, agreement calendar, fulfillment evidence and interruptible skips; pass P3-01..09.
+- [ ] Phase 4: independent NPC intentions, rivals, directional appraisal and bounded repetition; pass P4-01..08.
+- [ ] Phase 5: caused drama/repair, mutual relationship and cast-departure endings, and restrained narration; pass P5 scenarios in the design.
+- [ ] Cross-phase: migration, retry, 6/30/100-character scale fixtures and a 20-turn campaign on both player-gender paths.
+- [ ] Run full regression suite, integrate beta, deploy exact SHA and verify desktop Chromium, iPhone WebKit and standalone WebKit.
+- [ ] After the above, personally play complete Terrace and IU hosted beta campaigns; record every turn, grade logic/engagement and repair failures before calling the work done.
 
 Progress: the first cross-phase runtime slice has event identity and causes, observed speech, gossip roots, canonical agreements, rival invitations, conflict focus, explicit relationship/departure decisions and a terminal cast transition. The full acceptance contract remains open. Deterministic tests and local desktop Chromium, iPhone WebKit and standalone WebKit feature checks pass. Next: hosted campaigns, then repair live failures and finish the remaining architecture and scale gates.
 
 Hosted `1045464`: completed ten-turn Terrace and ten-turn IU campaigns with full raw records; see `SOCIAL_V2_HOSTED_PLAY_2026_09_26.md`. Local corrections after that build handle explicit natural waiting and reject unidentified speech in an empty social scene. Awaiting full retest, corrective beta deploy and hosted recheck. Remaining 44-scenario architecture/quality gates stay open.
 
 Corrective beta `c1050c9`: hosted natural-wait and empty-room replay passed; IU reinspection acknowledged no new clue; hosted desktop Chromium, iPhone WebKit and standalone WebKit interactions passed. Full social-v2 acceptance remains open (especially IU attribution, player agency, scene/commit transactions and scale campaigns).
+
+Current corrective slice: ISO IU story clock and chronology, explicit duration/same-day waits, transport-skip prompt cleanup, leading exact-time scene repair, bounded narrator feeling/action-echo filters, and a present-housemate explicit self-introduction speaker split. Unit regressions pass; phase and final-playthrough boxes remain unchecked pending integrated/hosted proof.
 
 ### 2026-09-25 Terrace goal and rival mechanics
 

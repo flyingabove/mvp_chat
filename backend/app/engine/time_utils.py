@@ -32,7 +32,7 @@ class WorldTimeFormatter:
         # Accept a couple common formats, but keep output stable.
         # Primary expected format: "YYYY-MM-DD hh:mm AM"
         parsed = None
-        for fmt in ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %H:%M"):
+        for fmt in ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
             try:
                 parsed = datetime.strptime(start_str, fmt)
                 break

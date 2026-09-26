@@ -3337,6 +3337,53 @@ def test_explicit_natural_wait_until_tomorrow_advances_to_requested_clock_time()
     assert pe_mod._parse_natural_wait("I plan to wait until tomorrow at 7 pm.", state) is None
 
 
+def test_explicit_natural_wait_supports_duration_and_same_day_clock():
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = types.SimpleNamespace(world_start_datetime="2025-01-01 08:00 PM", minute=12)
+    assert pe_mod._parse_natural_wait("I wait for 30 minutes.", state)[0] == 30
+    assert pe_mod._parse_natural_wait("I wait until 9:15 pm.", state)[0] == 63
+    assert pe_mod._parse_natural_wait("I wait until 7 pm.", state) is None
+    assert pe_mod._parse_natural_wait("I might wait for 30 minutes.", state) is None
+    assert pe_mod._parse_natural_wait("I ask Ann to wait for 30 minutes.", state) is None
+
+
+def test_skip_prompt_hides_transport_command_but_keeps_natural_player_words():
+    from backend.app.api import prompt_engine as pe_mod
+
+    assert pe_mod._skip_prompt_message("__cmd_skip__:DAY", "A full day passes", "Jan 2, 2025") == (
+        "[Time skip] A full day passes. It is now Jan 2, 2025."
+    )
+    assert pe_mod._skip_prompt_message("I wait for 30 minutes.", "The player waited", "Jan 1, 2025") == (
+        "I wait for 30 minutes.\n[Time skip] The player waited. It is now Jan 1, 2025."
+    )
+
+
+def test_iu_authored_iso_clock_and_death_window_are_chronological():
+    import json
+    from pathlib import Path
+    from datetime import datetime
+    from backend.app.engine.time_utils import WorldTimeFormatter
+
+    story = json.loads((Path(__file__).parents[4] / "backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json").read_text(encoding="utf-8"))
+    started = WorldTimeFormatter.compute(story["world"]["start_datetime"], 0)
+    assert started.iso == "2025-01-22T09:00:00"
+    assert datetime.fromisoformat(started.iso) > datetime(2025, 1, 15)
+    assert WorldTimeFormatter.compute(story["world"]["start_datetime"], 30).iso == "2025-01-22T09:30:00"
+
+
+def test_iu_new_game_uses_authored_clock_in_runtime(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.time_utils import WorldTimeFormatter
+
+    sid = "iu_clock_iso_regression"
+    response = client.post("/api/chat", json={"session_id": sid,
+                                               "message": "__cmd_newgame__:iu_murder_mystery|M|Mira"})
+    assert response.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert WorldTimeFormatter.compute(state.world_start_datetime, state.minute).iso == "2025-01-22T09:00:00"
+
+
 def test_map_toggle_no_llm_call(client):
     """Verify that MAP toggle does not invoke LLM (0 tokens)."""
     # Start new game

@@ -253,10 +253,46 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
 
 
 _PLAYER_INTERNAL_STATE = re.compile(
-    r"\b(?:you\s+(?:feel|sense|realize|find\s+yourself|can't\s+help\s+but)|"
+    r"\b(?:you\s+(?:(?:can|could)\s+(?:feel|sense)|feel|sense|realize|find\s+yourself|can't\s+help\s+but)|"
+    r"(?:gives?|giving)\s+you\s+the\s+sense\b|"
     r"your\s+(?:anticipation|excitement|confusion|thoughts|feelings)\b|"
+    r"your\b.{0,25}\b(?:spirit|heart|mind|mood)\b|"
     r"(?:brings|bring)\s+a\s+smile\s+to\s+your\s+face)", re.I,
 )
+_SCENE_CLOCK = re.compile(r"^At\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\s*,\s*", re.I)
+_INTRO_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=(?:and\s+)?(?:i['’]m|i am|my name is)\s+)", re.I)
+_PLAYER_ACTION_OPEN = re.compile(
+    r"^You\s+(?:step|take|smile|nod|introduce|walk|reach|sit|stand|lean|turn|say|ask|murmur|whisper)\b", re.I,
+)
+_PLAYER_ACTION_TAIL = re.compile(
+    r",\s+and\s+you\s+(?:step|take|smile|nod|introduce|walk|reach|sit|stand|lean|turn|say|ask|murmur|whisper)\b.*$", re.I,
+)
+
+
+def _split_other_introductions(segment: dict, state, eligible: set[str]) -> list[dict]:
+    """Repair an explicitly self-named second speaker inside one model beat."""
+    text = str(segment.get("text") or "")
+    parts = _INTRO_BOUNDARY.split(text)
+    if len(parts) < 2:
+        return [segment]
+    characters = getattr(state, "characters", {}) or {}
+    speaker = segment.get("speaker_id")
+    kept: list[dict] = []
+    run: list[str] = []
+    switched = False
+    for part in parts:
+        identified = _self_identified_speaker(part, state)
+        if identified and identified != speaker and identified in eligible:
+            if run:
+                kept.append(_segment(" ".join(run).strip(), speaker, characters))
+            run, speaker, switched = [part], identified, True
+        else:
+            run.append(part)
+    if not switched:
+        return [segment]
+    if run:
+        kept.append(_segment(" ".join(run).strip(), speaker, characters))
+    return kept
 
 
 def ground_social_scene(segments: list[dict], state) -> list[dict]:
@@ -267,30 +303,55 @@ def ground_social_scene(segments: list[dict], state) -> list[dict]:
     cannot become an action or agreement, and an empty room cannot acquire
     dialogue just because the model wrote it.
     """
-    cfg = getattr(state, "story_cfg", {}) or {}
-    if not isinstance(cfg, dict) or not ((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"):
-        return segments
     model = getattr(state, "world_model", None)
     if model is None:
         return segments
+    cfg = getattr(state, "story_cfg", {}) or {}
+    social_mode = isinstance(cfg, dict) and bool(((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"))
     present = set(model.present_with_player())
     invalid_speech = any(segment.get("kind") == "dialogue" and not segment.get("speaker_id")
                          for segment in segments)
-    if invalid_speech and not present:
+    if social_mode and invalid_speech and not present:
         from backend.app.engine.time_utils import WorldTimeFormatter
         timestamp = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""),
                                                getattr(state, "minute", 0)).display
         location = str(getattr(state, "location", "") or "this room")
         return [{"kind": "narration", "text": f"It is {timestamp}. {location} is quiet; no one is here to answer."}]
     grounded: list[dict] = []
+    from backend.app.engine.time_utils import WorldTimeFormatter
+    from datetime import datetime
+    actual_clock = datetime.fromisoformat(WorldTimeFormatter.compute(
+        getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0),
+    ).iso)
     for segment in segments:
         if segment.get("kind") == "dialogue":
             if segment.get("speaker_id"):
-                grounded.append(segment)
+                eligible = present | set(getattr(getattr(model, "view", None), "allowed_speakers", []) or [])
+                grounded.extend(_split_other_introductions(segment, state, eligible))
             continue
         text = str(segment.get("text") or "")
         sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
-        kept = [sentence for sentence in sentences if not _PLAYER_INTERNAL_STATE.search(sentence)]
+        kept = []
+        for sentence in sentences:
+            if (_PLAYER_INTERNAL_STATE.search(sentence)
+                    or (re.match(r"^You\b", sentence, re.I) and re.search(r"\bfeeling\b", sentence, re.I))):
+                continue
+            if _PLAYER_ACTION_OPEN.match(sentence):
+                _, comma, consequence = sentence.partition(",")
+                if not comma:
+                    continue
+                sentence = consequence.strip()
+                if not sentence or re.match(r"^(?:and\s+)?you\b", sentence, re.I):
+                    continue
+                sentence = sentence[0].upper() + sentence[1:]
+            sentence = _PLAYER_ACTION_TAIL.sub(".", sentence)
+            clock = _SCENE_CLOCK.match(sentence)
+            if clock:
+                hour, minute = int(clock.group(1)), int(clock.group(2) or 0)
+                meridiem = clock.group(3).replace(".", "").lower()
+                if not 1 <= hour <= 12 or minute >= 60 or (hour % 12 + (12 if meridiem == "pm" else 0), minute) != (actual_clock.hour, actual_clock.minute):
+                    sentence = "Now, " + sentence[clock.end():]
+            kept.append(sentence)
         if kept:
             grounded.append({**segment, "text": " ".join(kept).strip()})
     return grounded or [{"kind": "narration", "text": "The scene remains quiet for a moment."}]
@@ -395,6 +456,37 @@ def _echo_coverage(words: list[str], said: list[str]) -> float:
         return 0.0
     blocks = SequenceMatcher(None, words, said, autojunk=False).get_matching_blocks()
     return sum(block.size for block in blocks) / len(words)
+
+
+def drop_narrated_player_echo(segments: list[dict], player_message: str) -> list[dict]:
+    """Remove a narrated copy of the player's action, retaining its consequence.
+
+    Only a leading clause with strong two-way lexical overlap is trimmed.
+    The storyteller may still describe the world's response after that clause.
+    """
+    pronouns = {"i": "you", "me": "you", "my": "your", "myself": "yourself"}
+    said = [pronouns.get(word, word) for word in normalized_words(player_message).split()]
+    if len(said) < 4:
+        return segments
+    out = []
+    for seg in segments:
+        if seg.get("kind") != "narration":
+            out.append(seg)
+            continue
+        body = str(seg.get("text") or "").strip()
+        first, separator, rest = body.partition(",")
+        if not separator:
+            first, rest = body, ""
+        words = normalized_words(first).split()
+        if (len(words) >= 4 and words[0] == "you"
+                and _echo_coverage(words, said) >= .8
+                and _echo_coverage(said, words) >= .65):
+            remaining = rest.strip() if separator else ""
+            if remaining:
+                out.append({**seg, "text": remaining[0].upper() + remaining[1:]})
+            continue
+        out.append(seg)
+    return out
 
 
 def drop_player_echo(segments: list[dict], player_message: str, player_key: str = "player") -> list[dict]:

@@ -425,6 +425,86 @@ def test_social_scene_gate_drops_unknown_speech_in_empty_room_and_player_feeling
     assert result[1]["speaker_id"] == "ann"
 
 
+def test_social_scene_gate_rejects_unearned_player_feelings_and_wrong_scene_clock():
+    from backend.app.engine.dialogue import ground_social_scene
+
+    model = make_model({"ann": "kitchen"})
+    state = SimpleNamespace(world_model=model, minute=1485, location="Open Kitchen",
+                            world_start_datetime="2025-01-01 08:00 PM",
+                            story_cfg={"mode": {"romance_goal": {"enabled": True}}})
+    segments = [
+        {"kind": "narration", "text": "At 7 PM, Ann waits at the table. You can feel the potential for connection."},
+        {"kind": "dialogue", "speaker_id": "ann", "text": "The curry is getting cold."},
+    ]
+    result = ground_social_scene(segments, state)
+    narration = " ".join(item["text"] for item in result if item["kind"] == "narration")
+    assert "7 PM" not in narration
+    assert "feel" not in narration
+    assert result[-1]["text"] == "The curry is getting cold."
+
+
+def test_agency_and_clock_gate_also_applies_to_iu_world_model():
+    from backend.app.engine.dialogue import ground_social_scene
+
+    model = make_model({"ann": "kitchen"})
+    state = SimpleNamespace(world_model=model, minute=60, location="Closet",
+                            world_start_datetime="2025-01-01 08:00 PM",
+                            story_cfg={"mode": {}})
+    result = ground_social_scene([
+        {"kind": "narration", "text": "At 8 PM, the closet door creaks. You can feel afraid."},
+        {"kind": "dialogue", "speaker_id": "ann", "text": "I remember the scratch."},
+    ], state)
+    assert result[0]["text"] == "Now, the closet door creaks."
+    assert result[1]["speaker_id"] == "ann"
+
+
+def test_social_gate_drops_indirect_feelings_seen_in_local_browser():
+    from backend.app.engine.dialogue import ground_social_scene
+
+    model = make_model({"ann": "kitchen"})
+    state = SimpleNamespace(world_model=model, minute=60, location="Open Kitchen",
+                            world_start_datetime="2025-01-01 08:00 PM",
+                            story_cfg={"mode": {"romance_goal": {"enabled": True}}})
+    result = ground_social_scene([
+        {"kind": "narration", "text": "Ann waves. You can sense the potential for connection already beginning to form."},
+        {"kind": "narration", "text": "You introduce yourself with a friendly nod, feeling the anticipation of new beginnings."},
+        {"kind": "narration", "text": "Their voices blend, easing the weight of your travel-worn spirit."},
+    ], state)
+    assert [item["text"] for item in result] == ["Ann waves."]
+
+
+def test_explicit_other_housemate_introduction_gets_own_speaker_segment():
+    from backend.app.engine.dialogue import ground_social_scene
+
+    model = make_model({"ann": "kitchen", "ben": "kitchen"})
+    state = SimpleNamespace(world_model=model, minute=0, location="Open Kitchen",
+                            world_start_datetime="2025-01-01 08:00 PM",
+                            characters=model.characters,
+                            story_cfg={"mode": {"romance_goal": {"enabled": True}}})
+    segments = [{"kind": "dialogue", "speaker_id": "ann", "text":
+                 "Hi! I'm Ann. I design hats. I'm Ben. I work in childcare."}]
+    result = ground_social_scene(segments, state)
+    assert [segment["speaker_id"] for segment in result] == ["ann", "ben"]
+    assert result[0]["text"] == "Hi! I'm Ann. I design hats."
+    assert result[1]["text"] == "I'm Ben. I work in childcare."
+
+    model.world.move("ben", "outside")
+    assert ground_social_scene(segments, state) == segments
+
+
+def test_social_scene_keeps_world_reaction_but_drops_unrequested_player_actions():
+    from backend.app.engine.dialogue import ground_social_scene
+
+    model = make_model({"ann": "kitchen"})
+    state = SimpleNamespace(world_model=model, minute=0, location="Open Kitchen",
+                            world_start_datetime="2025-01-01 08:00 PM",
+                            story_cfg={"mode": {"romance_goal": {"enabled": True}}})
+    result = ground_social_scene([
+        {"kind": "narration", "text": "You step further into the kitchen, the smell of dinner greeting you. The two women look on expectantly, and you take a breath."},
+    ], state)
+    assert result[0]["text"] == "The smell of dinner greeting you. The two women look on expectantly."
+
+
 def test_player_utterance_is_observed_by_present_people_but_confessional_is_not():
     from backend.app.engine.world_model.turn import begin_turn
 

@@ -17,5 +17,7 @@ Prompt changes alter both games and need arena and human review; this is not a r
 
 **Hosted retest:** beta `c1050c9` desktop/iPhone/standalone screenshots still contain player-feeling narration such as “You can feel the potential for connection.” The narrow scene guard is insufficient for agency and repetitive-atmosphere acceptance; this item stays open.
 
+**Partial correction pending hosted proof (2026-09-26):** the exact "You can feel" form is now filtered in Terrace and IU world-model turns. Direct-answer behavior, repetitive atmosphere and the wider player-agency issue still require sustained play evidence.
+
 ## Touches
 `backend/app/engine/prompt_builder.py`, `dialogue.py`, Terrace voice data, tests and hosted evaluation.

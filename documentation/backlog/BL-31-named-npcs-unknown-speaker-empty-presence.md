@@ -13,5 +13,7 @@ Trace allowed-speaker selection, arrival staging and final segment normalization
 ## Why deferred / cautions
 Review-only task. Related to legacy BL-24 movement tracking, but this evidence includes lost named-speaker presentation and needs an integrated regression. Do not bypass the cast/knowledge validation to fix labels cosmetically.
 
+**Related local browser finding (2026-09-26):** a Terrace response placed Masako's explicit "I'm Masako Endo" introduction inside an Arisa speaker beat. A narrow scene repair now splits an explicit self-named introduction to a present/eligible cast member into its own segment. The original IU Unknown voice/presence mismatch and less explicit speaker mixing remain open pending hosted proof.
+
 ## Touches
 `backend/app/engine/dialogue.py`, `backend/app/engine/world_model/speakers.py`, scene/presence and turn extraction in `backend/app/api/prompt_engine.py`, IU story locations.

@@ -83,7 +83,7 @@ from backend.app.engine.state import (
 from backend.app.engine.dialogue import (
     present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
     dialogue_response_format, decode_dialogue_response,
-    has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene,
+    has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene, drop_narrated_player_echo,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
@@ -1083,32 +1083,48 @@ def _parse_time_skip(msg: str) -> Optional[tuple[int, str]]:
 
 
 def _parse_natural_wait(msg: str, state: GameState) -> Optional[tuple[int, str]]:
-    """Resolve an explicit first-person wait until tomorrow's clock time.
+    """Resolve an explicit first-person wait by duration or clock time.
 
     Keep this narrow: a question, wish, or plan about waiting must not move
     the world. A fully general time intent needs the typed action extractor.
     """
     from datetime import datetime, timedelta
 
-    match = re.search(
-        r"(?:^I\s+wait|\bthen\s+(?:I\s+)?wait)\s+until\s+tomorrow\s+at\s+"
-        r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", str(msg or ""), re.I,
+    text = str(msg or "").strip()
+    start = re.match(r"^I\s+wait\s+", text, re.I)
+    if start is None:
+        return None
+    request = text[start.end():]
+    duration = re.match(r"^for\s+(\d{1,3})\s+(minutes?|hours?)\b", request, re.I)
+    if duration:
+        amount = int(duration.group(1))
+        elapsed = amount * (60 if duration.group(2).lower().startswith("hour") else 1)
+        return (elapsed, "The player waited for the requested duration") if 0 < elapsed <= 24 * 60 else None
+    match = re.match(
+        r"^until\s+(?:(tomorrow)\s+at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b",
+        request, re.I,
     )
     if match is None:
         return None
-    hour = int(match.group(1))
-    minute = int(match.group(2) or 0)
+    hour = int(match.group(2))
+    minute = int(match.group(3) or 0)
     if not 1 <= hour <= 12 or not 0 <= minute < 60:
         return None
     now = datetime.fromisoformat(WorldTimeFormatter.compute(
         getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0),
     ).iso)
-    target = (now + timedelta(days=1)).replace(
-        hour=hour % 12 + (12 if match.group(3).lower() == "pm" else 0),
+    target = (now + timedelta(days=1 if match.group(1) else 0)).replace(
+        hour=hour % 12 + (12 if match.group(4).lower() == "pm" else 0),
         minute=minute, second=0, microsecond=0,
     )
     elapsed = int((target - now).total_seconds() // 60)
     return (elapsed, "The player waited until the requested time") if elapsed > 0 else None
+
+
+def _skip_prompt_message(player_message: str, cue: str, resulting_time: str) -> str:
+    """Give the storyteller the committed clock without exposing UI commands."""
+    note = f"[Time skip] {cue}. It is now {resulting_time}."
+    return note if _parse_time_skip(player_message) is not None else f"{player_message}\n{note}"
 
 
 def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
@@ -2317,7 +2333,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         _new_ts = WorldTimeFormatter.compute(
             getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)
         ).display
-        msg = f"{msg}\n[Time skip] {_skip_cue}. It is now {_new_ts}."
+        msg = _skip_prompt_message(msg, _skip_cue, _new_ts)
         _is_time_skip_turn = True
         _wm_player_words = ""
 
@@ -3454,6 +3470,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # The player already sees their own message; never let the scene hand it
     # to an NPC (arena-found beta regression, 2026-09-23).
     segments = drop_player_echo(segments, msg)
+    segments = drop_narrated_player_echo(segments, _wm_player_words)
     # Nor re-send recent beats: copied opening lines snowballed on live prod
     # because each copy re-entered the history (2026-09-24).
     segments = drop_repeated_lines(
