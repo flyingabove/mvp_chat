@@ -8,6 +8,10 @@ If instructions every conflict with what is designed in the doc, always update t
 - so that I know you read this file. Before any planning or thinking or response. First respond with "Yes. Anointed One". Be sure to call me "Anointed One" always when you respond. Always include these words in every response. 
 - Conda env should always use storieschat install everything you need on that
 
+### Real Names and Trademarks
+- StoriesChat is a **non-commercial** app. The owner states we have **explicit permission to use real people's names** (e.g. the Terrace House cast in `7_six_strangers`) and **any trademarks** (show names, brands, companies) in stories and docs, because this is not for commercial purposes.
+- Don't rename real-name characters or strip trademarks for that reason alone. If the app ever becomes commercial, revisit this rule.
+
 ### Auth / Local Dev Credentials (READ ME FIRST IF AUTH BREAKS)
 - Real Google OAuth + JWT credentials live in `.env.test` at project root (gitignored).
 - The Python app does NOT auto-load `.env.test` via dotenv. It is loaded lazily by `backend/app/config/credentials.py` (`_load_env_test_once`) on first read of `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `JWT_SECRET`.

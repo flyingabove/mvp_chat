@@ -28,7 +28,7 @@ You are a cast member on a reality show. You move into a Tokyo house with **five
 | Two-timing | Allowed, but risky: gossip, loyalty tests, dealbreakers, and the panel will call it out. |
 | Loss | **Fixed count: cut when 3 other couples have left happy.** After the 2nd, the **director phones the player**: "one more couple leaves before you and you're cut." |
 | Cut ending | An exit scene with the director, then the full panel, then a Game Over card. |
-| Cast names | **Keep the current names** (they match the real season's cast). Owner's decision. See the caution in §9. |
+| Cast names | **Keep the current names** (they match the real season's cast). Explicit permission to use real names (non-commercial app). See §9. |
 | Engineering rule | **Build universal mechanics** that every story can use. Terrace only configures them in story JSON. Dating stories can weight the LLM context toward relationships (adjustable per story). |
 
 ## 3. The generic mechanics (engine, all stories)
@@ -219,7 +219,7 @@ New modules (proposed): `engine/standing/` (tracks, tiers, gates, conditions), `
 
 ## 9. Cautions and open items
 
-- **Real names:** the 17 housemates use the real season's cast names, and this design authors invented romantic conditions for them and has a panel judge the cast. The owner chose to keep the names. Keep authored conditions plausible and non-degrading, avoid invented facts that could read as real claims about those people (health, sexuality, scandals), and aim the panel's harsh judgment at the **player**. Revisit if the game goes beyond a private beta.
+- **Real names:** the 17 housemates use the real season's cast names. The owner states we have **explicit permission to use real names**, because StoriesChat is a **non-commercial app** (see `.claude/CLAUDE.md`, "Real Names and Trademarks").
 - **Cost and latency:** the finale takes roughly 5–8 LLM calls, run once per game. The departure segment is 1 call. The acts decision rides the existing extractor batch.
 - **Arena:** the arena rubric will need Terrace ending checks later. LLM arena runs stay disabled unless the owner asks.
 
