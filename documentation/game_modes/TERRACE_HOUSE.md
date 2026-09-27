@@ -17,7 +17,7 @@ You are a cast member on a reality show. You move into a Tokyo house with **five
 |---|---|
 | Frame | The game is a reality TV show. The player is a cast member. |
 | After a win | Terrace: the departure scene, then the **long panel debate**, then the run ends. (Other stories may keep going after a win. Endings are configurable per story.) |
-| Panel | **Three panelists from the real show: Reina Triendl ("Torichan"), Ryota Yamasato ("Yamachan") and Yukiko Ehara ("You").** Honest mix of praise and roast, grounded in real events from the run. Verdicts may call the player good, bad or evil. About 2,000 words, **no skip**. |
+| Panel | **Three panelists from the real show: Reina Triendl ("Torichan"), Ryota Yamasato ("Yamachan") and Yukiko Ehara.** Honest mix of praise and roast, grounded in real events from the run. Verdicts may call the player good, bad or evil. About 2,000 words, **no skip**. |
 | Panel on other exits | A **short segment** when NPCs leave (as a couple or alone). The **full debate** on any player exit: win, cut or leaving alone. |
 | Difficulty | **No time limit.** Winning someone takes many days, strategy and conflict. No single-day wins. |
 | Preferences | Every NPC is **fully authored** (likes, dislikes, dealbreakers, conditions). The **starting roster and arrival order are random** each run (5 strangers from the pool). |
@@ -164,7 +164,7 @@ Condition kinds are a **closed vocabulary**, so the checks are code, not LLM jud
 - **Panelists** (real panel members from the show, used with permission; see §9):
   - **Reina Triendl ("Torichan"):** model and actress who joined the panel during *Boys & Girls in the City*. She gives the sweet, youthful, romantic read and decodes body language.
   - **Ryota Yamasato ("Yamachan"):** comedian from the duo Nankai Candies, famous for sharp, cynical and very entertaining critiques. He hunts for flaws and roasts.
-  - **Yukiko Ehara ("You"):** singer, actress and TV personality. She is casual and relaxed, with thoughtful, big-sister insights that defend sincerity and call out games.
+  - **Yukiko Ehara:** singer, actress and TV personality. She is casual and relaxed, with thoughtful, big-sister insights that defend sincerity and call out games.
   - Each panelist's `stance` in the finale outline follows these roles, so they disagree naturally.
 - **Director:** an off-camera voice character, "the director" (unnamed). `director_patience` clock: warn at 2, cut at 3.
 - **Goal card** (shown before the opening, reopenable from the 3-dot menu). For a male player:
@@ -273,10 +273,10 @@ New modules (proposed): `engine/standing/` (tracks, tiers, gates, conditions), `
 
 ### A.4. The studio panel
 
-- A fixed panel of **about six celebrity commentators** (in this season: You, Reina Triendl, Yoshimi Tokui, Azusa Babazono, Ryota Yamasato, Ayumu Mochizuki, Kentaro) introduces each episode and **cuts in every few minutes** to discuss the last stretch of footage.
+- A fixed panel of **about six celebrity commentators** (in this season: Yukiko Ehara, Reina Triendl, Yoshimi Tokui, Azusa Babazono, Ryota Yamasato, Ayumu Mochizuki, Kentaro) introduces each episode and **cuts in every few minutes** to discuss the last stretch of footage.
 - **Recurring roles:**
   - The **cynic who roasts** (Yamasato: highlights flaws, is sharp and self-deprecating, and wants conflict).
-  - The **warm big sister** (You).
+  - The **warm big sister** (Yukiko Ehara).
   - The **young romantic** (Triendl).
   - The **quiet observer** (Babazono).
 - **What they do:** read body language, decode what someone "really meant", give nicknames, argue with each other, cringe at awkward rejections, coo at sweet moments, and deliver verdicts on people's character (sincere, calculating, childish, cool).
@@ -285,7 +285,7 @@ New modules (proposed): `engine/standing/` (tracks, tiers, gates, conditions), `
 
 ### A.5. Content caution (the show's end)
 
-The final season was cancelled in May 2020 after cast member **Hana Kimura died following heavy online abuse** over her behavior on the show. This was followed by allegations that producers encouraged conflict. **Design lesson:** our panel judges the player's *behavior* (good, bad, even villainous) and must never degrade or bully them as a person. No slurs, no appearance-based mockery, and no telling the player they deserve to suffer. The game uses three of the show's real panelists (Triendl, Yamasato, You) with the owner's permission (non-commercial app).
+The final season was cancelled in May 2020 after cast member **Hana Kimura died following heavy online abuse** over her behavior on the show. This was followed by allegations that producers encouraged conflict. **Design lesson:** our panel judges the player's *behavior* (good, bad, even villainous) and must never degrade or bully them as a person. No slurs, no appearance-based mockery, and no telling the player they deserve to suffer. The game uses three of the show's real panelists (Triendl, Yamasato, Ehara) with the owner's permission (non-commercial app).
 
 ### A.6. How the show maps to the game (owner decisions 2026-09-26)
 
@@ -295,7 +295,7 @@ The final season was cancelled in May 2020 after cast member **Hana Kimura died 
 | Two cars, jobs, dreams | Built: routines, jobs, shared cars (`world_model`). |
 | Leaving as a couple | **Win condition.** Player convinces an opposite-gender housemate to leave with them. |
 | Leaving alone / most people's fate | A solo ending exists. It is not a win. |
-| Studio panel between scenes | Built only as short unnamed narrator asides. **New:** three named panelists from the real show: Reina Triendl, Ryota Yamasato and Yukiko Ehara (You). |
+| Studio panel between scenes | Built only as short unnamed narrator asides. **New:** three named panelists from the real show: Reina Triendl, Ryota Yamasato and Yukiko Ehara. |
 | Panel discusses a leaver's arc | **New:** whenever the player leaves (win or loss), a long, unskippable panel debate about the player's behavior and relationships. Grounded in real events from the run, honest mix of praise and roast, verdicts can be "good", "bad" or "evil". |
 | Producers / network (off-camera) | **Game invention:** a **director** who can kick the player out as a dud if too many other couples leave first (loss condition). |
 | Slow, earned romance; confession; dates | **New:** courtship must be earned over many days through strategy. No time limit. |
