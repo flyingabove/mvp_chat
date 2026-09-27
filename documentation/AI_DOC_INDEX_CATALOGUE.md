@@ -12,6 +12,7 @@
 - **`ai_learnings_mistakes/`** — process rules and postmortems, not gameplay/architecture design.
 - **`human_north_star_docs/`** — vision only, human-owned.
 - **`auto_update_docs/`** — deleted 2026-09-26 (was stale since January, described a pre-rewrite "Terminal Frontend", and no generator script exists in the repo to refresh it). Recreate it only if a real doc-generation tool is added.
+- **`game_modes/`** — one design doc per game mode (added 2026-09-26).
 - **`research/`**, **`plans_scratch/`** — supporting material, unchanged by this reorg.
 
 A doc's status is either implied by its folder (`reference`/`proposals`/`archive`) or spelled out inline when a single doc is a mix (mostly-done docs kept in `reference/` still note their open items in the table below).
@@ -85,12 +86,19 @@ hosted-play review of the in-progress build is in
 | [WORLD_ATLAS_DESIGN.md](reference/WORLD_ATLAS_DESIGN.md) | ...map metadata, coordinates, routes or map UI behavior changes. Built and current. |
 | [SOCIAL_MODE_DESIGN.md](reference/SOCIAL_MODE_DESIGN.md) | ...the optional `mode` story-JSON schema, the mode prompt layer, or ensemble/slice-of-life (`social_sim`) authoring guidance changes. **References to the deleted reference story ("The Common Room") and "no schedules" are stale — routines now exist.** |
 
+## Game Modes — `game_modes/`
+
+One doc per game mode: its design (proposal and built status), the generic engine mechanics it configures, and background research. The mechanics themselves must stay generic engine code; a game mode only configures them in story JSON.
+
+| Doc | Edit this doc if... |
+|-----|---------------------|
+| [TERRACE_HOUSE.md](game_modes/TERRACE_HOUSE.md) | ...anything about the Terrace House mode (`7_six_strangers`) changes: the win (leave together), the loss (the director cuts you after 3 other couples leave), earned romance (standing tracks with gated ceilings, personal conditions, dealbreakers), the player fact ledger and lies, confessions, story clocks, the endings registry, the judges panel, or context focus. Also holds the real-show research (Appendix A). **Proposal, not built; closes BL-33 and most of BL-34.** |
+
 ## Not Yet Built — `proposals/`
 
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [GAME_DESIGN_SYSTEMS.md](proposals/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). **World state and time are built; quests, difficulty/rerolls, decay, and the post-milestone loop ("winning doesn't end the game" — currently it does, `prompt_engine.py` sets `over=True`) are not.** |
-| [LEAVE_TOGETHER_WIN_CONDITION.md](proposals/LEAVE_TOGETHER_WIN_CONDITION.md) | ...the Terrace "convince a partner to leave with you" win, the generic goal card / ending screen, the `leave_together` extractor decision, or the partner acceptance thresholds change. **Not built; closes BL-33. Replaces the regex detectors in `world_model/romance.py`.** |
 | [NPC_SIDEQUEST_DESIGN.md](proposals/NPC_SIDEQUEST_DESIGN.md) | ...NPC behavior, sidequest triggers, or quest logic changes. **Not built at all; reconcile with `world_model/threads.py` (personal threads/commitments) before resuming this, since they now cover similar ground.** |
 | [BL-38: reusable object-centered simulation engine](backlog/BL-38-social-engine-authority-and-epistemic-transactions.md) | ...the proposed character-owned voice/context, object ownership, agreements/travel, evidence, NPC objectives, per-game policies, migration or acceptance gates change. **Detailed engineering proposal expanded 2026-09-27; existing components and uncommitted attendance work are distinguished from proposed APIs. Runtime completion is not claimed.** |
 | [PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md](proposals/PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md) | ...the `SessionFactory`/`SnapshotCodec`/`TurnService`/`PlayerView`/`StoryDefinition.validate()` contracts, the `application/` package layout, or the handler decomposition order change. **Not started; `prompt_engine.py` is 3,700+ lines.** |
