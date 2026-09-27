@@ -118,7 +118,7 @@
   "world": {
     "file": "1_iu_murder_mystery/iu_murder_mystery_world.json",
     "seed": 42,
-    "start_datetime": "2025-01-22T09:00:00",
+    "start_datetime": "2025-01-22T20:00:00",
     "start_location_id": "iu_apartment_room",
     "scene_presence": {
       "speakers_source": "turn_runtime",

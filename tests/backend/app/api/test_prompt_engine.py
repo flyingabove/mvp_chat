@@ -3367,9 +3367,10 @@ def test_iu_authored_iso_clock_and_death_window_are_chronological():
 
     story = json.loads((Path(__file__).parents[4] / "backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json").read_text(encoding="utf-8"))
     started = WorldTimeFormatter.compute(story["world"]["start_datetime"], 0)
-    assert started.iso == "2025-01-22T09:00:00"
+    assert started.iso == "2025-01-22T20:00:00"
     assert datetime.fromisoformat(started.iso) > datetime(2025, 1, 15)
-    assert WorldTimeFormatter.compute(story["world"]["start_datetime"], 30).iso == "2025-01-22T09:30:00"
+    assert WorldTimeFormatter.compute(story["world"]["start_datetime"], 30).iso == "2025-01-22T20:30:00"
+    assert "Tonight" in story["opening"]["text"]
 
 
 def test_iu_new_game_uses_authored_clock_in_runtime(client):
@@ -3381,7 +3382,7 @@ def test_iu_new_game_uses_authored_clock_in_runtime(client):
                                                "message": "__cmd_newgame__:iu_murder_mystery|M|Mira"})
     assert response.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
-    assert WorldTimeFormatter.compute(state.world_start_datetime, state.minute).iso == "2025-01-22T09:00:00"
+    assert WorldTimeFormatter.compute(state.world_start_datetime, state.minute).iso == "2025-01-22T20:00:00"
 
 
 def test_map_toggle_no_llm_call(client):
@@ -5548,9 +5549,9 @@ def test_iu_suspects_follow_their_routines_and_iu_stays_put(client):
     state = pe_mod.SESSIONS[sid]["state"]
     model = state.world_model
     assert model.world.place_of("iu") == "iu_apartment_room"
-    # Thursday ~09:00: before So-jin's 11:00 studio block, after a night at home.
-    assert model.world.place_of("park_so_jin") == "sojin_home"
-    assert state.character_locations["park_so_jin"] == "sojin_home"
+    # Thursday ~20:00: So-jin is still at her 11:00–21:00 studio block.
+    assert model.world.place_of("park_so_jin") == "recording_studio"
+    assert state.character_locations["park_so_jin"] == "recording_studio"
     # The late-night pressure call happened while the player was away.
     assert any("lyric page" in m.text for m in model.memories.of("yoo_min_ho"))
 
