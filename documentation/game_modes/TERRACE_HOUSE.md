@@ -4,6 +4,7 @@
 
 - **Status:** proposal, not built. Game-mode doc, moved here from `proposals/`. Created 2026-09-26, rewritten the same day after the owner Q&A (decisions in §2).
 - **Closes when shipped:** [BL-33](../backlog/BL-33-terrace-relationship-goal-and-ending.md); most of [BL-34](../backlog/BL-34-terrace-rivals-with-independent-aims.md).
+- **Engineering plan:** [BL-39](../backlog/BL-39-character-centric-social-engine.md) (character-centric object model, phases A–J).
 - **Background:** Appendix A (the real show and how it maps to the game).
 - **Related:** [SOCIAL_ENGINE_V2_DESIGN.md](../reference/SOCIAL_ENGINE_V2_DESIGN.md), [CAST_LIFECYCLE_DESIGN.md](../reference/CAST_LIFECYCLE_DESIGN.md), [JEV_DYNAMIC_CONTEXT_DESIGN.md](../reference/JEV_DYNAMIC_CONTEXT_DESIGN.md), [GAME_DESIGN_SYSTEMS.md](../proposals/GAME_DESIGN_SYSTEMS.md).
 
