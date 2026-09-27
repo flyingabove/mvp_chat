@@ -2910,6 +2910,14 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     assert state.latest_scene_knowledge().location_id == "terrace"
     assert state.latest_scene_knowledge().people_present == []
 
+    # The first performed move wins over an extractor attracted to a later
+    # question about another destination (the hosted kitchen/cafe failure).
+    mixed = "I walk to the kitchen now and ask if she wants to go to the terrace later."
+    assert client.post(
+        "/api/chat", headers=headers, json={"session_id": sid, "message": mixed},
+    ).status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].location_id == "kitchen"
+
 
 def test_master_prompt_engine_orchestration_flow(monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
@@ -3345,6 +3353,36 @@ def test_explicit_natural_wait_supports_duration_and_same_day_clock():
     assert pe_mod._parse_natural_wait("I wait until 7 pm.", state) is None
     assert pe_mod._parse_natural_wait("I might wait for 30 minutes.", state) is None
     assert pe_mod._parse_natural_wait("I ask Ann to wait for 30 minutes.", state) is None
+
+
+def test_hosted_wait_here_until_clock_and_explicit_first_movement():
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = types.SimpleNamespace(world_start_datetime="2015-09-03T09:14:00", minute=0)
+    assert pe_mod._parse_natural_wait(
+        "I wait here at the cafe until 10 AM for Natsumi.", state
+    )[0] == 46
+    assert pe_mod._parse_natural_wait(
+        "I go to the kitchen now. I wait until 10 AM and ask Natsumi about coffee.", state
+    )[0] == 46
+
+    runtime = types.SimpleNamespace(world_graph=types.SimpleNamespace(locations={
+        "cafe": types.SimpleNamespace(name="Neighborhood Cafe"),
+        "kitchen": types.SimpleNamespace(name="Kitchen"),
+    }))
+    assert pe_mod._match_world_destination(
+        "I go to the kitchen now and ask if she wants to leave for the nearby cafe.", runtime, "living_room"
+    ) == "kitchen"
+    assert pe_mod._match_world_destination(
+        "Would you go to the cafe with me tomorrow?", runtime, "living_room"
+    ) == ""
+    assert pe_mod._resolved_movement_destination(
+        "I go to the kitchen now and ask if she wants to leave for the nearby cafe.",
+        "cafe", "kitchen",
+    ) == "kitchen"
+    assert pe_mod._resolved_movement_destination(
+        "Would you go to the cafe with me tomorrow?", "cafe", "",
+    ) == ""
 
 
 def test_skip_prompt_hides_transport_command_but_keeps_natural_player_words():

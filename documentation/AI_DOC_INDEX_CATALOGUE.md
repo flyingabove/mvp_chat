@@ -125,6 +125,8 @@ hosted-play review of the in-progress build is in
 
 The [2026-09-26 social-v2 hosted play review](archive/SOCIAL_V2_HOSTED_PLAY_2026_09_26.md) records ten fresh Terrace turns and ten IU turns against beta `1045464`, with the complete raw exchanges stored locally. It identifies clock, private-plan, unknown-speaker, player-agency, evidence-source and repeated-clue failures, and distinguishes subsequent local corrections from hosted proof.
 
+The [2026-09-27 beta replay](reference/SOCIAL_V2_BETA_REPLAY_2026_09_27.md) records ten more hosted turns per story on beta `9db4b8f`, including improved chronology and clue deduplication plus remaining false player-source attribution, broken compound movement/wait commands, and a missed Terrace coffee date. Its new repairs require their own deployed replay.
+
 The proposed controlled beta/prod evaluation system is documented in
 [JEV_GAME_ARENA_DESIGN.md](reference/JEV_GAME_ARENA_DESIGN.md). Implemented in
 observational mode as local-only tooling in `.claude/skills/promote-to-prod/arena/`

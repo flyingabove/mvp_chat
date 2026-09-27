@@ -17,5 +17,7 @@ Requires integration with relationship edges, offscreen outcomes, schedules and 
 
 **Further implementation (2026-09-26):** Interested, co-present same-gender rivals can now propose a competing invitation at most once per day. It remains a proposal until the target accepts, and the plan persists in the agreement book. Remaining: broader independent aims, target preference and refusal policies, offscreen plans with the same decision contract, cast-rotation tests and roster-scale measurement.
 
+**Hosted replay (2026-09-27, beta `9db4b8f`):** After Paul announced a coffee plan with Natsumi, Yuuki and Hikaru each said she was interesting but declined to compete in the moment. No visible counter-invitation or independent plan occurred in ten turns. This single roster does not prove the rival system never fires; it does show that the player's pursuit still faced no meaningful opposition in a fresh game. Measure across rosters and make individual rival aims actionable, not merely polite dialogue.
+
 ## Touches
 Terrace story data, `backend/app/engine/world_model/offscreen.py`, `threads.py`, relationship graph, prompt projection and tests.

@@ -21,5 +21,7 @@ The user asked to focus current implementation on Terrace; keep IU as engine con
 
 **Further partial implementation (2026-09-26):** Generated NPC dialogue now checks categorical claims that the player told or mentioned something against that NPC's observed player utterance events. The hosted failure, “Mira asked me about it. She said there were other things that went missing too,” is reduced to an uncertain source when Mira only asked a question. This is a conservative post-generation repair, not a complete evidence ledger: paraphrase matching, reported speech via other NPCs, deliberate false attribution, source-specific player journal entries, and all Section P2 contradiction scenarios still need stronger typed support and hosted play verification. Keep this item open.
 
+**Hosted recurrence (2026-09-27, beta `9db4b8f`):** IU correctly said nobody told her about further missing objects, preserved the Jan 15/Jan 22 chronology, and did not rediscover photographed scratches. On turn 8 she nevertheless claimed “I heard Mira mention checking the building's security footage” when Mira had not, then referred to the present player as a third person who should be asked directly. The gate missed the bare `mention` form; a failing-first regression and local verb-form repair now cover it, pending beta replay. The third-person self-reference, independent source path and contradiction journal remain open.
+
 ## Touches
 `backend/app/engine/world_model/evidence.py`, `events.py`, `memory.py`, IU story leads, journal route and tests.

@@ -1091,7 +1091,7 @@ def _parse_natural_wait(msg: str, state: GameState) -> Optional[tuple[int, str]]
     from datetime import datetime, timedelta
 
     text = str(msg or "").strip()
-    start = re.match(r"^I\s+wait\s+", text, re.I)
+    start = re.search(r"(?:^|[.!?]\s+|\band\s+)I\s+wait\s+|^I\s+wait\s+", text, re.I)
     if start is None:
         return None
     request = text[start.end():]
@@ -1100,8 +1100,8 @@ def _parse_natural_wait(msg: str, state: GameState) -> Optional[tuple[int, str]]
         amount = int(duration.group(1))
         elapsed = amount * (60 if duration.group(2).lower().startswith("hour") else 1)
         return (elapsed, "The player waited for the requested duration") if 0 < elapsed <= 24 * 60 else None
-    match = re.match(
-        r"^until\s+(?:(tomorrow)\s+at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b",
+    match = re.search(
+        r"\buntil\s+(?:(tomorrow)\s+at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b",
         request, re.I,
     )
     if match is None:
@@ -1128,19 +1128,15 @@ def _skip_prompt_message(player_message: str, cue: str, resulting_time: str) -> 
 
 
 def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
-    """Heuristic location matcher for world-graph travel.
+    """Return the first *performed* player movement, not a later question/plan.
 
-    The LLM-based extractor can miss natural phrasing like "i got to room b".
-    This fallback checks for a movement verb plus a known location name/id.
-    Returns a destination_id or "" if no confident match.
+    The broad verb-and-location search moved a player to a cafe when they said
+    "I go to the kitchen ... ask if she wants to leave for the cafe."  Require
+    an actor-linked movement clause and scope its destination to that clause.
     """
 
-    text = (msg or "").strip().lower()
+    text = (msg or "").strip()
     if not text:
-        return ""
-
-    verbs = ("go", "got", "move", "head", "walk", "switch", "return", "back", "enter", "step", "run")
-    if not any(re.search(rf"\b{v}\b", text) for v in verbs):
         return ""
 
     try:
@@ -1148,15 +1144,37 @@ def _match_world_destination(msg: str, runtime, current_location_id: str = "") -
     except Exception:
         locations = {}
 
-    for loc_id, loc in (locations or {}).items():
-        name = (getattr(loc, "name", "") or "").lower()
-        tokens = [name, loc_id.replace("_", " ").lower(), str(loc_id).lower()]
-        if any(tok and tok in text for tok in tokens):
-            if loc_id == current_location_id:
-                return ""  # already there; do nothing
-            return loc_id
+    movement = re.compile(
+        r"\b(?:I\s+(?:excuse\s+myself\s+and\s+)?|then\s+)"
+        r"(?:go|got|move|head|walk|return|enter|step|run)\s+"
+        r"(?:to|into|towards?|back\s+to)\s+", re.I,
+    )
+    for action in movement.finditer(text):
+        clause = re.split(r"[.,;?!]|\s+and\s+", text[action.end():], maxsplit=1)[0].lower()
+        choices = []
+        for loc_id, loc in (locations or {}).items():
+            name = str(getattr(loc, "name", "") or "").lower()
+            for token in (name, str(loc_id).replace("_", " ").lower()):
+                if token:
+                    found = re.search(rf"\b{re.escape(token)}\b", clause)
+                    if found:
+                        choices.append((found.start(), loc_id))
+        if choices:
+            dest = min(choices)[1]
+            return "" if dest == current_location_id else dest
 
     return ""
+
+
+def _resolved_movement_destination(player_message: str, extracted_destination: str,
+                                   explicit_destination: str) -> str:
+    """A performed player move outranks an extractor's guess from future talk."""
+    if explicit_destination:
+        return explicit_destination
+    if re.match(r"^\s*(?:would|could|can|will|should)\s+(?:you|we|she|he|they)\b",
+                player_message or "", re.I):
+        return ""
+    return extracted_destination
 
 
 def _debug_speakers(state: GameState) -> list[str]:
@@ -2330,6 +2348,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # World model: the interval this turn consumes is (minute_before, minute_after].
     _wm_minute_before = int(getattr(state, "minute", 0) or 0) if state is not None else 0
     _wm_player_words = msg
+    _movement_authority_message = msg
     _wm_sleeping = False
     _time_skip = _parse_time_skip(msg) or (_parse_natural_wait(msg, state) if state is not None else None)
     _is_time_skip_turn = False
@@ -2958,6 +2977,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # One extractor call handles movement intent, previous-turn scene extraction,
     # and previous-turn knowledge-resolution updates in a single JSON response.
     runtime = getattr(state, "world_runtime", None)
+    _explicit_destination = _match_world_destination(
+        _movement_authority_message, runtime, getattr(state, "location_id", "")
+    ) if runtime is not None else ""
     knowledge_resolution_updates: list[dict] = []
     extraction = None
     extraction_applied = False
@@ -3082,14 +3104,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     )
 
             if extraction.movement_intent == "MOVE" and extraction.destination_id:
-                if extraction.destination_id in runtime.world_graph.locations:
-                    movement_msg = f"go to {extraction.destination_id}"
+                _resolved_destination = _resolved_movement_destination(
+                    _movement_authority_message, extraction.destination_id, _explicit_destination,
+                )
+                if _resolved_destination and _resolved_destination in runtime.world_graph.locations:
+                    movement_msg = f"go to {_resolved_destination}"
                     extraction_applied = True
                     _log({
                         "kind": "turn_extraction_movement_applied",
                         "original_msg": msg,
                         "canonicalized_msg": movement_msg,
-                        "destination_id": extraction.destination_id,
+                        "destination_id": _resolved_destination,
                     })
                 else:
                     _log({
@@ -3224,7 +3249,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         # Heuristic fallback when the classifier misses obvious movement phrasing
         if not extraction_applied:
-            dest = _match_world_destination(msg, runtime, getattr(state, "location_id", ""))
+            dest = _explicit_destination
             if dest:
                 movement_msg = f"go to {dest}"
                 extraction_applied = True

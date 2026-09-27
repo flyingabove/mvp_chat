@@ -29,6 +29,8 @@ Current Phase 1 continuation: SQLite `game_sessions.revision` compare-and-swap, 
 
 Current Phase 2 continuation: categorical NPC claims that the player said or mentioned a fact are checked against that NPC's witnessed player utterances. The observed IU false-source example has a regression and dialogue integration test. This does not complete the evidence ledger, contradiction handling, or hosted proof; keep Phase 2 and final playthrough unchecked.
 
+2026-09-27 hosted checkpoint: played ten fresh Terrace and ten IU turns on beta `9db4b8f`; saved every request/response and graded both in `documentation/reference/SOCIAL_V2_BETA_REPLAY_2026_09_27.md`. IU chronology and clue deduplication improved, but a new `mention`-form false source appeared. Terrace accepted a 10 am date but nobody arrived, and compound wait/movement commands misapplied. Failing-first local regressions and narrow repairs are in progress. The user-requested *final* full playthrough remains unchecked until the phase and cross-phase checklist is complete.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.

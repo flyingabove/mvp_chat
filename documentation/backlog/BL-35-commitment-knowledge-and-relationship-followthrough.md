@@ -15,5 +15,7 @@ The engine already records some extracted commitments; this item targets the rem
 
 **Further implementation (2026-09-26):** Canonical agreement proposal, decision, due, completion and expiry records now back legacy promise memories. Due scenes alone do not complete a plan; NPC dialogue about an action remains testimony. Missed accepted plans emit an expiry consequence. Speech observations and gossip transmissions retain their hearing/source path. Remaining: typed witnessed NPC actions, per-participant attendance and breach evidence, schedule/travel validation, privacy movement and full same-turn invitation extraction.
 
+**Hosted recurrence (2026-09-27, beta `9db4b8f`):** Natsumi verbally accepted Paul’s coffee invitation for the next morning at 10 am and remembered it at 9 am. At 10 am Paul was alone in the cafe; no arrival, cancellation, alternate meeting instruction or breach consequence appeared. The preceding compound travel/wait parsing was also wrong (see BL-30), but an explicit second wait reached 10 am and still left the cafe empty. Acceptance must lead to a scheduled participant/place decision or explicitly remain a proposal; the player should not be left with a verbal promise and no event. Raw ten-turn replay is in the local `beta-replay-2026-09-27` artifact folder and the dated reference report.
+
 ## Touches
 `backend/app/engine/world_model/commitments.py`, `memory.py`, `turn.py`, prompt projection, extractor and tests.

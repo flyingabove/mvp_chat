@@ -19,6 +19,7 @@ _STOP = {"a", "an", "and", "as", "at", "about", "be", "been", "but", "for", "fro
          "they", "this", "those", "to", "was", "were", "we", "what", "who", "with",
          "you", "your", "said", "say", "mentioned", "mention", "told", "tell"}
 _REPAIR = "I may be mixing up who told me that."
+_ATTRIBUTION_VERB = r"(?:told|tell(?:s|ing)?|said|say(?:s|ing)?|mention(?:s|ed|ing)?)"
 
 
 def _content(text: str) -> set[str]:
@@ -50,9 +51,9 @@ def ground_player_attribution(model: WorldModel, speaker_id: str, text: str) -> 
     if not player_name or player_name == "the player" or not text:
         return text
     name = re.escape(player_name)
-    named = re.compile(rf"\b(?:{name}|you)\s+(?:had\s+)?(?:told|said|mentioned)\b", re.I)
-    indirect = re.compile(rf"\b(?:{name}|you)\b.{0,30}\b(?:told|said|mentioned)\b", re.I)
-    pronoun = re.compile(r"\b(?:she|he|they)\s+(?:had\s+)?(?:told|said|mentioned)\b", re.I)
+    named = re.compile(rf"\b(?:{name}|you)\s+(?:had\s+)?{_ATTRIBUTION_VERB}\b", re.I)
+    indirect = re.compile(rf"\b(?:{name}|you)\b.{0,30}\b{_ATTRIBUTION_VERB}\b", re.I)
+    pronoun = re.compile(rf"\b(?:she|he|they)\s+(?:had\s+)?{_ATTRIBUTION_VERB}\b", re.I)
     statements = _witnessed_statements(model, speaker_id)
     pieces: list[str] = []
     player_antecedent = False

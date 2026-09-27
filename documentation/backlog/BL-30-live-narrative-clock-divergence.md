@@ -21,5 +21,7 @@ This task is a playtest/review, not an implementation. Exact runtime cause and f
 
 **Hosted proof:** beta `fe54691` returned Terrace 7:30 pm after “I wait for 30 minutes” from the authored 7 pm start; IU's fresh opening/first closet inspection ran at January 22, 8:00/8:04 pm. Full chronology, interruption and other temporal claims remain open.
 
+**Hosted regression and corrective slice (2026-09-27, beta `9db4b8f`):** “I wait until tomorrow at 9 AM, then go to the kitchen” reached 9 am but dropped the move. “I go to the kitchen now and ... ask if she wants to leave for the nearby cafe” instead moved the player to the cafe at 9:14 am; its embedded “I wait until 10 AM” was dropped. “I wait here at the cafe until 10 AM” also failed to wait, whereas “I wait until 10 AM” reached 10 am. Failing-first tests now cover the actor-linked first movement and embedded wait forms; a local correction is awaiting beta deployment and replay. The broader typed multi-action transaction and schedule attendance remain open.
+
 ## Touches
 `backend/app/api/prompt_engine.py`, `backend/app/engine/state.py`, time formatting/gameplay and turn extraction, `backend/app/engine/world_model/`, `backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json`.
