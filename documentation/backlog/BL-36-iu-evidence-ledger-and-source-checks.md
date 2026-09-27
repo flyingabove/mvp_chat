@@ -19,5 +19,7 @@ The user asked to focus current implementation on Terrace; keep IU as engine con
 
 **Hosted retest:** beta `c1050c9` correctly answered a second closet inspection with no new evidence. The invented source attribution from the original ten-turn run remains unresolved.
 
+**Further partial implementation (2026-09-26):** Generated NPC dialogue now checks categorical claims that the player told or mentioned something against that NPC's observed player utterance events. The hosted failure, “Mira asked me about it. She said there were other things that went missing too,” is reduced to an uncertain source when Mira only asked a question. This is a conservative post-generation repair, not a complete evidence ledger: paraphrase matching, reported speech via other NPCs, deliberate false attribution, source-specific player journal entries, and all Section P2 contradiction scenarios still need stronger typed support and hosted play verification. Keep this item open.
+
 ## Touches
 `backend/app/engine/world_model/evidence.py`, `events.py`, `memory.py`, IU story leads, journal route and tests.

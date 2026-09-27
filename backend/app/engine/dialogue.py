@@ -327,7 +327,12 @@ def ground_social_scene(segments: list[dict], state) -> list[dict]:
         if segment.get("kind") == "dialogue":
             if segment.get("speaker_id"):
                 eligible = present | set(getattr(getattr(model, "view", None), "allowed_speakers", []) or [])
-                grounded.extend(_split_other_introductions(segment, state, eligible))
+                from backend.app.engine.world_model.source_guard import ground_player_attribution
+
+                speaker = str(segment["speaker_id"])
+                checked = {**segment, "text": ground_player_attribution(
+                    model, speaker, str(segment.get("text") or ""))}
+                grounded.extend(_split_other_introductions(checked, state, eligible))
             continue
         text = str(segment.get("text") or "")
         sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)

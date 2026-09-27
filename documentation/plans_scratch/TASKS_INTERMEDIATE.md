@@ -27,6 +27,8 @@ Corrective beta `fe54691`: full pytest 1,245 passed/one expected failure, fronte
 
 Current Phase 1 continuation: SQLite `game_sessions.revision` compare-and-swap, stale-cache refresh and retryable 409 are implemented with repository and API regressions. The authoritative reducer, transactionally delivered outbox and replay/fault scenarios remain open; no Phase 1 completion box is checked.
 
+Current Phase 2 continuation: categorical NPC claims that the player said or mentioned a fact are checked against that NPC's witnessed player utterances. The observed IU false-source example has a regression and dialogue integration test. This does not complete the evidence ledger, contradiction handling, or hosted proof; keep Phase 2 and final playthrough unchecked.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.
