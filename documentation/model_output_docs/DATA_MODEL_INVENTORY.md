@@ -4,7 +4,13 @@
 
 Complete list of every data model / class in the engine. Reference this when deciding where new data belongs or whether a new class is needed.
 
-Last updated: 2026-02-26
+Last updated: 2026-09-26
+
+---
+
+## Durable session transaction
+
+`game_sessions` in `backend/app/db/database.py` now has an additive `revision INTEGER NOT NULL DEFAULT 0` column. `SessionRepo._upsert` checks an optional `expected_revision` inside `BEGIN IMMEDIATE`, then increments the revision in the same transaction that writes `state_json`, `flags_json`, `last_request_id`, and `last_reply_json`. A stale writer raises `SessionRevisionConflict` without changing the stored state or reply. The chat handler refreshes stale cached sessions before planning a turn and returns a retryable 409 if another worker commits first. Existing rows are migrated without discarding saved state.
 
 ---
 

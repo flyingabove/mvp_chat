@@ -23,6 +23,10 @@ Corrective beta `c1050c9`: hosted natural-wait and empty-room replay passed; IU 
 
 Current corrective slice: ISO IU story clock and chronology, explicit duration/same-day waits, transport-skip prompt cleanup, leading exact-time scene repair, bounded narrator feeling/action-echo filters, and a present-housemate explicit self-introduction speaker split. Unit regressions pass; phase and final-playthrough boxes remain unchecked pending integrated/hosted proof.
 
+Corrective beta `fe54691`: full pytest 1,245 passed/one expected failure, frontend Node 10 passed, local and hosted desktop Chromium/iPhone WebKit/standalone WebKit browser checks passed. Hosted Terrace 30-minute wait reached 7:30 pm; IU opening/inspection reached January 22 at 8:00/8:04 pm. Agency, direct-answer and mystery-source failures remain; the full campaign box is unchecked.
+
+Current Phase 1 continuation: SQLite `game_sessions.revision` compare-and-swap, stale-cache refresh and retryable 409 are implemented with repository and API regressions. The authoritative reducer, transactionally delivered outbox and replay/fault scenarios remain open; no Phase 1 completion box is checked.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.

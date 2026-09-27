@@ -2530,8 +2530,9 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     boundary, restore it, then advance past the boundary in the restored
     session and confirm the same single replacement fires."""
     import json as _json
-    import unittest.mock as _mock
+    import uuid
     from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
     from backend.app.engine.world_calendar import PendingEvent, day_number
 
     guest_headers = {"X-Guest-Id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
@@ -2559,15 +2560,13 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     saved = _json.loads(saved_json)
     assert saved["pending_events"], "pending event was not serialized before restart"
 
-    monkeypatch_get = {
-        "session_id": "scheduler_restart_restored",
-        "user_id": guest_user_id,
-        "story_id": "six_strangers",
-        "state_json": saved_json,
-        "flags_json": "{}",
-    }
-    with _mock.patch("backend.app.db.repos.SessionRepo._get", return_value=monkeypatch_get):
-        restored = pe_mod._try_load_session_from_db("scheduler_restart_restored", guest_user_id)
+    restored_sid = "scheduler_restart_restored_" + uuid.uuid4().hex[:10]
+    SessionRepo._upsert(
+        session_id=restored_sid, user_id=guest_user_id, story_id="six_strangers",
+        story_title="Terrace in the City", player_name="Chris", gender="M",
+        state_json=saved_json, flags_json="{}", turns=state.turns,
+    )
+    restored = pe_mod._try_load_session_from_db(restored_sid, guest_user_id)
     assert restored is not None
     restored_state = restored["state"]
     assert len(restored_state.pending_events) == 1
@@ -2577,11 +2576,11 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     # Install the restored session (matching guest identity so the
     # ownership check in get_session doesn't discard it as a fresh session)
     # and advance past the boundary.
-    pe_mod.SESSIONS["scheduler_restart_restored"] = restored
+    pe_mod.SESSIONS[restored_sid] = restored
     restored_state.minute += 1440
     r1 = client.post(
         "/api/chat",
-        json={"session_id": "scheduler_restart_restored", "message": "a new day"},
+        json={"session_id": restored_sid, "message": "a new day"},
         headers=guest_headers,
     )
     assert r1.status_code == 200
@@ -2589,7 +2588,7 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     # Phase 1.1: the turn handler now clones state, mutates the clone, and
     # publishes the clone back to SESSIONS on success. `restored_state` above
     # is the PRE-turn object; re-fetch to see the published, mutated state.
-    restored_state = pe_mod.SESSIONS["scheduler_restart_restored"]["state"]
+    restored_state = pe_mod.SESSIONS[restored_sid]["state"]
     assert restored_state.pending_events[0].status == "applied"
     assert restored_state.cast_lifecycle.members[departing_id].status.value == "departed"
 
@@ -3383,6 +3382,88 @@ def test_iu_new_game_uses_authored_clock_in_runtime(client):
     assert response.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
     assert WorldTimeFormatter.compute(state.world_start_datetime, state.minute).iso == "2025-01-22T20:00:00"
+
+
+def test_stale_persistent_turn_returns_retryable_conflict_without_publishing(client, monkeypatch):
+    import uuid
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRevisionConflict
+
+    sid = "stale_turn_" + uuid.uuid4().hex[:10]
+    headers = {"X-Guest-Id": str(uuid.uuid4())}
+    opening = client.post("/api/chat", json={"session_id": sid,
+                                             "message": "__cmd_newgame__:iu_murder_mystery|F|Mira"},
+                          headers=headers)
+    assert opening.status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].turns == 0
+
+    async def reject(*args, **kwargs):
+        raise SessionRevisionConflict("another worker committed")
+
+    monkeypatch.setattr(pe_mod.SessionRepo, "create_or_update_session", reject)
+    response = client.post("/api/chat", json={"session_id": sid,
+                                              "request_id": str(uuid.uuid4()),
+                                              "message": "I inspect the closet door."}, headers=headers)
+    assert response.status_code == 409
+    assert sid not in pe_mod.SESSIONS
+
+
+def test_cached_session_refreshes_after_other_worker_commits(client):
+    import uuid
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    guest = str(uuid.uuid4())
+    user_id = "guest:" + guest
+    sid = "worker_refresh_" + uuid.uuid4().hex[:10]
+    headers = {"X-Guest-Id": guest}
+    assert client.post("/api/chat", json={"session_id": sid,
+                                          "message": "__cmd_newgame__:iu_murder_mystery|F|Mira"},
+                       headers=headers).status_code == 200
+    saved = SessionRepo._get(sid, user_id)
+    external_revision = SessionRepo._upsert(
+        session_id=sid, user_id=user_id, story_id=saved["story_id"],
+        story_title=saved["story_title"], player_name=saved["player_name"],
+        gender=saved["gender"], state_json=saved["state_json"],
+        flags_json=saved["flags_json"], turns=saved["turns"],
+        expected_revision=saved["revision"],
+    )
+    assert external_revision == saved["revision"] + 1
+    response = client.post("/api/chat", json={"session_id": sid,
+                                              "message": "I examine the closet."}, headers=headers)
+    assert response.status_code == 200
+    assert pe_mod.SESSIONS[sid]["_db_revision"] == external_revision + 1
+
+
+def test_failed_side_log_after_session_commit_reloads_cache_on_next_turn(client, monkeypatch):
+    import uuid
+    from backend.app.api import prompt_engine as pe_mod
+
+    guest = str(uuid.uuid4())
+    sid = "side_log_failure_" + uuid.uuid4().hex[:10]
+    headers = {"X-Guest-Id": guest}
+    assert client.post("/api/chat", json={"session_id": sid,
+                                          "message": "__cmd_newgame__:iu_murder_mystery|F|Mira"},
+                       headers=headers).status_code == 200
+    starting_revision = pe_mod.SESSIONS[sid]["_db_revision"]
+    request_id = str(uuid.uuid4())
+    original_append = pe_mod.ConversationRepo.append_turns
+
+    async def fail_append(*args, **kwargs):
+        raise OSError("side log unavailable")
+
+    monkeypatch.setattr(pe_mod.ConversationRepo, "append_turns", fail_append)
+    data = {"session_id": sid, "request_id": request_id, "message": "I inspect the closet."}
+    assert client.post("/api/chat", json=data, headers=headers).status_code == 503
+    assert pe_mod.SESSIONS[sid]["_db_revision"] == starting_revision
+    assert pe_mod.SESSIONS[sid]["state"].turns == 0
+    assert client.post("/api/chat", json=data, headers=headers).status_code == 200
+
+    monkeypatch.setattr(pe_mod.ConversationRepo, "append_turns", original_append)
+    next_turn = client.post("/api/chat", json={"session_id": sid,
+                                               "message": "I ask IU what she remembers."}, headers=headers)
+    assert next_turn.status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].turns == 2
 
 
 def test_map_toggle_no_llm_call(client):

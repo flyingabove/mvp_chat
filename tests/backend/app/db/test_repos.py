@@ -51,6 +51,57 @@ async def test_upsert_and_get_user(tmp_data_dir):
 
 
 @pytest.mark.asyncio
+async def test_session_revision_rejects_stale_worker_without_overwriting_reply(tmp_data_dir):
+    from backend.app.db.repos import SessionRepo, SessionRevisionConflict
+
+    args = dict(session_id="revision_race", user_id="uid1", story_id="s1", story_title="T",
+                player_name="A", gender="M", flags_json="{}", turns=1)
+    first = await SessionRepo.create_or_update_session(
+        **args, state_json='{"turn":1}', last_request_id="r1", last_reply_json='{"reply":"first"}',
+        expected_revision=0,
+    )
+    assert first == 1
+    with pytest.raises(SessionRevisionConflict):
+        await SessionRepo.create_or_update_session(
+            **args, state_json='{"turn":2}', last_request_id="r2", last_reply_json='{"reply":"stale"}',
+            expected_revision=0,
+        )
+    saved = await SessionRepo.get_session("revision_race", "uid1")
+    assert saved["revision"] == 1
+    assert saved["state_json"] == '{"turn":1}'
+    assert saved["last_request_id"] == "r1"
+    assert saved["last_reply_json"] == '{"reply":"first"}'
+
+
+def test_two_workers_racing_same_revision_commit_only_one_reply(tmp_data_dir):
+    from concurrent.futures import ThreadPoolExecutor
+    from backend.app.db.repos import SessionRepo, SessionRevisionConflict
+
+    common = dict(session_id="concurrent_revision", user_id="uid1", story_id="s1",
+                  story_title="T", player_name="A", gender="M", flags_json="{}", turns=1)
+    assert SessionRepo._upsert(**common, state_json='{"turn":0}', expected_revision=0) == 1
+
+    def commit(label):
+        try:
+            return SessionRepo._upsert(
+                **common, state_json='{"winner":"' + label + '"}',
+                last_request_id=label, last_reply_json='{"reply":"' + label + '"}',
+                expected_revision=1,
+            )
+        except SessionRevisionConflict:
+            return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(commit, ("a", "b")))
+    assert sorted(outcomes, key=str) == [2, "conflict"]
+    saved = SessionRepo._get("concurrent_revision", "uid1")
+    assert saved["revision"] == 2
+    assert saved["last_request_id"] in {"a", "b"}
+    assert saved["state_json"] == '{"winner":"' + saved["last_request_id"] + '"}'
+    assert saved["last_reply_json"] == '{"reply":"' + saved["last_request_id"] + '"}'
+
+
+@pytest.mark.asyncio
 async def test_upsert_updates_existing_user(tmp_data_dir):
     from backend.app.db.repos import UserRepo
     await UserRepo.upsert_user("uid1", "a@b.com", "Alice", None)

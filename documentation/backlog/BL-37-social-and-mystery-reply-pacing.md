@@ -19,5 +19,7 @@ Prompt changes alter both games and need arena and human review; this is not a r
 
 **Partial correction pending hosted proof (2026-09-26):** the exact "You can feel" form is now filtered in Terrace and IU world-model turns. Direct-answer behavior, repetitive atmosphere and the wider player-agency issue still require sustained play evidence.
 
+**Hosted limit:** a fresh beta `fe54691` browser turn asked two housemates to introduce themselves after the player introduced themselves; a later housemate still asked “What’s your name?” Decorative kitchen narration remained. The direct-answer and repetition gates are still open.
+
 ## Touches
 `backend/app/engine/prompt_builder.py`, `dialogue.py`, Terrace voice data, tests and hosted evaluation.

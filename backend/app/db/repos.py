@@ -82,6 +82,21 @@ class SessionOwnershipError(Exception):
     another owner's row (A01)."""
 
 
+class SessionRevisionConflict(Exception):
+    """The saved session advanced while this turn was being prepared."""
+
+
+def _session_revision_connection() -> sqlite3.Connection:
+    """Upgrade a legacy session table before a revision-aware read/write."""
+    conn = get_connection()
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(game_sessions)")}
+    if "revision" not in columns:
+        conn.close()
+        init_db()
+        conn = get_connection()
+    return conn
+
+
 class SessionRepo:
     @staticmethod
     def _upsert(
@@ -89,13 +104,17 @@ class SessionRepo:
         player_name: str, gender: str, state_json: str, flags_json: str,
         last_message: str = "", turns: int = 0,
         last_request_id: str | None = None, last_reply_json: str | None = None,
-    ) -> None:
+        expected_revision: int | None = None,
+    ) -> int:
         # A02 fix: reject unsafe session_ids before they can ever be stored
         # and later turned into a filesystem path elsewhere in this class.
         validate_session_id(session_id)
         now = int(time.time())
-        conn = get_connection()
+        conn = _session_revision_connection()
         try:
+            # BEGIN IMMEDIATE serializes the revision check and write even
+            # across processes with separate in-memory session locks.
+            conn.execute("BEGIN IMMEDIATE")
             # A01 fix: ON CONFLICT(id) DO UPDATE previously had no owner
             # condition, so a caller who knew/guessed another owner's
             # session_id could overwrite that owner's state_json/flags_json
@@ -104,11 +123,16 @@ class SessionRepo:
             # first and refuse the write outright on a mismatch instead of
             # silently clobbering the existing owner's row.
             existing = conn.execute(
-                "SELECT user_id FROM game_sessions WHERE id = ?", (session_id,)
+                "SELECT user_id, revision FROM game_sessions WHERE id = ?", (session_id,)
             ).fetchone()
             if existing is not None and existing["user_id"] != user_id:
                 raise SessionOwnershipError(
                     f"session {session_id!r} is owned by a different user; refusing upsert"
+                )
+            current_revision = int(existing["revision"] or 0) if existing is not None else 0
+            if expected_revision is not None and current_revision != expected_revision:
+                raise SessionRevisionConflict(
+                    f"session {session_id!r} changed from revision {expected_revision} to {current_revision}"
                 )
 
             conn.execute(
@@ -116,8 +140,8 @@ class SessionRepo:
                 INSERT INTO game_sessions
                     (id, user_id, story_id, story_title, player_name, gender,
                      status, created_at, last_played, turns, last_message, state_json, flags_json,
-                     last_request_id, last_reply_json)
-                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
+                     last_request_id, last_reply_json, revision)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ON CONFLICT(id) DO UPDATE SET
                     story_title      = excluded.story_title,
                     player_name      = excluded.player_name,
@@ -128,7 +152,8 @@ class SessionRepo:
                     state_json       = excluded.state_json,
                     flags_json       = excluded.flags_json,
                     last_request_id  = COALESCE(excluded.last_request_id, game_sessions.last_request_id),
-                    last_reply_json  = COALESCE(excluded.last_reply_json, game_sessions.last_reply_json)
+                    last_reply_json  = COALESCE(excluded.last_reply_json, game_sessions.last_reply_json),
+                    revision         = game_sessions.revision + 1
                 WHERE game_sessions.user_id = excluded.user_id
                 """,
                 (session_id, user_id, story_id, story_title, player_name, gender,
@@ -136,6 +161,21 @@ class SessionRepo:
                  last_request_id, last_reply_json),
             )
             conn.commit()
+            return current_revision + 1
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _get_revision(session_id: str, user_id: str) -> int:
+        conn = _session_revision_connection()
+        try:
+            row = conn.execute(
+                "SELECT revision FROM game_sessions WHERE id = ? AND user_id = ?", (session_id, user_id),
+            ).fetchone()
+            return int(row["revision"] or 0) if row else 0
         finally:
             conn.close()
 
@@ -243,12 +283,17 @@ class SessionRepo:
         player_name: str, gender: str, state_json: str, flags_json: str,
         last_message: str = "", turns: int = 0,
         last_request_id: str | None = None, last_reply_json: str | None = None,
-    ) -> None:
-        await asyncio.to_thread(
+        expected_revision: int | None = None,
+    ) -> int:
+        return await asyncio.to_thread(
             cls._upsert, session_id, user_id, story_id, story_title,
             player_name, gender, state_json, flags_json, last_message, turns,
-            last_request_id, last_reply_json,
+            last_request_id, last_reply_json, expected_revision,
         )
+
+    @classmethod
+    async def get_revision(cls, session_id: str, user_id: str) -> int:
+        return await asyncio.to_thread(cls._get_revision, session_id, user_id)
 
     @classmethod
     async def get_last_request(cls, session_id: str, user_id: str) -> tuple[str | None, str | None]:

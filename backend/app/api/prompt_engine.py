@@ -10,7 +10,7 @@ from backend.app.engine.extractors.turn_extractor import (
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
-from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
+from backend.app.db.repos import SessionRepo, SessionRevisionConflict, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 
 import asyncio
 import copy
@@ -1929,6 +1929,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         return {
             "state": restored,
             "log": saved.get("log", []),
+            "_db_revision": int(row.get("revision") or 0),
             "debug_mode": flags.get("debug_mode", False),
             "chinese_mode": flags.get("chinese_mode", False),
             "epistemic_state": flags.get("epistemic_state", True),
@@ -1953,6 +1954,7 @@ def get_session(session_id: str, user_id: str = "anon"):
             SESSIONS[session_id] = {
                 "state": init_state(),
                 "log": [],
+                "_db_revision": 0,
                 "debug_mode": False,
                 "chinese_mode": False,
                 "epistemic_state": True,
@@ -1977,6 +1979,7 @@ def get_session(session_id: str, user_id: str = "anon"):
         SESSIONS[session_id] = {
             "state": init_state(),
             "log": [],
+            "_db_revision": 0,
             "debug_mode": False,
             "chinese_mode": False,
             "epistemic_state": True,
@@ -2297,6 +2300,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 pass  # stored reply corrupt/unparseable - fall through and reprocess
 
     sess = get_session(session_id, user_id)
+    if user_id != "anon" and not msg.startswith("__cmd_newgame__:") and msg != "__cmd_reset__":
+        try:
+            saved_revision = await SessionRepo.get_revision(session_id, user_id)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="Your session could not be loaded. Please try again.") from exc
+        if int(sess.get("_db_revision") or 0) != saved_revision:
+            restored = _try_load_session_from_db(session_id, user_id)
+            if restored is None:
+                raise HTTPException(status_code=503, detail="Your session changed and could not be reloaded.")
+            SESSIONS[session_id] = restored
+            sess = restored
     state: GameState = sess["state"]
 
     # Initialise the per-session dialogue fact store on first turn (state may be
@@ -2770,7 +2784,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         if user_id != "anon":
             try:
                 story_title = story_def.get("title", story_id) if hasattr(story_def, "get") else story_id
-                await SessionRepo.create_or_update_session(
+                new_revision = await SessionRepo.create_or_update_session(
                     session_id=session_id,
                     user_id=user_id,
                     story_id=story_id,
@@ -2787,6 +2801,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     last_message=opening[:120],
                     turns=0,
                 )
+                sess["_db_revision"] = new_revision
                 # A new-game command replaces the prior playthrough.  Its
                 # next turn must not be mistaken for a network retry of the
                 # old playthrough's final request.
@@ -3619,7 +3634,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 if hasattr(state, "story_cfg") and state.story_cfg:
                     cfg = state.story_cfg
                     story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
-                await SessionRepo.create_or_update_session(
+                committed_revision = await SessionRepo.create_or_update_session(
                     session_id=session_id,
                     user_id=user_id,
                     story_id=state.story or "",
@@ -3637,6 +3652,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     turns=state.turns,
                     last_request_id=client_request_id or "",
                     last_reply_json=json.dumps(result) if client_request_id else "",
+                    expected_revision=int(sess.get("_db_revision") or 0),
                 )
                 await ConversationRepo.append_turns(
                     user_id=user_id,
@@ -3648,6 +3664,14 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     ai_msg_id=ai_msg_id,
                     segments=segments,
                 )
+                sess["_db_revision"] = committed_revision
+        except SessionRevisionConflict as exc:
+            SESSIONS.pop(session_id, None)
+            if client_request_id:
+                prior_id, prior_reply = await SessionRepo.get_last_request(session_id, user_id)
+                if prior_id == client_request_id and prior_reply:
+                    return json.loads(prior_reply)
+            raise HTTPException(status_code=409, detail="This session changed elsewhere. Please retry your turn.") from exc
         except Exception as exc:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
             raise HTTPException(status_code=503, detail="Your turn could not be saved. Please try again.") from exc

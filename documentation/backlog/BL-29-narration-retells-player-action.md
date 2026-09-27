@@ -43,6 +43,8 @@ Additional hosted evidence from the [2026-09-25 manual review](../model_output_d
 ## Why deferred / cautions
 
 **Partial correction pending hosted proof (2026-09-26):** `ground_social_scene` now filters direct and several indirect player-feeling claims for both world-model stories, plus a bounded list of unrequested narrator-assigned physical actions. It preserves a world reaction after a comma. A two-way lexical echo check removes a leading restatement of the player's action while retaining a following consequence. This covers the phone-dialing and locally observed Terrace examples; paraphrased echoes, other invented actions/history and less explicit feeling claims remain open.
+
+**Hosted limit:** beta `fe54691` still narrated IU's “Your eyes scanning its surface” during closet inspection. This phrasing bypasses the bounded action filter; keep this item open.
 Found during the 37bbcb2 promotion window. A prompt change alters every story's replies and needs its own arena
 gate (hosted, Jev + OpenAI). Watch BL-23 (the Jev length preference): trimming makes replies shorter, which that
 judge penalizes. Read the gate's length check before calling it a regression. Don't trim narration that adds new

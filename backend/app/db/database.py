@@ -108,6 +108,7 @@ def init_db() -> None:
     # SessionRepo.get_last_request/update_last_request in repos.py).
     _ensure_column(conn, "game_sessions", "last_request_id", "TEXT")
     _ensure_column(conn, "game_sessions", "last_reply_json", "TEXT")
+    _ensure_column(conn, "game_sessions", "revision", "INTEGER NOT NULL DEFAULT 0")
     # Phase 1.2: lease for reclaiming a HUNG (not crashed) extraction task —
     # the existing table predates this column on any already-deployed DB.
     _ensure_column(conn, "fact_extraction_outbox", "lease_until", "INTEGER")

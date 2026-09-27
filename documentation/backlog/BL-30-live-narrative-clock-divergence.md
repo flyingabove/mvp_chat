@@ -19,5 +19,7 @@ This task is a playtest/review, not an implementation. Exact runtime cause and f
 
 **Further correction pending hosted proof (2026-09-26):** `WorldTimeFormatter` did not parse the IU story's ISO `world.start_datetime` and silently used January 1. It now accepts ISO starts, and IU's start is January 22 at 8 pm, one week after the authored January 14–15 death and consistent with the opening's "Tonight." Explicit first-person duration and same-day future-clock waits now advance the real clock; a scene gate replaces incorrect leading "At HH:MM" narration with "Now". Generic waits, interrupted skips, other temporal claims and a full hosted chronology run remain open.
 
+**Hosted proof:** beta `fe54691` returned Terrace 7:30 pm after “I wait for 30 minutes” from the authored 7 pm start; IU's fresh opening/first closet inspection ran at January 22, 8:00/8:04 pm. Full chronology, interruption and other temporal claims remain open.
+
 ## Touches
 `backend/app/api/prompt_engine.py`, `backend/app/engine/state.py`, time formatting/gameplay and turn extraction, `backend/app/engine/world_model/`, `backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json`.
