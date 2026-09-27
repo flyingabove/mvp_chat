@@ -70,7 +70,7 @@ def manifest_mode(state) -> str:
     return "materialize" if inside else "whisper"
 
 
-def advance_time(state, player_text: str):
+def advance_time(state, player_text: str, *, charge_dialogue: bool = True):
     """
     Updates the state's minute counter based on message length and movement.
     Works with GameState.
@@ -83,7 +83,7 @@ def advance_time(state, player_text: str):
     travel = int(cfg.get("time", {}).get("travel_mins", TRAVEL_MINS))
 
     # Basic time progression
-    delta = base + math.ceil(word_count(player_text) * per_word)
+    delta = base + math.ceil(word_count(player_text) * per_word) if charge_dialogue else 0
 
     # If a world clock is active, keep it in sync with dialog time.
     # ORDERING NOTE: world_clock is advanced *twice* when travel succeeds:

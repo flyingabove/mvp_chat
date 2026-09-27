@@ -2918,6 +2918,14 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     ).status_code == 200
     assert pe_mod.SESSIONS[sid]["state"].location_id == "kitchen"
 
+    # A clock skip followed by travel must apply both operations. Hosted beta
+    # advanced to 9 am but silently left the player in the prior room.
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "I wait until tomorrow at 9 AM, then go to the living room."},
+    ).status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].location_id == "living_room"
+
 
 def test_master_prompt_engine_orchestration_flow(monkeypatch):
     from backend.app.api import prompt_engine as pe_mod

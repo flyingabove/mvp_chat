@@ -3271,7 +3271,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # narration-cue text ("A few hours pass") is not real player dialogue -
     # running it through advance_time()'s word-count delta would add a few
     # stray extra minutes on top of an otherwise-exact jump.
-    if not _is_time_skip_turn:
+    if _is_time_skip_turn:
+        # A compound "wait until 9, then go to the kitchen" has already
+        # paid for the clock jump. Apply its validated travel without charging
+        # another dialogue turn; the travel resolver still charges travel time.
+        if _explicit_destination:
+            advance_time(state, f"go to {_explicit_destination}", charge_dialogue=False)
+    else:
         advance_time(state, movement_msg)
 
     # Phase 2 cast-cycling scheduler: execute any departure replacement whose

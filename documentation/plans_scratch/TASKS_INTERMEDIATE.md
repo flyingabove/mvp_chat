@@ -31,6 +31,8 @@ Current Phase 2 continuation: categorical NPC claims that the player said or men
 
 2026-09-27 hosted checkpoint: played ten fresh Terrace and ten IU turns on beta `9db4b8f`; saved every request/response and graded both in `documentation/reference/SOCIAL_V2_BETA_REPLAY_2026_09_27.md`. IU chronology and clue deduplication improved, but a new `mention`-form false source appeared. Terrace accepted a 10 am date but nobody arrived, and compound wait/movement commands misapplied. Failing-first local regressions and narrow repairs are in progress. The user-requested *final* full playthrough remains unchecked until the phase and cross-phase checklist is complete.
 
+First corrective hosted check on `024bcef`: the destination parser fix alone did not apply travel after a time skip. A failing API regression now asserts the saved room, and the local composition fix awaits full suite, beta deployment and replay. No completion checkbox changes.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.
