@@ -33,6 +33,8 @@ Current Phase 2 continuation: categorical NPC claims that the player said or men
 
 First corrective hosted check on `024bcef`: the destination parser fix alone did not apply travel after a time skip. A failing API regression now asserts the saved room, and the local composition fix awaits full suite, beta deployment and replay. No completion checkbox changes.
 
+Corrective beta `4ed8361`: full suite 1,256 passed/one expected failure; local and hosted desktop Chromium, iPhone WebKit and simulated standalone WebKit flows passed. Fresh hosted gameplay confirmed Open Kitchen at 9:02 am after wait-then-go and Open Kitchen at 10:02 am after go-then-wait with a later cafe question. This closes only that command-composition slice. The accepted date did not receive attendance; all phase boxes and the final playthrough box remain unchecked.
+
 ### 2026-09-25 Terrace goal and rival mechanics
 
 - [x] Record all playtest recommendations and the user's Terrace objective in BL-33..37, referring to existing BL-29..32 and BL-22 where those already cover the issue.

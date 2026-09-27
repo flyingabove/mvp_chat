@@ -25,5 +25,7 @@ This task is a playtest/review, not an implementation. Exact runtime cause and f
 
 **Corrective-build failure (beta `024bcef`):** The first live replay still reached 9 am in the living room. The code selected the kitchen destination but skipped `advance_time`, the only routine applying travel, on a time-skip turn. An API regression now fails on the actual saved `location_id`, and the next local change applies travel without charging a second dialogue duration; hosted verification remains pending.
 
+**Hosted proof (beta `4ed8361`):** The same fresh-session wait-then-go command ended in Open Kitchen at 9:02 am, including travel time; a go-then-wait command with a later question about the cafe ended in Open Kitchen at 10:02 am. Raw requests, responses and debug boxes are in `compound-travel-hosted-4ed8361`. The particular compound travel/wait regression is fixed, while general multi-action ordering, interruption and attendance remain open under this and BL-35.
+
 ## Touches
 `backend/app/api/prompt_engine.py`, `backend/app/engine/state.py`, time formatting/gameplay and turn extraction, `backend/app/engine/world_model/`, `backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json`.
