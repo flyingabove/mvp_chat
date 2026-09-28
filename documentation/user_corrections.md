@@ -4,6 +4,18 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-27: Plausible drama, engine dialogue and character uncertainty
+
+The user clarified the reusable simulation proposal after review:
+
+- Prioritize enjoyable, heightened but plausible dramatic scenes over mundane realism, including humor and characters knowingly breaking routine obligations with consequences.
+- Before a skip would miss important known events, list them and request confirmation. Engine-to-player messages and player-to-engine commands must be parenthesized and distinct from in-world dialogue.
+- NPC autonomy is tunable with a moderate default. Longer elapsed game time permits more cascading independent changes (butterfly effects); closing the app still freezes simulation time.
+- Intentional lying is allowed and should generally have observable hints, varying with character skill and circumstances. Skilled liars can be harder to read; nervousness is not proof.
+- Tentative plans and misunderstandings are valid gameplay. Preserve actual speech/decisions separately from each character's interpretation; never manufacture player consent or mutual agreement.
+
+Engineering contracts, tuning and acceptance scenarios are in [BL-38](backlog/BL-38-social-engine-authority-and-epistemic-transactions.md), especially the confirmed owner decisions and scenarios O19–O23. These are design requirements, not claims that the runtime already implements them.
+
 ## 2026-09-24: Documentation-only changes do not need a beta push
 
 The user narrowed the 2026-09-23 rule below: a change that touches only

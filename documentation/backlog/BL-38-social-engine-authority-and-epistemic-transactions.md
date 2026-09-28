@@ -34,12 +34,22 @@ This refines [Social engine v2](../reference/SOCIAL_ENGINE_V2_DESIGN.md), the [c
 
 1. **Objects own behavior and invariants.** A character owns perception, decisions and speech; an agreement owns terms and participant decisions; the world owns placement and time. The application coordinates them and calls providers. Domain objects do not call HTTP, SQL or LLM services.
 2. Use composition, not `TerraceCharacter`/`MysteryCharacter` subclasses. Pure helpers can remain functions behind object APIs. Avoid a god character class and needless classes around trivial calculations.
-3. Believable simulation comes from causality, partial information, independent preferences, travel, scarcity and consequences. Do not simulate every biological detail or force conflict to look realistic.
+3. **Enjoyable, plausible drama takes priority over mundane realism.** Choose heightened, surprising and humorous scenes when their causes and character choices remain plausible. Causality, partial information, preferences and consequences constrain the drama; they do not require characters to make sensible choices or always follow routines. Do not simulate every biological detail.
 4. Keep the turn-based clock: closing the app freezes the world. Long player actions advance NPC life through chronological events.
 5. Separate world truth, observation, belief and speech. A character can lie, misunderstand, refuse or forget through explicit modeled behavior; generated contradictions are not a substitute.
 6. The player controls voluntary actions, feelings and commitments. Engine-resolved external effects may affect the player when supported by the action rules. No NPC can accept on their behalf.
 7. Game definitions choose capabilities and policy values. Shared engine code never branches on a story ID. Exceptional abilities, such as ghost perception, use narrow capability adapters with the same contracts.
 8. Preserve the prior no-house-log/no-event-feed decision. Players learn through scenes and communication. Any optional case notebook contains only player-known evidence, not an omniscient simulation log.
+
+### Confirmed owner decisions after proposal review (2026-09-27)
+
+These decisions supersede a realism-first reading of earlier design text:
+
+- Optimize for the most enjoyable dramatic scene within plausibility, including humor. A character may knowingly ditch work for a date and joke about the likely consequences; their work obligation is not silently erased.
+- Before a player-requested skip passes important known events, list the affected events and ask for confirmation. Engine-to-player messages and player-to-engine commands use parentheses, separated from in-world dialogue.
+- Default NPC autonomy to a tunable middle setting. More simulated time without player involvement allows more causally connected changes, including butterfly effects; this is not wall-clock simulation while the app is closed.
+- Permit intentional lies. Generally provide observable hints whose strength depends on the character's deception ability and circumstances; skilled liars are harder to read. A nervous gesture is not proof of a lie.
+- Allow tentative plans and genuine misunderstandings. Different characters may interpret the same exchange differently; canonical records must preserve what was said and decided rather than falsely manufacturing mutual agreement.
 
 ## 2. Code inspection and reuse map
 
@@ -75,6 +85,7 @@ Inspected local `beta` at `de4781e`. Uncommitted date work exists in `agreements
 | `Character` | Identity plus runtime, voice, preferences, objectives and conversation state | `perceive()`, `consider()`, `plan_speech()`, `project()` |
 | `CharacterMind` | Mood/appraisals, bounded attention, owner-scoped knowledge access | `interpret()`, `belief_about()`, `choose_intent()` |
 | `VoiceProfile` | Diction, rhythm, directness, warmth, register and habits | `constraints_for(context)`; cannot change facts or decisions |
+| `DeceptionProfile` / character expression | Lying skill, composure, stress response and expressive habits | `plan_deception()`, `express(intent, pressure)` propose speech and perceivable cues, not a public truth label |
 | `ConversationState` | Questions, response status, recognition and introduction history | `receive()`, `pending_for()`, `acknowledge()` |
 | `CharacterSchedule` | Routine policy and reservation references | `availability(window)`, `propose_slot()`, `next_boundary()` |
 | `Agreement` | Terms revisions, participant decisions, obligations, outcome evidence | `decide()`, `propose_amendment()`, `record_attendance()`, `resolve_obligation()` |
@@ -85,6 +96,8 @@ Inspected local `beta` at `de4781e`. Uncommitted date work exists in `agreements
 | `Goal` / `OutcomePolicy` | Progress and ending predicates | `evaluate(events, decisions)` |
 | `Scene` | Participants, channels, visibility and response obligations | `can_perceive()`, `select_speakers()`, `project_for(viewer)` |
 | `NarrationPolicy` | Viewpoint, pacing and agency constraints | `build_contract(scene_delta)`, `validate(candidate)` |
+| `DramaticPolicy` | Game-level weights for tension, surprise, humor, emotional payoff and repetition | `rank(plausible_opportunities)`; cannot overwrite character decisions or physical facts |
+| `SkipPreview` / `EngineInteraction` | Requested target, affected player-known events, confirmation token, revision | `preview_skip()`, `confirm()`; engine communication does not enter character memories |
 | `TurnService`, `SessionRepository` | Provider orchestration and durable commit | Load, prepare, render, validate, commit; no story rules |
 
 A character's knowledge, agreement and relationship accessors are owner-scoped views over the canonical shared books, not copies serialized in every character. The world remains the sole location owner. A derived schedule reservation references agreement ID/revision rather than duplicating terms.
@@ -123,13 +136,14 @@ Decision methods return proposals against a supplied revision. Only validated ev
 
 Shared `ActionIntent` variants: `Speak`, `Ask`, `Move`, `WaitUntil`, `Inspect`, `Read`, `Invite`, `RespondToOffer`, `Cancel`, `Amend`, `PerformActivity`, `Depart`. Speech distinguishes assertion, question, hypothetical, refusal, promise and quotation. “Did you go to the cafe?” is not movement. “Maybe tomorrow” is not acceptance.
 
-Each proposal includes session/request ID, actor, expected revision, source segment/evidence spans, ordered dependencies and typed arguments. Name resolution yields authored IDs. Ambiguity in a consequential action produces an in-game clarification, not guessed consent. A semantic `DecisionProvider` may interpret natural language using current extractor infrastructure; its confidence score is not authority.
+Each proposal includes session/request ID, actor, expected revision, source segment/evidence spans, ordered dependencies and typed arguments. Name resolution yields authored IDs. Unresolved actor identity or an irreversible player action needs clarification rather than a guessed target. Social ambiguity may remain unresolved and generate character-specific expectations as described in section 6; do not force every tentative exchange into a clarification prompt. A semantic `DecisionProvider` may interpret natural language using current extractor infrastructure; its confidence score is not authority.
 
 Versioned events include sequence, operation ID, simulated time, actors, place, payload, source/cause IDs and ruleset version. Examples: `OfferMade`, `ParticipantDecided`, `TravelStarted`, `Arrived`, `ActivityPerformed`, `AssertionUttered`, `ObservationRecorded`, `RecordRead`, `ObligationResolved`, `DepartureCommitted`. `Event.truth` remains compatibility rendering. An utterance proves only that words were said.
 
 ### Turn algorithm
 
 1. Load snapshot/revision and check durable request receipt. Same ID/payload returns the exact committed reply; same ID/different payload is rejected.
+   Classify engine interaction separately from in-world action. A skip requiring confirmation produces an `EngineInteraction` preview before any world-time advancement, character decision, model-generated scene or outbox side effect. Persist the pending interaction/receipt only.
 2. Interpret ordered player attempts. Preserve wait-then-move versus move-then-wait; a question about a future destination cannot change today's route. Critical extraction happens in this turn.
 3. Resolve player actions and scheduled boundaries on a private working snapshot. NPC objects propose decisions from their own knowledge views. Do not hold a database transaction during model calls.
 4. Build a tentative `SceneResolution` containing NPC acts and consequences. Acceptance and its spoken response reference the same agreement revision.
@@ -192,11 +206,21 @@ Lifecycle: `proposed -> confirmed -> in_progress -> resolved`, with decline, can
 
 Changing venue, time or participants creates an amendment requiring affected participants' decisions. Existing terms remain effective until amendment acceptance or explicit cancellation. A third person volunteering creates a join request; it cannot turn a private date into a group outing. Group quorum/unanimity is an activity policy, not a universal rule.
 
+### Tentative plans and asymmetric expectations
+
+Add character-owned `PlanExpectation` records referencing the actual exchange, proposed terms, the character's interpretation, confidence and believed participant commitments. These live in the character's mind/knowledge view; they do not independently mutate the agreement. A hopeful character may interpret “maybe tomorrow” as likely, while the speaker still considers it tentative. Interpretations depend on personality, relationship experience, context and evidence, with tunable misunderstanding probability and confidence calibration.
+
+The objective record remains tentative until valid participant decisions exist. A character may nevertheless reserve their own time, prepare a surprise, turn up hoping to meet, or feel disappointed. Such acts are unilateral intentions with their own causes, not proof the other party consented. Appraisal can record subjective disappointment without declaring an objective breach by someone who never agreed. Do not invent private player beliefs: the player owns their interpretation and can correct others in dialogue.
+
+An important ambiguous plan is an opportunity for drama or clarification, not an automatic engine prompt on every vague sentence. Characters can ask naturally, avoid asking, or confidently misunderstand according to policy. Later clarification updates beliefs and future actions while preserving the original exchange and already experienced consequences. Tests must distinguish intentional character misunderstanding from an extractor misclassifying a clear refusal.
+
 ### Real attendance
 
 `CharacterSchedule` considers reservations, routine blocks, preparation and route time. Check interval overlap rather than exact due-time equality. `World.resolve_travel()` checks access, routes, availability and movement capabilities.
 
 Confirmation schedules preparation/departure/arrival events against the terms revision. A character can negotiate, cancel or arrive late if travel becomes impossible. Do not directly place them at a venue merely because the due time passed. Closed venues, sleeping participants and ambiguous destinations produce explicit pending/failure outcomes rather than silence.
+
+Separate physical impossibility from a costly personal choice. A shift at work can be skipped if the character chooses and the story permits it; the engine records the conflicting obligation and later consequences. A locked route remains physically unavailable unless a real alternative action opens it. Prefer a plausible dramatic choice over a boring automatic schedule rejection: “My boss is gonna kill me if I ditch work to go on a date with you!” can accompany a genuine, character-owned decision.
 
 `ActivityDefinition` holds prerequisites, roles, resources, duration, interruptibility and completion predicates. Coffee, rehearsal, a witness interview and a repair appointment use this same machinery with different data. Calls use a communication channel rather than physical co-location.
 
@@ -205,6 +229,16 @@ Confirmation schedules preparation/departure/arrival events against the terms re
 One chronological queue merges routine boundaries, travel, appointments, contacts and world changes. Tie order uses documented priorities and stable IDs. Revalidate event preconditions at execution; cancellation invalidates queued work by agreement revision.
 
 Long skips process intermediate boundaries. Interrupt for a configured player choice or important event, report the reached time and wait for the player's next action. NPC-only events may resolve offscreen. A work cap checkpoints and resumes internally; it must not drop obligations or falsely claim the skip completed.
+
+### Skip preview and parenthesized engine communication
+
+Before any player-requested time advance (skip, sleep or a long activity) would pass an important known event or its latest feasible departure time, `SkipPreview` gathers the affected player-visible obligations and relevant tentative plans. Importance is policy-driven by player involvement, deadline and likely consequence. Include all affected events in one readable confirmation, with tentative events clearly identified. Hidden NPC plans must not appear as spoilers.
+
+Example engine output: **(Skipping until tomorrow morning will miss your coffee with Yuki at 10 AM and your rehearsal with Mako at 3 PM. Continue?)** The player can answer **(Yes, skip anyway.)** or **(No, stop before coffee.)** No elapsed-time mutation, NPC progression or random draws occur while awaiting confirmation. This is a preflight read of known state, not a simulation of secret future outcomes.
+
+Use typed `EngineInteraction` segments for reminders, confirmation, control instructions and errors; render their player-facing text in parentheses. Parse explicit parenthesized player-to-engine instructions into the engine channel. These exchanges do not become character utterances, observations, gossip or dialogue obligations. Ordinary parenthetical asides within an in-world sentence are not automatically commands: use the top-level interaction mode/recognized command intent, and clarify uncertain routing without advancing time. Support mixed input as separate engine and in-world segments with explicit order.
+
+The confirmation binds session, requested interval, affected-event IDs/revisions and current world revision. A stale confirmation regenerates the preview. Duplicate confirmations advance once through the normal idempotent turn transaction. A bare in-world “yes” must not accidentally approve a pending skip. Declining leaves the clock unchanged and offers the requested shorter interval. Confirmation authorizes missing the listed events, not cancelling them: actual attendance/missed-plan consequences still execute. Do not immediately interrupt again for the same confirmed misses; a materially new event needing a player decision may still interrupt and use a new parenthesized prompt.
 
 `RelationshipEdge.appraise()` consumes perceived outcome evidence, obligation importance, ability to comply, notice, explanation credibility and character values. Only the affected direction changes unless another actor independently appraises it. Apply once per event/actor/policy. Non-witnesses need a source path. Correcting a false rumor need not erase all emotional consequences.
 
@@ -223,6 +257,12 @@ Use `EpistemicLedger.view_for(character_id)` as the character's only knowledge p
 `Character.plan_speech()` selects `disclose`, `uncertain`, `withhold`, `misremember` or `deceive` acts according to its knowledge and policies. Default factual assertions require support. A deliberate lie may lack truthful support, but requires an explicit decision tied to a motive and a perceived situation. An authored/seeded memory error references the remembered material and distortion, rather than manufacturing an arbitrary source after generation.
 
 Store what was actually said separately from what the speaker claimed its source was. A permitted lie such as “you told me” must not create a fake historical player utterance or a fake observation. The hidden decision receipt can record deception intent; listeners only get what they heard. They can challenge the claim without the narrator revealing the lie. This preserves mystery and realistic dishonesty while preventing accidental hallucinations from becoming canon.
+
+### Character-owned deception skill and readable hints
+
+Compose `DeceptionProfile` and expressive behavior into the character: skill, composure, stress sensitivity, habitual tells and ability to maintain a story. Reuse existing authored `Character.tells` as cue material through a typed adapter. When a character chooses deception, `Character.express()` selects an observable cue from intent, pressure, familiarity and a recorded seeded draw. The default presentation generally gives the player a hint: a strained laugh, delayed answer, fidgeting or an inconsistent detail. Higher skill/composure reduces cue frequency or makes it subtler; pressure can expose a normally skilled liar.
+
+The scene contract receives the approved visible behavior, not a flag saying “this character is lying.” Perception filters still apply: a phone call may expose a vocal hesitation but not a hidden hand gesture. Honest nervous characters can display similar cues, so body language is suggestive rather than a guaranteed lie detector. Tune hint availability for enjoyable play without requiring a tell in every line, and vary cues to avoid a repetitive “looks nervous” template. Character-owned humor may mask or reveal tension without changing the underlying assertion.
 
 A denial adds counter-testimony; it does not erase prior speech or automatically settle the issue. Contradiction rules distinguish incompatible claims about the same time/subject from legitimate changes over time. Corroboration updates belief through source paths, not by overwriting history.
 
@@ -254,7 +294,17 @@ Reuse routines, offscreen encounters and threads, but send their proposed action
 
 Keep per-character initiative budget and cooldowns, plus time-since-last-opportunity to avoid starving low-scoring characters forever. At most a configured number of unsolicited scene acts can compete with direct player questions. Repeated refusals impose topic/target cooldowns. Measure distribution across rosters; do not force every rival to sabotage or every run to produce a triangle.
 
+Default autonomy to `moderate`, with per-game and permitted character overrides. Progress is driven by elapsed simulated time and meaningful opportunities, not merely the number of player messages. Longer absences allow additional encounters and causal chains: an invitation changes a schedule, that encounter changes a belief, and that belief changes a later invitation. This is the intended butterfly effect. Small changes can diverge through accumulated decisions, but cannot randomly rewrite unrelated relationships or retroactively invent encounters.
+
+Schedule reconsideration at relevant event boundaries with stable per-event random keys. Splitting an otherwise identical wait into smaller no-interaction steps should not create extra initiative opportunities solely because more turns occurred. Test that time partitioning preserves outcomes under unchanged information; actual player interactions may legitimately alter the chain. Event budgets bound computation, not simulated change: checkpoint rather than truncate. More time provides more opportunity, not a promise that drama grows monotonically or every relationship deteriorates. Only player-perceivable traces reach narration.
+
 An offscreen action creates only actual perceptible traces and sourced reports. The scene selector can highlight a feasible consequence, but cannot invent a quarrel to hit an engagement target. A cancellation message is delivered through the same contact/knowledge channels as other communication.
+
+### Drama-first opportunity selection
+
+Add `DramaticPolicy` above opportunity/scene selection, composed with character policies. Rank plausible options by emotional stakes, tension, surprise, humor, meaningful player choice and payoff of earlier events; discount exhausted beats. Physical feasibility and information access are hard bounds, while schedule adherence, social caution and sensible behavior are negotiable character choices with consequences. Let characters make bad but understandable decisions.
+
+Generate more than one plausible opportunity before ranking, so drama is not limited to embellishing an already dull outcome. Character values and independent participant decisions still govern execution; a dramatic score cannot coerce agreement, move someone impossibly or erase history. Favor heightened situations with traceable causes. Quiet or comic relief can earn a high score when it provides contrast or payoff, rather than maximizing conflict every turn. Narration realizes the selected event through character voice and situational humor.
 
 ### Relationship decisions and goals
 
@@ -309,6 +359,10 @@ Separate **optional behavior** from **invariants**. An author may disable proact
 | Investigation | `InvestigationPolicy`: record cost/delay, lead hints, available affordances | No case workflow or notebook; normal observation and honest source attribution remain. |
 | Perception | Scene/character capabilities: hearing range, barriers, channels | Simple conservative co-presence rules; no cross-scene leakage. |
 | Narration | `NarrationPolicy`: viewpoint, texture budget, length target, callback cooldown | Minimal observable outcome narration; agency protection always on. |
+| Dramatic selection | `DramaticPolicy`: tension, surprise, humor, emotional payoff and repetition weights | Default favors enjoyable plausible drama; optional neutral selection still respects causal constraints. |
+| Skip reminders | `SkipPolicy`: important-event criteria, latest departure, tentative-plan inclusion | Confirmation before important known misses is the required default; disabling optional reminders must not silently bypass that contract. |
+| Deception cues | Character `DeceptionProfile`: skill, composure, stress sensitivity, cue vocabulary; game hint strength | Default generally hints; skilled liars can hide cues. Disabling deceptive intents does not remove honest nervousness. |
+| Misunderstanding | Character interpretation policy: ambiguity tolerance, optimism, clarification tendency | Tentative state and separate beliefs remain; setting misunderstanding rate to zero does not turn “maybe” into “yes.” |
 | Goals/endings | `OutcomePolicy`: eligibility predicates, completion evidence, terminal flag | Open-ended play; departures can still occur as world events. |
 
 Example proposed configuration (field names are illustrative; numeric values are starting hypotheses, not calibrated defaults):
@@ -327,8 +381,21 @@ simulation:
     invitation_timeout_minutes: 120
     default_guest_policy: request_join
   intentions:
+    autonomy: moderate
+    progression_basis: simulated_time_and_events
     max_unsolicited_acts_per_scene: 1
     target_cooldown_minutes: 180
+  drama:
+    priority: enjoyable_plausible_scenes
+    humor: enabled
+  skip:
+    confirm_known_important_misses: true
+    engine_channel_format: parentheses
+  deception:
+    cue_policy: generally_hint_character_skill_adjusted
+  interpretation:
+    allow_tentative_plans: true
+    allow_asymmetric_expectations: true
   narration:
     decorative_beats_per_reply: 1
     target_words: 100
@@ -424,6 +491,11 @@ These are proposed test gates, not results. Each mechanical scenario asserts eve
 | O16 | Reuse and configuration — BL-38 | Run the same action contracts in social, mystery and a minimal third test fixture (e.g. workplace appointment) using only data/policies, without adding a product story. Invalid flag combinations fail explicitly. |
 | O17 | Migration/disable — BL-38 | Old saves retain facts/unknowns; no new consent or knowledge appears; disabling mechanics handles outstanding work explicitly; incompatible rollback is rejected. |
 | O18 | Privacy and source isolation — BL-27/38 | Remove a witness and their knowledge/planning input changes; alter a secret unknown to an NPC and its input does not change; private calls/confessionals never appear in unauthorized contexts. |
+| O19 | Plausible drama and humor — owner decision | Given a work/date conflict, a character may choose a plausible dramatic exception with downstream costs; a comic line cannot silently cancel work, force consent or create an impossible route. Human review compares scene enjoyment, not just schedule compliance. |
+| O20 | Skip preview and engine channel — owner decision | Multiple known important events trigger one parenthesized preview before time changes; tentative plans are labeled; hidden events do not leak; parenthesized control messages never enter NPC memory. Decline changes no time, stale tokens refresh, duplicate confirmation advances once, ordinary dialogue does not approve a skip. |
+| O21 | Moderate autonomy and butterfly effects — owner decision | Longer simulated absences enable causal multi-step changes; equivalent partitioned waits preserve opportunity scheduling; changed player input can diverge outcomes; app-closed wall time does nothing. High/low tuning changes initiative within valid constraints. |
+| O22 | Skill-dependent deception hints — owner decision | Low/high skill and pressure change cue distributions over fixed-seed fixtures; generally informative hints remain nonconclusive; honest nervousness is possible; unavailable visual cues never appear on voice-only calls. |
+| O23 | Real misunderstandings — owner decision | One actor expects a meeting after “maybe” while the other's recorded decision remains tentative; voluntary hopeful attendance is allowed; disappointment is subjective, not a false breach or player-consent event. Clarification updates beliefs without rewriting the exchange. |
 
 ### Deterministic and model-level checks
 
