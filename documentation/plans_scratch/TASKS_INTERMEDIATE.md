@@ -63,6 +63,8 @@ Corrective beta `4ed8361`: full suite 1,256 passed/one expected failure; local a
 
 ## Consumed History
 
+- 2026-09-27: Incorporated follow-up inference/UX decisions into BL-38 and Q9–Q12: at most two LLM calls (extraction with Jev, then response), extensive bounded Jev use, current speed accepted, gameplay priority and streaming/optimization deferred. Inspected existing frontend three-dot indicator and server `StageTimer`; added client/server latency measurement and indicator lifecycle acceptance O29. Reconciled the earlier one-call proposal and immediate two-second gate. Documentation only; preserve pre-existing runtime work and commit locally without pushing.
+
 - 2026-09-27: Updated BL-38 Q3/Q8 and added follow-up Q9 after the user asked what response time means and turned arena judging off for playtest review. Removed the judging-pilot decision from the plan; recorded the user-described Terrace-only/default-off-elsewhere gameplay capability separately from developer evaluation. Latency target remains unset. Documentation only; no runtime flags or model calls changed, and commit stays local on beta.
 
 - 2026-09-27: Answered the supplied eight-question BL-38 architecture review in the proposal body and appended Q1–Q8. Added standalone release slices/fallback paths, precise preset-independence criteria, a proposed shared inference-call budget, a concrete attribution/answer validator, deterministic drama ranking and anti-railroading rules, an isolated old-save rollback drill, and grading without implicit arena authorization. Added O24–O28. Asked the user for response-time target and grading-mode preference; these remain explicitly pending until answered. Documentation only; preserve pre-existing attendance changes and commit locally without a push.

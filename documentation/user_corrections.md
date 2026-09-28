@@ -4,6 +4,12 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-27: Gameplay first; two LLM calls plus Jev and visible thinking dots
+
+Latest user direction supersedes the earlier unresolved latency question and any immediate 1–2-second optimization gate: current response speed feels good. Focus on gameplay, measure latency, and defer speed optimization/true streaming. Keep at most two LLM calls per gameplay turn: extraction LLM assisted by Jev, then response LLM. Use Jev extensively for supported work with bounded batching and separate latency/cost accounting; do not replace the extraction LLM with local-only intent parsing or add a third LLM verifier/repair/background call.
+
+Preserve animated three-dot thinking feedback before results. Source inspection confirms it exists in `frontend/index.html` and is shown before fetch, hidden on reply/error. BL-38 specifies lifecycle QA and client/server timing measurement built on the existing `StageTimer`; source inspection is not a new hosted verification. Playtest arena judging stays off.
+
 ## 2026-09-27: Arena judging is not needed for playtest review
 
 The user explicitly turned arena judging off for playtest review and said it is not important to that work. Do not keep proposing a judging pilot as a prerequisite. They described an arena-judge gameplay mechanic as Terrace House-specific for now, reusable but default-off for other games. Keep that desired gameplay capability distinct from the developer build-comparison arena and runtime semantic validation; no corresponding existing gameplay implementation was verified in this review. This clarification does not authorize starting arena runs or modifying runtime flags.
