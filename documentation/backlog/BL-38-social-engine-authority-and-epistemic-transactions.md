@@ -39,6 +39,8 @@ This refines [Social engine v2](../reference/SOCIAL_ENGINE_V2_DESIGN.md), the [c
 5. Separate world truth, observation, belief and speech. A character can lie, misunderstand, refuse or forget through explicit modeled behavior; generated contradictions are not a substitute.
 6. The player controls voluntary actions, feelings and commitments. Engine-resolved external effects may affect the player when supported by the action rules. No NPC can accept on their behalf.
 7. Game definitions choose capabilities and policy values. Shared engine code never branches on a story ID. Exceptional abilities, such as ghost perception, use narrow capability adapters with the same contracts.
+
+   This promises independence from **story identity in executable rules**, not the absence of genre-shaped content. Presets are authoring conveniences that expand into the same validated capabilities and values; a runtime resolver must not inspect the preset name. No arbitrary expression DSL or executable YAML is required: start with typed fields, enums and a small registered predicate set. Rename a story/preset without changing expanded data and behavior must remain identical. Swap equivalent activity data across presets and the same object methods must execute. A preset that silently selects a story-specific implementation violates this contract.
 8. Preserve the prior no-house-log/no-event-feed decision. Players learn through scenes and communication. Any optional case notebook contains only player-known evidence, not an omniscient simulation log.
 
 ### Confirmed owner decisions after proposal review (2026-09-27)
@@ -192,7 +194,44 @@ Filter retrieval by owner/channel/disclosure permission before ranking. On retri
 
 A valid claim ID proves the reference exists, not that the generated sentence means the same thing. Deterministic checks enforce IDs and structural permissions; curated/model-assisted checks assess paraphrase, negation and attribution. Bounded regeneration or minimal approved wording handles ambiguity. JSON schema validation alone cannot guarantee semantic fidelity.
 
+The initial execution profile below selects minimal approved wording rather than a repair-generation call; any later regeneration profile must publish a revised total call/attempt budget first.
+
 Keep current source/agency filters as temporary defense and telemetry. Retire them fixture by fixture as object contracts cover the behavior; do not grow an endless English regex list.
+
+### First concrete semantic gate: attributed statements and direct answers
+
+Implement `SpeechGroundingValidator` against owner-visible utterance/observation records before attempting a general semantic truth checker. This is a proposed bounded design, not a solved arbitrary-language entailment claim.
+
+1. A `ResponseObligation` holds addressed actor, question span, requested proposition/source and response kind. `SpeechPlan` selects answer/uncertain/refuse/correct-premise/defer and its evidence references. Defer must name an actual pending action or explicitly say no answer is currently available; it cannot invent a future record check.
+2. The realization schema returns segments plus speech-act annotations: `speaker_id`, `addressee_id`, `obligation_ids`, `claim_refs`, `source_refs`, `decision_refs` and text spans. Treat annotations as model proposals, not proof; the validator inspects the entire final text, including unannotated clauses.
+3. Deterministic checks reject nonexistent references, a speaker without a hearing/reading path, a source after the current time, changed actor identity, unauthorized disclosure and a decision polarity inconsistent with its agreement. A question/quotation/denial cannot be promoted into the source assertion. Unknown or truncated source text cannot justify an exact quotation. Preserve full canonical utterances; the current 240-character event truncation in `turn.py` is insufficient as the only semantic evidence.
+4. One bounded semantic-verifier call receives only the public speech contract, exact permitted source excerpts and candidate response. It returns `supported`, `contradicted` or `unknown` for each consequential attribution and answer, with candidate/source spans and explicit speaker, polarity, time and speech-act comparisons. It must also identify unannotated attributions and unanswered obligations. Treat malformed verdicts and uncertainty as non-passing; never average away one unsupported consequential claim.
+5. On a failed attribution, choose a deterministic source-safe formulation. If available, quote the exact heard words with their speaker and frame them as words spoken, not objective truth. Otherwise use an honest response such as “I don't have a source for that.” For a genuinely supported direct answer, render the approved answer proposition; do not replace it with evasive uncertainty just to pass the gate. A refusal is allowed only if the character selected refusal. Keep the obligation pending if a safe relevant response cannot be delivered.
+6. Do not recursively call models until a result passes. The initial bounded profile uses no repair-generation call; use an approved fallback or abort the invalid subset as section 4 requires. An explicit `deceive` act validates against the intended utterance plan while recording it as testimony; it never needs or creates a fictional historical source event.
+
+Example: source input “Did anyone check the footage?” cannot support IU saying “You told me you checked the footage.” Neither overlapping words nor a valid event ID is enough. A direct response “No, I haven't checked” may fulfill the question only if it matches the character's actual supported state or an explicit authorized deceptive act. Asking two questions and answering one leaves one obligation open.
+
+The verifier can itself be wrong. Calibrate it with a labeled corpus covering questions versus assertions, negation, reported speech, ambiguous pronouns, conditional answers, invented qualifiers, lies, long utterances and omitted answers. Report false acceptance, false rejection and abstention separately. Critical source/consent fixtures must have zero accepted violations; voice/pacing quality remains a separate evaluation. Until calibration passes, consequential attributions use constrained approved wording instead of claiming free-form speech is verified. Deployment/model changes rerun this corpus. This gate targets O04/O08; it does not by itself solve O10 or all epistemics.
+
+### Explicit model-call budget
+
+Introduce application-owned `TurnInferenceBudget`, shared by all providers and retries. The following is the **proposed initial execution profile**, not a measurement of today's runtime or a promised response time:
+
+| Request | Logical model calls | Maximum provider attempts |
+|---|---:|---:|
+| Explicit skip needing only a known-event preview | 0 | 0 |
+| Ambiguous natural-language skip requiring interpretation before preview | 1 interpretation | 2 including one transport retry |
+| Normal turn, six present characters, two pending objectives | 1 intent extraction + 1 public realization + 1 semantic verifier = 3 | 4 total, including at most one shared transport retry |
+| Confirmed skip with deterministic offscreen progression and one final scene | Up to the same 3 | Same 4; not multiplied by NPC count or elapsed ticks |
+| Exact retry of a committed request | 0 | 0 |
+
+`Character.consider`, `plan_speech`, `project`, `CharacterMind.interpret` over already typed observations and `DramaticPolicy.rank` are local operations. The extractor interprets player language; character choice scores typed opportunities, and the realizer expresses public acts. An unfamiliar opportunity can be deferred or clarified instead of creating a hidden per-character provider loop. The verifier is online gameplay validation, not an arena judge. Its runtime implementation and evaluation are still proposed.
+
+Budget rules apply to provider attempts, including timeouts and 429/5xx retries. A deadline or attempt-cap exhaustion chooses a safe fallback/abort; retries do not silently double the cap. Reserve capacity for validation before generation. Log per-stage attempts, latency, input/output tokens, fallback and total cost. Token caps are bounded per call and per turn, then sized with actual context fixtures; no unmeasured token-price claim is made.
+
+In this profile, additional LLM context ranking, quote attribution, post-hoc translation, shadow providers and async extraction are disabled or replaced by local/index/event projections; requested output language is handled in realization. Existing functionality must be checked before switching profiles. Background work cannot hide uncounted spend: separately report its calls and require an explicit budget if enabled. The current handler contains optional dynamic context selection, quote attribution, translation, regeneration and background extraction, so today's count is not asserted to equal three.
+
+Isolated private LLM decision-making is a future opt-in profile, not required by this object model or the default path. It must receive an explicit larger budget and measured latency approval before rollout; never exceed the default cap because a new character exists. User response-time preference and any grading-pilot preference are pending in section 15. A call cap alone is not evidence of latency viability.
 
 ## 6. Agreements, schedules and consequences
 
@@ -303,6 +342,14 @@ An offscreen action creates only actual perceptible traces and sourced reports. 
 ### Drama-first opportunity selection
 
 Add `DramaticPolicy` above opportunity/scene selection, composed with character policies. Rank plausible options by emotional stakes, tension, surprise, humor, meaningful player choice and payoff of earlier events; discount exhausted beats. Physical feasibility and information access are hard bounds, while schedule adherence, social caution and sensible behavior are negotiable character choices with consequences. Let characters make bad but understandable decisions.
+
+Selection must not override willingness indirectly. Each character first generates an admissible set using its values, current goals, boundaries and a configured maximum deviation from its preferred choice. Include “continue current activity” or a quiet alternative when plausible. Only this set enters dramatic ranking; the director cannot keep regenerating candidates until it gets consent. Meaningful soft-obligation violations need an explicit motivation/cost record.
+
+Use bounded, versioned score components for tension, humor, payoff, novelty and repetition. Repeated semantic beat families share a cooldown/penalty across paraphrases and templates, so wording changes cannot reset it. Reserve a configurable initiative budget and quiet/recovery opportunities; dramatic scoring does not monopolize every direct-answer turn. Precondition/target refusal is final for that decision point, not an invitation to reroll a different seed.
+
+Deterministic selection: assign stable candidate IDs from actor, opportunity, causal event and ruleset version; clamp/quantize score components to specified integer ranges; sort by descending score, then a seeded hash of `(session_seed, decision_event_id, candidate_id, policy_version)`, then candidate ID. Persist the selected candidate and component scores. No wall time, iteration order or turn-count-only seed enters tie-breaking. Replay uses the recorded choice; resimulation uses the versioned formula. Permuting input candidates must not change the result.
+
+Anti-railroading fixtures cover a cautious character refusing the highest-drama action, a contented character choosing quiet activity, repeated rejected proposals, paraphrased duplicate beats, and a strong humor/payoff option beating another argument. Inspect per-character action diversity and refusal rates over seeds. Dramatic weights cannot bypass these constraints even at their maximum permitted values.
 
 Generate more than one plausible opportunity before ranking, so drama is not limited to embellishing an already dull outcome. Character values and independent participant decisions still govern execution; a dramatic score cannot coerce agreement, move someone impossibly or erase history. Favor heightened situations with traceable causes. Quiet or comic relief can earn a high score when it provides contrast or payoff, rather than maximizing conflict every turn. Narration realizes the selected event through character voice and situational humor.
 
@@ -441,6 +488,22 @@ A resident wants time with another resident; a coworker wants a scarce rehearsal
 
 Implement vertical slices behind explicit session capability versions. Extend existing modules first; extract only when a domain boundary is real. No parallel simulator and no long-lived dual writers.
 
+### Release units, not an eight-phase prerequisite chain
+
+The table below is an architectural dependency map, not a requirement to finish phases 1–3 before shipping. The program is too broad for one release. Every implementation change needs its own falsifiable behavior and hosted proof; creating fifteen empty classes is not a shippable milestone.
+
+**First planned behavior-changing commit: correct the IU opening's malformed authored text (O12).** Reproduce the exact current data/rendering defect first, then repair `backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json` and any demonstrated generic decoding defect at its owning boundary; preserve intentional escapes. Check raw segments and desktop/mobile rendering. Ship this isolated content fix with normal beta verification; no event migration, ruleset system or epistemic refactor is needed. This is the specified next implementation slice, not a commit created by this documentation task. If the defect no longer reproduces, document that evidence and skip the patch rather than changing correct content.
+
+**First engine behavior slice: pending addressed responses (O08).** Add a small `ConversationState` component and owner-scoped `Character.response_context()` adapter using current character IDs, presence and prompt assembly. Capture question/addressee proposals in the existing extraction call, keep answer obligations across turns and render a safe relevant response when the addressed question would otherwise be omitted. The source/answer gate can operate on existing utterance observations; it does not require a rewritten ledger or full `Character.project()`. Verify a two-question exchange and an interrupted/resumed exchange on beta. This is a partial direct-answer improvement, not completion of arbitrary semantic validation.
+
+**Phase 1 can ship independently as a reliability release.** Start with durable receipts plus session/outbox atomic commit using the current state shape; a complete event vocabulary for every old writer is not prerequisite to that transaction slice. Observable contract: after a lost HTTP response, retrying the same request returns the exact reply without another move, clock charge or NPC action. Inject a failure after commit, retry through the API and verify one stored effect and one visible turn. Later reducer migration is a separate release; do not label the whole authority phase complete after the receipt slice.
+
+### Independent fallback tracks
+
+O12 content correction, O09 narrow opening/agency repairs, O08 addressed-response tracking and O11 name/addressee continuity can ship through current objects without waiting for the general epistemic overhaul. Existing date work may ship its tested subset once actual hosted attendance is verified, with travel/misunderstanding limitations retained in BL-35. A blocked architecture milestone must not block these fixes.
+
+Each narrow fix must identify its owning object/adapter, add meaningful regression evidence, and state remaining limitations. Do not introduce another authoritative store or declare a broad behavior solved by a phrase filter. The applicable feature backlog may close when all of its own criteria pass using either the old or new architecture; BL-38 is not a mandatory closure dependency. Full architecture acceptance still requires the shared-object contracts.
+
 | Phase | Concrete edits and exit condition |
 |---|---|
 | **0. Baseline and inventory** | Freeze current replay fixtures and identify every clock/location/relationship/knowledge writer in `prompt_engine.py`, extractor, world model and repositories. Reconcile the uncommitted attendance slice. Record a baseline snapshot hash and source contracts before moving behavior. |
@@ -466,6 +529,20 @@ Suggested new modules under `backend/app/engine/world_model/`: `commands.py`, `r
 - Preserve a pre-migration snapshot and conversion report. Unknown future versions or corrupt references fail with a recoverable diagnostic; never reset the session into a fresh story.
 - Shadow new decision logic without applying it to compare proposals. After cutover there is exactly one writer per field; adapters read or translate commands, never maintain independent authoritative copies.
 - Pin schema, ruleset and authored content versions. Rollback routes compatible saves to compatible code or uses a tested explicit downgrade. Toggling a feature flag is not a downgrade strategy.
+
+### Concrete migration and rollback drill (required before opting in old saves)
+
+Use an isolated copy of a representative beta save, with identifiers sanitized and data kept outside git; never rehearse against the live session. Include the old two-party/one-due-time agreement model with one accepted future meeting, a tentative/player-only promise, a pending extraction job and the stored last-request reply. Add deterministic fixtures when live data does not cover each case.
+
+1. Record old build/schema/content versions, snapshot checksum, current time, participant decisions, pending work and last receipt. Freeze the original copy as read-only backup.
+2. Load it through the phase-1 compatible writer; advance one ordinary turn and retry it. Confirm one effect and unchanged pending obligations. Save this as the migration input, not an earlier stale snapshot.
+3. Migrate to the phase-2 character/context representation. Assert no consent, venue or knowledge was invented; replay the stored reply, advance to the meeting and verify expected attendance/remaining unknowns. Restart the server and repeat reads.
+4. Inject failures before writing migration output, after writing a checkpoint and before publishing the new schema marker. Recovery must select a complete consistent version, never mix old decisions with new components.
+5. Roll back **before any new-schema turn** by restoring the exact migration input under the old compatible writer; verify its checksum and pending work. Re-run migration to prove idempotency.
+6. Roll back **after a new-schema turn** by routing that save to the retained compatible newer writer. An old writer must reject it, not silently strip fields. If a tested lossless downgrade exists, run it and assert all new committed actions/receipts survive; otherwise explicitly report downgrade unsupported. Never restore the pre-migration backup and discard player progress as an automatic rollback.
+7. Repeat with arrival already committed, cancellation pending, same request retried during cutover, and overlapping workers. Assert one writer/version per session, no duplicate outbox effects, no lost replies, and no second arrival.
+
+Passing means all state/receipt assertions and restart checks pass, with a saved drill report. Run this on an isolated beta rehearsal deployment before real old-session opt-in. Production remains subject to an explicit release request; this proposal does not authorize migration of live production sessions. A schema downgrade that cannot preserve progress is not a passing rollback drill.
 
 ## 13. Acceptance scenarios and measurement
 
@@ -496,6 +573,11 @@ These are proposed test gates, not results. Each mechanical scenario asserts eve
 | O21 | Moderate autonomy and butterfly effects — owner decision | Longer simulated absences enable causal multi-step changes; equivalent partitioned waits preserve opportunity scheduling; changed player input can diverge outcomes; app-closed wall time does nothing. High/low tuning changes initiative within valid constraints. |
 | O22 | Skill-dependent deception hints — owner decision | Low/high skill and pressure change cue distributions over fixed-seed fixtures; generally informative hints remain nonconclusive; honest nervousness is possible; unavailable visual cues never appear on voice-only calls. |
 | O23 | Real misunderstandings — owner decision | One actor expects a meeting after “maybe” while the other's recorded decision remains tentative; voluntary hopeful attendance is allowed; disappointment is subjective, not a false breach or player-consent event. Clarification updates beliefs without rewriting the exchange. |
+| O24 | Standalone release progress — review Q1/Q7 | O12 ships without new engine types; addressed-response tracking works through current adapters; a lost-response/retry transaction slice shows one effect without waiting for the full reducer or ledger migration. |
+| O25 | Actual inference budget — review Q3 | Six characters/two objectives remain within three logical calls and four total attempts under the proposed default profile; explicit previews/replayed receipts make zero calls. Optional and background paths are accounted for or disabled; timeout fallbacks never exceed the shared cap. |
+| O26 | Source/answer verifier calibration — review Q4 | Labeled questions, denials, paraphrases, omitted answers and explicit deceptive acts produce the expected verdict/fallback; corrupted/missing/truncated evidence cannot justify an attribution; report false accepts/rejects/abstentions. |
+| O27 | Dramatic selection determinism — review Q5 | Candidate-order permutation preserves choice, refusal is not rerolled, quiet in-character choices remain admissible, and paraphrased duplicate beats share cooldowns. |
+| O28 | Old-save cutover/rollback — review Q6 | Complete the section 12 isolated old-save drill before old-session opt-in, including pending agreements/jobs, crashes, concurrent requests, pre-turn rollback and post-turn compatible routing without lost progress. |
 
 ### Deterministic and model-level checks
 
@@ -506,6 +588,16 @@ Use fixed scripted provider outputs for deterministic integration tests and a se
 Track direct-response completion, unsupported source claims, agency violations, attendance outcomes, repeated imagery, answer length, character distinction, NPC opportunity distribution and choice consequences. Denominators matter: an honest refusal is a completed response, an unanswered invitation is not a failed attendance, and unavailable evidence is not necessarily a progression bug. Record error examples rather than only aggregate scores.
 
 Use blinded length-controlled comparisons plus human play review for engagement. Never accept a mechanically invalid run because a judge prefers its prose. Hard invariant fixtures require zero failures; qualitative improvements require a documented baseline/candidate comparison without regressions in logical consistency. Do not invent a universal numerical engagement threshold before calibration.
+
+### Enjoyment grading without silently enabling arena runs
+
+Keep `ARENA_LLM_ENABLED` off. The [promotion skill](../../.claude/skills/promote-to-prod/SKILL.md) explicitly says, “Don't set it on your own: ask the user first, every time.” This includes local/precheck arena commands, not only paid cloud judges. Runtime semantic validation is a different component, but adding it still requires its own implementation/cost measurements; it must not be mislabeled as a free deterministic check.
+
+Iteration has two tracks. Deterministic fixtures and existing recorded transcripts provide rapid regression checks for meaningful choices, answered questions, causal consequences, repeated beats and invalid behavior. Those are quality proxies, not a measurement of enjoyment. For each dramatic-policy release, prepare a small blinded baseline/candidate packet: invitation versus work, an honest refusal, a lie under pressure, a tentative-plan misunderstanding and a quiet/comic payoff. Match setup and reading length, randomize order, and record preference/tie plus reasons for plausibility, character consistency, humor and desire to continue.
+
+Agent play review is useful but must be labeled as agent judgment, not independent user validation. The user's ratings calibrate whether drama weights deliver the intended experience. Batch review at behavior milestones instead of asking for review after each refactor; reuse recorded baseline cases and cached deterministic fixtures between reviews. If review is unavailable, mark enjoyment unvalidated, keep new dramatic policies opt-in on beta, and continue independent correctness releases. There is no honest fully automatic substitute established by this document.
+
+A separately approved, cost-capped judging pilot could accelerate comparisons after calibration against user ratings, but it is neither enabled nor assumed. The preferred review mode and response-time target were asked of the user during this revision; pending answers are recorded in section 15. No arena/model experiments ran as part of this documentation task.
 
 ### Scale and performance
 
@@ -531,3 +623,47 @@ Main risks to address during implementation:
 - **Narration changing simulation:** realization renders an approved decision; if its meaning changes, revalidate the decision before committing anything.
 
 The desired outcome is a reusable simulation core: authored games supply people, activities, places, evidence, goals and tuning; objects enforce what those things can do and what each character can know and say.
+
+## 15. Review questions and answers — 2026-09-27
+
+The supplied review refers to BL-38/BL-39. Only BL-38 exists in this checkout at review time; these answers update that document. “Answered” below means the design decision is specified, not that its implementation or performance has been verified. Two user preferences remain pending; no missing empirical result is filled in with an invented answer.
+
+### Q1. How is phase 1 independently shippable, and what is the first commit that changes hosted behavior?
+
+**Answer:** The earlier table did not define sufficiently small release units. Section 12 now separates them. The first planned visible fix is O12: reproduce and correct the IU authored opening/rendering defect, then deploy and inspect it. It needs no new object graph. The first engine behavior slice adds addressed-response tracking through existing character/prompt adapters. Phase 1 itself can independently ship durable request receipts and atomic session/outbox commit: a lost-response retry must return the same reply with no second clock charge or movement. Full reducer migration is a later release. These are prospective commits, not work already implemented in this documentation task.
+
+### Q2. Are presets merely story-specific branching moved into YAML?
+
+**Answer:** The precise promise is no executable rule branching on story identity, not genre-independent content. A mystery preset is allowed to author investigation capabilities and omit courtship templates. It expands into ordinary typed fields; runtime objects cannot inspect the preset name or switch implementations by it. No general-purpose rules DSL is needed initially. Section 1 and O16 require renaming and cross-preset equivalence tests, which would catch identity coupling rather than merely checking that code lacks a literal story-ID comparison.
+
+### Q3. How many model calls does a six-character turn with two pending objectives and a skip preview cost?
+
+**Answer:** The new proposed default is zero calls for an explicit skip preview; one interpretation call if natural-language intent is ambiguous. A normal/resumed gameplay turn uses at most three logical calls: shared intent extraction, public realization and semantic verification. Allow at most four total provider attempts including a single shared transport retry. NPC count/objectives do not multiply calls: character decision, projection and dramatic scoring methods run locally on typed inputs. The preview pauses before the gameplay calls; confirmed execution is a separate request with the same gameplay cap.
+
+Current code does not enforce that budget: inspection found optional context selection, attribution, regeneration, translation and background extraction. Section 5 requires accounting for or replacing/disabling these in the new profile. This call budget is an engineering proposal, not a measured cost or latency claim. **User answer pending:** preferred ordinary-response target (asked: usually within 10 seconds, within 20 seconds, or up to 30 seconds for quality). Measure p50/p95 against that target before declaring viability.
+
+### Q4. What exactly validates attribution and answers rather than hand-waving semantic correctness?
+
+**Answer:** Section 5 now specifies `SpeechGroundingValidator`: response obligations and annotated speech plans, deterministic reference/perspective/polarity checks, then one bounded semantic comparison against exact allowed source text. Its outputs are supported/contradicted/unknown with spans, including checks for unannotated claims and missing answers. Unknown/failure cannot pass a consequential attribution. Use an approved relevant fallback or keep the obligation pending; do not repeatedly regenerate until a judge accepts it. Explicit character lies remain claims, never fake historical sources.
+
+This is a concrete testable first design, not a proof that arbitrary-language semantics is solved. The verifier requires a labeled adversarial corpus and false-accept/reject measurements. Until calibrated, consequential source claims use constrained approved wording. The current word-overlap filter and 240-character utterance truncation are insufficient as the sole evidence mechanism. O26 now makes that gap testable.
+
+### Q5. How does dramatic scoring break ties reproducibly and avoid railroading character choices?
+
+**Answer:** Section 8 now makes each character's admissible choice set precede dramatic scoring. Values, boundaries, motive and limited preference deviation constrain that set; the director cannot reroll a refusal. Rank bounded integer score components, break ties with a versioned seed keyed to the stable decision/candidate IDs, then stable ID order. Persist the selected outcome and score breakdown. Repeated semantic beat families share penalties/cooldowns, including paraphrases. Quiet/comic payoff remains a candidate. O27 tests input-order independence and maximum-drama settings that still respect character refusal.
+
+Exact score weights are uncalibrated tuning values, not established facts. The user's drama-first direction determines the objective; play review determines whether a particular weighting succeeds.
+
+### Q6. Where is the actual old-session migration and rollback drill?
+
+**Answer:** Section 12 now defines one using an isolated representative beta save plus deterministic fixtures: old two-party agreement, player-only/tentative promise, pending extraction job and stored retry reply. Exercise a phase-1 turn/retry, migrate to phase 2, restart, progress to the meeting, inject cutover failures and test duplicate requests. Before new-schema play, restore the exact migration input. After new-schema play, retain a compatible newer writer or demonstrate a lossless downgrade; an old writer must reject unsupported saves. Restoring an earlier backup and losing player progress is not a valid automatic rollback. O28 requires a drill report before old-session opt-in. No live beta/production migration has run for this documentation task.
+
+### Q7. Can narrow fixes ship if the ledger or Character.project refactor stalls?
+
+**Answer:** Yes. Section 12 now explicitly allows O12 text repair, O08 response tracking, O09 narrow agency fixes and O11 identity continuity through existing objects/adapters. They do not depend on completing BL-38. The attendance work can ship its independently verified subset while remaining limitations stay in BL-35. A feature backlog closes on its own complete behavior/verification criteria, not on adoption of the new architecture. Adapters must avoid new competing writers and clearly label partial fixes.
+
+### Q8. How is enjoyment graded without silently enabling LLM-arena judging, and does human review block everything?
+
+**Answer:** Section 13 separates correctness proxies from actual enjoyment. Deterministic fixtures and recorded-transcript checks support rapid iteration; they cannot prove a scene is fun. Use small blinded baseline/candidate packets at dramatic-behavior milestones, with user preference/reasons for plausibility, consistency, humor and desire to continue. Agent play review is labeled as such. If user review is unavailable, keep enjoyment unvalidated and dramatic-policy changes opt-in on beta; independent correctness fixes can still ship. Do not claim an automatic enjoyment evaluator exists.
+
+The existing promotion skill requires asking before every arena enablement, including local arena commands. No arena run was enabled. **User answer pending:** keep LLM-arena judging off and use playtest review, or plan a separately approved, cost-capped judging pilot. Planning a pilot is not permission to execute it; an eventual pilot needs concrete scope/cost and explicit run authorization. No latency benchmark, validator accuracy or enjoyment result is claimed by this proposal.
