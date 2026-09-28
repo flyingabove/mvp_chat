@@ -231,7 +231,7 @@ Budget rules apply to provider attempts, including timeouts and 429/5xx retries.
 
 In this profile, additional LLM context ranking, quote attribution, post-hoc translation, shadow providers and async extraction are disabled or replaced by local/index/event projections; requested output language is handled in realization. Existing functionality must be checked before switching profiles. Background work cannot hide uncounted spend: separately report its calls and require an explicit budget if enabled. The current handler contains optional dynamic context selection, quote attribution, translation, regeneration and background extraction, so today's count is not asserted to equal three.
 
-Isolated private LLM decision-making is a future opt-in profile, not required by this object model or the default path. It must receive an explicit larger budget and measured latency approval before rollout; never exceed the default cap because a new character exists. User response-time preference and any grading-pilot preference are pending in section 15. A call cap alone is not evidence of latency viability.
+Isolated private LLM decision-making is a future opt-in profile, not required by this object model or the default path. It must receive an explicit larger budget and measured latency approval before rollout; never exceed the default cap because a new character exists. The response-time target remains unset; it means elapsed real-world time from submitting an action to receiving the complete playable response, not simulated game time. Measure the existing experience before asking the user to choose a target. Automated arena judging is off for playtest review by owner decision. A call cap alone is not evidence of latency viability.
 
 ## 6. Agreements, schedules and consequences
 
@@ -597,7 +597,9 @@ Iteration has two tracks. Deterministic fixtures and existing recorded transcrip
 
 Agent play review is useful but must be labeled as agent judgment, not independent user validation. The user's ratings calibrate whether drama weights deliver the intended experience. Batch review at behavior milestones instead of asking for review after each refactor; reuse recorded baseline cases and cached deterministic fixtures between reviews. If review is unavailable, mark enjoyment unvalidated, keep new dramatic policies opt-in on beta, and continue independent correctness releases. There is no honest fully automatic substitute established by this document.
 
-A separately approved, cost-capped judging pilot could accelerate comparisons after calibration against user ratings, but it is neither enabled nor assumed. The preferred review mode and response-time target were asked of the user during this revision; pending answers are recorded in section 15. No arena/model experiments ran as part of this documentation task.
+**Owner decision (2026-09-27): turn arena judging off for playtest review; it is not important to this work.** Remove the judging-pilot choice from the current work plan. Use recorded playtests and correctness checks without making arena scores a prerequisite for this proposal's beta review. No arena/model experiments ran as part of this documentation task.
+
+The owner also describes an **arena-judge gameplay mechanic** as Terrace House-specific for now, reusable by other games but disabled there by default. Preserve this as a per-game capability requirement, not a story-ID branch. It is distinct from the developer arena that compares builds and from the proposed runtime semantic validator. The inspected code did not establish an existing gameplay implementation corresponding to that name; this is desired scope, not a claim that a gameplay judge is already enabled. Do not connect `ARENA_LLM_ENABLED` to story capability flags, infer permission to run evaluation, or turn on a new runtime service from this documentation change. Any future gameplay implementation needs its own behavior definition and inference-budget accounting.
 
 ### Scale and performance
 
@@ -626,7 +628,7 @@ The desired outcome is a reusable simulation core: authored games supply people,
 
 ## 15. Review questions and answers — 2026-09-27
 
-The supplied review refers to BL-38/BL-39. Only BL-38 exists in this checkout at review time; these answers update that document. “Answered” below means the design decision is specified, not that its implementation or performance has been verified. Two user preferences remain pending; no missing empirical result is filled in with an invented answer.
+The supplied review refers to BL-38/BL-39. Only BL-38 exists in this checkout at review time; these answers update that document. “Answered” below means the design decision is specified, not that its implementation or performance has been verified. The user has resolved playtest judging as off; the response-time target remains unset after clarification of the term. No missing empirical result is filled in with an invented answer.
 
 ### Q1. How is phase 1 independently shippable, and what is the first commit that changes hosted behavior?
 
@@ -640,7 +642,7 @@ The supplied review refers to BL-38/BL-39. Only BL-38 exists in this checkout at
 
 **Answer:** The new proposed default is zero calls for an explicit skip preview; one interpretation call if natural-language intent is ambiguous. A normal/resumed gameplay turn uses at most three logical calls: shared intent extraction, public realization and semantic verification. Allow at most four total provider attempts including a single shared transport retry. NPC count/objectives do not multiply calls: character decision, projection and dramatic scoring methods run locally on typed inputs. The preview pauses before the gameplay calls; confirmed execution is a separate request with the same gameplay cap.
 
-Current code does not enforce that budget: inspection found optional context selection, attribution, regeneration, translation and background extraction. Section 5 requires accounting for or replacing/disabling these in the new profile. This call budget is an engineering proposal, not a measured cost or latency claim. **User answer pending:** preferred ordinary-response target (asked: usually within 10 seconds, within 20 seconds, or up to 30 seconds for quality). Measure p50/p95 against that target before declaring viability.
+Current code does not enforce that budget: inspection found optional context selection, attribution, regeneration, translation and background extraction. Section 5 requires accounting for or replacing/disabling these in the new profile. This call budget is an engineering proposal, not a measured cost or latency claim. **Target unset:** the user asked what “response time” meant. It is the real-world wait after sending an action until the complete playable reply arrives, not an in-game timer. The 10/20/30-second choices were illustrative tradeoffs, not configured values or measured predictions. Measure current p50/p95 and compare candidate quality/latency before proposing a concrete target; no user selection is inferred.
 
 ### Q4. What exactly validates attribution and answers rather than hand-waving semantic correctness?
 
@@ -666,4 +668,8 @@ Exact score weights are uncalibrated tuning values, not established facts. The u
 
 **Answer:** Section 13 separates correctness proxies from actual enjoyment. Deterministic fixtures and recorded-transcript checks support rapid iteration; they cannot prove a scene is fun. Use small blinded baseline/candidate packets at dramatic-behavior milestones, with user preference/reasons for plausibility, consistency, humor and desire to continue. Agent play review is labeled as such. If user review is unavailable, keep enjoyment unvalidated and dramatic-policy changes opt-in on beta; independent correctness fixes can still ship. Do not claim an automatic enjoyment evaluator exists.
 
-The existing promotion skill requires asking before every arena enablement, including local arena commands. No arena run was enabled. **User answer pending:** keep LLM-arena judging off and use playtest review, or plan a separately approved, cost-capped judging pilot. Planning a pilot is not permission to execute it; an eventual pilot needs concrete scope/cost and explicit run authorization. No latency benchmark, validator accuracy or enjoyment result is claimed by this proposal.
+**User answer:** turn arena judging off for playtest review; it is not important here. No judging pilot is part of this task, and no arena run was enabled. The user-described arena-judge gameplay mechanic is intended for Terrace House for now and available but default-off in other games; it is not the developer build-comparison runner. Its existing implementation was not established by this inspection. Section 13 records this separation and keeps story capability flags independent of evaluation enablement. No latency benchmark, validator accuracy or enjoyment result is claimed by this proposal.
+
+### Follow-up Q9. What does “response time” mean?
+
+**Answer:** How long the player waits in real seconds after submitting an action before the game returns its complete reply. It is unrelated to how many minutes or hours pass in the story. More sequential model work may increase that wait, but the actual speed/quality tradeoff must be measured. No 10-, 20- or 30-second target has been chosen.

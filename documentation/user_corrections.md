@@ -4,6 +4,12 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-27: Arena judging is not needed for playtest review
+
+The user explicitly turned arena judging off for playtest review and said it is not important to that work. Do not keep proposing a judging pilot as a prerequisite. They described an arena-judge gameplay mechanic as Terrace House-specific for now, reusable but default-off for other games. Keep that desired gameplay capability distinct from the developer build-comparison arena and runtime semantic validation; no corresponding existing gameplay implementation was verified in this review. This clarification does not authorize starting arena runs or modifying runtime flags.
+
+“Response time” was clarified as the real-world wait for the complete game reply, not story time. The user did not select a latency target; do not treat the illustrative 10/20/30-second options as requirements.
+
 ## 2026-09-27: Plausible drama, engine dialogue and character uncertainty
 
 The user clarified the reusable simulation proposal after review:
