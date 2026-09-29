@@ -21,6 +21,7 @@ from backend.app.engine.world_model.evidence import find_inspect_target, inspect
 from backend.app.engine.world_model.memory import render
 from backend.app.engine.world_model.model import PLAYER, TurnView, WorldModel
 from backend.app.engine.world_model.offscreen import resolve_offscreen
+from backend.app.engine.world_model.person import Cast
 from backend.app.engine.world_model.intentions import propose_rival_invitations
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
@@ -64,11 +65,14 @@ class GraphRelationships:
 
 
 def warmth_fn(state: Any) -> Callable[[str], float]:
-    relationships = GraphRelationships(getattr(state, "character_graph", None))
+    """Each character's warmth toward the player, read from their own heart."""
+    model = getattr(state, "world_model", None)
+    if model is None:
+        return lambda cid: 0.0
+    cast = Cast(state)
 
     def warmth(cid: str) -> float:
-        f = relationships.feelings(cid, PLAYER)
-        return (f.get("trust", 0.0) + f.get("affection", 0.0)) / 2 if f else 0.0
+        return cast.get(cid).warmth_toward(PLAYER) if cid in model.characters else 0.0
     return warmth
 
 
