@@ -253,14 +253,17 @@ gender-matched bedroom. Whether that player
 occupies a lifecycle slot is a product
 decision recorded in the story's profile, not an engine assumption.
 
-Opening placement (2026-09-24): in `resident_slot` mode the player and all
-five active NPCs start at `cast_lifecycle.initial_active_location_id`
-(`kitchen`; `prompt_engine.py` `_gather_opening_residents`), because the
-opening welcomes the player into that dinner. The story no longer authors
-`world.character_start_locations`, which described a fixed premiere roster
-that the random opening draw usually did not match. The opening narration's
-`{{HOUSEMATE_MIX}}` placeholder renders "two other men and three women" (or
-the reverse), so the transcript itself shows that everyone is home.
+Opening placement (updated 2026-09-29): the five randomly selected NPCs and
+player immediately reserve all three men and three women slots. The Terrace
+story's reusable `opening.arrival_sequence` starts the player and one random
+opposite-gender resident in the living room at 3 pm; the four other selected
+residents remain unplaced, hidden from player-facing cast data, and unable to
+speak until their timed entrances. Ordinary conversation stops at the next
+arrival minute (7, 9, 12, 15) so the residents enter one at a time. Explicit
+waits can cross several entrance times. Entrances update tracked location,
+first-meeting state and save data; the capacity and replacement queue never
+change during the reveal. The story does not author fixed
+`world.character_start_locations`, since the opening roster is randomized.
 
 ## 10. Verification contract
 

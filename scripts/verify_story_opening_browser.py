@@ -54,6 +54,27 @@ def check_mode(p, mode, args, output):
             "api_hosts": sorted(hosts),
             "errors": errors,
         }
+        if args.check_first_arrival:
+            first_ids = {segment.get("speaker_id") for segment in chat_bodies[-1].json().get("segments", [])
+                         if segment.get("kind") == "dialogue" and segment.get("speaker_id")}
+            assert len(first_ids) == 1, f"expected one first resident, saw {first_ids}"
+            arrival_response = None
+            for line in ("Hi, I'm Chris. It feels strange being the first two here.",
+                         "What made you want to come to this house?"):
+                page.locator("#chat-text-input").fill(line)
+                with page.expect_response(lambda r: urlsplit(r.url).path.endswith("/api/chat")
+                                          and r.request.method == "POST", timeout=120000) as pending:
+                    page.locator("#chat-send-btn").click()
+                arrival_response = pending.value.json()
+                assert "error" not in arrival_response, arrival_response.get("error")
+                page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)
+            arrived_ids = [segment.get("speaker_id") for segment in arrival_response.get("segments", [])
+                           if segment.get("kind") == "dialogue" and segment.get("speaker_id") not in first_ids]
+            result["first_resident_ids"] = sorted(first_ids)
+            result["arrived_ids"] = arrived_ids
+            result["first_arrival_visible"] = len(arrived_ids) == 1
+            page.locator("#chat-messages .msg-bubble.npc").last.evaluate("e=>e.scrollIntoView({block:'end'})")
+            page.screenshot(path=str(output / f"{mode}-first-arrival.png"))
         ok = (
             bool(chat_bodies)
             and result["raw_api_literal_escapes"] == 0
@@ -63,6 +84,7 @@ def check_mode(p, mode, args, output):
             and result["paragraph_breaks"] > 0
             and not errors
             and (not args.expected_api_host or hosts == {args.expected_api_host})
+            and (not args.check_first_arrival or result["first_arrival_visible"])
         )
         result["ok"] = ok
         return result
@@ -77,6 +99,8 @@ def main():
     parser.add_argument("--story-title", required=True, help="Visible text on the story's game card")
     parser.add_argument("--output", required=True)
     parser.add_argument("--expected-api-host")
+    parser.add_argument("--check-first-arrival", action="store_true",
+                        help="Send two real Terrace turns and verify a newly arrived resident speaks")
     args = parser.parse_args()
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)

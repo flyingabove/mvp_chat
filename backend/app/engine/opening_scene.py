@@ -26,6 +26,7 @@ same room. Stories without ``welcome_party`` keep their previous behavior.
 from __future__ import annotations
 
 import random
+import re
 import secrets
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional
@@ -121,7 +122,8 @@ def stage_opening_scene(state: "GameState", rng: Optional[random.Random] = None)
     an empty list when the story authors no welcome party.
     """
     story_cfg = getattr(state, "story_cfg", None) or {}
-    rule = WelcomePartyRule.from_config((story_cfg.get("opening") or {}).get("welcome_party"))
+    opening_cfg = story_cfg.get("opening") or {}
+    rule = WelcomePartyRule.from_config(opening_cfg.get("welcome_party"))
     if rule is None:
         return []
     characters = getattr(state, "characters", None) or {}
@@ -153,7 +155,88 @@ def stage_opening_scene(state: "GameState", rng: Optional[random.Random] = None)
         # The focal lens must be someone actually in the room.
         state.main_character_id = party[0]
     state.opening_cast = list(party)
+    arrival_cfg = opening_cfg.get("arrival_sequence") or {}
+    if arrival_cfg and party:
+        offsets = [int(value) for value in arrival_cfg.get("offset_minutes") or []]
+        waiting = [key for key in candidates if key not in party]
+        if len(offsets) != len(waiting) or offsets != sorted(set(offsets)) or any(value <= 0 for value in offsets):
+            raise ValueError("opening.arrival_sequence needs one distinct positive offset per waiting resident")
+        chooser = rng or secrets.SystemRandom()
+        chooser.shuffle(waiting)
+        state.opening_arrival_minutes = dict(zip(waiting, offsets))
+        state.opening_arrived_ids = []
+        state.character_locations = {
+            key: value for key, value in state.character_locations.items() if key not in waiting
+        }
     return party
+
+
+def has_arrived(state: "GameState", character_id: str) -> bool:
+    """A reserved opening resident is not publicly present until their entrance fires."""
+    scheduled = getattr(state, "opening_arrival_minutes", None) or {}
+    return character_id not in scheduled or character_id in (getattr(state, "opening_arrived_ids", None) or [])
+
+
+def advance_opening_arrivals(state: "GameState", minute_before: int, minute_after: int) -> list[str]:
+    """Place due residents exactly once, in the story's authored gathering room."""
+    scheduled = getattr(state, "opening_arrival_minutes", None) or {}
+    arrived = set(getattr(state, "opening_arrived_ids", None) or [])
+    due = [key for key, minute in sorted(scheduled.items(), key=lambda item: item[1])
+           if key not in arrived and minute_before < minute <= minute_after]
+    if not due:
+        return []
+    cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+    room = str(cfg.get("gather_location_id") or getattr(state, "location_id", "") or "")
+    if not room:
+        raise ValueError("opening arrivals need a gathering location")
+    model = getattr(state, "world_model", None)
+    for key in due:
+        state.character_locations[key] = room
+        if model is not None and key in model.characters:
+            model.world.move(key, room)
+        arrived.add(key)
+    state.opening_arrived_ids = list(getattr(state, "opening_arrived_ids", None) or []) + due
+    return due
+
+
+def opening_arrival_segments(state: "GameState") -> list[dict[str, str | None]]:
+    """Guaranteed, authored entrance beats for residents the player can see."""
+    due = getattr(state, "opening_arrivals_this_turn", None) or []
+    cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+    if not due or str(getattr(state, "location_id", "") or "") != str(cfg.get("gather_location_id") or ""):
+        return []
+    cues = cfg.get("entrance_cues") or {}
+    lines = cfg.get("entrance_lines") or {}
+    characters = getattr(state, "characters", {}) or {}
+    beats: list[dict[str, str | None]] = []
+    for key in due:
+        name = str(getattr(characters.get(key), "name", None) or key)
+        beats.append({"kind": "narration", "speaker_id": None,
+                      "text": f"The front door opens. {name} is the next resident to arrive. "
+                              + str(cues.get(key) or "They step into the living room with their bag.")})
+        beats.append({"kind": "dialogue", "speaker_id": key,
+                      "text": str(lines.get(key) or f"Hello, I'm {name}.")})
+    return beats
+
+
+def strip_generated_arrival_repeats(state: "GameState", segments: list[dict]) -> list[dict]:
+    """Keep one visible self-introduction when the storyteller also drafts one."""
+    due = set(getattr(state, "opening_arrivals_this_turn", None) or [])
+    if not due:
+        return segments
+    characters = getattr(state, "characters", {}) or {}
+    names = [str(getattr(characters.get(key), "name", None) or key) for key in due]
+    arrival_verb = re.compile(r"\b(?:arriv\w*|enter\w*|step\w*|walk\w*|door|come(?:s|ing)? in)\b", re.I)
+    kept = []
+    for segment in segments:
+        if segment.get("kind") == "dialogue" and segment.get("speaker_id") in due:
+            continue
+        body = str(segment.get("text") or "")
+        if segment.get("kind") == "narration" and arrival_verb.search(body):
+            if any(re.search(r"\b" + re.escape(name.split()[0]) + r"\b", body, re.I) for name in names):
+                continue
+        kept.append(segment)
+    return kept
 
 
 def opening_scene_brief(state: "GameState") -> str:
@@ -164,6 +247,14 @@ def opening_scene_brief(state: "GameState") -> str:
     characters = getattr(state, "characters", None) or {}
     names = [(getattr(characters.get(key), "name", None) or key).strip() for key in party]
     who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + f" and {names[-1]}"
+    if getattr(state, "opening_arrival_minutes", None):
+        return (
+            f"Opening scene: {who} met the player, who entered second at 3 pm. "
+            "Only this resident is with the player at the start. Let them have a real, slightly awkward "
+            "first conversation. The other selected residents have not arrived yet and must not speak or "
+            "be named before their entrance events. Nobody is eating; food can be ordered or prepared "
+            "after the group has formed.\n\n"
+        )
     return (
         f"Opening scene: {who} just greeted the player as the story opened, and they are "
         "the characters with the player right now. Continue this first conversation with "

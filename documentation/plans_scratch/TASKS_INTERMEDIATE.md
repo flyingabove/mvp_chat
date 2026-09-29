@@ -4,6 +4,14 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### 2026-09-29 Terrace House opening arrivals
+
+- [x] Pull current beta while preserving unrelated commitment work in this checkout.
+- [x] Confirm owner direction: player second, first resident opposite gender, four more entrances within 5–15 in-game minutes, personality-grounded reality-show drama, food chosen after introductions.
+- [x] Stage one first resident, timed reusable entrances, public cast visibility, first-meeting state and save data.
+- [x] Finish regression/full tests and local desktop/iPhone/standalone browser review: 1,311 passed, 1 expected failure; one distinct newcomer entrance in each browser mode.
+- [ ] Integrate current beta, commit and push only Terrace task files, verify the Railway SHA and hosted opening flow.
+
 ### 2026-09-28 Engine proposal consolidation
 
 Owner follow-up: push the consolidated proposal and record standing authorization to always push after merging/integrating into beta, including documentation-only merges. Convention aligned in AGENTS.md, Claude instructions, both backlog skill copies and the corrections log; publishing includes only committed task files, preserving unrelated attendance edits.

@@ -9,6 +9,7 @@ from backend.app.engine.opening_scene import (
     choose_welcome_party,
     opening_scene_brief,
     stage_opening_scene,
+    strip_generated_arrival_repeats,
 )
 from backend.app.engine.state import Character, init_state
 
@@ -29,6 +30,18 @@ def _state(player_gender: str, rule: dict | None, locations: dict | None = None)
     }
     state.character_locations = dict(locations or {})
     return state
+
+
+def test_authored_arrival_suppresses_generated_duplicate_entrance():
+    state = _state("M", {"size": 1})
+    state.opening_arrivals_this_turn = ["f1"]
+    generated = [
+        {"kind": "narration", "speaker_id": None, "text": "F1 enters through the front door."},
+        {"kind": "dialogue", "speaker_id": "f1", "text": "Hi, I'm F1."},
+        {"kind": "dialogue", "speaker_id": "m1", "text": "Welcome."},
+        {"kind": "narration", "speaker_id": None, "text": "M1 gives F1 a small smile."},
+    ]
+    assert strip_generated_arrival_repeats(state, generated) == generated[2:]
 
 
 def test_rule_parsing_defaults_and_validation():

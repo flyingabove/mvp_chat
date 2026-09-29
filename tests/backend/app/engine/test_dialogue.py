@@ -127,7 +127,7 @@ def test_contract_applies_to_each_story_and_authored_openings_are_segmented():
             assert any(b['kind'] == 'dialogue' for b in blocks)
 
 
-def test_terrace_authored_json_opening_has_two_present_speakers_and_scene_beats():
+def test_terrace_authored_json_opening_has_one_personality_specific_speaker_and_scene_beats():
     from backend.app.api.prompt_engine import _opening_for_new_game
     from backend.app.engine.story_loader import StoryDefinition
 
@@ -137,10 +137,12 @@ def test_terrace_authored_json_opening_has_two_present_speakers_and_scene_beats(
         def active_ids(self): return ['mizuki', 'iu']
     s = state()
     s.cast_lifecycle = ActiveCast()
+    s.opening_cast = ['mizuki']
     opening = _opening_for_new_game(story, s)
     _, blocks = present_dialogue(opening, s)
-    assert [b['kind'] for b in blocks] == ['narration', 'dialogue', 'narration', 'dialogue', 'narration']
-    assert {b['speaker_id'] for b in blocks if b['kind'] == 'dialogue'} == {'mizuki', 'iu'}
+    assert [b['kind'] for b in blocks] == ['narration', 'dialogue', 'narration']
+    assert {b['speaker_id'] for b in blocks if b['kind'] == 'dialogue'} == {'mizuki'}
+    assert 'Mizuki' in opening and 'coffee' in opening
     assert 100 <= len(opening.split()) <= 200
 
 

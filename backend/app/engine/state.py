@@ -361,6 +361,11 @@ class GameState:
     # ``opening.welcome_party``; see engine/opening_scene.py). Empty when the
     # story authors none.
     opening_cast: List[str] = field(default_factory=list)
+    # Reserved opening residents enter at authored minutes; only arrived IDs
+    # may appear in public cast views or speak in the scene.
+    opening_arrival_minutes: Dict[str, int] = field(default_factory=dict)
+    opening_arrived_ids: List[str] = field(default_factory=list)
+    opening_arrivals_this_turn: List[str] = field(default_factory=list)
     # Character & world model (engine/world_model/model.py WorldModel): the
     # world location index, per-character state, memories, threads and
     # off-screen life. None = disabled or not built yet (built lazily).

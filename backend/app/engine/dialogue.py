@@ -22,9 +22,10 @@ def _contract_cast_ids(state) -> list[str]:
     Six Strangers names let the model mention unarrived residents as if they
     lived there (live prod 2026-09-24: "Yuto should be back from practice")."""
     lifecycle = getattr(state, "cast_lifecycle", None)
+    from backend.app.engine.opening_scene import has_arrived
     gated = lifecycle is not None and getattr(lifecycle, "enabled", False)
     return [key for key in (getattr(state, "characters", {}) or {})
-            if key != "player" and (not gated or lifecycle.is_scene_eligible(key))]
+            if key != "player" and (not gated or (lifecycle.is_scene_eligible(key) and has_arrived(state, key)))]
 
 
 def dialogue_prompt(state) -> str:

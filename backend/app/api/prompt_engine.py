@@ -90,7 +90,9 @@ from backend.app.engine.dialogue import (
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
-from backend.app.engine.opening_scene import stage_opening_scene
+from backend.app.engine.opening_scene import (advance_opening_arrivals, has_arrived,
+                                              opening_arrival_segments, stage_opening_scene,
+                                              strip_generated_arrival_repeats)
 from backend.app.engine.world_calendar import PendingEvent, day_number
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
 from backend.app.engine.knowledge_chunks import normalize_parties, KnowledgeChunk
@@ -556,7 +558,7 @@ def _seed_initial_active_relationships(state: GameState) -> None:
     graph = getattr(state, "character_graph", None)
     if lifecycle is None or graph is None:
         return
-    participant_ids = set(lifecycle.active_ids()) | {"player"}
+    participant_ids = {key for key in lifecycle.active_ids() if has_arrived(state, key)} | {"player"}
     for key in participant_ids:
         character = (getattr(state, "characters", {}) or {}).get(key)
         if character is not None and key not in graph.characters:
@@ -589,7 +591,7 @@ def player_visible_character_ids(state: GameState) -> set[str] | None:
         return None
     visible = {
         key for key, member in lifecycle.members.items()
-        if member.status is not CastStatus.UPCOMING
+        if member.status is not CastStatus.UPCOMING and has_arrived(state, key)
     }
     if lifecycle.player_slot_group:
         visible.add("player")
@@ -616,6 +618,8 @@ def player_visible_arrival_minute(state: GameState, character_id: str) -> int | 
     member = lifecycle.members.get(character_id)
     if member is None:
         return None
+    if character_id in (getattr(state, "opening_arrival_minutes", None) or {}):
+        return int(state.opening_arrival_minutes[character_id])
     return member.activated_minute
 
 
@@ -636,6 +640,8 @@ def _cast_roster_payload(state: GameState) -> dict:
     if lifecycle.player_slot_group:
         active.append({"id": "player", "name": state.user.display_name or state.player_name or "Player", "role": "Housemate (you)"})
     for key in lifecycle.active_ids():
+        if not has_arrived(state, key):
+            continue
         ch = characters.get(key)
         if ch is not None:
             active.append({"id": key, "name": ch.name, "role": ch.role})
@@ -1634,6 +1640,8 @@ def _serialize_state(state: GameState, log: list) -> str:
         "character_locations": dict(getattr(state, "character_locations", {}) or {}),
         "main_character_id": str(getattr(state, "main_character_id", "") or ""),
         "opening_cast": list(getattr(state, "opening_cast", []) or []),
+        "opening_arrival_minutes": dict(getattr(state, "opening_arrival_minutes", {}) or {}),
+        "opening_arrived_ids": list(getattr(state, "opening_arrived_ids", []) or []),
         "world_model": (state.world_model.to_dict() if getattr(state, "world_model", None) is not None else None),
         "cast_lifecycle": (
             state.cast_lifecycle.to_dict()
@@ -1876,6 +1884,10 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         _sync_resident_locations(restored)
 
         restored.opening_cast = [str(k) for k in (saved.get("opening_cast") or []) if k]
+        restored.opening_arrival_minutes = {
+            str(key): int(minute) for key, minute in (saved.get("opening_arrival_minutes") or {}).items()
+        }
+        restored.opening_arrived_ids = [str(key) for key in (saved.get("opening_arrived_ids") or [])]
         # Character & world model: restore when saved; older saves rebuild it
         # lazily on their next turn (world_model.turn.ensure_model).
         if isinstance(saved.get("world_model"), dict):
@@ -2084,11 +2096,14 @@ def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
             "@greeter": chosen[0] if chosen else "unknown",
             "@second": chosen[1] if len(chosen) > 1 else (chosen[0] if chosen else "unknown"),
         }
+        first = (opening_cfg.get("first_resident") or {}).get(role_ids["@greeter"]) or {}
         parts = []
         for segment in authored:
             if not isinstance(segment, dict) or not str(segment.get("text") or "").strip():
                 continue
             body = str(segment["text"]).strip()
+            body = body.replace("{{GREETER_CUE}}", str(first.get("cue") or ""))
+            body = body.replace("{{GREETER_LINE}}", str(first.get("line") or "Hello. I'm glad someone else is here."))
             if segment.get("kind") == "dialogue":
                 speaker_id = role_ids.get(segment.get("speaker_id"), segment.get("speaker_id"))
                 if speaker_id not in active_ids:
@@ -3324,6 +3339,26 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     else:
         advance_time(state, movement_msg)
 
+    state.opening_arrivals_this_turn = advance_opening_arrivals(state, _wm_minute_before, state.minute)
+    if state.opening_arrivals_this_turn and state.character_graph is not None:
+        arrival_room = str(((state.story_cfg.get("opening") or {}).get("arrival_sequence") or {}).get("gather_location_id") or "")
+        already_in_room = {
+            key for key, room in state.character_locations.items()
+            if room == arrival_room and key not in state.opening_arrivals_this_turn and key != "player"
+        }
+        for arriving_id in state.opening_arrivals_this_turn:
+            character = state.characters.get(arriving_id)
+            if character is not None and arriving_id not in state.character_graph.characters:
+                state.character_graph.add_character(character)
+            participants = already_in_room | {arriving_id}
+            if state.location_id == arrival_room:
+                participants.add("player")
+            state.character_graph.process_first_meetings(
+                participants, state, int(state.opening_arrival_minutes[arriving_id]),
+                is_new_encounter=True,
+            )
+            already_in_room.add(arriving_id)
+
     # Phase 2 cast-cycling scheduler: execute any departure replacement whose
     # authored availability window (day boundary) has now arrived. Must run
     # after advance_time so this turn's elapsed minutes are already reflected
@@ -3566,6 +3601,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     segments = drop_repeated_lines(
         segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
     segments = ground_social_scene(segments, state)
+    authored_arrivals = opening_arrival_segments(state)
+    if authored_arrivals:
+        _, arrival_segments = present_dialogue(encode_dialogue(authored_arrivals), state)
+        generated = strip_generated_arrival_repeats(state, segments)
+        segments = arrival_segments + drop_repeated_lines(generated, [dialogue_transcript(arrival_segments)])
     world_turn.end_turn(state, _wm_player_words, segments)
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.

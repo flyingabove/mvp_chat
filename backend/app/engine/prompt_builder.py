@@ -6,7 +6,7 @@ from backend.app.engine.state import GameState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
 from backend.app.engine.cast_lifecycle import CastStatus
 from backend.app.engine.scene_context import SceneContext
-from backend.app.engine.opening_scene import opening_scene_brief
+from backend.app.engine.opening_scene import has_arrived, opening_scene_brief
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -1042,7 +1042,7 @@ def _mode_context_section(state) -> str:
         partner_gender = {"M": "F", "F": "M"}.get(gender)
         lifecycle = getattr(state, "cast_lifecycle", None)
         if lifecycle is not None and getattr(lifecycle, "enabled", False):
-            active = set(lifecycle.active_ids())
+            active = {key for key in lifecycle.active_ids() if has_arrived(state, key)}
         else:
             active = set(getattr(state, "characters", {}) or {})
         characters = getattr(state, "characters", {}) or {}
@@ -1270,7 +1270,7 @@ def _without_absent_cast_names(state: GameState, entries: list[str]) -> list[str
     chars = getattr(state, "characters", {}) or {}
     names = set()
     for key in getattr(lifecycle, "members", {}) or {}:
-        if key == "player" or lifecycle.is_scene_eligible(key) or key not in chars:
+        if key == "player" or (lifecycle.is_scene_eligible(key) and has_arrived(state, key)) or key not in chars:
             continue
         full = (getattr(chars[key], "name", "") or "").strip()
         if full:
@@ -1308,6 +1308,8 @@ def _resident_whereabouts(state: GameState) -> list[tuple[str, str, str | None]]
 
     rows = []
     for key in lifecycle.active_ids():
+        if not has_arrived(state, key):
+            continue
         name = (getattr(chars.get(key), "name", None) or key).strip()
         member = lifecycle.members.get(key)
         person = _SLOT_PERSON.get(getattr(member, "slot_group", ""), "")
@@ -1333,8 +1335,7 @@ def _resident_whereabouts_line(state: GameState, lifecycle) -> str:
     for label, room, elsewhere in rows:
         lines.append(f"- {label}: {room}" + ("" if elsewhere else " (here with the player)"))
     return (
-        "Where every resident is right now (authoritative; housemates who share the "
-        "house know this):\n" + "\n".join(lines) + "\n"
+        "Where every arrived resident is right now (authoritative):\n" + "\n".join(lines) + "\n"
         "When anyone asks where a housemate is, answer truthfully from this list: "
         "someone here with the player is right here, and someone elsewhere is in the "
         "listed room. Never invent practice, work, errands, trips, or absences for a "
@@ -1353,6 +1354,9 @@ def _resident_whereabouts_header(state: GameState) -> str:
     away = [f"{label} in {room}" for label, room, elsewhere in rows if elsewhere is not None]
     room = str(getattr(state, "location", "") or "this room")
     if not away:
+        if any(not has_arrived(state, key) for key in (getattr(state.cast_lifecycle, "active_ids", lambda: [])())):
+            return (f"Whereabouts: here with you in {room}: " + ", ".join(here)
+                    + ". Other selected residents have not arrived or introduced themselves yet.")
         return (f"Whereabouts: every housemate is home and here with you in {room}: "
                 + ", ".join(here) + ". Nobody is out, away, upstairs, or on the way back, "
                 "and nobody else lives here.")
@@ -1442,6 +1446,25 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
                 )
                 break
 
+    opening_due = list(getattr(state, "opening_arrivals_this_turn", None) or [])
+    if opening_due:
+        entrance_cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+        cues = entrance_cfg.get("entrance_cues") or {}
+        room = str(entrance_cfg.get("gather_location_id") or "")
+        if str(getattr(state, "location_id", "") or "") == room:
+            arrivals = "; ".join(
+                f"{(getattr(chars.get(key), 'name', None) or key)} enters from the front door: {cues.get(key, 'a new resident arrives')}"
+                for key in opening_due
+            )
+            arrival_intro_line += (
+                "The server will show the player authored entrance and self-introduction beats for these new residents "
+                "before your response, in this order: " + arrivals + ". "
+                "Continue from those beats without repeating the doorway description or introduction. Let the first "
+                "resident react naturally and address the player's current words. These residents have not met the "
+                "player before this moment. "
+                "Do not start a meal; once everyone is present, residents may discuss ordering food or preparing it.\n\n"
+            )
+
     roster_closure_line = ""
     lifecycle = getattr(state, "cast_lifecycle", None)
     if lifecycle is not None and getattr(lifecycle, "enabled", False):
@@ -1449,11 +1472,16 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         if lifecycle.player_slot_group:
             active_names.append(f"{state.player_name or 'Player'} (the player)")
         for key in lifecycle.active_ids():
+            if not has_arrived(state, key):
+                continue
             ch = chars.get(key)
             active_names.append((getattr(ch, "name", None) or key).strip())
         active_roster_text = ", ".join(active_names) if active_names else "no one"
+        waiting_count = sum(not has_arrived(state, key) for key in lifecycle.active_ids())
         roster_closure_line = (
-            f"The complete current cast is: {active_roster_text}. This is a closed list — "
+            f"The residents introduced so far are: {active_roster_text}. "
+            + (f"{waiting_count} selected residents still have to arrive during this opening; their identities are unknown to the player and current housemates. " if waiting_count else "")
+            + "This is a closed list of known residents — "
             "no other named individual currently lives in, works at, or is otherwise part of "
             "this world. If the player asks about, or a character is asked about, anyone whose "
             "name is not on this list, that person is unfamiliar and unknown to every character "
@@ -1466,8 +1494,8 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         if lifecycle.player_slot_group:
             bedroom = state.story_cfg["cast_lifecycle"]["player_bedrooms"][lifecycle.player_slot_group]
             roster_closure_line += (
-                "The player occupies one of the six resident slots: exactly three men and three women, "
-                "including the player, live here. The player shares "
+                "The player occupies one of six reserved resident slots: three men and three women "
+                "are selected, including the player. Some may still be arriving. The player shares "
                 f"{bedroom.replace('_', ' ')}. Departures and same-gender arrivals happen together "
                 "through the automatic replacement queue; nobody leaves without a replacement. "
                 "When that queue is exhausted, the final residents stay.\n\n"

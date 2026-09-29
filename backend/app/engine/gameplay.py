@@ -82,8 +82,25 @@ def advance_time(state, player_text: str, *, charge_dialogue: bool = True):
     base = int(cfg.get("time", {}).get("base_turn_mins", BASE_TURN_MINS))
     travel = int(cfg.get("time", {}).get("travel_mins", TRAVEL_MINS))
 
+    arrivals = getattr(state, "opening_arrival_minutes", None) or {}
+    arrived = set(getattr(state, "opening_arrived_ids", None) or [])
+    if arrivals and any(key not in arrived for key in arrivals):
+        pace = ((cfg.get("opening") or {}).get("arrival_sequence") or {}).get("dialogue_pace") or {}
+        base = int(pace.get("base_turn_mins", base))
+        per_word = float(pace.get("mins_per_word", per_word))
+
     # Basic time progression
     delta = base + math.ceil(word_count(player_text) * per_word) if charge_dialogue else 0
+    if arrivals and charge_dialogue and any(key not in arrived for key in arrivals):
+        max_turn = int(pace.get("max_turn_mins", delta))
+        delta = min(delta, max_turn)
+        # Conversational turns stop at the next doorway beat. A long player
+        # message cannot silently consume two introductions at once; explicit
+        # waits and time skips still advance by the amount the player chose.
+        next_arrival = min(minute for key, minute in arrivals.items() if key not in arrived)
+        current_minute = int(getattr(state, "minute", 0) or 0)
+        if current_minute < next_arrival:
+            delta = min(delta, next_arrival - current_minute)
 
     # If a world clock is active, keep it in sync with dialog time.
     # ORDERING NOTE: world_clock is advanced *twice* when travel succeeds:

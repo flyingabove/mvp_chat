@@ -323,11 +323,11 @@ def test_six_strangers_world_supports_return_travel_and_all_active_starting_char
     loaded = WorldLoader.load_from_file(str(world_path), story_id="six_strangers")
     graph = loaded.world_graph
     locations = set(graph.locations)
-    assert world_cfg["start_location_id"] == "front_entry"
+    assert world_cfg["start_location_id"] == "living_room"
     # The roster is random, so there are no per-character premiere starts:
-    # the whole opening cast (and the player) gathers for the kitchen dinner.
+    # one first resident meets the player in the living room; four arrive later.
     assert "character_start_locations" not in world_cfg
-    assert story.as_dict()["cast_lifecycle"]["initial_active_location_id"] == "kitchen"
+    assert story.as_dict()["cast_lifecycle"]["initial_active_location_id"] == "living_room"
     assert "kitchen" in locations
     assert {"boys_bedroom", "girls_bedroom", "terrace", "gotanda_station"} <= locations
     assert "player_bedroom" not in locations

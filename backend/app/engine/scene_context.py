@@ -58,7 +58,8 @@ class SceneContext:
         if lifecycle is None or not getattr(lifecycle, "enabled", False):
             result = True
         else:
-            result = key == "player" or lifecycle.is_scene_eligible(key)
+            from backend.app.engine.opening_scene import has_arrived
+            result = key == "player" or (lifecycle.is_scene_eligible(key) and has_arrived(self._state, key))
         self._eligible_cache[key] = result
         return result
 
@@ -208,6 +209,7 @@ class SceneContext:
             return False
         return all(
             not self.is_eligible(key) and key in lifecycle.members
-            and lifecycle.members[key].status is CastStatus.UPCOMING
+            and (lifecycle.members[key].status is CastStatus.UPCOMING
+                 or key in (getattr(state, "opening_arrival_minutes", None) or {}))
             for key in named
         )
