@@ -4,6 +4,10 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-28: Always push after a beta merge
+
+After merging/integrating work into beta, always push the integrated HEAD to origin/beta and verify the remote commit, even for documentation-only work. Do not ask again or finish at a local merge/commit. This supersedes the documentation-only exception for merged work; standalone documentation edits without a merge retain that exception unless the user requests a push or another clone needs them.
+
 ## 2026-09-28: One BL-39-led proposal, hybrid Jev and 5% fallback ceiling
 
 Owner selected consolidation: BL-39 supplies the Character → Heart → Bond model and A–J roadmap; BL-38 correctness contracts are mandatory within it, not another architecture. Use [the master](backlog/BL-39-character-centric-social-engine.md). Keep independent opening/answer/receipt fixes shippable.

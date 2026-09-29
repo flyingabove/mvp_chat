@@ -43,8 +43,7 @@ The files expected to change.
 1. Search first so you don't duplicate: `grep -ril "<keyword>" documentation/backlog documentation/BACKLOG.md`.
    If an item exists, update its file instead.
 2. Create the file with the template above. Keep it short; link to design docs rather than copying them.
-3. This is a documentation-only change: commit it locally on `beta`. It doesn't need its own push
-   (see `AGENTS.md` "End-of-task completion rule"). It goes out with the next code push.
+3. Commit documentation-only changes on `beta`. **Always push and verify after a merge/integration into beta**, including documentation-only work (owner decision 2026-09-28). Standalone edits without a merge can wait for the next code push unless the user asks to push or another clone needs them. See `AGENTS.md` "End-of-task completion rule".
 
 ## Removing an item (when fixed)
 

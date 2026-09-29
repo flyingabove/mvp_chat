@@ -6,6 +6,8 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ### 2026-09-28 Engine proposal consolidation
 
+Owner follow-up: push the consolidated proposal and record standing authorization to always push after merging/integrating into beta, including documentation-only merges. Convention aligned in AGENTS.md, Claude instructions, both backlog skill copies and the corrections log; publishing includes only committed task files, preserving unrelated attendance edits.
+
 - [x] Pull and merge origin/beta through 2cc10fe (merge f3b8489), preserving both documentation histories and unrelated attendance edits.
 - [x] Make BL-39 the single target architecture/roadmap, incorporate BL-38 correctness contracts, retain acceptance IDs and resolve owner choices: hybrid Jev plus provisional 5% visible fallback gate.
 - [x] Align Terrace content, catalogue and historical design/review pointers; retain BL-38 as an open correctness tracker.
