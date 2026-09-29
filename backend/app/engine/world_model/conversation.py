@@ -15,6 +15,10 @@ LAPSED = "lapsed"
 # An unresolved question this old no longer belongs in the scene.
 LAPSE_AFTER_TURNS = 12
 MAX_OPEN = 6
+# The extractor's verdict can lag or miss (live beta 2026-09-29: Riko re-answered one
+# question for ~8 turns). After the addressee has replied this many turns while it
+# stayed open, the engine closes it itself so the directive stops forcing a repeat.
+MAX_DIRECTED_REPLIES = 2
 KEEP_CLOSED = 20
 
 
@@ -26,6 +30,7 @@ class PendingQuestion:
     asked_turn: int
     status: str = OPEN
     resolved_turn: int = 0
+    replies: int = 0
 
     @property
     def is_open(self) -> bool:
@@ -33,13 +38,14 @@ class PendingQuestion:
 
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "addressee": self.addressee, "text": self.text,
-                "asked_turn": self.asked_turn, "status": self.status, "resolved_turn": self.resolved_turn}
+                "asked_turn": self.asked_turn, "status": self.status, "resolved_turn": self.resolved_turn,
+                "replies": self.replies}
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "PendingQuestion":
         return cls(str(raw["id"]), str(raw["addressee"]), str(raw.get("text") or ""),
                    int(raw.get("asked_turn") or 0), str(raw.get("status") or OPEN),
-                   int(raw.get("resolved_turn") or 0))
+                   int(raw.get("resolved_turn") or 0), int(raw.get("replies") or 0))
 
 
 @dataclass
@@ -73,6 +79,15 @@ class ConversationState:
                 question.status, question.resolved_turn = status, turn
                 return True
         return False
+
+    def note_reply(self, addressee: str, turn: int) -> None:
+        """The addressee spoke this turn: count it, and close a question they keep answering."""
+        for question in self.open_questions():
+            if question.addressee != addressee or question.asked_turn > turn:
+                continue
+            question.replies += 1
+            if question.replies >= MAX_DIRECTED_REPLIES:
+                question.status, question.resolved_turn = "answered", turn
 
     def lapse_stale(self, turn: int) -> None:
         for question in self.open_questions():

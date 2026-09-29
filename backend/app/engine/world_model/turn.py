@@ -14,6 +14,7 @@ import re
 from typing import Any, Callable, Iterable, Optional
 
 from backend.app.engine.world_model import bootstrap
+from backend.app.engine.world_model.companions import choose_companions
 from backend.app.engine.world_model.commitments import (due_commitments, expire_commitments, record_commitment,
                                                          complete_actions)
 from backend.app.engine.world_model.contact import deliver, queue_contacts
@@ -179,6 +180,10 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
     previous_place = model.player_place()
     protected = set(model.present_with_player())
     if getattr(state, "location_id", "") and state.location_id != previous_place:
+        # Invited residents walk with the player instead of being left behind (and bid farewell).
+        for cid in choose_companions(model, message, protected, warmth_fn(state)):
+            model.world.move(cid, state.location_id)
+            protected.discard(cid)
         model.world.move(PLAYER, state.location_id)
     now = int(getattr(state, "minute", 0) or 0)
     step = None
@@ -645,12 +650,15 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
         return
     now = model.world.minute
     present = set(model.present_with_player())
+    replied: set[str] = set()
     for index, seg in enumerate(segments or []):
         speaker = seg.get("speaker_id")
         if seg.get("kind") != "dialogue" or speaker not in model.characters:
             continue
         text = str(seg.get("text") or "").strip()
         model.characters[speaker].record_spoke(model.turn)
+        if speaker in present:
+            replied.add(speaker)
         if speaker not in model.known_names:
             model.known_names.append(speaker)
         # A remote call is heard by its participants, not every resident
@@ -668,6 +676,8 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
                           event.truth, now)
             if cid != PLAYER:
                 model.memories.add(cid, event.truth, "witnessed", now, kind="dialogue", event_id=event.id)
+    for speaker in sorted(replied):    # once per turn, however many lines they spoke
+        model.conversation.note_reply(speaker, model.turn)
     specs = act_specs(getattr(state, "story_cfg", {}) or {})
     names = model.names()
     commentary = commentary_for(getattr(state, "story_cfg", {}) or {})

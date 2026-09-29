@@ -111,3 +111,44 @@ def test_open_questions_survive_a_save_round_trip():
     begin_turn(state, "Ann, where were you?", 0)
     restored = WorldModel.from_dict(model.to_dict())
     assert [(q.addressee, q.text) for q in restored.conversation.open_questions()] == [("ann", "Where were you?")]
+
+
+def test_a_question_the_addressee_keeps_answering_is_closed_by_the_engine():
+    """Live beta 2026-09-29: the extractor never marked it answered and Riko re-answered it ~8 turns."""
+    from backend.app.engine.world_model.conversation import MAX_DIRECTED_REPLIES
+    from backend.app.engine.world_model.turn import end_turn
+
+    model = make_model({"ann": "kitchen", "ben": "kitchen"})
+    state = _state(model)
+    record_questions(state, [QuestionAsked("ann", "How are you finding this place?")], [],
+                     message="How are you finding this place?")
+    reply = [{"kind": "dialogue", "speaker_id": "ann", "text": "Strange."},
+             {"kind": "dialogue", "speaker_id": "ann", "text": "But it has potential."}]
+    for _ in range(MAX_DIRECTED_REPLIES):
+        assert model.conversation.open_questions(), "still owed until she has replied enough"
+        begin_turn(state, "Hmm.", 0)
+        end_turn(state, "Hmm.", reply)      # two lines in one turn count as one reply
+    assert model.conversation.open_questions() == []
+    begin_turn(state, "Anyway.", 0)
+    assert _question_lines(model) == []
+
+
+def test_other_peoples_chatter_does_not_count_as_the_addressees_reply():
+    from backend.app.engine.world_model.turn import end_turn
+
+    model = make_model({"ann": "kitchen", "ben": "kitchen"})
+    state = _state(model)
+    record_questions(state, [QuestionAsked("ann", "Where were you?")], [], message="Where were you?")
+    for _ in range(4):
+        begin_turn(state, "Well?", 0)
+        end_turn(state, "Well?", [{"kind": "dialogue", "speaker_id": "ben", "text": "Nice weather."}])
+    assert [q.addressee for q in model.conversation.open_questions()] == ["ann"]
+
+
+def test_reply_count_survives_a_save_round_trip():
+    from backend.app.engine.world_model.conversation import ConversationState
+
+    convo = ConversationState()
+    convo.ask("ann", "Where were you?", 1)
+    convo.note_reply("ann", 1)
+    assert ConversationState.from_dict(convo.to_dict()).questions[0].replies == 1
