@@ -1666,30 +1666,32 @@ def test_extraction_output_is_durably_queryable_not_just_marked_done(client, mon
     # Filtering to only rows/chunks whose source_msg_id came from THIS
     # specific request_id keeps the assertion correct regardless.
     sid = f"durable_extraction_e2e_check_{uuid.uuid4().hex[:8]}"
-    r0 = client.post(
-        "/api/chat", headers=guest_headers,
-        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
-    )
-    assert r0.status_code == 200
-    r1 = client.post(
-        "/api/chat", headers=guest_headers,
-        json={"session_id": sid, "message": "hello there"},
-    )
-    assert r1.status_code == 200
+    # Keep the ASGI portal alive while its background extraction finishes.
+    with client:
+        r0 = client.post(
+            "/api/chat", headers=guest_headers,
+            json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+        )
+        assert r0.status_code == 200
+        r1 = client.post(
+            "/api/chat", headers=guest_headers,
+            json={"session_id": sid, "message": "hello there"},
+        )
+        assert r1.status_code == 200
 
-    async def _wait_for_durable_chunks():
-        # Up to 20s: the extraction runs as a background task and a loaded
-        # machine (e.g. a local Ollama run, a busy Railway builder) pushed it
-        # past the old 5s ceiling, failing the deploy gate intermittently.
-        # Returns as soon as the row is done, so normal runs are not slower.
-        for _ in range(400):
-            await asyncio.sleep(0.05)
-            pending = await FactExtractionOutboxRepo.fetch_pending()
-            if not any(row["session_id"] == sid for row in pending):
-                return await ExtractedChunksRepo.load_for_session(sid)
-        return None
+        async def _wait_for_durable_chunks():
+            # Up to 20s: the extraction runs as a background task and a loaded
+            # machine (e.g. a local Ollama run, a busy Railway builder) pushed it
+            # past the old 5s ceiling, failing the deploy gate intermittently.
+            # Returns as soon as the row is done, so normal runs are not slower.
+            for _ in range(400):
+                await asyncio.sleep(0.05)
+                pending = await FactExtractionOutboxRepo.fetch_pending()
+                if not any(row["session_id"] == sid for row in pending):
+                    return await ExtractedChunksRepo.load_for_session(sid)
+            return None
 
-    chunks = asyncio.run(_wait_for_durable_chunks())
+        chunks = asyncio.run(_wait_for_durable_chunks())
     assert chunks is not None, "outbox row never left pending"
     # This session_id is freshly randomized above, so unlike the general
     # repo it cannot collide with rows from any other test run.
