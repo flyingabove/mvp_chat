@@ -75,6 +75,29 @@ def test_couples_form_only_when_both_qualify_and_pursue_each_other():
     assert couples_ready(model, "romance", "dating", ctx.eligible, 0) == [("ann", "ben")]
 
 
+def test_nobody_is_in_two_couples_at_once():
+    model = make_model({"ann": "k", "ben": "k", "cat": "k"})
+    ctx = _ctx()
+    for a, b in (("ann", "ben"), ("ben", "ann"), ("cat", "ben"), ("ben", "cat")):
+        _set(model, a, b, 65)
+    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    assert couples_ready(model, "romance", "dating", ctx.eligible, 0) == [("ann", "ben")]
+    model.npc_couples["ann|ben"] = 0
+    assert couples_ready(model, "romance", "dating", ctx.eligible, 0) == [], "ben is already taken"
+
+
+def test_someone_in_a_couple_pursues_only_their_partner():
+    model = make_model({"ann": "k", "ben": "k", "cat": "k"})
+    ctx = _ctx()
+    _set(model, "ben", "ann", 50)
+    _set(model, "ben", "cat", 50)
+    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    assert {i.target for i in intentions(model, "ben", 0)} == {"ann", "cat"}
+    model.npc_couples["ann|ben"] = 0
+    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    assert {i.target for i in intentions(model, "ben", 0)} == {"ann"}
+
+
 class Lifecycle:
     enabled = True
 

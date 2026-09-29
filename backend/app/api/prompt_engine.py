@@ -3600,6 +3600,14 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
     segments = ground_social_scene(segments, state)
     world_turn.end_turn(state, _wm_player_words, segments)
+    # BL-39 O26a: every canned/constrained recovery is counted per turn so the
+    # visible-fallback rate can be measured from real traffic (gate: <= 5%).
+    _wm_view = getattr(getattr(state, "world_model", None), "view", None)
+    if _wm_view is not None:
+        _log({"kind": "turn_quality_recoveries", "req_id": req_id, "session_id": session_id,
+              "story": state.story or "", "verdict_repairs": int(getattr(_wm_view, "verdict_repairs", 0)),
+              "panel_fallbacks": int(getattr(_wm_view, "panel_fallbacks", 0)),
+              "finale": bool(getattr(_wm_view, "panel_speakers", None))})
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]

@@ -63,6 +63,7 @@ class AppraisalPolicy:
     romantic_tags: frozenset[str] = frozenset()
     jealousy_tier: str = ""          # holder's tier toward the actor from which romantic acts elsewhere sting
     eligible: str = "any"            # any | opposite_gender: which holder->actor pairs this track covers
+    offscreen_scale: float = 1.0     # pace of off-screen relationship change between residents
 
     def covers(self, holder_gender: str, actor_gender: str) -> bool:
         if self.eligible == "any":
@@ -175,7 +176,9 @@ def _appraisal(raw: Optional[dict[str, Any]], tracks: dict[str, TrackSpec]) -> O
     policy = AppraisalPolicy(_text(raw, "track"), float(raw.get("gain_scale", 3.0)),
                              float(raw.get("witness_scale", 0.3)), float(raw.get("feeling_scale", 0.02)),
                              frozenset(raw.get("romantic_tags") or []), str(raw.get("jealousy_tier") or ""),
-                             str(raw.get("eligible") or "any"))
+                             str(raw.get("eligible") or "any"), float(raw.get("offscreen_scale", 1.0)))
+    if policy.offscreen_scale < 0:
+        raise ValueError("offscreen_scale must be >= 0")
     if policy.eligible not in ("any", "opposite_gender"):
         raise ValueError(f"unknown appraisal eligibility {policy.eligible!r}")
     if policy.track not in tracks:

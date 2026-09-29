@@ -128,7 +128,8 @@ def _offscreen_impressions(model: "WorldModel", enc: Encounter, kind: str, event
     day = model.world.day_index(enc.minute)
     for owner, other in ((enc.a, enc.b), (enc.b, enc.a)):
         apply_impression(model, social.rules, Impression(f"offscreen:{event_id}:{owner}", owner, other, policy.track,
-                                                         f"offscreen_{kind}", gain * policy.gain_scale, event_id,
+                                                         f"offscreen_{kind}",
+                                                         gain * policy.gain_scale * policy.offscreen_scale, event_id,
                                                          enc.minute, day, "shared"))
 
 

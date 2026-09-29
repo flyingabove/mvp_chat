@@ -2288,11 +2288,15 @@
           {"id": "strangers", "floor": 0, "ceiling": 25},
           {"id": "friends", "floor": 25, "ceiling": 45, "gate": {"kind": "days_known", "min": 2}},
           {"id": "interested", "floor": 45, "ceiling": 60,
-           "gate": {"kind": "event_count", "event_kind": "private_talk", "min": 1}},
+           "gate": {"kind": "any", "conditions": [
+             {"kind": "event_count", "event_kind": "private_talk", "min": 1},
+             {"kind": "event_count", "event_kind": "behavior", "min": 6},
+             {"kind": "event_count", "event_kind": "offscreen", "min": 2}
+           ]}},
           {"id": "dating", "floor": 60, "ceiling": 75,
-           "gate": {"kind": "all", "conditions": [
-             {"kind": "agreement_count", "activity": "", "status": "completed", "min": 2},
-             {"kind": "event_count", "event_kind": "romance_relationship", "min": 1}
+           "gate": {"kind": "any", "conditions": [
+             {"kind": "event_count", "event_kind": "romance_relationship", "min": 1},
+             {"kind": "event_count", "event_kind": "npc_couple_formed", "min": 1}
            ]}},
           {"id": "committed", "floor": 75, "ceiling": 100, "gate": {"kind": "days_known", "min": 5}}
         ]
@@ -2302,9 +2306,9 @@
     "appraisal": {
       "track": "romance", "gain_scale": 3, "witness_scale": 0.3, "feeling_scale": 0.02,
       "romantic_tags": ["flirtatious", "complimentary"], "jealousy_tier": "interested",
-      "eligible": "opposite_gender"
+      "eligible": "opposite_gender", "offscreen_scale": 4
     },
-    "couples": {"interested_tier": "interested", "dating_tier": "dating", "committed_tier": "committed",
+    "couples": {"interested_tier": "interested", "dating_tier": "interested", "committed_tier": "committed",
                 "days_together": 2}
   }
 }
