@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
 from backend.app.db.repos import SessionRepo, SessionRevisionConflict, TurnReceipt, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 from backend.app.engine.rules.endings import Outcome, goal_payload, resolve_outcome
+from backend.app.engine.world_model import npc_decision
 
 import asyncio
 import copy
@@ -2312,6 +2313,14 @@ async def _committed_reply(session_id: str, user_id: str, request_id: str, input
 # ---------------------------------------------------------------------------
 # MAIN CHAT ENDPOINT
 # ---------------------------------------------------------------------------
+def _npc_decision_mode_for(request: Request) -> str:
+    """The NPC decision mode: the deployed setting, or an operator's per-request override."""
+    override = request.headers.get("X-NPC-Decision-Mode")
+    if override and is_operator_request(request):
+        return npc_decision.decision_mode(override)
+    return npc_decision.configured_mode()
+
+
 @router.post("/chat")
 async def chat_handler(request: Request, data: dict, _auth_user: dict | None = Depends(get_optional_user)):
     """Thin, lock-acquiring wrapper around _chat_handler_impl (A12).
@@ -3222,7 +3231,16 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             # BL-39 phase F: the target decides a typed social act before the scene is written.
             if extraction.social_act is not None and world_turn.enabled(state):
                 world_turn.ensure_model(state, lore=_lore_chunks_for(state))
-                world_turn.record_social_act(state, extraction.social_act)
+                _npc_mode = _npc_decision_mode_for(request)
+                _npc_judgment = None
+                _npc_ask = world_turn.npc_question(state, extraction.social_act) if _npc_mode != "rules" else None
+                if _npc_ask is not None:
+                    _npc_judgment = await npc_decision.judge(*_npc_ask)
+                world_turn.record_social_act(state, extraction.social_act, mode=_npc_mode, judgment=_npc_judgment)
+                _npc_log = (getattr(state.world_model, "decision_log", None) or [None])[-1]
+                if _npc_log is not None:
+                    _log({"kind": "npc_decision", "req_id": req_id, "session_id": session_id,
+                          "story": state.story or "", **_npc_log})
 
             _lifecycle = getattr(state, "cast_lifecycle", None)
             _signal = extraction.departure_signal
@@ -3758,6 +3776,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 {"text": e.text, "turns_remaining": e.turns_remaining}
                 for e in raw_entries
             ],
+            "npc_decisions": list((getattr(getattr(state, "world_model", None), "decision_log", None) or [])[-3:])
+            or None,
         }
 
     # Apply Chinese translation if chinese_mode is enabled

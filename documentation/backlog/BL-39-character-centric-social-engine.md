@@ -285,7 +285,7 @@ Not done, tracked: O09 narration agency (BL-29, owner: backlog), relationship-gr
 |---|---|
 | Which plan leads? | This combined BL-39 is the master; BL-38 tracks open correctness work. No independent competing implementations. |
 | Impressions versus appraisal versus drama? | Character appraisal proposes impressions; Bond alone applies; optional Standing records progression; DramaticPolicy selects admissible opportunities. |
-| Who decides NPC behavior? | Owner chose hybrid extraction LLM + Jev proposals under character/engine constraints. Character objects still perform no provider I/O. |
+| Who decides NPC behavior? | Owner chose hybrid extraction LLM + Jev proposals under character/engine constraints. Character objects still perform no provider I/O. **Built 2026-09-29 as a switch:** `NPC_DECISION_MODE` = `rules` (default) / `jev` / `compare`, Jev bounded by the rules; see [NPC_DECISION_MODES](../reference/NPC_DECISION_MODES_2026_09_29.md). First comparison: Jev is correctly ordered but very cautious (1 of 8 fixtures yes vs 6 of 8 for the rules); calibration is an open owner decision. |
 | What gives if two seconds is exceeded? | The immediate target, not correctness/gameplay. Current speed is accepted; current two-game p50/p95 remains to be measured. |
 | Which Jev tasks are calibrated? | Limited task/smoke evidence is not plan-wide calibration. Enable task by task after labeled/outage tests; deployed overrides were not inspected. |
 | Quality floor without Jev? | Existing extraction proposal + safe deterministic checks, otherwise clarify/defer uncertainty; no third LLM. Full quality comparison remains unmeasured. |

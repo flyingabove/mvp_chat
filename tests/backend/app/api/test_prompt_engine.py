@@ -5874,6 +5874,138 @@ def test_typed_acts_carry_a_terrace_game_from_confession_to_a_win(client, monkey
     assert second["ending"]["id"] == "left_together" and second["ending"]["kind"] == "win"
 
 
+def _confession_session(client, monkeypatch, sid, mode, judge_choice=None, headers=None):
+    """A Terrace session where the target is in the confession tier; returns (state, target, judge_calls)."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.config import settings
+    from backend.app.engine.extractors.turn_extractor import SocialActUpdate, TurnExtraction
+    from backend.app.engine.world_model import npc_decision
+    from backend.app.engine.world_model.standing import Standing
+
+    monkeypatch.setattr(settings, "NPC_DECISION_MODE", mode, raising=False)
+    _terrace_session(client, sid, {})
+    state = pe_mod.SESSIONS[sid]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    target = state.world_model.present_with_player()[0]
+    state.gender = "F" if genders[target] == "M" else "M"
+    state.world_model.standing.standings[(target, "player", "romance")] = Standing(value=50)
+    calls = []
+
+    async def fake_judge(decision, view, resolver=None):
+        calls.append((decision, view))
+        return npc_decision.JevJudgment(judge_choice, 0.9, "") if judge_choice else npc_decision.JevJudgment(
+            None, None, "timeout")
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(social_act=SocialActUpdate("confess", target))
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    monkeypatch.setattr(npc_decision, "judge", fake_judge)
+    return state, target, calls
+
+
+def test_rules_mode_never_asks_jev_and_accepts_at_the_tier(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, calls = _confession_session(client, monkeypatch, "npc_rules", "rules", "reject")
+    client.post("/api/chat", json={"session_id": "npc_rules", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_rules"]["state"].world_model
+    assert calls == [] and model.romance_relationship_partner == target
+    assert [(r["mode"], r["rules"], r["jev"], r["final"]) for r in model.decision_log] == [
+        ("rules", "accept", None, "accept")]
+
+
+def test_jev_mode_can_be_stricter_and_the_storyteller_is_told_no(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, calls = _confession_session(client, monkeypatch, "npc_jev", "jev", "not_yet")
+    client.post("/api/chat", json={"session_id": "npc_jev", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_jev"]["state"].world_model
+    assert len(calls) == 1 and "You are" in calls[0][1] and "romantic feelings" in calls[0][1]
+    assert model.romance_relationship_partner == "", "Jev said not yet, so no relationship formed"
+    record = model.decision_log[-1]
+    assert (record["rules"], record["jev"], record["final"], record["agrees"]) == ("accept", "not_yet", "not_yet", False)
+
+
+def test_jev_mode_accepts_when_jev_and_the_rules_agree(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, _ = _confession_session(client, monkeypatch, "npc_jev_yes", "jev", "accept")
+    client.post("/api/chat", json={"session_id": "npc_jev_yes", "message": "I have feelings for you."})
+    assert pe_mod.SESSIONS["npc_jev_yes"]["state"].world_model.romance_relationship_partner == target
+
+
+def test_compare_mode_plays_the_rules_and_logs_both(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, calls = _confession_session(client, monkeypatch, "npc_compare", "compare", "reject")
+    client.post("/api/chat", json={"session_id": "npc_compare", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_compare"]["state"].world_model
+    assert len(calls) == 1 and model.romance_relationship_partner == target, "gameplay follows the rules"
+    record = model.decision_log[-1]
+    assert (record["mode"], record["rules"], record["jev"], record["final"]) == ("compare", "accept", "reject", "accept")
+
+
+def test_when_jev_is_unavailable_the_rules_decide_and_the_reason_is_logged(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, _ = _confession_session(client, monkeypatch, "npc_down", "jev", None)
+    client.post("/api/chat", json={"session_id": "npc_down", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_down"]["state"].world_model
+    assert model.romance_relationship_partner == target
+    assert model.decision_log[-1]["note"] == "jev unavailable: timeout"
+
+
+def test_the_real_judge_with_jev_switched_off_falls_back_without_error(client, monkeypatch):
+    """No fake judge here: TYPESAFE_ENABLED is off in tests, so the shared resolver reports flag_disabled."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.config import settings
+    from backend.app.engine.extractors.turn_extractor import SocialActUpdate, TurnExtraction
+    from backend.app.engine.world_model import npc_decision
+    from backend.app.engine.world_model.standing import Standing
+
+    monkeypatch.setattr(settings, "NPC_DECISION_MODE", "jev", raising=False)
+    monkeypatch.setattr(settings, "TYPESAFE_ENABLED", False)
+    npc_decision.reset_resolver_for_tests()
+    _terrace_session(client, "npc_off", {})
+    state = pe_mod.SESSIONS["npc_off"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    target = state.world_model.present_with_player()[0]
+    state.gender = "F" if genders[target] == "M" else "M"
+    state.world_model.standing.standings[(target, "player", "romance")] = Standing(value=50)
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(social_act=SocialActUpdate("confess", target))
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    r = client.post("/api/chat", json={"session_id": "npc_off", "message": "I have feelings for you."})
+    assert r.status_code == 200
+    model = pe_mod.SESSIONS["npc_off"]["state"].world_model
+    assert model.romance_relationship_partner == target
+    assert model.decision_log[-1]["note"] == "jev unavailable: flag_disabled"
+    npc_decision.reset_resolver_for_tests()
+
+
+def test_only_an_operator_can_override_the_mode_per_request(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "true")
+    monkeypatch.setenv("OPERATOR_TOKEN", "secret-op")
+    state, target, calls = _confession_session(client, monkeypatch, "npc_hdr", "rules", "not_yet")
+    client.post("/api/chat", json={"session_id": "npc_hdr", "message": "I like you."},
+                headers={"X-NPC-Decision-Mode": "jev"})
+    assert calls == [], "a player's header is ignored"
+    state = pe_mod.SESSIONS["npc_hdr"]["state"]
+    state.world_model.romance_relationship_partner = ""
+    state.world_model.act_cooldowns.clear()
+    client.post("/api/chat", json={"session_id": "npc_hdr", "message": "I like you."},
+                headers={"X-NPC-Decision-Mode": "jev", "X-Operator-Token": "secret-op"})
+    assert len(calls) == 1, "an operator's header switches the mode for that request"
+
+
+def test_debug_box_shows_recent_npc_decisions(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, _ = _confession_session(client, monkeypatch, "npc_dbg", "compare", "reject")
+    pe_mod.SESSIONS["npc_dbg"]["debug_mode"] = True
+    body = client.post("/api/chat", json={"session_id": "npc_dbg", "message": "I have feelings for you."}).json()
+    decisions = body["debug_box"]["npc_decisions"]
+    assert decisions and decisions[-1]["rules"] == "accept" and decisions[-1]["jev"] == "reject"
+
+
 def test_new_game_returns_the_goal_card(client):
     _, opening = _terrace_session(client, "ending_goal_card", {})
     assert opening["goal"]["status"] == "No mutual relationship yet."

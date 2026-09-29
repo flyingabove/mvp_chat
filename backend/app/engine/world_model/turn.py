@@ -29,8 +29,11 @@ from backend.app.engine.world_model.deception import DeceptionProfile, choose_cu
 from backend.app.engine.world_model.persona import SelfClaim
 from backend.app.engine.world_model.standards import enforce_dealbreakers, failing_requirements, viewpoint
 from backend.app.engine.world_model.social_acts import (
-    SocialAct, Verdict, act_specs, commit as commit_act, decide, directive as verdict_directive,
+    NEEDS_TARGET, SocialAct, Verdict, act_specs, assess, commit as commit_act, directive as verdict_directive,
     validate as validate_verdict,
+)
+from backend.app.engine.world_model.npc_decision import (
+    append_record as append_decision_record, jev_decision, merge as merge_decision, target_view as npc_target_view,
 )
 from backend.app.engine.world_model.romance import _eligible_present as romance_eligible_present
 from backend.app.engine.world_model.intentions import propose_agenda_invitations, propose_rival_invitations
@@ -548,22 +551,49 @@ def social_act_kinds(state: Any) -> list[str]:
     return sorted(act_specs(getattr(state, "story_cfg", {}) or {}))
 
 
-def record_social_act(state: Any, proposal: Any) -> Optional[Verdict]:
-    """Decide this turn's social act from the target's own view; held until end_turn validates it."""
+def _act_context(state: Any, proposal: Any):
+    """(model, spec, act, assessment) for a proposed act the rules can assess here, else None."""
     model = getattr(state, "world_model", None)
     if model is None or not enabled(state) or proposal is None or model.romance_outcome:
         return None
-    specs = act_specs(getattr(state, "story_cfg", {}) or {})
-    spec = specs.get(str(getattr(proposal, "kind", "")))
+    cfg = getattr(state, "story_cfg", {}) or {}
+    spec = act_specs(cfg).get(str(getattr(proposal, "kind", "")))
     if spec is None:
         return None
-    rules = social_rules(getattr(state, "story_cfg", {}) or {})
+    rules = social_rules(cfg)
     if rules is not None:
         model.standing.bind(rules.tracks)
-    verdict = decide(model, spec, SocialAct(spec.kind, str(getattr(proposal, "target", "") or "")),
-                     romance_eligible_present(state))
-    if verdict is not None:
-        model.pending_verdicts = [verdict]
+    act = SocialAct(spec.kind, str(getattr(proposal, "target", "") or ""))
+    assessment = assess(model, spec, act, romance_eligible_present(state))
+    return None if assessment is None else (model, spec, act, assessment)
+
+
+def npc_question(state: Any, proposal: Any):
+    """What to ask Jev for this act: (Decision, target's own-view text), or None when no judgment is needed.
+
+    Nothing to ask when the act is the player's own, a hard rule already settles it, or it doesn't apply here.
+    """
+    context = _act_context(state, proposal)
+    if context is None:
+        return None
+    model, spec, act, assessment = context
+    if assessment.hard or act.kind not in NEEDS_TARGET:
+        return None
+    view = npc_target_view(model, spec, act, state.story_cfg, model.names(), getattr(state, "character_graph", None),
+                           ready=assessment.can_accept)
+    return jev_decision(act.target, act), view
+
+
+def record_social_act(state: Any, proposal: Any, *, mode: str = "rules", judgment: Any = None) -> Optional[Verdict]:
+    """Decide this turn's social act (rules, Jev within the rules, or both logged); held until end_turn validates it."""
+    context = _act_context(state, proposal)
+    if context is None:
+        return None
+    model, spec, act, assessment = context
+    verdict, record = merge_decision(assessment, mode, judgment, turn=model.turn + 1)
+    if act.kind in NEEDS_TARGET:
+        append_decision_record(model, record)
+    model.pending_verdicts = [verdict]
     return verdict
 
 

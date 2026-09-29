@@ -37,6 +37,7 @@ A doc's status is either implied by its folder (`reference`/`proposals`/`archive
 
 | Doc | Edit this doc if... |
 |-----|---------------------|
+| [NPC_DECISION_MODES_2026_09_29.md](reference/NPC_DECISION_MODES_2026_09_29.md) | ...how NPCs answer confessions and leave-together asks changes: the `NPC_DECISION_MODE` switch (`rules` / `jev` / `compare`), what Jev may and may not override, the compare tooling, or its calibration results. |
 | [STORYTELLER_PROMPT_REDESIGN.md](reference/STORYTELLER_PROMPT_REDESIGN.md) | ...the storyteller system prompt structure or injection order changes. **Mostly built; still open: the post-response rewrite validator isn't wired into runtime, and the doc's "no numbers leak into the prompt" and "canon-correction removed" claims are stale — see `backend/app/engine/prompt_builder.py`'s CANON CORRECTION block and relationship baseline lines.** |
 | [SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md](reference/SINGLE_CALL_TURN_EXTRACTOR_DESIGN.md) | ...the extractor schema, prompt, or validation logic changes. **The "exactly one extractor call" framing is stale: Jev batches and a post-turn fact-extraction pass now also run.** |
 | [MESSAGE_TO_PROMPT_FLOW_TRACE.md](reference/MESSAGE_TO_PROMPT_FLOW_TRACE.md) | ...the prompt assembly pipeline (message → LLM prompt) changes. **Missing steps: Jev context selection, world-model turn begin/end, sleep/time-skip, commitments, `post_with_retry`. Update before trusting it as a trace.** |

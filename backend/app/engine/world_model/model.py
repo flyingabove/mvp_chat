@@ -139,6 +139,7 @@ class WorldModel:
     npc_couples: dict[str, int] = field(default_factory=dict)        # "a|b" -> day the couple formed
     departed_couples: list[str] = field(default_factory=list)        # couples who left the house
     counters: dict[str, int] = field(default_factory=dict)           # story clocks (e.g. couples_left)
+    decision_log: list[dict] = field(default_factory=list)           # NPC verdict records (rules vs Jev), bounded
     view: TurnView = field(default_factory=TurnView)       # transient
     pending_verdicts: list = field(default_factory=list)   # transient: this turn's social-act verdicts
 
@@ -212,7 +213,7 @@ class WorldModel:
                 "act_cooldowns": dict(self.act_cooldowns),
                 "agendas": {cid: [i.to_dict() for i in items] for cid, items in self.agendas.items()},
                 "npc_couples": dict(self.npc_couples), "departed_couples": list(self.departed_couples),
-                "counters": dict(self.counters)}
+                "counters": dict(self.counters), "decision_log": list(self.decision_log)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -254,4 +255,5 @@ class WorldModel:
                             for cid, items in (data.get("agendas") or {}).items()},
                    npc_couples={str(k): int(v) for k, v in (data.get("npc_couples") or {}).items()},
                    departed_couples=list(data.get("departed_couples") or []),
-                   counters={str(k): int(v) for k, v in (data.get("counters") or {}).items()})
+                   counters={str(k): int(v) for k, v in (data.get("counters") or {}).items()},
+                   decision_log=list(data.get("decision_log") or []))

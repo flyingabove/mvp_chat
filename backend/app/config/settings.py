@@ -120,6 +120,15 @@ JEV_SHADOW_SAMPLE_RATE: float = float(_os.getenv("JEV_SHADOW_SAMPLE_RATE", "0.0"
 JEV_TIMEOUT_MS: int = int(_os.getenv("JEV_TIMEOUT_MS", "1000"))
 JEV_MAX_QUESTIONS_PER_BATCH: int = int(_os.getenv("JEV_MAX_QUESTIONS_PER_BATCH", "60"))
 
+# Who decides an NPC's answer to a confession / leave-together ask
+# (BL-39, backend/app/engine/world_model/npc_decision.py):
+#   rules   - the local standing+standards policy alone (default)
+#   jev     - Jev judges accept / not yet / reject from the target's own view,
+#             bounded by the rules (needs TYPESAFE_ENABLED; falls back to rules)
+#   compare - rules apply; Jev is asked too and both answers are logged
+# An operator can override per request with the X-NPC-Decision-Mode header.
+NPC_DECISION_MODE: str = _os.getenv("NPC_DECISION_MODE", "rules")
+
 # Dynamic memory selection is a separate opt-in Jev task. It is active only
 # when TYPESAFE_ENABLED is true AND JEV_ENABLED_TASKS includes
 # "context_selection" (or "*"). The exponent sharpens optional-memory draws:

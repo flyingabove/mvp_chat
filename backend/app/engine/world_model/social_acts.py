@@ -61,27 +61,48 @@ def act_specs(story_cfg: dict[str, Any]) -> dict[str, ActSpec]:
     return specs
 
 
-def decide(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str]) -> Optional[Verdict]:
-    """The target's own decision, or None when the act cannot apply here (wrong/absent target)."""
+@dataclass(frozen=True)
+class Assessment:
+    """The rules' view of one act: their verdict, whether it is a hard rule, and how much room is left.
+
+    `hard`: cooldown, closed track, missing relationship, or the player's own
+    act. Nothing may change these. `can_accept`: the standing and tier required
+    for a yes are in place; without it a yes is never allowed, whoever judges.
+    """
+    verdict: Verdict
+    hard: bool
+    can_accept: bool
+
+
+def assess(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str]) -> Optional[Assessment]:
+    """The target's rules-based assessment, or None when the act cannot apply here (wrong/absent target)."""
     if act.kind == "leave_alone":
-        return Verdict(act, "accept")
+        return Assessment(Verdict(act, "accept"), hard=True, can_accept=True)
     if act.kind == "withdraw":
-        return Verdict(act, "accept") if model.romance_relationship_partner else None
+        return Assessment(Verdict(act, "accept"), True, True) if model.romance_relationship_partner else None
     if act.target not in eligible:
         return None
     day = model.world.day_index(model.world.minute)
     if model.act_cooldowns.get(f"{act.kind}:{act.target}", -1) >= day:
-        return Verdict(act, "not_yet", "they need time after last time before hearing this again")
+        return Assessment(Verdict(act, "not_yet", "they need time after last time before hearing this again"),
+                          hard=True, can_accept=False)
     standing = model.standing.get(act.target, PLAYER, spec.track)
     if standing is not None and standing.closed_by:
-        return Verdict(act, "reject", "something has settled it for them; they are kind but clear")
+        return Assessment(Verdict(act, "reject", "something has settled it for them; they are kind but clear"),
+                          hard=True, can_accept=False)
     if spec.requires_relationship and model.romance_relationship_partner != act.target:
-        return Verdict(act, "not_yet", "you are not together yet")
+        return Assessment(Verdict(act, "not_yet", "you are not together yet"), hard=True, can_accept=False)
     reached = model.standing.tier_reached(act.target, PLAYER, spec.track, spec.requires_tier)
     value = standing.value if standing is not None else 0.0
     if reached is True and value >= spec.min_standing:
-        return Verdict(act, "accept")
-    return Verdict(act, "not_yet", "they want to know you better first")
+        return Assessment(Verdict(act, "accept"), hard=False, can_accept=True)
+    return Assessment(Verdict(act, "not_yet", "they want to know you better first"), hard=False, can_accept=False)
+
+
+def decide(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str]) -> Optional[Verdict]:
+    """The rules-only verdict (see `assess`)."""
+    assessment = assess(model, spec, act, eligible)
+    return assessment.verdict if assessment is not None else None
 
 
 def directive(verdict: Verdict, names: dict[str, str]) -> str:
