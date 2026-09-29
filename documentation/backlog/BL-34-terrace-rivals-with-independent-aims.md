@@ -21,3 +21,5 @@ Requires integration with relationship edges, offscreen outcomes, schedules and 
 
 ## Touches
 Terrace story data, `backend/app/engine/world_model/offscreen.py`, `threads.py`, relationship graph, prompt projection and tests.
+
+**Hosted beta check (2026-09-29, beta `f088640`, fresh guest as Paul, ~20 turns, 3 story days):** Arman and Hayato (male rivals) arrived and stayed co-present with Riko. Arman only asked about the coffee plan ("Sounds fun!"). No counter-invitation, competing plan or visible rival state appeared in 3 days. This is a second roster with the same result as the 2026-09-27 replay, so BL-34 is **not verified**; keep it open. The player did not reach a stated interest from a rival, which the engine path requires, so this is a weak negative, not proof the path never fires.

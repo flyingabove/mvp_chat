@@ -19,3 +19,5 @@ Work can ship in stages, but a prose-only goal is not a completed mechanic. The 
 
 ## Touches
 `backend/app/stories/7_six_strangers/six_strangers_story.json`, `backend/app/engine/`, `backend/app/api/prompt_engine.py`, public story/brief routes, tests and UI as needed.
+
+**Hosted beta check (2026-09-29, beta `f088640`, fresh guest as Paul, ~20 turns, Riko as target):** Goal text shows on the story card and in a chat "Goal" banner (expands to the full rule, names same-gender competition). A departure ask on day 1 was refused in character ("take it slow"); the banner stayed "No mutual relationship yet" and nothing ended. Confession showed the engine marker "Riko Nagai hesitates and does not say yes." **Not proven:** the accepted path (mutual relationship, departure, panel ending) and the female-player path; neither was reached in 20 turns. Blockers seen: (a) Riko repeated the same question ("how am I finding this place?") for ~8 turns and never moved on, and (b) "come with me to X" / "we cook dinner" moves only the player, so off-site dates cannot occur.
