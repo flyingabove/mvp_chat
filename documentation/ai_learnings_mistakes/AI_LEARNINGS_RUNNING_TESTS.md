@@ -90,3 +90,15 @@ deploy. Skips are banned, so inject a fake instead (see
 `.claude/skills/promote-to-prod/tests/test_local_release.py` `fake_git`). Reproduce the
 build conditions locally (no git, no pytest.ini) with:
 `PATH="$(echo "$PATH" | tr ':' '\n' | grep -vi git | paste -sd:)" python -m pytest <path> -c /dev/null --rootdir .`
+
+## Accuracy gates against live Jev are integration tests (2026-09-29)
+
+`tests/backend/integration/test_promise_judge_accuracy.py` measures the Jev promise judge against 318 labeled
+exchanges and fails above a 2% miss rate on kept promises or on any wrongly-kept exchange. It is
+`@pytest.mark.integration`, so the deploy gate and CI unit job never run it. Run it by hand (needs `TYPESAFE_API_KEY`
+in `.env.test`; a missing key makes it fail, not skip):
+`python -m pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py -s`
+(about 20 seconds). Its arithmetic and label-file checks (`test_promise_eval_math.py`) are ordinary unit tests and do
+run on deploy, so anything they import (`scripts/eval/`, `tests/data/`) must stay copied into the image.
+A live-Jev number varies by a case or two run to run, so give any gate a margin.
+

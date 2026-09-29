@@ -71,7 +71,7 @@ def test_an_unsettled_promise_is_still_raised_once_then_left_alone(campaign, mon
     assert not [line for line in model.view.must_address if "promised" in line.lower()]
 
 
-def test_the_judge_is_off_by_default_and_never_calls_jev(campaign, monkeypatch):
+def test_the_judge_can_be_switched_off_and_then_never_calls_jev(campaign, monkeypatch):
     jev = _install(monkeypatch, "done")
     from backend.app.config import settings
     monkeypatch.setattr(settings, "PROMISE_JUDGE_ENABLED", False)
@@ -79,3 +79,25 @@ def test_the_judge_is_off_by_default_and_never_calls_jev(campaign, monkeypatch):
     _say(campaign, "off", "Here you go, how do you take your tea?")
     _, promises = _promises(campaign, "off")
     assert jev.asked == [] and promises[promise_id].status == "open"
+
+
+def test_the_judge_is_on_unless_the_environment_switches_it_off():
+    import importlib
+    import os
+    from unittest import mock
+
+    from backend.app.config import settings
+
+    def enabled_with(value):
+        env = {k: v for k, v in os.environ.items() if k != "PROMISE_JUDGE_ENABLED"}
+        if value is not None:
+            env["PROMISE_JUDGE_ENABLED"] = value
+        with mock.patch.dict(os.environ, env, clear=True):
+            return importlib.reload(settings).PROMISE_JUDGE_ENABLED
+
+    try:
+        assert enabled_with(None) is True
+        assert enabled_with("1") is True
+        assert [enabled_with(v) for v in ("0", "false", "off", "no")] == [False] * 4
+    finally:
+        importlib.reload(settings)

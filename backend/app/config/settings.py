@@ -128,10 +128,11 @@ JEV_MAX_QUESTIONS_PER_BATCH: int = int(_os.getenv("JEV_MAX_QUESTIONS_PER_BATCH",
 #   compare - rules apply; Jev is asked too and both answers are logged
 # An operator can override per request with the X-NPC-Decision-Mode header.
 NPC_DECISION_MODE: str = _os.getenv("NPC_DECISION_MODE", "rules")
-# Jev decides whether an open promise was carried out (world_model/promise_judge.py). OFF by default:
-# measured 98.8% recall on kept promises (2 misses in 171), just under the owner's 99% bar, so it is opt-in
-# (needs TYPESAFE_ENABLED). Reminders are once-only and lapses silent either way.
-PROMISE_JUDGE_ENABLED: bool = _os.getenv("PROMISE_JUDGE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+# Jev decides whether an open promise was carried out (world_model/promise_judge.py). ON by default since the
+# owner set the bar at a 2% miss rate (measured 0.6-1.2% on kept promises, 0 wrongly kept; re-check with
+# `pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py`). It only acts when
+# TYPESAFE_ENABLED is on, so it is inert wherever Jev is off. Set PROMISE_JUDGE_ENABLED=0 to switch it off.
+PROMISE_JUDGE_ENABLED: bool = _os.getenv("PROMISE_JUDGE_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
 
 # Dynamic memory selection is a separate opt-in Jev task. It is active only
 # when TYPESAFE_ENABLED is true AND JEV_ENABLED_TASKS includes
