@@ -3,6 +3,7 @@
 - **Type:** feature (engineering plan)
 - **Found:** 2026-09-27, owner request after the Terrace game-mode design ([TERRACE_HOUSE.md](../game_modes/TERRACE_HOUSE.md))
 - **Severity:** high. This is the implementation path for BL-33 and BL-34, and part of BL-35 and BL-38. Terrace has no earnable win or loss until it lands.
+- **Status (2026-09-28):** conflicts with [BL-38](BL-38-social-engine-authority-and-epistemic-transactions.md) on relationship ownership, standing arithmetic, turn boundary, panel call count and NPC decision model. See the [conflict table](../research/ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md#conflicts-requiring-reconciliation). The owner is writing one consolidated plan; do not implement shared Character/relationship state from this doc alone.
 
 ## Problem
 
