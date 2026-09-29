@@ -132,5 +132,29 @@ def test_gossip_passes_a_shareable_memory_with_lower_confidence_and_same_event()
     assert not model.memories.of("c")
 
 
+def test_nobody_retells_a_rumor_before_they_heard_it():
+    """Beta build of a8987f1 (2026-09-29): during a day skip, an afternoon
+    gossip was resolved before a morning one, so the morning teller "shared"
+    a rumor they only hear that afternoon and transmit() raised, failing the
+    whole turn."""
+    model = make_model({"a": "k", "b": "k", "c": "k"})
+    model.memories.add("a", "I saw a fox at the park", "witnessed", 1)
+    heard_at_900 = share_memory(model, "a", "b", 900, model.rng("t"))
+    assert heard_at_900 is not None
+    assert share_memory(model, "b", "c", 600, model.rng("t")) is None
+    assert share_memory(model, "b", "c", 960, model.rng("t")).source == "told_by:b"
+
+
+def test_offscreen_encounters_resolve_in_chronological_order():
+    model = make_model({"a": "k", "b": "k", "c": "k", "d": "p"})
+    rel = FakeRelationships()
+    morning = {"a": ("k", "awake"), "b": ("k", "awake"), "c": ("t", "awake"), "d": ("p", "awake")}
+    afternoon = {"a": ("t", "awake"), "b": ("k", "awake"), "c": ("k", "awake"), "d": ("p", "awake")}
+    # b+c spend longer together (sorted first by duration) but meet later.
+    step = _timeline([(600, morning), (640, morning), (900, afternoon), (1020, afternoon)])
+    outcomes = resolve_offscreen(model, step, rel)
+    assert [o.encounter.minute for o in outcomes] == [640, 1020]
+
+
 def test_third_person_rewrite():
     assert to_third_person("I argued with @b about my money", "a") == "@a argued with @b about @a's money"

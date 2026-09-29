@@ -25,16 +25,18 @@ def to_third_person(text: str, teller: str) -> str:
     return re.sub(r"\bme\b", f"@{teller}", text, flags=re.I)
 
 
-def shareable(model: "WorldModel", teller: str, listener: str) -> list[Memory]:
+def shareable(model: "WorldModel", teller: str, listener: str, minute: Optional[int] = None) -> list[Memory]:
+    """Memories `teller` could pass to `listener`; with `minute`, only ones they already had then."""
     heard_roots = {m.root_source_id or m.id for m in model.memories.of(listener)}
     return [m for m in model.memories.of(teller)
             if not m.private and m.kind in SHAREABLE_KINDS and listener not in m.mentions()
-            and (m.root_source_id or m.id) not in heard_roots]
+            and (m.root_source_id or m.id) not in heard_roots
+            and (minute is None or m.minute <= minute)]
 
 
 def share_memory(model: "WorldModel", teller: str, listener: str, minute: int,
                  rng: random.Random) -> Optional[Memory]:
-    candidates = shareable(model, teller, listener)
+    candidates = shareable(model, teller, listener, minute)
     if not candidates:
         return None
     newest = max(m.minute for m in candidates)

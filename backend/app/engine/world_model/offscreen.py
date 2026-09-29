@@ -154,7 +154,9 @@ def _commit(model: "WorldModel", enc: Encounter, kind: str, relationships: Relat
 def resolve_offscreen(model: "WorldModel", result: StepResult, relationships: Relationships,
                       scorer: Optional[Callable] = None, rivalry: Optional[Mapping] = None) -> list[Outcome]:
     outcomes = []
-    for enc in find_encounters(result):
+    # find_encounters picks the longest encounters; resolve them in the order
+    # they happened so one's consequences can only affect later ones.
+    for enc in sorted(find_encounters(result), key=lambda e: (e.minute, e.a, e.b, e.place)):
         weights = outcome_weights(model, enc, relationships, scorer, rivalry)
         total = sum(weights.values())
         if total <= 0:
