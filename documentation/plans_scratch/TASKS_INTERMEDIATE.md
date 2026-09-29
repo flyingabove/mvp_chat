@@ -63,6 +63,8 @@ Corrective beta `4ed8361`: full suite 1,256 passed/one expected failure; local a
 
 ## Consumed History
 
+- 2026-09-28: Reviewed round-two BL-38/BL-39 questions. Fetched remote beta and read sibling BL-39 without editing that checkout; identified social-state ownership, epistemic, commit and call-budget conflicts. Added an evidence-backed seven-answer review with the September 22 raw latency figures and Jev calibration limitations. Condensed BL-38 section 15 and preserved full prior Q&A in research; added an unresolved-architecture notice and visible-fallback gate. Owner questions pending: consolidation authority, deterministic versus hybrid NPC decisions and fallback ceiling. No engine changes/model runs; documentation committed locally without push.
+
 - 2026-09-27: Incorporated follow-up inference/UX decisions into BL-38 and Q9–Q12: at most two LLM calls (extraction with Jev, then response), extensive bounded Jev use, current speed accepted, gameplay priority and streaming/optimization deferred. Inspected existing frontend three-dot indicator and server `StageTimer`; added client/server latency measurement and indicator lifecycle acceptance O29. Reconciled the earlier one-call proposal and immediate two-second gate. Documentation only; preserve pre-existing runtime work and commit locally without pushing.
 
 - 2026-09-27: Updated BL-38 Q3/Q8 and added follow-up Q9 after the user asked what response time means and turned arena judging off for playtest review. Removed the judging-pilot decision from the plan; recorded the user-described Terrace-only/default-off-elsewhere gameplay capability separately from developer evaluation. Latency target remains unset. Documentation only; no runtime flags or model calls changed, and commit stays local on beta.

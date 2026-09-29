@@ -96,6 +96,8 @@ One doc per game mode: its design (proposal and built status), the generic engin
 
 ## Not Yet Built — `proposals/`
 
+The [2026-09-28 engine-plan review](research/ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md) compares BL-38 with the sibling checkout's BL-39, records historical latency/Jev evidence, and identifies unresolved authority and NPC-decision choices. Read it before implementing shared character/relationship ownership. Detailed first-round Q&A is preserved in [the review record](research/ENGINE_PLAN_FIRST_REVIEW_QA_2026_09_28.md); BL-38 section 15 now contains only current decisions and navigation.
+
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [GAME_DESIGN_SYSTEMS.md](proposals/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). **World state and time are built; quests, difficulty/rerolls, decay, and the post-milestone loop ("winning doesn't end the game" — currently it does, `prompt_engine.py` sets `over=True`) are not.** |
