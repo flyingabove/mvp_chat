@@ -2195,6 +2195,10 @@
     "warm", "attentive", "funny", "complimentary", "flirtatious", "helpful", "generous", "honest",
     "supportive_of_goals", "boastful", "rude", "dismissive", "pushy", "evasive"
   ],
+  "player_fact_keys": [
+    "height", "occupation", "age", "hometown", "family_profession", "smokes", "drivers_license",
+    "relationship_history"
+  ],
   "default_personality": {
     "temperament": {"patience": 0.5, "jealousy": 0.5, "forgiveness": 0.5, "skepticism": 0.5, "openness": 0.5, "pride": 0.5},
     "tastes": {

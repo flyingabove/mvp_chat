@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from backend.app.engine.world_model.deception import DeceptionProfile
+
 DIALS = ("patience", "jealousy", "forgiveness", "skepticism", "openness", "pride")
 NEUTRAL = 0.5
 MAX_TASTE = 3.0
@@ -28,6 +30,7 @@ class Temperament:
 class Personality:
     temperament: Temperament = field(default_factory=Temperament)
     tastes: dict[str, float] = field(default_factory=dict)
+    deception: DeceptionProfile = field(default_factory=DeceptionProfile)
 
     def taste(self, tag: str) -> float:
         return self.tastes.get(tag, 0.0)
@@ -66,7 +69,20 @@ def personality_for(story_cfg: dict[str, Any], character: Optional[dict[str, Any
     character = character or {}
     own = character.get("personality") or (cfg.get("personalities") or {}).get(str(character.get("key"))) or {}
     return Personality(_temperament(own.get("temperament"), default.temperament),
-                       _tastes(own.get("tastes"), default.tastes, vocabulary))
+                       _tastes(own.get("tastes"), default.tastes, vocabulary),
+                       _deception(own.get("deception") or default_raw.get("deception") or {}))
+
+
+def _deception(raw: dict[str, Any]) -> DeceptionProfile:
+    values = {}
+    for dial, value in raw.items():
+        if dial not in ("skill", "composure"):
+            raise ValueError(f"unknown deception dial {dial!r}")
+        value = float(value)
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"deception {dial} must be within 0..1")
+        values[dial] = value
+    return DeceptionProfile(**values)
 
 
 def personalities(story_cfg: dict[str, Any]) -> dict[str, Personality]:

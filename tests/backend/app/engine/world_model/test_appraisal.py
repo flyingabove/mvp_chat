@@ -157,7 +157,7 @@ def test_terrace_content_is_complete_and_valid():
     assert len({tuple(sorted(p.tastes.items())) for p in people.values()}) > 10, "characters are distinct"
 
 
-def test_the_mystery_uses_neutral_defaults_and_no_tracks():
+def test_the_mystery_uses_neutral_tastes_and_no_tracks():
     cfg = build_story_registry()["iu_murder_mystery"]["raw"]
     assert social_rules(cfg) is None
-    assert all(p == Personality() for p in personalities(cfg).values())
+    assert all(p.temperament == Temperament() and p.tastes == {} for p in personalities(cfg).values())

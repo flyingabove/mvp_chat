@@ -366,7 +366,7 @@ def _seed_player_visibility(state: GameState) -> None:
 
 # Story rules read only by engine code (BL-39); kept in the runtime story
 # config and excluded from any prompt/transient seeding.
-ENGINE_ONLY_STORY_KEYS = ("endings", "social_tracks", "personalities", "default_personality")
+ENGINE_ONLY_STORY_KEYS = ("endings", "social_tracks", "personalities", "default_personality", "player_fact_keys")
 
 
 _BASIC_CHARACTER_KEYS = {
@@ -3098,6 +3098,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     behavior_window=_behavior_window,
                     allowed_behavior_tags=(state.story_cfg or {}).get("behavior_tag_vocabulary") or [],
                     open_questions=world_turn.open_questions(state),
+                    player_fact_keys=(state.story_cfg or {}).get("player_fact_keys") or [],
                 )
 
             _log({
@@ -3197,6 +3198,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             if (extraction.questions or extraction.question_updates) and world_turn.enabled(state):
                 world_turn.ensure_model(state, lore=_lore_chunks_for(state))
                 world_turn.record_questions(state, extraction.questions, extraction.question_updates, message=msg)
+            # BL-39 phase E: facts the player states about themselves, heard by those present.
+            if extraction.self_claims and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_claims(state, extraction.self_claims, message=msg)
 
             _lifecycle = getattr(state, "cast_lifecycle", None)
             _signal = extraction.departure_signal

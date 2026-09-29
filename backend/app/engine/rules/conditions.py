@@ -165,6 +165,33 @@ class Knows(Condition):
 
 
 @dataclass(frozen=True)
+class BelievedAttribute(Condition):
+    """What the holder believes about the subject from claims they heard; never the truth."""
+    key: str
+    op: str
+    value: Any
+    kind = "believed_attribute"
+
+    def evaluate(self, vp: Viewpoint) -> Tri:
+        if vp.is_truth or not vp.subject:
+            return None
+        belief = vp.model.persona.belief(vp.holder, vp.subject, self.key)
+        if belief.status != "accepted":
+            return None
+        if self.op == "in":
+            return belief.value.lower() in {str(v).lower() for v in self.value}
+        try:
+            return OPS[self.op](float(belief.value), float(self.value))
+        except (TypeError, ValueError):
+            if self.op in ("==", "!="):
+                return OPS[self.op](belief.value.lower(), str(self.value).lower())
+            return None
+
+    def explain(self) -> str:
+        return f"believes {self.key} {self.op} {self.value}"
+
+
+@dataclass(frozen=True)
 class DaysKnown(Condition):
     min: int
     kind = "days_known"
@@ -263,6 +290,16 @@ def parse(raw: Any) -> Condition:
         return Knows(_required(raw, "proposition"))
     if kind == "days_known":
         return DaysKnown(int(_num(raw, "min")))
+    if kind == "believed_attribute":
+        op = str(raw.get("op") or "==")
+        if op != "in" and op not in OPS:
+            raise ValueError(f"unknown comparison {op!r}")
+        value = raw.get("value")
+        if op == "in" and not isinstance(value, list):
+            raise ValueError("'in' needs a list value")
+        if value is None:
+            raise ValueError("believed_attribute needs 'value'")
+        return BelievedAttribute(_required(raw, "key"), op, value)
     if kind == "counter_at_least":
         return CounterAtLeast(_required(raw, "counter"), int(_num(raw, "value")))
     if kind == "not":

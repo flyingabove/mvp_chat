@@ -25,6 +25,9 @@ from backend.app.engine.world_model.person import Cast
 from backend.app.engine.world_model.appraisal import appraise_behaviors
 from backend.app.engine.rules.personality import personalities
 from backend.app.engine.rules.tracks import social_rules
+from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
+from backend.app.engine.world_model.persona import SelfClaim
+from backend.app.engine.world_model.standards import enforce_dealbreakers, failing_requirements, viewpoint
 from backend.app.engine.world_model.intentions import propose_rival_invitations
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
@@ -278,6 +281,9 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
             view.must_address.append(f"The player promised {names[promise.counterpart]}: {render(promise.text, names)}. "
                                      f"{names[promise.counterpart]} may remind them.")
     owes_answer = _question_directives(model, view, present_set, names)
+    addressed_now, _ = addressed_ids(model, message, present)
+    _tell_directives(model, state, view, message, present_set, owes_answer | addressed_now, names)
+    _requirement_hints(model, state, view, present_set, names)
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
     view.plan = select_speakers(model, candidates, message, warmth_fn(state), owes_answer=owes_answer)
     _, mentioned = addressed_ids(model, message, list(model.characters))
@@ -358,6 +364,92 @@ def record_behaviors(state: Any, behaviors: Iterable[Any]) -> list:
     return appraise_behaviors(model, rules, personalities(cfg), behaviors, witnesses,
                               getattr(state, "character_graph", None), turn_key=str(model.turn + 1),
                               genders=genders)
+
+
+def _claim_grounded(key: str, value: str, message: str) -> bool:
+    """The claim is in this message: its value words, or (for yes/no facts) the fact's own word."""
+    words = set(_WORDS.findall(message.lower()))
+    if any(w in words for w in _WORDS.findall(value.lower())):
+        return True
+    stems = [part.rstrip("s") for part in key.lower().split("_") if len(part) >= 4]
+    return any(word.startswith(stem) for stem in stems for word in words)
+
+
+def record_claims(state: Any, claims: Iterable[Any], *, message: str) -> list[tuple[str, str]]:
+    """Self-claims in the player's message, heard by whoever is present. Returns new disputes."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or not claims:
+        return []
+    cfg = getattr(state, "story_cfg", {}) or {}
+    keys = {str(k).lower() for k in cfg.get("player_fact_keys") or []}
+    audience = tuple(model.present_with_player()) if model.player_place() else ()
+    people = personalities(cfg)
+    graph = getattr(state, "character_graph", None)
+    now, disputes = model.world.minute, []
+    for index, item in enumerate(claims):
+        key, value = str(getattr(item, "key", "")).lower(), str(getattr(item, "value", ""))
+        if key not in keys or not value or not _claim_grounded(key, value, message or ""):
+            continue
+        before = {cid: model.persona.belief(cid, PLAYER, key).status for cid in audience}
+        event = model.world.add_event(now, model.player_place(), (PLAYER, *audience),
+                                      f"@{PLAYER} said their {key} is {value}", kind="self_claim",
+                                      operation_id=f"claim:{model.turn + 1}:{index}",
+                                      payload={"key": key, "value": value})
+        recorded = model.persona.claim(SelfClaim(PLAYER, key, value, audience, now, model.turn + 1, event.id,
+                                                 bool(getattr(item, "correction", False))))
+        if recorded is None:
+            continue
+        for cid in audience:
+            model.memories.add(cid, f"@{PLAYER} said their {key} is {value}", f"told_by:{PLAYER}", now,
+                               kind="claim", event_id=event.id)
+            if before[cid] != "disputed" and model.persona.belief(cid, PLAYER, key).status == "disputed":
+                disputes.append((cid, key))
+                skepticism = people.get(cid).temperament.skepticism if cid in people else 0.5
+                if graph is not None:
+                    graph.update_edge(cid, PLAYER, suspicion_delta=round(0.1 * skepticism, 4))
+                model.world.add_event(now, model.player_place(), (cid, PLAYER),
+                                      f"@{cid} noticed @{PLAYER} said conflicting things about their {key}",
+                                      kind="claim_dispute", operation_id=f"dispute:{event.id}:{cid}")
+        rules = social_rules(cfg)
+        if rules is not None:
+            for cid in audience:
+                enforce_dealbreakers(model, rules, cid, PLAYER, event.id, graph)
+    return disputes
+
+
+def _tell_directives(model: WorldModel, state: Any, view: TurnView, message: str, present: set[str],
+                     questioned: set[str], names: dict[str, str]) -> None:
+    """At most one seeded, perceivable tell per character this turn; behavior only, never a verdict."""
+    from backend.app.engine.active_characters import get_on_call_character_keys
+    on_call = {k for k in get_on_call_character_keys(state) if k in model.characters}
+    people = personalities(getattr(state, "story_cfg", {}) or {})
+    profiles = getattr(state, "characters", {}) or {}
+    for cid in sorted(present | on_call):
+        cues = list(getattr(profiles.get(cid), "tells", None) or [])
+        if not cues:
+            continue
+        profile = people[cid].deception if cid in people else DeceptionProfile()
+        cue = choose_cue(profile, cues, message, cid in questioned, f"{model.seed}:tell:{model.turn}:{cid}",
+                         voice_only=cid in on_call and cid not in present)
+        if cue:
+            view.must_address.append(f"{names.get(cid, cid)} shows a small tell: {cue}. Show it only as "
+                                     "behavior the player can notice; it proves nothing on its own.")
+
+
+def _requirement_hints(model: WorldModel, state: Any, view: TurnView, present: set[str],
+                       names: dict[str, str]) -> None:
+    rules = social_rules(getattr(state, "story_cfg", {}) or {})
+    if rules is None:
+        return
+    graph = getattr(state, "character_graph", None)
+    for cid in sorted(present):
+        vp = viewpoint(model, cid, PLAYER, graph)
+        for track in rules.tracks:
+            for requirement in failing_requirements(rules, cid, track, vp):
+                if requirement.disclosure in ("hint", "open") and requirement.tell:
+                    reason = " They may say why if asked." if requirement.disclosure == "open" else \
+                        " Do not state the reason."
+                    view.must_address.append(f"{names.get(cid, cid)}: {requirement.tell}.{reason}")
 
 
 def open_questions(state: Any) -> list[dict[str, str]]:
