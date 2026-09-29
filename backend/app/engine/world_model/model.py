@@ -8,6 +8,7 @@ from typing import Any, Iterable, Optional
 
 from backend.app.engine.world_model.character import CharacterState
 from backend.app.engine.world_model.agreements import AgreementBook
+from backend.app.engine.world_model.conversation import ConversationState
 from backend.app.engine.world_model.epistemics import EpistemicLedger
 from backend.app.engine.world_model.drama import DramaBook
 from backend.app.engine.world_model.memory import MemoryStore
@@ -119,6 +120,7 @@ class WorldModel:
     romance_relationship_player_choice: str = ""
     romance_relationship_npc_choice: str = ""
     romance_relationship_partner: str = ""
+    conversation: ConversationState = field(default_factory=ConversationState)
     view: TurnView = field(default_factory=TurnView)       # transient
 
     # -- queries -----------------------------------------------------------------
@@ -171,7 +173,8 @@ class WorldModel:
                 "romance_outcome": self.romance_outcome,
                 "romance_relationship_player_choice": self.romance_relationship_player_choice,
                 "romance_relationship_npc_choice": self.romance_relationship_npc_choice,
-                "romance_relationship_partner": self.romance_relationship_partner}
+                "romance_relationship_partner": self.romance_relationship_partner,
+                "conversation": self.conversation.to_dict()}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -200,4 +203,5 @@ class WorldModel:
                    romance_outcome=str(data.get("romance_outcome") or ""),
                    romance_relationship_player_choice=str(data.get("romance_relationship_player_choice") or ""),
                    romance_relationship_npc_choice=str(data.get("romance_relationship_npc_choice") or ""),
-                   romance_relationship_partner=str(data.get("romance_relationship_partner") or ""))
+                   romance_relationship_partner=str(data.get("romance_relationship_partner") or ""),
+                   conversation=ConversationState.from_dict(data.get("conversation") or {}))

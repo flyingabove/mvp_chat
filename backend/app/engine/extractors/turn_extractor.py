@@ -168,6 +168,24 @@ MAX_COMMITMENTS = 3
 
 
 @dataclass(frozen=True)
+class QuestionAsked:
+    """A direct question in the CURRENT player message, to one character."""
+    addressee: str
+    question: str
+
+
+@dataclass(frozen=True)
+class QuestionStatusUpdate:
+    """How the PREVIOUS reply handled an open question the engine listed."""
+    question_id: str
+    status: str   # answered | refused | unknown | deferred | unanswered
+
+
+MAX_QUESTIONS = 4
+QUESTION_STATUSES = frozenset({"answered", "refused", "unknown", "deferred", "unanswered"})
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -182,6 +200,8 @@ class TurnExtraction:
     behavior_tags: List[BehaviorTagUpdate] = field(default_factory=list)
     social_shift_signal: Optional[SocialShiftSignal] = None
     commitments: List[CommitmentUpdate] = field(default_factory=list)
+    questions: List[QuestionAsked] = field(default_factory=list)
+    question_updates: List[QuestionStatusUpdate] = field(default_factory=list)
 
 
 class TurnExtractor:
@@ -465,7 +485,36 @@ class TurnExtractor:
             behavior_tags=behavior_tags,
             social_shift_signal=social_shift_signal,
             commitments=TurnExtractor._parse_commitments(obj.get("commitments"), allowed_character_keys),
+            questions=TurnExtractor._parse_questions(obj.get("questions"), allowed_character_keys),
+            question_updates=TurnExtractor._parse_question_updates(obj.get("question_status")),
         )
+
+    @staticmethod
+    def _parse_questions(raw: Any, allowed_character_keys: set[str]) -> List[QuestionAsked]:
+        people = {str(k).strip().lower() for k in (allowed_character_keys or ())}
+        out: List[QuestionAsked] = []
+        for item in raw if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            addressee = str(item.get("addressee") or "").strip().lower()
+            question = " ".join(str(item.get("question") or "").split())[:200]
+            if addressee in people and question:
+                out.append(QuestionAsked(addressee=addressee, question=question))
+            if len(out) >= MAX_QUESTIONS:
+                break
+        return out
+
+    @staticmethod
+    def _parse_question_updates(raw: Any) -> List[QuestionStatusUpdate]:
+        out: List[QuestionStatusUpdate] = []
+        for item in raw if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            question_id = str(item.get("id") or "").strip()
+            status = str(item.get("status") or "").strip().lower()
+            if question_id and status in QUESTION_STATUSES:
+                out.append(QuestionStatusUpdate(question_id=question_id, status=status))
+        return out
 
     @staticmethod
     def _parse_commitments(raw: Any, allowed_character_keys: set[str]) -> List[CommitmentUpdate]:
@@ -1031,6 +1080,19 @@ class TurnExtractor:
             "    (\"tonight\", \"tomorrow morning\", \"at 7pm\", \"later\"). NOT commitments: plain schedules or\n"
             "    plans with no one to keep them for (\"I'm going to be late tomorrow\"), wishes, hypotheticals,\n"
             "    refusals. At most 3; omit when unsure.\n"
+            "12) questions: direct questions in the CURRENT USER MESSAGE that the player puts to ONE specific\n"
+            "    character and expects that character to answer (\"Mako, where were you at 8?\", \"Who told you\n"
+            "    that?\" said to the character they are talking with). addressee = that character's key; question =\n"
+            "    the question in the player's words. NOT questions: rhetorical questions, questions to everyone or\n"
+            "    to nobody in particular, invitations/requests to do something (\"want to get coffee?\"), or\n"
+            "    questions about a character asked to someone else. One entry PER question: \"Where do you work?\n"
+            "    And which room is yours?\" is two entries. Never repeat a question from an earlier turn.\n"
+            "    At most 4; omit when unsure who is asked.\n"
+            "13) question_status: ONLY for ids listed under OPEN QUESTIONS. Judge the PREVIOUS TURN ASSISTANT\n"
+            "    REPLY: \"answered\" if the addressee gave an answer (true or false); \"refused\" if they declined;\n"
+            "    \"unknown\" if they said they do not know; \"deferred\" if they explicitly said they will answer\n"
+            "    later; otherwise \"unanswered\". Someone else speaking, small talk, or description of the\n"
+            "    addressee's face or mood is \"unanswered\".\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
@@ -1041,9 +1103,16 @@ class TurnExtractor:
             '  "departure_signal": {"character_id": "character_key|null", "certainty": "NONE|WISH|DECISION", "reason": "string"},\n'
             '  "behavior_tags": [{"from_id": "character_key", "to_id": "character_key", "tag": "string"}],\n'
             '  "social_shift_signal": {"certainty": "NONE|WISH|SHIFT", "scope": "goal|disposition", "subject_id": "character_key", "target_id": "character_key|null", "new_value": "string", "reason": "string"},\n'
-            '  "commitments": [{"owner": "player|character_key", "counterpart": "player|character_key", "what": "string", "when": "string"}]\n'
+            '  "commitments": [{"owner": "player|character_key", "counterpart": "player|character_key", "what": "string", "when": "string"}],\n'
+            '  "questions": [{"addressee": "character_key", "question": "string"}],\n'
+            '  "question_status": [{"id": "open question id", "status": "answered|refused|unknown|deferred|unanswered"}]\n'
             "}\n"
         )
+
+        open_question_lines = [
+            f"- {q.get('id')}: asked {str(q.get('addressee') or '').strip().lower()}: {str(q.get('text') or '').strip()}"
+            for q in (request.open_questions or ()) if q.get("id")
+        ][:MAX_QUESTIONS * 2]
 
         behavior_window_block = ""
         if behavior_window:
@@ -1068,6 +1137,8 @@ class TurnExtractor:
             + "\n".join(character_lines)
             + "\n\nPREVIOUS TURN CANDIDATE KNOWLEDGE CHUNKS:\n"
             + ("\n".join(candidate_lines) if candidate_lines else "- none")
+            + "\n\nOPEN QUESTIONS (id: addressee: question):\n"
+            + ("\n".join(open_question_lines) if open_question_lines else "- none")
             + behavior_window_block
         )
 
@@ -1086,7 +1157,7 @@ class TurnExtractor:
         try:
             result = await self._legacy_client.generate(
                 model=self.model, system=system, messages=messages,
-                max_tokens=700, temperature=0,
+                max_tokens=900, temperature=0,
             )
         except Exception:
             return None
@@ -1111,6 +1182,7 @@ class TurnExtractor:
         conversation_log: List[Dict[str, str]] | None = None,
         behavior_window: Dict[str, Any] | None = None,
         allowed_behavior_tags: List[str] | None = None,
+        open_questions: List[Dict[str, str]] | None = None,
     ) -> TurnExtraction:
         """Internally: batch builder -> resolver -> assembler (see class
         docstring and JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12 step 3).
@@ -1141,6 +1213,7 @@ class TurnExtractor:
             conversation_log=tuple(conversation_log or []),
             behavior_window=behavior_window,
             allowed_behavior_tags=tuple(allowed_behavior_tags or ()),
+            open_questions=tuple(open_questions or ()),
             invoke=_invoke,
         )
 

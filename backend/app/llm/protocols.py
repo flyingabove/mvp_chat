@@ -44,6 +44,9 @@ class LegacyExtractionRequest:
     # for stories that haven't authored one yet (accept-anything, matching
     # current behavior byte-for-byte).
     allowed_behavior_tags: Sequence[str] = ()
+    # Player questions still owed an answer ({"id", "addressee", "text"}),
+    # so the call can judge whether the previous reply resolved them.
+    open_questions: Sequence[Mapping[str, str]] = ()
     # The actual legacy call, injected so DecisionResolver never imports
     # TurnExtractor (would create an engine <-> llm import cycle). Returns
     # the legacy call's raw parsed JSON dict (pre-TurnExtraction-assembly),

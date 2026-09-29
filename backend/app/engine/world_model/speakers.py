@@ -48,12 +48,16 @@ def addressed_ids(model: "WorldModel", message: str, candidates: Iterable[str]) 
 
 
 def select_speakers(model: "WorldModel", candidates: list[str], message: str,
-                    warmth: Callable[[str], float] = lambda cid: 0.0) -> SpeakerPlan:
+                    warmth: Callable[[str], float] = lambda cid: 0.0,
+                    owes_answer: Iterable[str] = ()) -> SpeakerPlan:
+    """`owes_answer`: characters with an open question from the player; they
+    rank like someone addressed this turn."""
     candidates = [c for c in candidates if c in model.characters and model.characters[c].can_hear]
     if not candidates:
         return SpeakerPlan(reason="nobody present can talk")
     turn = model.turn
     addressed, mentioned = addressed_ids(model, message, candidates)
+    addressed |= set(owes_answer) & set(candidates)
     words = {w.lower() for w in re.findall(r"[\w']+", message or "")}
     silence = {c: model.characters[c].turns_since_spoke(turn) for c in candidates}
     longest = max(silence.values())

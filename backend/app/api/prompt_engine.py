@@ -3079,8 +3079,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     conversation_log=log,
                     behavior_window=_behavior_window,
                     allowed_behavior_tags=(state.story_cfg or {}).get("behavior_tag_vocabulary") or [],
+                    open_questions=world_turn.open_questions(state),
                 )
-            
+
             _log({
                 "kind": "turn_extraction_complete",
                 "user_msg": msg,
@@ -3173,6 +3174,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             if extraction.commitments and world_turn.enabled(state):
                 world_turn.ensure_model(state, lore=_lore_chunks_for(state))
                 world_turn.record_commitments(state, extraction.commitments)
+            # BL-39 O08: close questions the previous reply resolved, then
+            # queue the player's new ones before begin_turn builds the scene.
+            if (extraction.questions or extraction.question_updates) and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_questions(state, extraction.questions, extraction.question_updates, message=msg)
 
             _lifecycle = getattr(state, "cast_lifecycle", None)
             _signal = extraction.departure_signal

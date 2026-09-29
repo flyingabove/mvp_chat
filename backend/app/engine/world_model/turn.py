@@ -146,6 +146,7 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         return None
     place_names = place_names or {}
     model.turn += 1
+    model.conversation.lapse_stale(model.turn)
     model.player_name = str(getattr(state, "player_name", "") or model.player_name)
     sync_membership(model, state)
     previous_place = model.player_place()
@@ -253,8 +254,9 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         elif promise.owner == PLAYER and promise.counterpart in present_set:
             view.must_address.append(f"The player promised {names[promise.counterpart]}: {render(promise.text, names)}. "
                                      f"{names[promise.counterpart]} may remind them.")
+    owes_answer = _question_directives(model, view, present_set, names)
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
-    view.plan = select_speakers(model, candidates, message, warmth_fn(state))
+    view.plan = select_speakers(model, candidates, message, warmth_fn(state), owes_answer=owes_answer)
     _, mentioned = addressed_ids(model, message, list(model.characters))
     for cid in view.plan.speakers:
         found = [m for m in model.memories.search(cid, message, mentions=mentioned, k=MAX_PERSPECTIVE + 1)
@@ -270,6 +272,74 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     view.allowed_speakers = sorted(set(present) | set(unplaced) | set(view.plan.speakers) | on_call)
     view.ending_hint = ending_hint(model.endings)
     return view
+
+
+MAX_QUESTION_DIRECTIVES = 3
+
+
+def _question_directives(model: WorldModel, view: TurnView, present: set[str], names: dict[str, str]) -> set[str]:
+    """Add open player questions to the scene contract; return who owes an answer here."""
+    owes: set[str] = set()
+    shown = 0
+    for question in model.conversation.open_questions():
+        name = names.get(question.addressee, question.addressee)
+        if question.addressee in present:
+            if shown >= MAX_QUESTION_DIRECTIVES:
+                continue
+            shown += 1
+            owes.add(question.addressee)
+            earlier = "" if question.asked_turn == model.turn else " earlier and it is still unanswered"
+            view.must_address.append(
+                f'The player asked {name}{earlier}: "{question.text}". {name} must respond to it directly: '
+                "answer it, refuse, say they do not know, or say when they will answer. "
+                f"Nobody else answers for {name}; do not replace the answer with atmosphere.")
+        elif question.asked_turn == model.turn:
+            view.must_address.append(
+                f'The player asked {name}, who is not here: "{question.text}". Nobody else answers for {name}; '
+                f"someone present may say {name} is not here.")
+    return owes
+
+
+def open_questions(state: Any) -> list[dict[str, str]]:
+    """Open player questions, in the shape the turn extractor lists them."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state):
+        return []
+    return [{"id": q.id, "addressee": q.addressee, "text": q.text} for q in model.conversation.open_questions()]
+
+
+_WORDS = re.compile(r"[^\W_]+", re.UNICODE)
+QUESTION_GROUNDING = 0.6
+
+
+def _grounded_in(question: str, message: str) -> bool:
+    """True when the question is actually in this message, not copied from history."""
+    q_norm, m_norm = " ".join(question.lower().split()), " ".join(message.lower().split())
+    if q_norm and q_norm.rstrip("?？") in m_norm:
+        return True
+    q_words = set(_WORDS.findall(q_norm))
+    return bool(q_words) and len(q_words & set(_WORDS.findall(m_norm))) / len(q_words) >= QUESTION_GROUNDING
+
+
+def record_questions(state: Any, asked: Iterable[Any], statuses: Iterable[Any], *, message: str) -> None:
+    """Apply the extractor's judgement of the previous reply, then the player's new questions.
+
+    `statuses` items carry `question_id`/`status` about the reply the player just saw;
+    `asked` items carry `addressee`/`question` and are kept only if grounded in `message`,
+    the player's current message.
+    """
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state):
+        return
+    convo = model.conversation
+    for update in statuses or []:
+        convo.resolve(str(getattr(update, "question_id", "")), str(getattr(update, "status", "")), model.turn)
+    upcoming = model.turn + 1  # begin_turn increments model.turn next
+    for item in asked or []:
+        addressee = str(getattr(item, "addressee", ""))
+        question = str(getattr(item, "question", ""))
+        if addressee in model.characters and _grounded_in(question, message or ""):
+            convo.ask(addressee, question, upcoming)
 
 
 def end_turn(state: Any, message: str, segments: list[dict]) -> None:

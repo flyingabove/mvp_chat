@@ -5717,6 +5717,71 @@ def test_a_question_about_bedtime_does_not_put_the_player_to_sleep(client):
     assert pe_mod.SESSIONS[sid]["state"].minute - before < 60
 
 
+def test_addressed_question_reaches_the_storyteller_and_stays_owed(client, monkeypatch):
+    """BL-39 O08 end to end: the extraction call reports a question to a
+    present character; the storyteller prompt carries the obligation, and it
+    stays open until a later extraction judges the reply resolved it."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import (
+        QuestionAsked, QuestionStatusUpdate, TurnExtraction,
+    )
+
+    sid = "wm_question_owed"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    model = pe_mod.SESSIONS[sid]["state"].world_model
+    addressee = model.present_with_player()[0]
+    name = model.characters[addressee].name
+
+    systems, extractions, seen_open = [], [], []
+
+    async def fake_extract(*args, **kwargs):
+        seen_open.append(kwargs.get("open_questions"))
+        return extractions.pop(0)
+
+    class CapturingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            messages = (kwargs.get("json") or {}).get("messages") or []
+            systems.append("\n".join(str(m.get("content")) for m in messages if m.get("role") == "system"))
+
+            class Resp:
+                status_code = 200
+                text = "ok"
+
+                def json(self):
+                    return {"choices": [{"message": {"content": "*ok*\n\n**\"hi\"**\n[[STATE]]{\"emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"}}],
+                            "usage": {"total_tokens": 1}}
+            return Resp()
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", CapturingClient)
+
+    extractions.append(TurnExtraction(questions=[QuestionAsked(addressee, "Where were you at 8?")]))
+    client.post("/api/chat", json={"session_id": sid, "message": f"{name}, where were you at 8?"})
+    assert any(f'The player asked {name}: "Where were you at 8?"' in s for s in systems)
+
+    question_id = pe_mod.SESSIONS[sid]["state"].world_model.conversation.open_questions()[0].id
+    extractions.append(TurnExtraction(question_updates=[QuestionStatusUpdate(question_id, "unanswered")]))
+    systems.clear()
+    client.post("/api/chat", json={"session_id": sid, "message": "Well?"})
+    assert seen_open[-1] == [{"id": question_id, "addressee": addressee, "text": "Where were you at 8?"}]
+    assert any("still unanswered" in s for s in systems)
+
+    extractions.append(TurnExtraction(question_updates=[QuestionStatusUpdate(question_id, "answered")]))
+    systems.clear()
+    client.post("/api/chat", json={"session_id": sid, "message": "Thanks."})
+    assert pe_mod.SESSIONS[sid]["state"].world_model.conversation.open_questions() == []
+    assert not any("The player asked" in s for s in systems)
+
+
 def test_world_model_survives_a_save_round_trip(client, monkeypatch):
     import json as _json
     from backend.app.api import prompt_engine as pe_mod
