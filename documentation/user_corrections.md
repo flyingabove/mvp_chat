@@ -111,3 +111,9 @@ guidance for Codex; beta remains the deployment target.
 
 **Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/reference/INFRASTRUCTURE.md`.
 
+
+## 2026-09-29 — State trackers must never miss what happened
+
+**Correction:** A word-overlap check failed to notice the player had made Riko's promised tea ("Here you go, Riko"), so she kept nagging about it. Owner: an NPC forgetting is fine; the game not registering something that happened is not. A mechanic that can't reach ~99% on that error direction should be removed in favour of plain conversation context. Semantic judgments (completion, name/nickname dedup) belong to Jev, not regex.
+
+**Rule:** For any "did X happen / is X still open" tracker, uncertainty resolves toward "done / stop reminding". Before shipping, measure the "happened but not registered" rate on a labeled eval; below 99%, delete the mechanic.
