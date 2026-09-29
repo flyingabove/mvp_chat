@@ -170,9 +170,14 @@ class DaysKnown(Condition):
     kind = "days_known"
 
     def evaluate(self, vp: Viewpoint) -> Tri:
-        start = vp.model.first_met_day.get(vp.holder) if vp.subject == "player" else None
-        if start is None:
-            return None if vp.subject != "player" else False
+        if not vp.subject or vp.holder is None:
+            return None
+        if vp.subject == "player":
+            start = vp.model.first_met_day.get(vp.holder)
+            if start is None:
+                return False
+        else:
+            start = 0   # residents have shared the house since the start
         return vp.model.world.day_index(vp.model.world.minute) - start >= self.min
 
     def explain(self) -> str:

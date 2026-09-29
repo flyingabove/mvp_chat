@@ -54,9 +54,27 @@ class Requirement:
 
 
 @dataclass(frozen=True)
+class AppraisalPolicy:
+    """How observed behavior turns into impressions (tuning, story-declared)."""
+    track: str
+    gain_scale: float = 3.0          # standing points per unit of taste when done TO the holder
+    witness_scale: float = 0.3       # fraction applied when the holder only watched it done to someone else
+    feeling_scale: float = 0.02      # affection change per unit of taste
+    romantic_tags: frozenset[str] = frozenset()
+    jealousy_tier: str = ""          # holder's tier toward the actor from which romantic acts elsewhere sting
+    eligible: str = "any"            # any | opposite_gender: which holder->actor pairs this track covers
+
+    def covers(self, holder_gender: str, actor_gender: str) -> bool:
+        if self.eligible == "any":
+            return True
+        return bool(holder_gender) and bool(actor_gender) and holder_gender != actor_gender
+
+
+@dataclass(frozen=True)
 class SocialRules:
     tracks: dict[str, TrackSpec]
     requirements: dict[str, tuple[Requirement, ...]]   # character id or "default" -> requirements
+    appraisal: Optional[AppraisalPolicy] = None
 
     def requirements_for(self, owner: str, track: str) -> tuple[Requirement, ...]:
         own = self.requirements.get(owner)
@@ -120,7 +138,25 @@ def social_rules(story_cfg: dict[str, Any]) -> Optional[SocialRules]:
         ids = [r.id for r in items]
         if len(ids) != len(set(ids)):
             raise ValueError("requirement ids must be unique per character")
-    return SocialRules(tracks, requirements)
+    return SocialRules(tracks, requirements, _appraisal(raw.get("appraisal"), tracks))
+
+
+def _appraisal(raw: Optional[dict[str, Any]], tracks: dict[str, TrackSpec]) -> Optional[AppraisalPolicy]:
+    if not raw:
+        return None
+    policy = AppraisalPolicy(_text(raw, "track"), float(raw.get("gain_scale", 3.0)),
+                             float(raw.get("witness_scale", 0.3)), float(raw.get("feeling_scale", 0.02)),
+                             frozenset(raw.get("romantic_tags") or []), str(raw.get("jealousy_tier") or ""),
+                             str(raw.get("eligible") or "any"))
+    if policy.eligible not in ("any", "opposite_gender"):
+        raise ValueError(f"unknown appraisal eligibility {policy.eligible!r}")
+    if policy.track not in tracks:
+        raise ValueError(f"appraisal names unknown track {policy.track!r}")
+    if policy.jealousy_tier and policy.jealousy_tier not in {t.id for t in tracks[policy.track].tiers}:
+        raise ValueError(f"appraisal names unknown jealousy tier {policy.jealousy_tier!r}")
+    if policy.gain_scale <= 0 or not 0 <= policy.witness_scale <= 1 or policy.feeling_scale < 0:
+        raise ValueError("appraisal scales out of range")
+    return policy
 
 
 def _text(raw: dict[str, Any], key: str) -> str:

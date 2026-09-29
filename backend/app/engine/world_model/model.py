@@ -127,6 +127,7 @@ class WorldModel:
     last_with_player: dict[str, int] = field(default_factory=dict)   # character -> last turn together
     first_met_day: dict[str, int] = field(default_factory=dict)      # character -> day they met the player
     standing: StandingBook = field(default_factory=StandingBook)     # sole writer of track standings
+    appraised_events: list[str] = field(default_factory=list)        # behavior events already judged
     view: TurnView = field(default_factory=TurnView)       # transient
 
     # -- queries -----------------------------------------------------------------
@@ -193,7 +194,8 @@ class WorldModel:
                 "knows_player_name": list(self.knows_player_name),
                 "last_with_player": dict(self.last_with_player),
                 "first_met_day": dict(self.first_met_day),
-                "standing": self.standing.to_dict()}
+                "standing": self.standing.to_dict(),
+                "appraised_events": list(self.appraised_events)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -227,4 +229,5 @@ class WorldModel:
                    knows_player_name=list(data.get("knows_player_name") or []),
                    last_with_player={str(k): int(v) for k, v in (data.get("last_with_player") or {}).items()},
                    first_met_day={str(k): int(v) for k, v in (data.get("first_met_day") or {}).items()},
-                   standing=StandingBook.from_dict(data.get("standing") or {}))
+                   standing=StandingBook.from_dict(data.get("standing") or {}),
+                   appraised_events=list(data.get("appraised_events") or []))

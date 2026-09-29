@@ -364,6 +364,11 @@ def _seed_player_visibility(state: GameState) -> None:
         state.player_visible_chunk_ids = []
 
 
+# Story rules read only by engine code (BL-39); kept in the runtime story
+# config and excluded from any prompt/transient seeding.
+ENGINE_ONLY_STORY_KEYS = ("endings", "social_tracks", "personalities", "default_personality")
+
+
 _BASIC_CHARACTER_KEYS = {
     "key",
     "id",
@@ -401,6 +406,7 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
             # newgame character-construction path) already preserves them.
             "motive": ch.get("motive") or "",
             "tells": list(ch.get("tells") or []),
+            "personality": ch.get("personality") or {},
         })
 
     return {
@@ -438,6 +444,9 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "cast_lifecycle": src.get("cast_lifecycle") or {},
         # Character & world model data: routines, threads, evidence, homes.
         "world_model": src.get("world_model") or {},
+        # BL-39 engine-only rules (never prompt text): typed endings, standing
+        # tracks/requirements/appraisal, and per-character personalities.
+        **{key: src[key] for key in ENGINE_ONLY_STORY_KEYS if key in src},
     }
 
 
@@ -695,6 +704,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         "character_self_knowledge",  # injected directly into system prompt; not via FAISS
         "mode",  # injected directly via the prompt_builder mode-context layer; not via FAISS
         "cast_lifecycle",  # runtime state; never seed future entrants into transient context
+        *ENGINE_ONLY_STORY_KEYS,  # hidden tastes/standards/rules must never reach prompts
     }
 
     details: list[str] = []
@@ -708,7 +718,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         if not isinstance(ch, dict):
             continue
         ch_key = str(ch.get("key") or ch.get("id") or ch.get("name") or "character")
-        extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS}
+        extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS and k != "personality"}
         if extras:
             details.append(f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}")
 
@@ -3239,6 +3249,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 _log_list = state.recent_behavior_log.setdefault(_pair_key, [])
                 _log_list.append(_tag.tag)
                 del _log_list[:-BEHAVIOR_LOG_WINDOW_SIZE]
+            # BL-39 phase D: each present character appraises what they saw.
+            if extraction.behavior_tags and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_behaviors(state, extraction.behavior_tags)
 
             # Apply a genuine SHIFT (never a WISH - "a wish or joke is not
             # departure" applies here too: a momentary flicker must not

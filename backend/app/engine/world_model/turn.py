@@ -22,6 +22,9 @@ from backend.app.engine.world_model.memory import render
 from backend.app.engine.world_model.model import PLAYER, TurnView, WorldModel
 from backend.app.engine.world_model.offscreen import resolve_offscreen
 from backend.app.engine.world_model.person import Cast
+from backend.app.engine.world_model.appraisal import appraise_behaviors
+from backend.app.engine.rules.personality import personalities
+from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.intentions import propose_rival_invitations
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
@@ -188,6 +191,10 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
             observe_event(model.epistemics, cid, event.id, "heard", event.truth, now)
             model.memories.add(cid, event.truth, f"told_by:{PLAYER}", now,
                                kind="dialogue", event_id=event.id)
+        if len(present) == 1:
+            model.world.add_event(now, model.player_place(), (PLAYER, present[0]),
+                                  f"@{PLAYER} and @{present[0]} talked alone", kind="private_talk",
+                                  operation_id=f"private_talk:{model.turn}")
     propose_rival_invitations(model, rivalry_context(state),
                               GraphRelationships(getattr(state, "character_graph", None)), now)
     conflict_focus = choose_conflict(model.drama, set(model.present_with_player()), model.world.day_index(now))
@@ -334,6 +341,23 @@ def _question_directives(model: WorldModel, view: TurnView, present: set[str], n
                 f'The player asked {name}, who is not here: "{question.text}". Nobody else answers for {name}; '
                 f"someone present may say {name} is not here.")
     return owes
+
+
+def record_behaviors(state: Any, behaviors: Iterable[Any]) -> list:
+    """Observed behavior this turn -> each present perceiver's impressions (story tracks only)."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or not behaviors:
+        return []
+    cfg = getattr(state, "story_cfg", {}) or {}
+    rules = social_rules(cfg)
+    if rules is None or rules.appraisal is None:
+        return []
+    witnesses = set(model.present_with_player()) if model.player_place() else set()
+    genders = {str(c.get("key")): str(c.get("gender") or "").upper() for c in cfg.get("characters") or []}
+    genders[PLAYER] = str(getattr(state, "gender", "") or "").upper()
+    return appraise_behaviors(model, rules, personalities(cfg), behaviors, witnesses,
+                              getattr(state, "character_graph", None), turn_key=str(model.turn + 1),
+                              genders=genders)
 
 
 def open_questions(state: Any) -> list[dict[str, str]]:

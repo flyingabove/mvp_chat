@@ -5726,6 +5726,41 @@ def _terrace_session(client, sid, headers):
     return pe_mod, r.json()
 
 
+def test_engine_only_story_rules_reach_story_cfg_but_never_prompt_context(client):
+    """BL-39: tracks, tastes and endings are engine inputs. They must survive
+    the runtime story projection (a live play showed they were dropped, so no
+    standing ever moved) and must never be seeded into storyteller context."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    _terrace_session(client, "engine_only_keys", {})
+    state = pe_mod.SESSIONS["engine_only_keys"]["state"]
+    for key in ("social_tracks", "personalities", "default_personality"):
+        assert key in state.story_cfg, key
+    transient = " ".join(e.text for e in (state.transient_entries or []))
+    for leaked in ("social_tracks", "personalities", "default_personality", "tastes", "temperament"):
+        assert leaked not in transient, leaked
+
+
+def test_player_behavior_moves_the_witnesses_standing_through_the_chat_turn(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import BehaviorTagUpdate, TurnExtraction
+
+    _terrace_session(client, "behavior_turn", {})
+    state = pe_mod.SESSIONS["behavior_turn"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    women = [c for c in state.world_model.present_with_player() if genders.get(c) == "F"]
+    target = women[0] if women else state.world_model.present_with_player()[0]
+    state.gender = "F" if genders.get(target) == "M" else "M"
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(behavior_tags=[BehaviorTagUpdate("player", target, "helpful")])
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    client.post("/api/chat", json={"session_id": "behavior_turn", "message": "Let me carry that for you."})
+    standing = pe_mod.SESSIONS["behavior_turn"]["state"].world_model.standing.get(target, "player", "romance")
+    assert standing is not None and standing.value > 0
+
+
 def test_new_game_returns_the_goal_card(client):
     _, opening = _terrace_session(client, "ending_goal_card", {})
     assert opening["goal"]["status"] == "No mutual relationship yet."

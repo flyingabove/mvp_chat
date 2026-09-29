@@ -2190,5 +2190,78 @@
         ]
       }
     ]
+  },
+  "behavior_tag_vocabulary": [
+    "warm", "attentive", "funny", "complimentary", "flirtatious", "helpful", "generous", "honest",
+    "supportive_of_goals", "boastful", "rude", "dismissive", "pushy", "evasive"
+  ],
+  "default_personality": {
+    "temperament": {"patience": 0.5, "jealousy": 0.5, "forgiveness": 0.5, "skepticism": 0.5, "openness": 0.5, "pride": 0.5},
+    "tastes": {
+      "warm": 1.0, "attentive": 1.0, "funny": 0.5, "complimentary": 0.5, "flirtatious": 0.5, "helpful": 1.0,
+      "generous": 0.5, "honest": 0.5, "supportive_of_goals": 1.0, "boastful": -1.0, "rude": -2.0,
+      "dismissive": -1.5, "pushy": -1.0, "evasive": -0.5
+    }
+  },
+  "personalities": {
+    "makoto": {"temperament": {"openness": 0.7, "jealousy": 0.4, "forgiveness": 0.7},
+               "tastes": {"funny": 1.5, "supportive_of_goals": 1.5, "evasive": -1.0}},
+    "minori": {"temperament": {"openness": 0.4, "skepticism": 0.6, "patience": 0.6},
+               "tastes": {"attentive": 1.5, "pushy": -2.0, "boastful": -1.5}},
+    "yuki": {"temperament": {"skepticism": 0.6, "pride": 0.6},
+             "tastes": {"supportive_of_goals": 2.0, "honest": 1.0, "evasive": -1.5}},
+    "mizuki": {"temperament": {"openness": 0.6, "forgiveness": 0.6},
+               "tastes": {"helpful": 1.5, "generous": 1.0, "dismissive": -2.0}},
+    "uchi": {"temperament": {"openness": 0.7, "jealousy": 0.6, "pride": 0.6},
+             "tastes": {"flirtatious": 1.0, "complimentary": 1.0, "evasive": -1.0}},
+    "yuriko": {"temperament": {"skepticism": 0.7, "patience": 0.6},
+               "tastes": {"honest": 1.5, "supportive_of_goals": 1.5, "pushy": -1.5}},
+    "arman": {"temperament": {"openness": 0.8, "forgiveness": 0.8, "jealousy": 0.3},
+              "tastes": {"helpful": 1.5, "warm": 1.5, "boastful": -1.5}},
+    "arisa": {"temperament": {"skepticism": 0.6, "pride": 0.7, "jealousy": 0.4},
+              "tastes": {"supportive_of_goals": 2.0, "pushy": -2.0, "complimentary": 0.0}},
+    "hikaru": {"temperament": {"pride": 0.7, "jealousy": 0.6, "patience": 0.4},
+               "tastes": {"complimentary": 1.0, "honest": 1.0, "dismissive": -2.0}},
+    "natsumi": {"temperament": {"skepticism": 0.7, "forgiveness": 0.4},
+                "tastes": {"honest": 1.5, "evasive": -2.0, "pushy": -1.5}},
+    "misaki": {"temperament": {"openness": 0.8, "jealousy": 0.7, "pride": 0.6},
+               "tastes": {"attentive": 1.5, "flirtatious": 1.0, "dismissive": -2.0}},
+    "yuto": {"temperament": {"skepticism": 0.6, "openness": 0.4},
+             "tastes": {"supportive_of_goals": 1.5, "attentive": 1.0, "boastful": -1.5}},
+    "riko": {"temperament": {"skepticism": 0.7, "openness": 0.4},
+             "tastes": {"warm": 1.0, "pushy": -2.5, "flirtatious": 0.0}},
+    "momoka": {"temperament": {"patience": 0.6, "pride": 0.6},
+               "tastes": {"supportive_of_goals": 1.5, "funny": 1.0, "rude": -2.5}},
+    "hayato": {"temperament": {"patience": 0.7, "forgiveness": 0.6},
+               "tastes": {"helpful": 1.5, "honest": 1.5, "evasive": -1.5}},
+    "yuuki_byrnes": {"temperament": {"openness": 0.7, "jealousy": 0.5},
+                     "tastes": {"warm": 1.0, "attentive": 1.0, "pushy": -1.5}},
+    "masako": {"temperament": {"openness": 0.7, "forgiveness": 0.7},
+               "tastes": {"warm": 1.5, "attentive": 1.5, "rude": -2.5}}
+  },
+  "social_tracks": {
+    "tracks": [
+      {
+        "id": "romance", "daily_gain_cap": 8, "repeat_decay": 0.5, "neglect_decay_per_day": 1,
+        "tiers": [
+          {"id": "strangers", "floor": 0, "ceiling": 25},
+          {"id": "friends", "floor": 25, "ceiling": 45, "gate": {"kind": "days_known", "min": 2}},
+          {"id": "interested", "floor": 45, "ceiling": 60,
+           "gate": {"kind": "event_count", "event_kind": "private_talk", "min": 1}},
+          {"id": "dating", "floor": 60, "ceiling": 75,
+           "gate": {"kind": "all", "conditions": [
+             {"kind": "agreement_count", "activity": "", "status": "completed", "min": 2},
+             {"kind": "event_count", "event_kind": "romance_relationship", "min": 1}
+           ]}},
+          {"id": "committed", "floor": 75, "ceiling": 100, "gate": {"kind": "days_known", "min": 5}}
+        ]
+      }
+    ],
+    "requirements": {"default": []},
+    "appraisal": {
+      "track": "romance", "gain_scale": 3, "witness_scale": 0.3, "feeling_scale": 0.02,
+      "romantic_tags": ["flirtatious", "complimentary"], "jealousy_tier": "interested",
+      "eligible": "opposite_gender"
+    }
   }
 }
