@@ -24,12 +24,30 @@ def _contract_cast_ids(state) -> list[str]:
     lifecycle = getattr(state, "cast_lifecycle", None)
     from backend.app.engine.opening_scene import has_arrived
     gated = lifecycle is not None and getattr(lifecycle, "enabled", False)
-    return [key for key in (getattr(state, "characters", {}) or {})
+    cast = [key for key in (getattr(state, "characters", {}) or {})
             if key != "player" and (not gated or (lifecycle.is_scene_eligible(key) and has_arrived(state, key)))]
+    return cast + [key for key in _panel_speakers(state) if key not in cast]
+
+
+def _panel_speakers(state) -> dict[str, str]:
+    """Studio panelists allowed to speak on this (finale) turn only."""
+    view = getattr(getattr(state, "world_model", None), "view", None)
+    return dict(getattr(view, "panel_speakers", None) or {})
+
+
+def _panel_prompt(panel: dict[str, str]) -> str:
+    if not panel:
+        return ""
+    return ("\nFINALE FORMAT: `segments` holds the exit scene with the house cast above. The studio panel "
+            + json.dumps(panel, ensure_ascii=False) + " are in a TV studio watching the footage, not in the house; "
+            "nobody in the house can hear them, so they never appear in `segments`. This reply MUST end with the "
+            "studio panel section: write it in the `panel` array, at least 6 lines of the panelists talking with "
+            "each other about the footage, then one verdict line from each panelist.")
 
 
 def dialogue_prompt(state) -> str:
-    cast = {key: state.characters[key].name for key in _contract_cast_ids(state)}
+    panel = _panel_speakers(state)
+    cast = {key: state.characters[key].name for key in _contract_cast_ids(state) if key not in panel}
     return (
         "\n\n[SPEAKER PRESENTATION CONTRACT]\n"
         "Return the JSON object required by the response schema. Its segments array "
@@ -60,6 +78,7 @@ def dialogue_prompt(state) -> str:
         "write [[STATE]] tags in scene text. "
         "This JSON transport replaces prose-only output formatting.\nCast IDs: "
         + json.dumps(cast, ensure_ascii=False)
+        + _panel_prompt(panel)
     )
 
 
@@ -76,10 +95,21 @@ def _allowed_speaker_ids(state) -> list[str]:
     return [key for key in ids if key in set(allowed)]
 
 
+def finale_turn(state) -> bool:
+    """True on the one turn where the studio panel closes the run."""
+    return bool(_panel_speakers(state))
+
+
 def dialogue_response_format(state) -> dict:
-    """Constrain speaker IDs and require an ordered scene on the generation call."""
+    """Constrain speaker IDs and require an ordered scene on the generation call.
+
+    On the finale turn a required `panel` array holds the studio panel, so the
+    model cannot end the reply after the exit scene (BL-42).
+    """
     ids = _allowed_speaker_ids(state)
-    return {"type": "json_schema", "json_schema": {
+    panel_ids = list(_panel_speakers(state))
+    ids = [key for key in ids if key not in panel_ids]
+    response = {"type": "json_schema", "json_schema": {
         "name": "story_scene", "strict": True,
         "schema": {"type": "object", "additionalProperties": False,
                    "required": ["segments", "state"], "properties": {
@@ -97,6 +127,13 @@ def dialogue_response_format(state) -> dict:
                                  }},
                    }},
     }}
+    if panel_ids:
+        schema = response["json_schema"]["schema"]
+        schema["required"] = ["segments", "panel", "state"]
+        schema["properties"]["panel"] = {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["speaker_id", "text"],
+            "properties": {"speaker_id": {"type": "string", "enum": panel_ids}, "text": {"type": "string"}}}}
+    return response
 
 
 QUOTE_PAIRS = (('"', '"'), ("“", "”"), ("‘", "’"))
@@ -191,14 +228,21 @@ def decode_dialogue_response(raw: str, state=None) -> str:
                 parts.append(f"[SPEAKER:{speaker}]{part}[/SPEAKER]" if speaker else part)
         else:
             parts.append(text)
+    panel_ids = set(_panel_speakers(state)) if state is not None else set()
+    for line in value.get("panel") or []:
+        if isinstance(line, dict) and line.get("speaker_id") in panel_ids and isinstance(line.get("text"), str):
+            parts.append(f"[SPEAKER:{line['speaker_id']}]{clean_spoken_text(MARKER.sub('', line['text']))}[/SPEAKER]")
     if isinstance(value.get("state"), dict):
         parts.append("[[STATE]]" + json.dumps(value["state"]) + "[[/STATE]]")
     return "\n\n".join(parts)
 
 
-def _segment(text: str, speaker: str | None, characters: dict) -> dict:
+def _segment(text: str, speaker: str | None, characters: dict, panel: dict | None = None) -> dict:
     if speaker is None:
         return {"kind": "narration", "text": text}
+    if panel and speaker in panel:
+        return {"kind": "dialogue", "speaker_id": speaker, "speaker_name": panel[speaker],
+                "portrait_url": DEFAULT_PERSONA_AVATAR, "text": text}
     ch = characters.get(speaker)
     name = ch.name if ch else "Unknown voice"
     # Only authored local image paths are exposed, never arbitrary model URLs.
@@ -233,6 +277,7 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     Untagged legacy paragraphs are retained as narration, without guessing.
     """
     characters = getattr(state, "characters", {}) or {}
+    panel = _panel_speakers(state)
     segments = []
     speaker = None
     offset = 0
@@ -240,13 +285,13 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
         body = text[offset:match.start()].strip()
         if body:
             resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
-            segments.append(_segment(body, resolved or speaker, characters))
+            segments.append(_segment(body, resolved or speaker, characters, panel))
         speaker = match.group(1).strip() if match.group(1) is not None else None
         offset = match.end()
     body = text[offset:].strip()
     if body:
         resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
-        segments.append(_segment(body, resolved or speaker, characters))
+        segments.append(_segment(body, resolved or speaker, characters, panel))
     clean = MARKER.sub("", text).strip()
     # Each authored/model segment is a readable scene beat, even when one
     # character speaks twice. Coalescing them recreated the giant bubble.
@@ -312,6 +357,12 @@ def ground_social_scene(segments: list[dict], state) -> list[dict]:
     present = set(model.present_with_player())
     invalid_speech = any(segment.get("kind") == "dialogue" and not segment.get("speaker_id")
                          for segment in segments)
+    if social_mode and invalid_speech and not present and _panel_speakers(state):
+        # Finale turn: the player has just walked out, so a voice calling after them is expected.
+        # Keep the exit scene; unattributed speech becomes quoted narration.
+        segments = [{"kind": "narration", "text": f"“{s.get('text', '')}”"}
+                    if s.get("kind") == "dialogue" and not s.get("speaker_id") else s for s in segments]
+        invalid_speech = False
     if social_mode and invalid_speech and not present:
         from backend.app.engine.time_utils import WorldTimeFormatter
         timestamp = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""),

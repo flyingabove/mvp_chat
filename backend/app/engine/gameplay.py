@@ -225,22 +225,13 @@ def _resolve_destination_id(world_graph, place: str) -> Optional[str]:
 
 
 def win_condition_detected(text: str, state) -> bool:
-    """
-    Detects win conditions based on regex patterns from story config.
-    Returns False if no win_detection patterns are configured.
-    """
+    """True when the story's ending registry would end this game as a win."""
+    from backend.app.engine.rules.endings import EndingFacts, endings_for, evaluate
 
-    cfg = getattr(state, "story_cfg", {}) or {}
-
-    if ((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"):
-        model = getattr(state, "world_model", None)
-        return bool(model is not None and getattr(model, "romance_outcome", "") == "mutual_departure")
-
-    patterns = (cfg.get("win_detection") or {}).get("regex") or []
-    if not patterns:
-        return False
-
-    return any(re.search(p, text, re.I) for p in patterns)
+    model = getattr(state, "world_model", None)
+    facts = EndingFacts(world_outcome=str(getattr(model, "romance_outcome", "") or ""), reply=text)
+    ending = evaluate(endings_for(getattr(state, "story_cfg", {}) or {}), facts)
+    return ending is not None and ending.kind == "win"
 
 
 def process_pending_events(state, *, apply_cast_replacement) -> list:

@@ -58,6 +58,8 @@ Terrace `romance` defaults (standard personality):
 | Dating | 60–75 | a couple in front of the house | ≥3 days dating, no unresolved conflict, no known two-timing |
 | **Ready to leave** (eligibility, not another overlapping tier) | ≥70 and all Dating exit requirements | — | an explicitly accepted departure ask (M4); score alone never creates consent |
 
+**As implemented (2026-09-29, `six_strangers_story.json` `social_tracks`):** friends need 2 days known; interested needs a private talk, or 6 filmed interactions with that person, or (between residents) 2 off-screen encounters; dating needs an accepted confession (player) or a formed couple (residents); committed (75+) needs 5 days known. The "≥2 completed dates" gate is dropped until dates can actually complete (BL-35); seeded campaigns showed no player could otherwise progress past 45. Residents change off-screen at 4x the base appraisal pace so NPC couples form and leave within weeks.
+
 A **custom** NPC adds personal gates on top, for example:
 
 ```json

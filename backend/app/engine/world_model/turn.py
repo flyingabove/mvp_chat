@@ -21,7 +21,28 @@ from backend.app.engine.world_model.evidence import find_inspect_target, inspect
 from backend.app.engine.world_model.memory import render
 from backend.app.engine.world_model.model import PLAYER, TurnView, WorldModel
 from backend.app.engine.world_model.offscreen import resolve_offscreen
-from backend.app.engine.world_model.intentions import propose_rival_invitations
+from backend.app.engine.world_model.person import Cast
+from backend.app.engine.world_model.appraisal import appraise_behaviors
+from backend.app.engine.rules.personality import personalities
+from backend.app.engine.rules.tracks import social_rules
+from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
+from backend.app.engine.world_model.persona import SelfClaim
+from backend.app.engine.world_model.standards import enforce_dealbreakers, failing_requirements, viewpoint
+from backend.app.engine.world_model.social_acts import (
+    SocialAct, Verdict, act_specs, commit as commit_act, decide, directive as verdict_directive,
+    validate as validate_verdict,
+)
+from backend.app.engine.world_model.romance import _eligible_present as romance_eligible_present
+from backend.app.engine.world_model.intentions import propose_agenda_invitations, propose_rival_invitations
+from backend.app.engine.world_model.agenda import (
+    SocialContext, couples_leaving, couples_ready, next_beat, refresh_agendas,
+)
+from backend.app.engine.state import PendingEvent
+from backend.app.engine.rules.clocks import clocks_for, due_beats
+from backend.app.engine.world_model.commentary import (
+    commentary_for, dossier, fallback_panel, finale_directive, scrub_panel,
+)
+from backend.app.engine.world_calendar import day_number
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
 from backend.app.engine.world_model.epistemics import observe_event
@@ -64,11 +85,14 @@ class GraphRelationships:
 
 
 def warmth_fn(state: Any) -> Callable[[str], float]:
-    relationships = GraphRelationships(getattr(state, "character_graph", None))
+    """Each character's warmth toward the player, read from their own heart."""
+    model = getattr(state, "world_model", None)
+    if model is None:
+        return lambda cid: 0.0
+    cast = Cast(state)
 
     def warmth(cid: str) -> float:
-        f = relationships.feelings(cid, PLAYER)
-        return (f.get("trust", 0.0) + f.get("affection", 0.0)) / 2 if f else 0.0
+        return cast.get(cid).warmth_toward(PLAYER) if cid in model.characters else 0.0
     return warmth
 
 
@@ -160,7 +184,7 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         step = step_world(model, minute_before, now, protected, player_asleep=sleeping)
         advance_threads(model, minute_before, now)
         resolve_offscreen(model, step, GraphRelationships(getattr(state, "character_graph", None)),
-                          scorer, rivalry_context(state))
+                          scorer, rivalry_context(state), social=social_context(state))
         expire_commitments(model, now)
         queue_contacts(model, minute_before, now, warmth_fn(state))
         model.player_availability = "awake"
@@ -171,6 +195,7 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         for cid in getattr(state, "opening_cast", None) or []:
             if cid in model.characters:
                 model.last_with_player[cid] = 0
+                model.first_met_day.setdefault(cid, 0)
     if message.strip() and not sleeping and not PRIVATE_ASIDE.fullmatch(message):
         present = model.present_with_player()
         model.hear_player_name(message, present)
@@ -183,18 +208,28 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
             observe_event(model.epistemics, cid, event.id, "heard", event.truth, now)
             model.memories.add(cid, event.truth, f"told_by:{PLAYER}", now,
                                kind="dialogue", event_id=event.id)
-    propose_rival_invitations(model, rivalry_context(state),
-                              GraphRelationships(getattr(state, "character_graph", None)), now)
+        if len(present) == 1:
+            model.world.add_event(now, model.player_place(), (PLAYER, present[0]),
+                                  f"@{PLAYER} and @{present[0]} talked alone", kind="private_talk",
+                                  operation_id=f"private_talk:{model.turn}")
+    ctx = social_context(state)
+    if ctx is not None and ctx.rules.couples is not None:
+        advance_npc_life(state, model, ctx, now)
+        propose_agenda_invitations(model, now)
+    else:
+        propose_rival_invitations(model, rivalry_context(state),
+                                  GraphRelationships(getattr(state, "character_graph", None)), now)
     conflict_focus = choose_conflict(model.drama, set(model.present_with_player()), model.world.day_index(now))
     # A sleeping player saw nothing of the night: no "came in / left" beats.
     view = _build_view(model, state, message, None if sleeping else step, place_names,
-                       None if sleeping else conflict_focus)
+                       None if sleeping else conflict_focus, farewell=protected)
     model.view = view
     return view
 
 
 def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_names: dict[str, str],
-                conflict_focus: Any = None) -> TurnView:
+                conflict_focus: Any = None, farewell: Iterable[str] = ()) -> TurnView:
+    """`farewell`: who was with the player when this turn began; on an exit turn they may still speak."""
     names = model.names()
     view = TurnView(names=names)
     here = model.player_place()
@@ -213,8 +248,10 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         view.cards.append(f"{c.name} ({c.descriptor}): {activity}; {c.availability}"
                           + (f"; mood: {c.mood}" if c.mood else "")
                           + f"; {_encounter_note(model, cid)}; {_name_note(model, cid)}")
+    today = model.world.day_index(model.world.minute)
     for cid in present:
         model.last_with_player[cid] = model.turn
+        model.first_met_day.setdefault(cid, today)
     for cid in asleep_here:
         view.cards.append(f"{names[cid]} is asleep here and cannot talk unless woken")
     lifecycle = getattr(state, "cast_lifecycle", None)
@@ -264,6 +301,31 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
             view.must_address.append(f"The player promised {names[promise.counterpart]}: {render(promise.text, names)}. "
                                      f"{names[promise.counterpart]} may remind them.")
     owes_answer = _question_directives(model, view, present_set, names)
+    for verdict in model.pending_verdicts:
+        view.must_address.append(verdict_directive(verdict, names))
+        if verdict.act.target in present_set:
+            owes_answer.add(verdict.act.target)
+    addressed_now, _ = addressed_ids(model, message, present)
+    day = model.world.day_index(model.world.minute)
+    ending_now = any(v.answer == "accept" and v.act.kind in ("ask_leave_together", "leave_alone")
+                     for v in model.pending_verdicts)
+    for key, text in due_beats(clocks_for(getattr(state, "story_cfg", {}) or {}), model.counters):
+        view.must_address.append(text)
+        model.counters[key] = 1
+        ending_now = ending_now or key.endswith(":trigger")
+    commentary = commentary_for(getattr(state, "story_cfg", {}) or {})
+    if ending_now and commentary is not None:
+        view.must_address.append(finale_directive(commentary, dossier(model, commentary)))
+        view.panel_speakers = {p.id: p.name for p in commentary.panelists}
+    beat = None if owes_answer else next_beat(model, present_set, day)   # direct questions come first
+    if beat is not None:
+        cid, intention = beat
+        view.must_address.append(BEAT_TEXT[intention.kind].format(name=names.get(cid, cid)))
+        model.initiative_last_day[f"beat:{cid}"] = day
+        if intention.kind == "test_loyalty":
+            model.agendas[cid] = [i for i in model.agendas.get(cid, []) if i != intention]
+    _tell_directives(model, state, view, message, present_set, owes_answer | addressed_now, names)
+    _requirement_hints(model, state, view, present_set, names)
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
     view.plan = select_speakers(model, candidates, message, warmth_fn(state), owes_answer=owes_answer)
     _, mentioned = addressed_ids(model, message, list(model.characters))
@@ -283,7 +345,9 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     # Someone on a phone call with the player can speak without being present.
     from backend.app.engine.active_characters import get_on_call_character_keys
     on_call = {k for k in get_on_call_character_keys(state) if k in model.characters}
-    view.allowed_speakers = sorted(set(present) | set(unplaced) | set(view.plan.speakers) | on_call)
+    exit_voices = set(farewell) & set(model.characters) if view.panel_speakers else set()
+    view.allowed_speakers = sorted(set(present) | set(unplaced) | set(view.plan.speakers) | on_call
+                                   | set(view.panel_speakers) | exit_voices)
     view.ending_hint = ending_hint(model.endings)
     return view
 
@@ -327,6 +391,180 @@ def _question_directives(model: WorldModel, view: TurnView, present: set[str], n
                 f'The player asked {name}, who is not here: "{question.text}". Nobody else answers for {name}; '
                 f"someone present may say {name} is not here.")
     return owes
+
+
+def social_context(state: Any) -> Optional[SocialContext]:
+    cfg = getattr(state, "story_cfg", {}) or {}
+    rules = social_rules(cfg) if isinstance(cfg, dict) else None
+    if rules is None or rules.appraisal is None:
+        return None
+    genders = {str(c.get("key")): str(c.get("gender") or "").upper() for c in cfg.get("characters") or []}
+    genders[PLAYER] = str(getattr(state, "gender", "") or "").upper()
+    return SocialContext(rules, genders)
+
+
+def record_behaviors(state: Any, behaviors: Iterable[Any]) -> list:
+    """Observed behavior this turn -> each present perceiver's impressions (story tracks only)."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or not behaviors:
+        return []
+    ctx = social_context(state)
+    if ctx is None:
+        return []
+    witnesses = set(model.present_with_player()) if model.player_place() else set()
+    return appraise_behaviors(model, ctx.rules, personalities(state.story_cfg), behaviors, witnesses,
+                              getattr(state, "character_graph", None), turn_key=str(model.turn + 1),
+                              genders=ctx.genders)
+
+
+def advance_npc_life(state: Any, model: WorldModel, ctx: SocialContext, now: int) -> None:
+    """Agendas from each character's own standing; couples form and leave only by mutual qualification."""
+    policy, track = ctx.rules.couples, ctx.rules.appraisal.track
+    day = model.world.day_index(now)
+    refresh_agendas(model, track, policy.interested_tier, ctx.eligible, day)
+    place = model.player_place()
+    for a, b in couples_ready(model, track, policy.dating_tier, ctx.eligible, day):
+        key = f"{a}|{b}"
+        model.npc_couples[key] = day
+        model.world.add_event(now, model.world.place_of(a) or place, (a, b), f"@{a} and @{b} became a couple",
+                              kind="npc_couple_formed", visibility="public", operation_id=f"couple:{key}")
+        model.add_trace(now, model.world.place_of(a) or place, f"@{a} and @{b} seem to be together now",
+                        involves=(a, b))
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    for a, b in couples_leaving(model, track, policy.committed_tier, policy.days_together, day):
+        key = f"{a}|{b}"
+        model.departed_couples.append(key)
+        model.counters["couples_left"] = model.counters.get("couples_left", 0) + 1
+        model.world.add_event(now, model.world.place_of(a) or place, (a, b),
+                              f"@{a} and @{b} left the house together as a couple", kind="couple_departure",
+                              visibility="public", operation_id=f"couple_departure:{key}")
+        model.add_trace(now, place, f"@{a} and @{b} have packed up and left the house together", involves=(a, b))
+        if lifecycle is not None and getattr(lifecycle, "enabled", False):
+            for cid in (a, b):
+                if cid not in lifecycle.active_ids():
+                    continue
+                lifecycle.propose_departure(cid, minute=now, reason="left the house as a couple",
+                                            event_id=f"couple_propose_{key}_{cid}")
+                state.pending_events.append(PendingEvent(
+                    event_id=f"couple_replace_{key}_{cid}", event_type="cast_departure_replacement",
+                    scheduled_day=day_number(now), payload={"departing_id": cid, "reason": "left as a couple"},
+                    created_minute=now))
+
+
+BEAT_TEXT = {
+    "test_loyalty": "{name} saw the player being flirtatious with someone else and wants to find out where "
+                    "they stand; they may bring it up.",
+    "pursue": "{name} is drawn to the player and may look for a moment with them.",
+}
+
+
+def _claim_grounded(key: str, value: str, message: str) -> bool:
+    """The claim is in this message: its value words, or (for yes/no facts) the fact's own word."""
+    words = set(_WORDS.findall(message.lower()))
+    if any(w in words for w in _WORDS.findall(value.lower())):
+        return True
+    stems = [part.rstrip("s") for part in key.lower().split("_") if len(part) >= 4]
+    return any(word.startswith(stem) for stem in stems for word in words)
+
+
+def record_claims(state: Any, claims: Iterable[Any], *, message: str) -> list[tuple[str, str]]:
+    """Self-claims in the player's message, heard by whoever is present. Returns new disputes."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or not claims:
+        return []
+    cfg = getattr(state, "story_cfg", {}) or {}
+    keys = {str(k).lower() for k in cfg.get("player_fact_keys") or []}
+    audience = tuple(model.present_with_player()) if model.player_place() else ()
+    people = personalities(cfg)
+    graph = getattr(state, "character_graph", None)
+    now, disputes = model.world.minute, []
+    for index, item in enumerate(claims):
+        key, value = str(getattr(item, "key", "")).lower(), str(getattr(item, "value", ""))
+        if key not in keys or not value or not _claim_grounded(key, value, message or ""):
+            continue
+        before = {cid: model.persona.belief(cid, PLAYER, key).status for cid in audience}
+        event = model.world.add_event(now, model.player_place(), (PLAYER, *audience),
+                                      f"@{PLAYER} said their {key} is {value}", kind="self_claim",
+                                      operation_id=f"claim:{model.turn + 1}:{index}",
+                                      payload={"key": key, "value": value})
+        recorded = model.persona.claim(SelfClaim(PLAYER, key, value, audience, now, model.turn + 1, event.id,
+                                                 bool(getattr(item, "correction", False))))
+        if recorded is None:
+            continue
+        for cid in audience:
+            model.memories.add(cid, f"@{PLAYER} said their {key} is {value}", f"told_by:{PLAYER}", now,
+                               kind="claim", event_id=event.id)
+            if before[cid] != "disputed" and model.persona.belief(cid, PLAYER, key).status == "disputed":
+                disputes.append((cid, key))
+                skepticism = people.get(cid).temperament.skepticism if cid in people else 0.5
+                if graph is not None:
+                    graph.update_edge(cid, PLAYER, suspicion_delta=round(0.1 * skepticism, 4))
+                model.world.add_event(now, model.player_place(), (cid, PLAYER),
+                                      f"@{cid} noticed @{PLAYER} said conflicting things about their {key}",
+                                      kind="claim_dispute", operation_id=f"dispute:{event.id}:{cid}")
+        rules = social_rules(cfg)
+        if rules is not None:
+            for cid in audience:
+                enforce_dealbreakers(model, rules, cid, PLAYER, event.id, graph)
+    return disputes
+
+
+def _tell_directives(model: WorldModel, state: Any, view: TurnView, message: str, present: set[str],
+                     questioned: set[str], names: dict[str, str]) -> None:
+    """At most one seeded, perceivable tell per character this turn; behavior only, never a verdict."""
+    from backend.app.engine.active_characters import get_on_call_character_keys
+    on_call = {k for k in get_on_call_character_keys(state) if k in model.characters}
+    people = personalities(getattr(state, "story_cfg", {}) or {})
+    profiles = getattr(state, "characters", {}) or {}
+    for cid in sorted(present | on_call):
+        cues = list(getattr(profiles.get(cid), "tells", None) or [])
+        if not cues:
+            continue
+        profile = people[cid].deception if cid in people else DeceptionProfile()
+        cue = choose_cue(profile, cues, message, cid in questioned, f"{model.seed}:tell:{model.turn}:{cid}",
+                         voice_only=cid in on_call and cid not in present)
+        if cue:
+            view.must_address.append(f"{names.get(cid, cid)} shows a small tell: {cue}. Show it only as "
+                                     "behavior the player can notice; it proves nothing on its own.")
+
+
+def _requirement_hints(model: WorldModel, state: Any, view: TurnView, present: set[str],
+                       names: dict[str, str]) -> None:
+    rules = social_rules(getattr(state, "story_cfg", {}) or {})
+    if rules is None:
+        return
+    graph = getattr(state, "character_graph", None)
+    for cid in sorted(present):
+        vp = viewpoint(model, cid, PLAYER, graph)
+        for track in rules.tracks:
+            for requirement in failing_requirements(rules, cid, track, vp):
+                if requirement.disclosure in ("hint", "open") and requirement.tell:
+                    reason = " They may say why if asked." if requirement.disclosure == "open" else \
+                        " Do not state the reason."
+                    view.must_address.append(f"{names.get(cid, cid)}: {requirement.tell}.{reason}")
+
+
+def social_act_kinds(state: Any) -> list[str]:
+    return sorted(act_specs(getattr(state, "story_cfg", {}) or {}))
+
+
+def record_social_act(state: Any, proposal: Any) -> Optional[Verdict]:
+    """Decide this turn's social act from the target's own view; held until end_turn validates it."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or proposal is None or model.romance_outcome:
+        return None
+    specs = act_specs(getattr(state, "story_cfg", {}) or {})
+    spec = specs.get(str(getattr(proposal, "kind", "")))
+    if spec is None:
+        return None
+    rules = social_rules(getattr(state, "story_cfg", {}) or {})
+    if rules is not None:
+        model.standing.bind(rules.tracks)
+    verdict = decide(model, spec, SocialAct(spec.kind, str(getattr(proposal, "target", "") or "")),
+                     romance_eligible_present(state))
+    if verdict is not None:
+        model.pending_verdicts = [verdict]
+    return verdict
 
 
 def open_questions(state: Any) -> list[dict[str, str]]:
@@ -400,6 +638,19 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
                           event.truth, now)
             if cid != PLAYER:
                 model.memories.add(cid, event.truth, "witnessed", now, kind="dialogue", event_id=event.id)
+    specs = act_specs(getattr(state, "story_cfg", {}) or {})
+    names = model.names()
+    commentary = commentary_for(getattr(state, "story_cfg", {}) or {})
+    if commentary is not None and model.view.panel_speakers:
+        scrub_panel(segments, commentary)
+        if not any(s.get("speaker_id") in model.view.panel_speakers for s in segments):
+            segments.extend(fallback_panel(commentary, dossier(model, commentary)))
+            model.view.panel_fallbacks += 1
+    for verdict in model.pending_verdicts:
+        model.view.verdict_repairs += validate_verdict(verdict, segments, names)
+        witnesses = tuple(c for c in present if c != verdict.act.target)
+        commit_act(state, specs[verdict.act.kind], verdict, witnesses)
+    model.pending_verdicts = []
     prior_relationship_partner = model.romance_relationship_partner
     record_relationship_decisions(state, message, segments)
     record_departure_decisions(state, message, segments, prior_relationship_partner)

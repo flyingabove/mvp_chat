@@ -268,6 +268,8 @@ class GameState:
     gender: Optional[str] = None
     turns: int = 0
     over: bool = False
+    # The ending this game reached (rules.endings.Outcome.to_dict()); set once.
+    outcome: Optional[dict] = None
 
     # ==============================================================
     # Time & location

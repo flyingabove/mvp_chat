@@ -273,6 +273,12 @@ Additional BL-39 gates:
 - Fault/replay checks cover safe substitutions, terminal/interrupted turns and state/speech agreement. Rename story content and exercise a minimal workplace fixture alongside both games.
 - Hosted proof: complete Terrace and mystery campaigns, earned Terrace win/cut/solo paths, both existing gender paths, desktop/mobile, request traces, defects and human gameplay grades. Arena stays off.
 
+## 11a. Implementation status (2026-09-29)
+
+Built and pushed to beta, one commit per phase, each hosted-checked: independent units O12 (`26053bb`), O15/O24 receipts (`3dbbe90`), O08 addressed questions (`a554c5a`), O11 continuity (`a8987f1`/`d8f6a03`); phases A endings/UI (`33e9106`), B character aggregate (`24cbca2`), C standing/conditions (`2a0f482`), D appraisal + 17 Terrace personality drafts (`55cad21`), E claims/beliefs/tells (`e76a2a3`), F typed social acts (`4ac255b`), G agendas/NPC couples (`f45cd60`), H clocks/director (`83276f4`), I studio panel (`619b3b4`, `d1e28df`), J seeded campaigns + tuning (this commit). Seeded campaigns prove an earned win on both gender paths, a director cut for a passive player and a day-one solo exit.
+
+Not done, tracked: O09 narration agency (BL-29, owner: backlog), relationship-graph storage cutover (BL-40), IU investigation records/interviews (BL-41, owner content), finale panel model compliance (BL-42), invites/dates/travel and the "2 completed dates" romance gate (BL-35), panel asides and NPC departure segments, context-focus policies, true streaming, and the hosted 20-turn campaigns with human grading. Terrace personality numbers and the romance ladder are tuning drafts pending owner review. Target decisions use a documented local policy (standing + standards), not a model call.
+
 ## 12. Decision log and review answers
 
 | Question | Answer / evidence status |

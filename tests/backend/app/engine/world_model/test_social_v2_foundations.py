@@ -514,7 +514,8 @@ def test_player_utterance_is_observed_by_present_people_but_confessional_is_not(
                             characters=model.characters, cast_lifecycle=None, character_graph=None)
     begin_turn(state, "I saw Ben at the station.", 0)
     assert {item.owner for item in model.epistemics.observations} == {"ann", "player"}
-    assert model.memories.of("ann")[-1].event_id == model.world.events[-1].id
+    utterance = [e for e in model.world.events if e.kind == "utterance"][-1]
+    assert model.memories.of("ann")[-1].event_id == utterance.id
     before = len(model.epistemics.observations)
     begin_turn(state, "[confessional: I distrust Ann.]", 0)
     assert len(model.epistemics.observations) == before

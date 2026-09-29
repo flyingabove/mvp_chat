@@ -42,6 +42,33 @@ def propose_rival_invitations(model: WorldModel, context: Optional[Mapping], rel
     if not candidates:
         return None
     _, rival, partner = sorted(candidates, key=lambda row: (-row[0], row[1], row[2]))[0]
+    return _invite(model, rival, partner, minute, today)
+
+
+def propose_agenda_invitations(model: WorldModel, minute: int) -> Optional[Agreement]:
+    """A present character acting on their own compete_for/pursue intention invites its present target.
+
+    One invitation per character per day, in a scene the player witnesses; the
+    target's answer stays pending (only they can decide).
+    """
+    from backend.app.engine.world_model.agenda import intentions
+    present = set(model.present_with_player())
+    today = model.world.day_index(minute)
+    candidates = []
+    for rival in sorted(present):
+        if model.initiative_last_day.get(rival) == today:
+            continue
+        for intention in intentions(model, rival, today):
+            if intention.kind in ("compete_for", "pursue") and intention.target in present - {rival}:
+                candidates.append((intention.priority + (0.5 if intention.kind == "compete_for" else 0), rival,
+                                   intention.target))
+    if not candidates:
+        return None
+    _, rival, partner = sorted(candidates, key=lambda row: (-row[0], row[1], row[2]))[0]
+    return _invite(model, rival, partner, minute, today)
+
+
+def _invite(model: WorldModel, rival: str, partner: str, minute: int, today: int) -> Agreement:
     place = model.player_place()
     event = model.world.add_event(minute, place, (rival, partner),
                                   f"@{rival} invited @{partner} to spend time together tomorrow evening",

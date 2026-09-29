@@ -13,6 +13,9 @@ from backend.app.engine.world_model.conversation import ConversationState
 from backend.app.engine.world_model.epistemics import EpistemicLedger
 from backend.app.engine.world_model.drama import DramaBook
 from backend.app.engine.world_model.memory import MemoryStore
+from backend.app.engine.world_model.standing import StandingBook
+from backend.app.engine.world_model.persona import PersonaBook
+from backend.app.engine.world_model.intent import Intention
 from backend.app.engine.world_model.threads import Thread
 from backend.app.engine.world_model.world import World
 
@@ -94,6 +97,9 @@ class TurnView:
     cards: list[str] = field(default_factory=list)
     elsewhere: list[str] = field(default_factory=list)
     names: dict[str, str] = field(default_factory=dict)
+    verdict_repairs: int = 0      # displayed lines replaced because they contradicted a verdict
+    panel_speakers: dict[str, str] = field(default_factory=dict)   # finale turn only: panelist id -> name
+    panel_fallbacks: int = 0      # finale replies that omitted the panel and got the canned one
 
 
 @dataclass
@@ -124,7 +130,17 @@ class WorldModel:
     conversation: ConversationState = field(default_factory=ConversationState)
     knows_player_name: list[str] = field(default_factory=list)       # characters who heard the player's name
     last_with_player: dict[str, int] = field(default_factory=dict)   # character -> last turn together
+    first_met_day: dict[str, int] = field(default_factory=dict)      # character -> day they met the player
+    standing: StandingBook = field(default_factory=StandingBook)     # sole writer of track standings
+    appraised_events: list[str] = field(default_factory=list)        # behavior events already judged
+    persona: PersonaBook = field(default_factory=PersonaBook)        # self-claims with their audiences
+    act_cooldowns: dict[str, int] = field(default_factory=dict)      # "act:target" -> last blocked day
+    agendas: dict[str, list[Intention]] = field(default_factory=dict)  # character -> own intentions
+    npc_couples: dict[str, int] = field(default_factory=dict)        # "a|b" -> day the couple formed
+    departed_couples: list[str] = field(default_factory=list)        # couples who left the house
+    counters: dict[str, int] = field(default_factory=dict)           # story clocks (e.g. couples_left)
     view: TurnView = field(default_factory=TurnView)       # transient
+    pending_verdicts: list = field(default_factory=list)   # transient: this turn's social-act verdicts
 
     # -- queries -----------------------------------------------------------------
     def rng(self, purpose: str, minute: Optional[int] = None) -> random.Random:
@@ -188,7 +204,15 @@ class WorldModel:
                 "romance_relationship_partner": self.romance_relationship_partner,
                 "conversation": self.conversation.to_dict(),
                 "knows_player_name": list(self.knows_player_name),
-                "last_with_player": dict(self.last_with_player)}
+                "last_with_player": dict(self.last_with_player),
+                "first_met_day": dict(self.first_met_day),
+                "standing": self.standing.to_dict(),
+                "appraised_events": list(self.appraised_events),
+                "persona": self.persona.to_dict(),
+                "act_cooldowns": dict(self.act_cooldowns),
+                "agendas": {cid: [i.to_dict() for i in items] for cid, items in self.agendas.items()},
+                "npc_couples": dict(self.npc_couples), "departed_couples": list(self.departed_couples),
+                "counters": dict(self.counters)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -220,4 +244,14 @@ class WorldModel:
                    romance_relationship_partner=str(data.get("romance_relationship_partner") or ""),
                    conversation=ConversationState.from_dict(data.get("conversation") or {}),
                    knows_player_name=list(data.get("knows_player_name") or []),
-                   last_with_player={str(k): int(v) for k, v in (data.get("last_with_player") or {}).items()})
+                   last_with_player={str(k): int(v) for k, v in (data.get("last_with_player") or {}).items()},
+                   first_met_day={str(k): int(v) for k, v in (data.get("first_met_day") or {}).items()},
+                   standing=StandingBook.from_dict(data.get("standing") or {}),
+                   appraised_events=list(data.get("appraised_events") or []),
+                   persona=PersonaBook.from_dict(data.get("persona") or {}),
+                   act_cooldowns={str(k): int(v) for k, v in (data.get("act_cooldowns") or {}).items()},
+                   agendas={str(cid): [Intention.from_dict(i) for i in items]
+                            for cid, items in (data.get("agendas") or {}).items()},
+                   npc_couples={str(k): int(v) for k, v in (data.get("npc_couples") or {}).items()},
+                   departed_couples=list(data.get("departed_couples") or []),
+                   counters={str(k): int(v) for k, v in (data.get("counters") or {}).items()})

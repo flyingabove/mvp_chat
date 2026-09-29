@@ -610,5 +610,11 @@
         ]
       }
     ]
+  },
+  "personalities": {
+    "yoo_min_ho": {"deception": {"skill": 0.3, "composure": 0.3}},
+    "han_jae_seo": {"deception": {"skill": 0.8, "composure": 0.8}},
+    "park_so_jin": {"deception": {"skill": 0.4, "composure": 0.3}},
+    "rival_trainee": {"deception": {"skill": 0.2, "composure": 0.4}}
   }
 }

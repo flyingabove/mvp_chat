@@ -17,6 +17,9 @@ from backend.app.engine.world_model.gossip import share_memory, shareable
 from backend.app.engine.world_model.drama import register_conflict
 from backend.app.engine.world_model.memory import render
 from backend.app.engine.world_model.stepper import StepResult
+from backend.app.engine.world_model.agenda import OFFSCREEN_GAIN, SocialContext, agenda_weight
+from backend.app.engine.world_model.standards import apply_impression
+from backend.app.engine.world_model.standing import Impression
 
 if TYPE_CHECKING:
     from backend.app.engine.world_model.model import WorldModel
@@ -75,7 +78,7 @@ def find_encounters(result: StepResult) -> list[Encounter]:
 
 def outcome_weights(model: "WorldModel", enc: Encounter, relationships: Relationships,
                     scorer: Optional[Callable[[Encounter, dict[str, float]], dict[str, float]]] = None,
-                    rivalry: Optional[Mapping] = None) -> dict[str, float]:
+                    rivalry: Optional[Mapping] = None, social: Optional[SocialContext] = None) -> dict[str, float]:
     ab, ba = relationships.feelings(enc.a, enc.b), relationships.feelings(enc.b, enc.a)
     warmth = (ab.get("trust", 0) + ab.get("affection", 0) + ba.get("trust", 0) + ba.get("affection", 0)) / 2
     affection = (ab.get("affection", 0) + ba.get("affection", 0)) / 2
@@ -104,6 +107,11 @@ def outcome_weights(model: "WorldModel", enc: Encounter, relationships: Relation
                 weights["plan"] *= 2.0
                 weights["affection"] *= 1.5
                 break
+    if social is not None:
+        # Both people's own agendas: someone pursuing the other makes closeness and plans likelier.
+        factor = agenda_weight(model, enc.a, enc.b, model.world.day_index(enc.minute))
+        weights["affection"] *= factor
+        weights["plan"] *= factor
     if scorer is not None:
         for kind, factor in (scorer(enc, dict(weights)) or {}).items():
             if kind in weights:
@@ -111,7 +119,22 @@ def outcome_weights(model: "WorldModel", enc: Encounter, relationships: Relation
     return weights
 
 
-def _commit(model: "WorldModel", enc: Encounter, kind: str, relationships: Relationships) -> str:
+def _offscreen_impressions(model: "WorldModel", enc: Encounter, kind: str, event_id: str,
+                           social: SocialContext) -> None:
+    policy = social.rules.appraisal
+    gain = OFFSCREEN_GAIN.get(kind)
+    if policy is None or gain is None or not social.eligible(enc.a, enc.b):
+        return
+    day = model.world.day_index(enc.minute)
+    for owner, other in ((enc.a, enc.b), (enc.b, enc.a)):
+        apply_impression(model, social.rules, Impression(f"offscreen:{event_id}:{owner}", owner, other, policy.track,
+                                                         f"offscreen_{kind}",
+                                                         gain * policy.gain_scale * policy.offscreen_scale, event_id,
+                                                         enc.minute, day, "shared"))
+
+
+def _commit(model: "WorldModel", enc: Encounter, kind: str, relationships: Relationships,
+            social: Optional[SocialContext] = None) -> str:
     a, b, minute, place = enc.a, enc.b, enc.minute, enc.place
     rng = model.rng(f"offscreen-detail:{a}:{b}", minute)
     if kind == "chat":
@@ -148,16 +171,19 @@ def _commit(model: "WorldModel", enc: Encounter, kind: str, relationships: Relat
         share_memory(model, b, a, minute, rng)
     if trace:
         model.add_trace(minute, place, trace, involves=(a, b))
+    if social is not None:
+        _offscreen_impressions(model, enc, kind, event.id, social)
     return event.id
 
 
 def resolve_offscreen(model: "WorldModel", result: StepResult, relationships: Relationships,
-                      scorer: Optional[Callable] = None, rivalry: Optional[Mapping] = None) -> list[Outcome]:
+                      scorer: Optional[Callable] = None, rivalry: Optional[Mapping] = None,
+                      social: Optional[SocialContext] = None) -> list[Outcome]:
     outcomes = []
     # find_encounters picks the longest encounters; resolve them in the order
     # they happened so one's consequences can only affect later ones.
     for enc in sorted(find_encounters(result), key=lambda e: (e.minute, e.a, e.b, e.place)):
-        weights = outcome_weights(model, enc, relationships, scorer, rivalry)
+        weights = outcome_weights(model, enc, relationships, scorer, rivalry, social)
         total = sum(weights.values())
         if total <= 0:
             continue
@@ -168,6 +194,6 @@ def resolve_offscreen(model: "WorldModel", result: StepResult, relationships: Re
             if roll < 0:
                 kind = candidate
                 break
-        event_id = "" if kind == "nothing" else _commit(model, enc, kind, relationships)
+        event_id = "" if kind == "nothing" else _commit(model, enc, kind, relationships, social)
         outcomes.append(Outcome(enc, kind, event_id))
     return outcomes

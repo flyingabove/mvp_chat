@@ -1,5 +1,8 @@
 """Per-user game session and conversation history endpoints."""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
+from backend.app.engine.rules.endings import Outcome
 from backend.app.auth.dependencies import get_current_user_or_guest
 from backend.app.db.repos import SessionRepo, ConversationRepo
 from backend.app.api.prompt_engine import (
@@ -49,11 +52,24 @@ async def get_history(
     )
 
     oldest_turn = entries[0]["turn"] if entries else 0
-    return {
+    result = {
         "entries": entries,
         "has_more": oldest_turn > 1,
         "oldest_turn": oldest_turn,
     }
+    ending = _saved_ending(sess.get("state_json"))
+    if ending is not None:
+        result["ending"] = ending
+    return result
+
+
+def _saved_ending(state_json: str | None) -> dict | None:
+    """The finished game's ending card, so a resumed session shows it."""
+    try:
+        saved = json.loads(state_json or "{}").get("outcome")
+        return Outcome.from_dict(saved).payload() if saved else None
+    except (ValueError, KeyError, TypeError):
+        return None
 
 
 @router.get("/api/user/sessions/{session_id}/journal")

@@ -5799,6 +5799,137 @@ def test_a_question_about_bedtime_does_not_put_the_player_to_sleep(client):
     assert pe_mod.SESSIONS[sid]["state"].minute - before < 60
 
 
+def _terrace_session(client, sid, headers):
+    from backend.app.api import prompt_engine as pe_mod
+
+    r = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+                    headers=headers)
+    assert r.status_code == 200
+    return pe_mod, r.json()
+
+
+def test_engine_only_story_rules_reach_story_cfg_but_never_prompt_context(client):
+    """BL-39: tracks, tastes and endings are engine inputs. They must survive
+    the runtime story projection (a live play showed they were dropped, so no
+    standing ever moved) and must never be seeded into storyteller context."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    _terrace_session(client, "engine_only_keys", {})
+    state = pe_mod.SESSIONS["engine_only_keys"]["state"]
+    for key in ("social_tracks", "personalities", "default_personality"):
+        assert key in state.story_cfg, key
+    transient = " ".join(e.text for e in (state.transient_entries or []))
+    for leaked in ("social_tracks", "personalities", "default_personality", "tastes", "temperament"):
+        assert leaked not in transient, leaked
+
+
+def test_player_behavior_moves_the_witnesses_standing_through_the_chat_turn(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import BehaviorTagUpdate, TurnExtraction
+
+    _terrace_session(client, "behavior_turn", {})
+    state = pe_mod.SESSIONS["behavior_turn"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    women = [c for c in state.world_model.present_with_player() if genders.get(c) == "F"]
+    target = women[0] if women else state.world_model.present_with_player()[0]
+    state.gender = "F" if genders.get(target) == "M" else "M"
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(behavior_tags=[BehaviorTagUpdate("player", target, "helpful")])
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    client.post("/api/chat", json={"session_id": "behavior_turn", "message": "Let me carry that for you."})
+    standing = pe_mod.SESSIONS["behavior_turn"]["state"].world_model.standing.get(target, "player", "romance")
+    assert standing is not None and standing.value > 0
+
+
+def test_typed_acts_carry_a_terrace_game_from_confession_to_a_win(client, monkeypatch):
+    """BL-39 phase F end to end: confession accepted at the right tier, then
+    the explicit ask; the win ending arrives with that turn's reply."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import SocialActUpdate, TurnExtraction
+    from backend.app.engine.world_model.standing import Standing
+
+    _terrace_session(client, "typed_win", {})
+    state = pe_mod.SESSIONS["typed_win"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    target = state.world_model.present_with_player()[0]
+    state.gender = "F" if genders[target] == "M" else "M"
+    state.world_model.standing.standings[(target, "player", "romance")] = Standing(value=50)
+
+    acts = [SocialActUpdate("confess", target), SocialActUpdate("ask_leave_together", target)]
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(social_act=acts.pop(0) if acts else None)
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    first = client.post("/api/chat", json={"session_id": "typed_win", "message": "I have feelings for you."}).json()
+    assert "ending" not in first
+    model = pe_mod.SESSIONS["typed_win"]["state"].world_model
+    assert model.romance_relationship_partner == target
+    model.standing.standings[(target, "player", "romance")] = Standing(value=80)
+    second = client.post("/api/chat", json={"session_id": "typed_win", "message": "Let's leave together."}).json()
+    assert second["ending"]["id"] == "left_together" and second["ending"]["kind"] == "win"
+
+
+def test_new_game_returns_the_goal_card(client):
+    _, opening = _terrace_session(client, "ending_goal_card", {})
+    assert opening["goal"]["status"] == "No mutual relationship yet."
+    assert "leave the house together" in opening["goal"]["text"]
+
+
+def test_mutual_departure_returns_a_win_ending_saved_with_the_reply(client):
+    """BL-39 phase A: the ending is structured, fires once, and is committed
+    with the reply; the next request and a reload both show it."""
+    import json as _json
+    from backend.app.db.repos import SessionRepo
+
+    headers = {"X-Guest-Id": "99999999-aaaa-4bbb-8ccc-dddddddddddd"}
+    pe_mod, _ = _terrace_session(client, "ending_win", headers)
+    state = pe_mod.SESSIONS["ending_win"]["state"]
+    partner = state.world_model.present_with_player()[0]
+    state.world_model.romance_relationship_partner = partner
+    state.world_model.romance_outcome = "mutual_departure"
+
+    r = client.post("/api/chat", json={"session_id": "ending_win", "message": "Let's go.", "request_id": "end-1"},
+                    headers=headers)
+    body = r.json()
+    assert body["ending"]["id"] == "left_together" and body["ending"]["kind"] == "win"
+    assert body["ending"]["label"] == "You won" and body["ending"]["ends_run"] is True
+    assert "END GAME YOU WIN" in body["reply"], "operator debug marker is kept"
+
+    user_id = pe_mod.SESSIONS["ending_win"]["state"].user_id
+    saved = SessionRepo._get("ending_win", user_id)
+    saved_state = _json.loads(saved["state_json"])
+    assert saved_state["over"] is True and saved_state["outcome"]["ending_id"] == "left_together"
+    assert _json.loads(saved["last_reply_json"])["ending"] == body["ending"]
+
+    after = client.post("/api/chat", json={"session_id": "ending_win", "message": "Hello?"}, headers=headers).json()
+    assert after["ending"] == body["ending"]
+    pe_mod.SESSIONS.pop("ending_win")
+    reloaded = client.post("/api/chat", json={"session_id": "ending_win", "message": "Anyone?"}, headers=headers).json()
+    assert reloaded["ending"] == body["ending"]
+    history = client.get("/api/user/sessions/ending_win/history", headers=headers).json()
+    assert history["ending"] == body["ending"], "resuming a finished game shows its ending"
+
+
+def test_solo_departure_is_a_neutral_ending(client):
+    pe_mod, _ = _terrace_session(client, "ending_solo", {})
+    pe_mod.SESSIONS["ending_solo"]["state"].world_model.romance_outcome = "solo_departure"
+    body = client.post("/api/chat", json={"session_id": "ending_solo", "message": "Bye."}).json()
+    assert (body["ending"]["id"], body["ending"]["kind"], body["ending"]["label"]) == (
+        "left_alone", "neutral", "Story ended")
+    assert "YOU WIN" not in body["reply"]
+
+
+def test_ordinary_turns_and_declined_offers_have_no_ending(client):
+    pe_mod, _ = _terrace_session(client, "ending_none", {})
+    body = client.post("/api/chat", json={"session_id": "ending_none",
+                                          "message": "Do you want to leave together? No? Okay."}).json()
+    assert "ending" not in body
+    assert pe_mod.SESSIONS["ending_none"]["state"].over is False
+
+
 def test_addressed_question_reaches_the_storyteller_and_stays_owed(client, monkeypatch):
     """BL-39 O08 end to end: the extraction call reports a question to a
     present character; the storyteller prompt carries the obligation, and it

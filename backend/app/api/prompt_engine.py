@@ -11,6 +11,7 @@ from backend.app.engine.extractors.turn_extractor import (
 from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
 from backend.app.db.repos import SessionRepo, SessionRevisionConflict, TurnReceipt, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
+from backend.app.engine.rules.endings import Outcome, goal_payload, resolve_outcome
 
 import asyncio
 import copy
@@ -84,7 +85,7 @@ from backend.app.engine.state import (
 )
 from backend.app.engine.dialogue import (
     present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
-    dialogue_response_format, decode_dialogue_response,
+    dialogue_response_format, decode_dialogue_response, finale_turn,
     has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene, drop_narrated_player_echo,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
@@ -102,8 +103,6 @@ from backend.app.engine.gameplay import (
     advance_time,
 
     advance_time_by,
-
-    win_condition_detected,
 
     process_pending_events,
 
@@ -367,6 +366,12 @@ def _seed_player_visibility(state: GameState) -> None:
         state.player_visible_chunk_ids = []
 
 
+# Story rules read only by engine code (BL-39); kept in the runtime story
+# config and excluded from any prompt/transient seeding.
+ENGINE_ONLY_STORY_KEYS = ("endings", "social_tracks", "personalities", "default_personality", "player_fact_keys",
+                          "social_acts", "clocks", "commentary")
+
+
 _BASIC_CHARACTER_KEYS = {
     "key",
     "id",
@@ -404,6 +409,7 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
             # newgame character-construction path) already preserves them.
             "motive": ch.get("motive") or "",
             "tells": list(ch.get("tells") or []),
+            "personality": ch.get("personality") or {},
         })
 
     return {
@@ -441,6 +447,9 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "cast_lifecycle": src.get("cast_lifecycle") or {},
         # Character & world model data: routines, threads, evidence, homes.
         "world_model": src.get("world_model") or {},
+        # BL-39 engine-only rules (never prompt text): typed endings, standing
+        # tracks/requirements/appraisal, and per-character personalities.
+        **{key: src[key] for key in ENGINE_ONLY_STORY_KEYS if key in src},
     }
 
 
@@ -702,6 +711,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         "character_self_knowledge",  # injected directly into system prompt; not via FAISS
         "mode",  # injected directly via the prompt_builder mode-context layer; not via FAISS
         "cast_lifecycle",  # runtime state; never seed future entrants into transient context
+        *ENGINE_ONLY_STORY_KEYS,  # hidden tastes/standards/rules must never reach prompts
     }
 
     details: list[str] = []
@@ -715,7 +725,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         if not isinstance(ch, dict):
             continue
         ch_key = str(ch.get("key") or ch.get("id") or ch.get("name") or "character")
-        extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS}
+        extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS and k != "personality"}
         if extras:
             details.append(f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}")
 
@@ -1631,6 +1641,7 @@ def _serialize_state(state: GameState, log: list) -> str:
         "relationship": state.relationship,
         "turns": state.turns,
         "over": state.over,
+        "outcome": getattr(state, "outcome", None),
         "instance": state.instance,
         "language_theme": (
             state.language_theme.value
@@ -1721,6 +1732,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         restored.relationship = saved.get("relationship", 0)
         restored.turns = saved.get("turns", 0)
         restored.over = saved.get("over", False)
+        restored.outcome = saved.get("outcome") or None
         restored.instance = saved.get("instance", 1)
         restored.world_start_datetime = saved.get("world_start_datetime", "")
         restored.last_travel_from_id = saved.get("last_travel_from_id", "")
@@ -2843,6 +2855,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         if bool(sess.get("chinese_mode", False)):
             reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
         newgame_result = {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
+        new_goal = goal_payload(new_state)
+        if new_goal is not None:
+            newgame_result["goal"] = new_goal
 
         # Persist new session to DB (authenticated users only)
         if user_id != "anon":
@@ -2908,7 +2923,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             return {"reply": "Session expired. Please start a new game from the home screen.", "character": "default"}
 
     if state.over:
-        return {"reply": "This story has ended. Start a new game from the home screen to play again.", "character": "default"}
+        ended = {"reply": "(This story has ended. Start a new game from the home screen to play again.)",
+                 "character": "default"}
+        if getattr(state, "outcome", None):
+            ended["ending"] = Outcome.from_dict(state.outcome).payload()
+        return ended
 
     # Phase 1.1: isolate this turn's mutations from the live cached session.
     #
@@ -3095,6 +3114,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     behavior_window=_behavior_window,
                     allowed_behavior_tags=(state.story_cfg or {}).get("behavior_tag_vocabulary") or [],
                     open_questions=world_turn.open_questions(state),
+                    player_fact_keys=(state.story_cfg or {}).get("player_fact_keys") or [],
+                    social_act_kinds=world_turn.social_act_kinds(state),
                 )
 
             _log({
@@ -3194,6 +3215,14 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             if (extraction.questions or extraction.question_updates) and world_turn.enabled(state):
                 world_turn.ensure_model(state, lore=_lore_chunks_for(state))
                 world_turn.record_questions(state, extraction.questions, extraction.question_updates, message=msg)
+            # BL-39 phase E: facts the player states about themselves, heard by those present.
+            if extraction.self_claims and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_claims(state, extraction.self_claims, message=msg)
+            # BL-39 phase F: the target decides a typed social act before the scene is written.
+            if extraction.social_act is not None and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_social_act(state, extraction.social_act)
 
             _lifecycle = getattr(state, "cast_lifecycle", None)
             _signal = extraction.departure_signal
@@ -3246,6 +3275,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 _log_list = state.recent_behavior_log.setdefault(_pair_key, [])
                 _log_list.append(_tag.tag)
                 del _log_list[:-BEHAVIOR_LOG_WINDOW_SIZE]
+            # BL-39 phase D: each present character appraises what they saw.
+            if extraction.behavior_tags and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_behaviors(state, extraction.behavior_tags)
 
             # Apply a genuine SHIFT (never a WISH - "a wish or joke is not
             # departure" applies here too: a momentary flicker must not
@@ -3488,8 +3521,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         "messages": messages,
         "response_format": dialogue_response_format(state),
         "temperature": TEMPERATURE,
-        # Reserve room for per-speaker metadata as well as the existing prose budget.
-        "max_tokens": max(1024, MAX_TOKENS * 2),
+        # Reserve room for per-speaker metadata as well as the existing prose budget;
+        # the finale (exit scene + studio panel) gets an explicit larger allowance.
+        "max_tokens": max(2048 if finale_turn(state) else 1024, MAX_TOKENS * 2),
     }
 
     _log({
@@ -3607,6 +3641,14 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         generated = strip_generated_arrival_repeats(state, segments)
         segments = arrival_segments + drop_repeated_lines(generated, [dialogue_transcript(arrival_segments)])
     world_turn.end_turn(state, _wm_player_words, segments)
+    # BL-39 O26a: every canned/constrained recovery is counted per turn so the
+    # visible-fallback rate can be measured from real traffic (gate: <= 5%).
+    _wm_view = getattr(getattr(state, "world_model", None), "view", None)
+    if _wm_view is not None:
+        _log({"kind": "turn_quality_recoveries", "req_id": req_id, "session_id": session_id,
+              "story": state.story or "", "verdict_repairs": int(getattr(_wm_view, "verdict_repairs", 0)),
+              "panel_fallbacks": int(getattr(_wm_view, "panel_fallbacks", 0)),
+              "finale": bool(getattr(_wm_view, "panel_speakers", None))})
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]
@@ -3666,12 +3708,15 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     except Exception:
         pass
 
-    if getattr(getattr(state, "world_model", None), "romance_outcome", "") == "solo_departure":
-        state.over = True
-        clean += f"\n\nEND GAME -- You chose to leave the house alone. Turns: {state.turns}"
-    elif win_condition_detected(clean, state):
-        state.over = True
-        clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
+    # BL-39 phase A: one typed ending, evaluated once from committed
+    # decisions and saved in the same commit as this reply. The END GAME text
+    # stays for the operator debug harness (debug_engine string-matches it).
+    outcome = resolve_outcome(state, clean)
+    if outcome is not None:
+        state.outcome = outcome.to_dict()
+        state.over = outcome.ends_run
+        marker = "END GAME YOU WIN" if outcome.kind == "win" else f"END GAME -- {outcome.title}"
+        clean += f"\n\n{marker} -- turns: {state.turns}"
 
     # Persist this completed turn for next turn's single-call extractor analysis.
     # These must be set BEFORE the session save below so the persisted row
@@ -3720,6 +3765,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
 
     result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
+    if outcome is not None:
+        result["ending"] = outcome.payload()
+    goal = goal_payload(state)
+    if goal is not None:
+        result["goal"] = goal
     # prompt_debug carries the FULL assembled system prompt (all canonical
     # facts, character secrets, retrieval chunk text) and is only for the
     # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
