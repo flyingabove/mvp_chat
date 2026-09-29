@@ -6,7 +6,7 @@
 
 ## Problem
 `backend/app/engine/world_model/promise_judge.py` registers a kept promise when either of its two Jev questions (four-way choice, yes/no) says done. Across 171 labeled kept promises the miss rate is 1/171 (0.6%) to 2/171 (1.2%) depending on the run (live Jev varies a little). The misses are player statements in first-person plural that describe a joint action as it is being completed, which Jev reads as still pending:
-- `s4-done4` (`tests/data/promise_judge_cases.json`): promise "help her with the laundry", message "We finish the whole basket together and fold everything." Choice answer `pending` at 0.94-0.97 and the yes/no answer under 0.3, every run.
+- `s4-done4` (`tests/eval_cases/promise_judge_cases.json`): promise "help her with the laundry", message "We finish the whole basket together and fold everything." Choice answer `pending` at 0.94-0.97 and the yes/no answer under 0.3, every run.
 - `s1-done4`: promise "show her around the terrace", message "We walk out together and I point out the pool, the loungers, the skyline." Choice `pending` about 0.7; the yes/no answer sits near the 0.30 line, so it flips between runs.
 - `h2-done5` (holdout): "How's the braid?" after "Riko peeks at herself in the mirror." Jev said `unclear` (0.45); the label itself is arguably ambiguous.
 
@@ -18,4 +18,4 @@ Try in this order, measuring each with `pytest -m integration tests/backend/inte
 Raise the sample size before trusting any number under 1%: at 171 cases a 95% interval for 1 miss still spans 0.1-3.2%.
 
 ## Touches
-`backend/app/engine/world_model/promise_judge.py` (`decision_for`, `done_decision_for`, `view_text`, `DONE_AT`), `tests/data/promise_judge_*.json`, `scripts/eval/promise_judge_eval.py`, `tests/backend/integration/test_promise_judge_accuracy.py`.
+`backend/app/engine/world_model/promise_judge.py` (`decision_for`, `done_decision_for`, `view_text`, `DONE_AT`), `tests/eval_cases/promise_judge_*.json`, `scripts/eval/promise_judge_eval.py`, `tests/backend/integration/test_promise_judge_accuracy.py`.

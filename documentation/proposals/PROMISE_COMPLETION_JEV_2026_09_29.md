@@ -16,7 +16,7 @@ An NPC forgetting is acceptable. The game **failing to register something that h
 5. Turn wiring: `world_turn.review_promises` in `prompt_engine.py`, before the scene is built; every ruling is logged as `promise_judgment`.
 
 ## Measurement (local, live Jev; `python -m scripts.eval.promise_judge_eval --set all --show-misses`)
-Cases: `tests/data/promise_judge_cases.json` (dev, 150: tuned against) and `promise_judge_holdout.json` (168: written before seeing Jev's behaviour, and no wording or threshold was tuned on it; but the two-question design was chosen after its results were seen, so it is no longer a fully clean test. Write a fresh set before certifying). 171 kept, 93 not-yet and 54 cancelled across 27 promise scenarios, both directions, nicknames, narration-only, handovers.
+Cases: `tests/eval_cases/promise_judge_cases.json` (dev, 150: tuned against) and `promise_judge_holdout.json` (168: written before seeing Jev's behaviour, and no wording or threshold was tuned on it; but the two-question design was chosen after its results were seen, so it is no longer a fully clean test. Write a fresh set before certifying). 171 kept, 93 not-yet and 54 cancelled across 27 promise scenarios, both directions, nicknames, narration-only, handovers.
 
 | Version | Missed kept promises | Kept when not done |
 |---|---|---|

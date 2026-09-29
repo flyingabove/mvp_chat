@@ -36,7 +36,7 @@ from backend.app.engine.world_model.model import PLAYER  # noqa: E402
 
 SETS = {"dev": ["promise_judge_cases.json"], "holdout": ["promise_judge_holdout.json"],
         "all": ["promise_judge_cases.json", "promise_judge_holdout.json"]}
-DATA = ROOT / "tests" / "data"
+DATA = ROOT / "tests" / "eval_cases"
 GATE = 0.02
 RETRY_PAUSES_S = (5.0, 35.0)   # extra passes over calls Jev never answered; the 2nd outlasts the 30s breaker cooldown
 NAMES = {PLAYER: "Paul", "riko": "Riko"}

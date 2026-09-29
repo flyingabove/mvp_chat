@@ -99,6 +99,15 @@ exchanges and fails above a 2% miss rate on kept promises or on any wrongly-kept
 in `.env.test`; a missing key makes it fail, not skip):
 `python -m pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py -s`
 (about 20 seconds). Its arithmetic and label-file checks (`test_promise_eval_math.py`) are ordinary unit tests and do
-run on deploy, so anything they import (`scripts/eval/`, `tests/data/`) must stay copied into the image.
+run on deploy, so anything they import (`scripts/eval/`, `tests/eval_cases/`) must stay copied into the image.
 A live-Jev number varies by a case or two run to run, so give any gate a margin.
 
+
+## `.gitignore` swallows any folder named `data/` (2026-09-29)
+
+`.gitignore` line 223 (`data/`, meant for runtime data) also ignores `tests/data/`. Label files put there passed
+every local run (they existed on disk) and then failed the Railway build gate with `FileNotFoundError` because they
+were never committed. Keep committed test fixtures out of folders named `data` (use `tests/eval_cases/` or
+`tests/fixtures/`), and before pushing a change that adds fixture files run `git status --short` for them and
+`git check-ignore -v <path>`. The reliable proof is a clean clone:
+`git clone . /tmp/check && cd /tmp/check && python -m pytest -c /dev/null --rootdir . -m "not integration" <new tests>`.

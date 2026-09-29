@@ -11,4 +11,4 @@ Several trackers decide "is this the same person/thing?" with string rules: `wor
 Follow `documentation/proposals/PROMISE_COMPLETION_JEV_2026_09_29.md`: one bounded Jev question per ambiguous match (a choice or yes/no through `npc_decision.build_resolver`), uncertainty resolving toward "same" where a false match only forgets, a labeled dev set plus a never-tuned held-out set with `scripts/eval/`-style measurement, and deletion of the string rule if the miss rate stays above 1%. Start with `addressed_ids` (nickname addressed vs. mentioned) and the duplicate-promise check in `record_commitment`.
 
 ## Touches
-`backend/app/engine/world_model/speakers.py`, `commitments.py`, `memory.py`, `npc_decision.py` (`build_resolver`), new eval script and labeled cases under `tests/data/`.
+`backend/app/engine/world_model/speakers.py`, `commitments.py`, `memory.py`, `npc_decision.py` (`build_resolver`), new eval script and labeled cases under `tests/eval_cases/`.

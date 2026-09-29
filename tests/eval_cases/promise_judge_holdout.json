@@ -1,0 +1,1514 @@
+[
+ {
+  "id": "h0-done0",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Grab your bag.",
+  "prior_reply": "Riko climbs into the passenger seat.",
+  "message": "Here we are, the station. Have a good trip.",
+  "label": "done"
+ },
+ {
+  "id": "h0-done1",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Let's go.",
+  "prior_reply": "The car hums through the evening streets.",
+  "message": "I pull up at the station entrance and she hops out.",
+  "label": "done"
+ },
+ {
+  "id": "h0-done2",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Ready?",
+  "prior_reply": "Riko buckles up.",
+  "message": "We made it with ten minutes to spare, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h0-done3",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Ri-chan, get in.",
+  "prior_reply": "The engine starts.",
+  "message": "I dropped you at the station, text me when you arrive.",
+  "label": "done"
+ },
+ {
+  "id": "h0-done4",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "All set?",
+  "prior_reply": "Paul turns the key and pulls out of the driveway.",
+  "message": "Station's right there. Bye!",
+  "label": "done"
+ },
+ {
+  "id": "h0-done5",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Come on.",
+  "prior_reply": "Riko waves from the curb as the car drives off.",
+  "message": "She is at the station now.",
+  "label": "done"
+ },
+ {
+  "id": "h0-done6",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Hurry.",
+  "prior_reply": "Traffic is light.",
+  "message": "Drove her all the way to the station and waited until her train came.",
+  "label": "done"
+ },
+ {
+  "id": "h0-done7",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Ok.",
+  "prior_reply": "They arrive at the station platform.",
+  "message": "*I hand her bag over at the station gate.*",
+  "label": "done"
+ },
+ {
+  "id": "h0-pend-g0",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h0-pend-g1",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h0-pend-g2",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h0-pend-future",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll drive you to the station tomorrow morning.",
+  "label": "pending"
+ },
+ {
+  "id": "h0-cancel-own",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I can't drive you after all, take the train line from here.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h0-cancel-g",
+  "promiser": "player",
+  "promise": "give her a ride to the station",
+  "prior_user": "Forget it.",
+  "prior_reply": "Paul shrugs.",
+  "message": "Sorry, I'm dropping that idea altogether.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h1-done0",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "I'll get you groceries.",
+  "prior_reply": "Riko gives him a list.",
+  "message": "Got everything on the list: milk, eggs, rice.",
+  "label": "done"
+ },
+ {
+  "id": "h1-done1",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Back!",
+  "prior_reply": "Paul sets two bulging bags on the counter.",
+  "message": "Groceries, as promised.",
+  "label": "done"
+ },
+ {
+  "id": "h1-done2",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Thank you.",
+  "prior_reply": "Bags rustle.",
+  "message": "I picked up everything you asked for at the supermarket.",
+  "label": "done"
+ },
+ {
+  "id": "h1-done3",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Ri-chan, help me unpack.",
+  "prior_reply": "He puts vegetables in the fridge.",
+  "message": "That's all your groceries bought and put away.",
+  "label": "done"
+ },
+ {
+  "id": "h1-done4",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Done shopping.",
+  "prior_reply": "Receipts crumple in his hand.",
+  "message": "Here's your change, Riko. I bought the groceries.",
+  "label": "done"
+ },
+ {
+  "id": "h1-done5",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Look what I have.",
+  "prior_reply": "Paul lifts a basket of fruit.",
+  "message": "The fruit and bread you wanted.",
+  "label": "done"
+ },
+ {
+  "id": "h1-done6",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Finally.",
+  "prior_reply": "The bag clinks with bottles.",
+  "message": "*I put the groceries I bought on the table for her.*",
+  "label": "done"
+ },
+ {
+  "id": "h1-done7",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "There.",
+  "prior_reply": "Cans and boxes line the shelf.",
+  "message": "All of it. I went to the store and got your shopping.",
+  "label": "done"
+ },
+ {
+  "id": "h1-pend-g0",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h1-pend-g1",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h1-pend-g2",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h1-pend-future",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll buy your groceries this evening.",
+  "label": "pending"
+ },
+ {
+  "id": "h1-cancel-own",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I'm not buying your groceries, go yourself.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h1-cancel-g",
+  "promiser": "player",
+  "promise": "buy her some groceries",
+  "prior_user": "About that.",
+  "prior_reply": "Riko sighs.",
+  "message": "Please cancel it, it no longer matters.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h2-done0",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Sit still.",
+  "prior_reply": "Riko sits on the floor.",
+  "message": "There, I finished the braid. Take a look in the mirror.",
+  "label": "done"
+ },
+ {
+  "id": "h2-done1",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Hold this.",
+  "prior_reply": "He works the strands in and out.",
+  "message": "Braid's done, it looks great.",
+  "label": "done"
+ },
+ {
+  "id": "h2-done2",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Almost.",
+  "prior_reply": "Paul ties off the end with an elastic.",
+  "message": "All braided, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h2-done3",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Ri-chan, turn around.",
+  "prior_reply": "His fingers move quickly.",
+  "message": "Your hair is braided just like I promised.",
+  "label": "done"
+ },
+ {
+  "id": "h2-done4",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Hair tie?",
+  "prior_reply": "She passes it back.",
+  "message": "*I finish braiding her hair and tie it off.*",
+  "label": "done"
+ },
+ {
+  "id": "h2-done5",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Wait.",
+  "prior_reply": "Riko peeks at herself in the mirror.",
+  "message": "How's the braid?",
+  "label": "done"
+ },
+ {
+  "id": "h2-done6",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Nearly.",
+  "prior_reply": "The last twist goes into place.",
+  "message": "Done, a French braid all the way down.",
+  "label": "done"
+ },
+ {
+  "id": "h2-done7",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Hold still.",
+  "prior_reply": "A neat plait falls over her shoulder.",
+  "message": "I braided it, do you like it?",
+  "label": "done"
+ },
+ {
+  "id": "h2-pend-g0",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h2-pend-g1",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h2-pend-g2",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h2-pend-future",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll braid your hair tonight.",
+  "label": "pending"
+ },
+ {
+  "id": "h2-cancel-own",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I don't know how to braid, forget it.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h2-cancel-g",
+  "promiser": "player",
+  "promise": "braid her hair",
+  "prior_user": "Forget it.",
+  "prior_reply": "Paul shrugs.",
+  "message": "Sorry, I'm dropping that idea altogether.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h3-done0",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Say cheese.",
+  "prior_reply": "Riko poses by the railing.",
+  "message": "Got it, that one's a keeper. Look.",
+  "label": "done"
+ },
+ {
+  "id": "h3-done1",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "One more.",
+  "prior_reply": "The phone camera clicks.",
+  "message": "I took the photo of you on the terrace, see?",
+  "label": "done"
+ },
+ {
+  "id": "h3-done2",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Smile.",
+  "prior_reply": "Riko laughs.",
+  "message": "Here, the picture's on my phone now.",
+  "label": "done"
+ },
+ {
+  "id": "h3-done3",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Ri-chan, look here.",
+  "prior_reply": "Click.",
+  "message": "Terrace photo taken, sending it to you.",
+  "label": "done"
+ },
+ {
+  "id": "h3-done4",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Hold on.",
+  "prior_reply": "Golden light hits her face.",
+  "message": "*I snap the photo and show her the screen.*",
+  "label": "done"
+ },
+ {
+  "id": "h3-done5",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Perfect.",
+  "prior_reply": "She checks the shot.",
+  "message": "I took a few photos of you outside on the terrace.",
+  "label": "done"
+ },
+ {
+  "id": "h3-done6",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Turn a bit.",
+  "prior_reply": "Paul crouches for the angle.",
+  "message": "That's the terrace shot done.",
+  "label": "done"
+ },
+ {
+  "id": "h3-done7",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Now.",
+  "prior_reply": "The shutter sounds.",
+  "message": "Photo taken. You look great, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h3-pend-g0",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h3-pend-g1",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h3-pend-g2",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h3-pend-future",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll take your photo on the terrace tomorrow.",
+  "label": "pending"
+ },
+ {
+  "id": "h3-cancel-own",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, no photos, the light is bad, another day.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h3-cancel-g",
+  "promiser": "player",
+  "promise": "take a photo of her on the terrace",
+  "prior_user": "About that.",
+  "prior_reply": "Riko sighs.",
+  "message": "Please cancel it, it no longer matters.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h4-done0",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Leave it to me.",
+  "prior_reply": "Paul rolls up his sleeves.",
+  "message": "The kitchen's spotless now, floor and counters.",
+  "label": "done"
+ },
+ {
+  "id": "h4-done1",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Where's the sponge?",
+  "prior_reply": "Riko points under the sink.",
+  "message": "Everything is scrubbed and the dishes are done.",
+  "label": "done"
+ },
+ {
+  "id": "h4-done2",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Almost finished.",
+  "prior_reply": "Water splashes in the sink.",
+  "message": "Kitchen cleaned. You can relax, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h4-done3",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Ri-chan, go rest.",
+  "prior_reply": "He wipes the last counter.",
+  "message": "I cleaned the whole kitchen for you.",
+  "label": "done"
+ },
+ {
+  "id": "h4-done4",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Hang on.",
+  "prior_reply": "The stove gleams.",
+  "message": "*I put the sponge away; the kitchen is clean.*",
+  "label": "done"
+ },
+ {
+  "id": "h4-done5",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Done?",
+  "prior_reply": "Paul ties up the trash bag.",
+  "message": "The kitchen is cleaned up, trash out.",
+  "label": "done"
+ },
+ {
+  "id": "h4-done6",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Phew.",
+  "prior_reply": "The floor is still damp.",
+  "message": "I mopped and wiped everything down.",
+  "label": "done"
+ },
+ {
+  "id": "h4-done7",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "There.",
+  "prior_reply": "Riko peeks in.",
+  "message": "Your kitchen is clean, as I said.",
+  "label": "done"
+ },
+ {
+  "id": "h4-pend-g0",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h4-pend-g1",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h4-pend-g2",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h4-pend-future",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll clean the kitchen after dinner.",
+  "label": "pending"
+ },
+ {
+  "id": "h4-cancel-own",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I'm not cleaning the kitchen tonight, it can wait.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h4-cancel-g",
+  "promiser": "player",
+  "promise": "clean the kitchen for her",
+  "prior_user": "Forget it.",
+  "prior_reply": "Paul shrugs.",
+  "message": "Sorry, I'm dropping that idea altogether.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h5-done0",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Let's go.",
+  "prior_reply": "They step out into the cool air.",
+  "message": "Here's the bus stop. Your bus is coming.",
+  "label": "done"
+ },
+ {
+  "id": "h5-done1",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "This way.",
+  "prior_reply": "They chat as they walk.",
+  "message": "I walked her all the way to the bus stop.",
+  "label": "done"
+ },
+ {
+  "id": "h5-done2",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Nearly there.",
+  "prior_reply": "The stop sign comes into view.",
+  "message": "There, safe and sound at the bus stop.",
+  "label": "done"
+ },
+ {
+  "id": "h5-done3",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Ri-chan, come.",
+  "prior_reply": "The street is quiet.",
+  "message": "We reach the bus stop and wait together.",
+  "label": "done"
+ },
+ {
+  "id": "h5-done4",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Bus stop's ahead.",
+  "prior_reply": "Riko checks the timetable.",
+  "message": "I see her off at the bus stop.",
+  "label": "done"
+ },
+ {
+  "id": "h5-done5",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Ok.",
+  "prior_reply": "They stand beneath the shelter.",
+  "message": "*I walked her to the stop and waved as the bus left.*",
+  "label": "done"
+ },
+ {
+  "id": "h5-done6",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Ready?",
+  "prior_reply": "They walk side by side.",
+  "message": "Made it, the bus stop, five minutes early.",
+  "label": "done"
+ },
+ {
+  "id": "h5-done7",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Follow me.",
+  "prior_reply": "Paul leads her down the lane.",
+  "message": "Walked her to the bus stop like I said.",
+  "label": "done"
+ },
+ {
+  "id": "h5-pend-g0",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h5-pend-g1",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h5-pend-g2",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h5-pend-future",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll walk you to the bus stop in the morning.",
+  "label": "pending"
+ },
+ {
+  "id": "h5-cancel-own",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I can't walk you to the bus stop, I have to stay.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h5-cancel-g",
+  "promiser": "player",
+  "promise": "walk her to the bus stop",
+  "prior_user": "About that.",
+  "prior_reply": "Riko sighs.",
+  "message": "Please cancel it, it no longer matters.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h6-done0",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Can I see?",
+  "prior_reply": "Riko hands him the sketchbook, pages fluttering. Riko: 'Here it is, my sketchbook. Look through it.'",
+  "message": "Thanks!",
+  "label": "done"
+ },
+ {
+  "id": "h6-done1",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Wow.",
+  "prior_reply": "She flips to a page of city rooftops. Riko: 'That's my favorite sketch.'",
+  "message": "Wow, thank you.",
+  "label": "done"
+ },
+ {
+  "id": "h6-done2",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Is this yours?",
+  "prior_reply": "Riko lays the sketchbook open on the table. Riko: 'Yes, I wanted you to see all of it.'",
+  "message": "That is great, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h6-done3",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Ri-chan, these are great.",
+  "prior_reply": "She turns the pages for him, one drawing after another. Riko: 'Thank you for looking.'",
+  "message": "Ri-chan, you are the best.",
+  "label": "done"
+ },
+ {
+  "id": "h6-done4",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Show me more.",
+  "prior_reply": "Riko slides the sketchbook across. Riko: 'Take your time.'",
+  "message": "Oh nice.",
+  "label": "done"
+ },
+ {
+  "id": "h6-done5",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Beautiful.",
+  "prior_reply": "Paul studies the pencil drawings she gave him to look at. Riko: 'I never show anyone these.'",
+  "message": "Really?",
+  "label": "done"
+ },
+ {
+  "id": "h6-done6",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Oh?",
+  "prior_reply": "The sketchbook rests in his hands. Riko: 'As promised, my sketchbook.'",
+  "message": "Cool.",
+  "label": "done"
+ },
+ {
+  "id": "h6-done7",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Nice.",
+  "prior_reply": "She points to a drawing of the terrace in her sketchbook. Riko: 'That is the terrace at dawn.'",
+  "message": "Amazing.",
+  "label": "done"
+ },
+ {
+  "id": "h6-pend-g0",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h6-pend-g1",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h6-pend-g2",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h6-pend-future",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll show you my sketchbook tomorrow.",
+  "label": "pending"
+ },
+ {
+  "id": "h6-cancel-own",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I've decided not to show you my sketchbook.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h6-cancel-g",
+  "promiser": "npc",
+  "promise": "show him her sketchbook",
+  "prior_user": "Forget it.",
+  "prior_reply": "Paul shrugs.",
+  "message": "Sorry, I'm dropping that idea altogether.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h7-done0",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Smells amazing.",
+  "prior_reply": "Riko ladles curry onto rice and sets it in front of him. Riko: 'My mother's recipe, just for you.'",
+  "message": "Thanks!",
+  "label": "done"
+ },
+ {
+  "id": "h7-done1",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "What is this?",
+  "prior_reply": "She serves him a steaming bowl of her mother's curry. Riko: 'Try it.'",
+  "message": "Wow, thank you.",
+  "label": "done"
+ },
+ {
+  "id": "h7-done2",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Mm!",
+  "prior_reply": "Paul tastes the curry she cooked. Riko: 'It took all afternoon, but I made it.'",
+  "message": "That is great, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h7-done3",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Ri-chan, wow.",
+  "prior_reply": "The pot of her mother's curry sits between them. Riko: 'I told you I'd cook it.'",
+  "message": "Ri-chan, you are the best.",
+  "label": "done"
+ },
+ {
+  "id": "h7-done4",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Seconds?",
+  "prior_reply": "Riko refills his plate with the curry she made. Riko: 'Of course.'",
+  "message": "Oh nice.",
+  "label": "done"
+ },
+ {
+  "id": "h7-done5",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Delicious.",
+  "prior_reply": "She cooked the curry from her mother's recipe and served it hot. Riko: 'I'm glad you like it.'",
+  "message": "Really?",
+  "label": "done"
+ },
+ {
+  "id": "h7-done6",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Whoa.",
+  "prior_reply": "Steam rises from the bowl. Riko: 'Here is the curry I promised to cook.'",
+  "message": "Cool.",
+  "label": "done"
+ },
+ {
+  "id": "h7-done7",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Thank you.",
+  "prior_reply": "The curry is cooked and served. Riko: 'Eat while it is warm.'",
+  "message": "Amazing.",
+  "label": "done"
+ },
+ {
+  "id": "h7-pend-g0",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h7-pend-g1",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h7-pend-g2",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h7-pend-future",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll cook you my mother's curry sometime this week.",
+  "label": "pending"
+ },
+ {
+  "id": "h7-cancel-own",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I won't cook my mother's curry, it is a family secret.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h7-cancel-g",
+  "promiser": "npc",
+  "promise": "cook him her mother's curry recipe",
+  "prior_user": "About that.",
+  "prior_reply": "Riko sighs.",
+  "message": "Please cancel it, it no longer matters.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h8-done0",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Not too short.",
+  "prior_reply": "Riko snips the last strands and brushes off his neck. Riko: 'All done, take a look.'",
+  "message": "Thanks!",
+  "label": "done"
+ },
+ {
+  "id": "h8-done1",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "How is it?",
+  "prior_reply": "Scissors click and hair falls onto the towel. Riko: 'I gave you a haircut, hold still for the last bit.'",
+  "message": "Wow, thank you.",
+  "label": "done"
+ },
+ {
+  "id": "h8-done2",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Looks good.",
+  "prior_reply": "She hands him a mirror after cutting his hair. Riko: 'Sharp, right?'",
+  "message": "That is great, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h8-done3",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Ri-chan, thanks.",
+  "prior_reply": "The haircut is finished and the towel is shaken out. Riko: 'You look neat now.'",
+  "message": "Ri-chan, you are the best.",
+  "label": "done"
+ },
+ {
+  "id": "h8-done4",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Wow.",
+  "prior_reply": "Riko trimmed his hair evenly on both sides. Riko: 'Your haircut, as promised.'",
+  "message": "Oh nice.",
+  "label": "done"
+ },
+ {
+  "id": "h8-done5",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Feels light.",
+  "prior_reply": "Riko sweeps the cut hair into a dustpan. Riko: 'That is a fresh haircut.'",
+  "message": "Really?",
+  "label": "done"
+ },
+ {
+  "id": "h8-done6",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Nice work.",
+  "prior_reply": "She finished cutting his hair and adjusted the mirror. Riko: 'Any complaints?'",
+  "message": "Cool.",
+  "label": "done"
+ },
+ {
+  "id": "h8-done7",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Perfect.",
+  "prior_reply": "Riko lowers the scissors, the haircut complete. Riko: 'Happy?'",
+  "message": "Amazing.",
+  "label": "done"
+ },
+ {
+  "id": "h8-pend-g0",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h8-pend-g1",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h8-pend-g2",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h8-pend-future",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll cut your hair on the weekend.",
+  "label": "pending"
+ },
+ {
+  "id": "h8-cancel-own",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I won't cut your hair, go to a barber.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h8-cancel-g",
+  "promiser": "npc",
+  "promise": "give him a haircut",
+  "prior_user": "Forget it.",
+  "prior_reply": "Paul shrugs.",
+  "message": "Sorry, I'm dropping that idea altogether.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h9-done0",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Ready.",
+  "prior_reply": "Riko strums and sings the first verse of her own song. Riko: 'That was the song I wrote.'",
+  "message": "Thanks!",
+  "label": "done"
+ },
+ {
+  "id": "h9-done1",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Beautiful.",
+  "prior_reply": "Her voice fills the room; the song she wrote fades out. Riko: 'You listened all the way through.'",
+  "message": "Wow, thank you.",
+  "label": "done"
+ },
+ {
+  "id": "h9-done2",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Encore?",
+  "prior_reply": "Riko finishes playing the song she wrote. Riko: 'Just that one for now.'",
+  "message": "That is great, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h9-done3",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Ri-chan, wow.",
+  "prior_reply": "The last chord of her song rings out. Riko: 'I wrote it last spring.'",
+  "message": "Ri-chan, you are the best.",
+  "label": "done"
+ },
+ {
+  "id": "h9-done4",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "I loved it.",
+  "prior_reply": "She has just played him her song on the guitar. Riko: 'Thank you.'",
+  "message": "Oh nice.",
+  "label": "done"
+ },
+ {
+  "id": "h9-done5",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Wow.",
+  "prior_reply": "Riko sang her new song for him, every line. Riko: 'You are the first to hear it.'",
+  "message": "Really?",
+  "label": "done"
+ },
+ {
+  "id": "h9-done6",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "That was moving.",
+  "prior_reply": "Her song ends and the room is quiet. Riko: 'I am glad I played it.'",
+  "message": "Cool.",
+  "label": "done"
+ },
+ {
+  "id": "h9-done7",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "So good.",
+  "prior_reply": "Riko lowers the guitar after playing him her song. Riko: 'It is done.'",
+  "message": "Amazing.",
+  "label": "done"
+ },
+ {
+  "id": "h9-pend-g0",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h9-pend-g1",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h9-pend-g2",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h9-pend-future",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll play you my song after dinner.",
+  "label": "pending"
+ },
+ {
+  "id": "h9-cancel-own",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I'm not ready to play you my song.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h9-cancel-g",
+  "promiser": "npc",
+  "promise": "play him the song she wrote",
+  "prior_user": "About that.",
+  "prior_reply": "Riko sighs.",
+  "message": "Please cancel it, it no longer matters.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h10-done0",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "So many fish.",
+  "prior_reply": "Riko leads him between the stalls of the fish market. Riko: 'This is the market I told you about.'",
+  "message": "Thanks!",
+  "label": "done"
+ },
+ {
+  "id": "h10-done1",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Wow, crowded.",
+  "prior_reply": "They walk through the fish market under a loud morning. Riko: 'Stay close.'",
+  "message": "Wow, thank you.",
+  "label": "done"
+ },
+ {
+  "id": "h10-done2",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "It smells strong.",
+  "prior_reply": "The two of them are inside the fish market now. Riko: 'I brought you here as promised.'",
+  "message": "That is great, Riko.",
+  "label": "done"
+ },
+ {
+  "id": "h10-done3",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Ri-chan, what is that?",
+  "prior_reply": "She points at a tuna at the fish market. Riko: 'That is a whole tuna.'",
+  "message": "Ri-chan, you are the best.",
+  "label": "done"
+ },
+ {
+  "id": "h10-done4",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Cool.",
+  "prior_reply": "Riko has taken him to the fish market and buys some squid. Riko: 'Let's taste it.'",
+  "message": "Oh nice.",
+  "label": "done"
+ },
+ {
+  "id": "h10-done5",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Amazing.",
+  "prior_reply": "Vendors call out; Riko and Paul stroll through the fish market. Riko: 'Do you like it?'",
+  "message": "Really?",
+  "label": "done"
+ },
+ {
+  "id": "h10-done6",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Nice.",
+  "prior_reply": "They arrive at the fish market together. Riko: 'Here we are.'",
+  "message": "Cool.",
+  "label": "done"
+ },
+ {
+  "id": "h10-done7",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Oh wow.",
+  "prior_reply": "Riko shows him the auction floor of the fish market. Riko: 'I wanted you to see this.'",
+  "message": "Amazing.",
+  "label": "done"
+ },
+ {
+  "id": "h10-pend-g0",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h10-pend-g1",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h10-pend-g2",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h10-pend-future",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll take you to the fish market next week.",
+  "label": "pending"
+ },
+ {
+  "id": "h10-cancel-own",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, I can't take you to the fish market, it's too early for me.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h10-cancel-g",
+  "promiser": "npc",
+  "promise": "take him to the fish market",
+  "prior_user": "Forget it.",
+  "prior_reply": "Paul shrugs.",
+  "message": "Sorry, I'm dropping that idea altogether.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h11-done0",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Ready for the movie?",
+  "prior_reply": "The lights are dimmed.",
+  "message": "The movie's over. What did you think of it, Riko?",
+  "label": "done"
+ },
+ {
+  "id": "h11-done1",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Press play.",
+  "prior_reply": "Credits roll on the screen.",
+  "message": "I picked the film and we watched it together to the end.",
+  "label": "done"
+ },
+ {
+  "id": "h11-done2",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Popcorn?",
+  "prior_reply": "They settle onto the couch.",
+  "message": "That was the movie I recommended. We watched the whole thing.",
+  "label": "done"
+ },
+ {
+  "id": "h11-done3",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Ri-chan, sit.",
+  "prior_reply": "The final scene fades.",
+  "message": "Great ending, wasn't it? Glad we watched it together.",
+  "label": "done"
+ },
+ {
+  "id": "h11-done4",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Start it.",
+  "prior_reply": "Two hours pass in the glow of the television.",
+  "message": "We watched the film side by side.",
+  "label": "done"
+ },
+ {
+  "id": "h11-done5",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Turn it off.",
+  "prior_reply": "The screen goes dark.",
+  "message": "That's the movie I wanted you to see, done.",
+  "label": "done"
+ },
+ {
+  "id": "h11-done6",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "So?",
+  "prior_reply": "Riko laughs about the last scene.",
+  "message": "*I recommended the film and we finished watching it together.*",
+  "label": "done"
+ },
+ {
+  "id": "h11-done7",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Again sometime.",
+  "prior_reply": "The movie has ended.",
+  "message": "We watched my recommendation from start to finish.",
+  "label": "done"
+ },
+ {
+  "id": "h11-pend-g0",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Did you eat yet?",
+  "prior_reply": "Riko nods.",
+  "message": "Yes, a little bit earlier. And you?",
+  "label": "pending"
+ },
+ {
+  "id": "h11-pend-g1",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Nice weather.",
+  "prior_reply": "A breeze comes through the window.",
+  "message": "It is lovely. Maybe it will stay warm all week.",
+  "label": "pending"
+ },
+ {
+  "id": "h11-pend-g2",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "What are you reading?",
+  "prior_reply": "Riko lifts a magazine.",
+  "message": "Just a fashion magazine, nothing serious.",
+  "label": "pending"
+ },
+ {
+  "id": "h11-pend-future",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "Do not forget.",
+  "prior_reply": "Riko nods.",
+  "message": "I'll pick a movie and watch it with you on Friday.",
+  "label": "pending"
+ },
+ {
+  "id": "h11-cancel-own",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "About our plan.",
+  "prior_reply": "Riko listens.",
+  "message": "Actually, no movie tonight, I'm not in the mood.",
+  "label": "cancelled"
+ },
+ {
+  "id": "h11-cancel-g",
+  "promiser": "player",
+  "promise": "recommend her a movie and watch it with her",
+  "prior_user": "About that.",
+  "prior_reply": "Riko sighs.",
+  "message": "Please cancel it, it no longer matters.",
+  "label": "cancelled"
+ }
+]
