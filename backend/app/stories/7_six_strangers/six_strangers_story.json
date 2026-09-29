@@ -2195,6 +2195,22 @@
     "warm", "attentive", "funny", "complimentary", "flirtatious", "helpful", "generous", "honest",
     "supportive_of_goals", "boastful", "rude", "dismissive", "pushy", "evasive"
   ],
+  "endings": [
+    {"id": "left_together", "kind": "win", "title": "You left together",
+     "summary": "You and {partner} both chose to leave the house together.",
+     "when": {"kind": "world_outcome", "equals": "mutual_departure"}},
+    {"id": "left_alone", "kind": "neutral", "title": "You left alone",
+     "summary": "You chose to leave the house on your own.",
+     "when": {"kind": "world_outcome", "equals": "solo_departure"}},
+    {"id": "cut_by_director", "kind": "loss", "title": "Cut by the director",
+     "summary": "Three other couples left happy before you. The director decided your story was over.",
+     "when": {"kind": "counter_at_least", "counter": "couples_left", "value": 3}}
+  ],
+  "clocks": [
+    {"id": "director_patience", "counter": "couples_left", "warn_at": 2, "trigger_at": 3,
+     "warn_beat": "The show's director calls the player off-camera: two couples have left happy. If one more leaves before the player does, the player is done here. The director is only a voice on the phone; keep the call brief.",
+     "trigger_beat": "The show's director calls the player off-camera: a third couple has left happy, so the player is cut from the show. Write a short, dignified exit as the player packs up. The director is only a voice on the phone."}
+  ],
   "social_acts": [
     {"kind": "confess", "track": "romance", "requires_tier": "interested", "cooldown_days": 1},
     {"kind": "ask_leave_together", "track": "romance", "requires_tier": "dating", "min_standing": 70,

@@ -38,6 +38,7 @@ from backend.app.engine.world_model.agenda import (
     SocialContext, couples_leaving, couples_ready, next_beat, refresh_agendas,
 )
 from backend.app.engine.state import PendingEvent
+from backend.app.engine.rules.clocks import clocks_for, due_beats
 from backend.app.engine.world_calendar import day_number
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
@@ -302,6 +303,9 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
             owes_answer.add(verdict.act.target)
     addressed_now, _ = addressed_ids(model, message, present)
     day = model.world.day_index(model.world.minute)
+    for key, text in due_beats(clocks_for(getattr(state, "story_cfg", {}) or {}), model.counters):
+        view.must_address.append(text)
+        model.counters[key] = 1
     beat = None if owes_answer else next_beat(model, present_set, day)   # direct questions come first
     if beat is not None:
         cid, intention = beat
