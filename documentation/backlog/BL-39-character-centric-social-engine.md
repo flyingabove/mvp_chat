@@ -1,287 +1,294 @@
-# BL-39 — Engineering plan: character-centric social engine (earned romance, endings, panel)
+# BL-39 — Canonical proposal: reusable character-centered simulation engine
 
-- **Type:** feature (engineering plan)
-- **Found:** 2026-09-27, owner request after the Terrace game-mode design ([TERRACE_HOUSE.md](../game_modes/TERRACE_HOUSE.md))
-- **Severity:** high. This is the implementation path for BL-33 and BL-34, and part of BL-35 and BL-38. Terrace has no earnable win or loss until it lands.
-- **Status (2026-09-28):** conflicts with [BL-38](BL-38-social-engine-authority-and-epistemic-transactions.md) on relationship ownership, standing arithmetic, turn boundary, panel call count and NPC decision model. See the [conflict table](../research/ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md#conflicts-requiring-reconciliation). The owner is writing one consolidated plan; do not implement shared Character/relationship state from this doc alone.
+- **Type:** feature / engineering plan
+- **Found:** 2026-09-27; consolidated by owner direction on 2026-09-28.
+- **Severity:** high: unreliable outcomes, attribution and character agency undermine gameplay.
+- **Status:** proposed, not implemented or calibrated by this documentation change.
+- **Authority:** the single target architecture and roadmap. Replaces competing architectural portions of BL-38 and original BL-39. [BL-38](BL-38-social-engine-authority-and-epistemic-transactions.md) remains an open correctness tracker, not a second design.
+- **Navigation:** sections 1–3 ownership; 4–9 contracts; 10 release units; 11 acceptance; 12 owner answers.
 
-## Problem
+## 1. Product goal
 
-The Terrace design (standing tracks with gated ceilings, personal requirements, a player fact ledger, confessions/asks, story clocks, endings, the judges panel) needs characters that **perceive, judge, remember, want and decide**. Today, one person's inner life is scattered across unrelated stores, keyed by id strings. Nothing owns it:
+Build enjoyable, heightened, plausible drama around characters with different beliefs, tastes, voices, commitments and aims. Humor and surprising choices are welcome. A character can ditch work for a date and worry about their boss; the choice needs a possible route, believable motivation and consequences. Consistency supports drama, not a requirement to choose the dullest sensible action.
 
-| What a person "is" | Where it lives today |
+Use BL-39's Character → Heart → Bond model and perceive → appraise → feel → want → act loop. BL-38's atomic turns, provenance, consent, context isolation and migration become required contracts. Do not build competing appraisal engines or relationship stores.
+
+[Terrace House](../game_modes/TERRACE_HOUSE.md) provides content: six residents from the authored 17-character pool, earned mutual departure, personal standards, NPC couples, director warning after two other couples leave and cut after three, and optional commentary. The mystery reuses characters, knowledge, evidence, questions, agendas and agreements. No story ID, character name, gender rule, romance threshold or panelist identity belongs in generic engine logic.
+
+Owner choices: **hybrid LLM/Jev social judgment; at most two LLM calls per turn; gameplay before latency optimization; provisional 5% visible fallback ceiling.** Developer arena judging stays off for playtest review.
+
+## 2. Code reuse and migration seams
+
+| Existing component | Reuse / change |
 |---|---|
-| Authored identity, voice, goal, tells | `engine/state.py::Character` (in `GameState.characters`) |
-| Body, routine, mood, aim | `world_model/character.py::CharacterState` (in `WorldModel.characters`) |
-| Feelings toward others | `character_graph.py::RelationshipEdge.state`, in `GameState.character_graph`, looked up by `(from_id, to_id)` string key |
-| Memories | `world_model/memory.py::MemoryStore`, a flat list filtered by `owner` |
-| Beliefs and claims | `world_model/epistemics.py::EpistemicLedger`, flat lists filtered by `owner` |
-| Plans and promises | `world_model/agreements.py::AgreementBook` |
-| Romance decisions | six loose `romance_*` string fields on `WorldModel` plus regex in `world_model/romance.py` |
-| NPC initiative | the free function `intentions.py::propose_rival_invitations` with hard-coded thresholds |
-| Off-screen life | `offscreen.py::outcome_weights`, flat `BASE_WEIGHTS` tuned by pair averages, not by who these people are |
+| engine/state.py::Character | Authored identity, voice, goals and tells feed Profile and character components. |
+| world_model/character.py::CharacterState | Physical/routine state becomes Body through an explicit adapter. Do not alias incompatible CharacterState and Character types. |
+| character_graph.py::RelationshipEdge.state | Initially the identical object exposed by Bond.feelings; eventually a facade over bonds. No copied writable score. |
+| world_model/memory.py, epistemics.py, gossip.py | Shared storage with character-scoped views and transmission/source provenance. |
+| agreements.py, commitments.py, turn.py | Extend existing scheduling/turn seams. Preserve ongoing attendance work and prove its subset before replacing callers. |
+| romance.py and six romance_* fields | Adapt evidenced decisions to agreements/outcomes; remove regex authority after typed acts pass parity. Never infer consent from score. |
+| intentions.py, offscreen.py, speakers.py | Incrementally replace hard-coded thresholds/pair-average weights with actor agendas. |
+| projection.py, api/prompt_engine.py, extractor registry | Add scoped proposal/context adapters at existing seams, not another prompt pipeline. |
+| frontend/index.html, dialogue.js | Reuse request_id, three-dot indicator and dialogue renderer; add ending UI/client timing. |
+| SQLite revision / compare-and-swap | Reuse concurrency protection; add atomic receipt/event/outbox persistence. CAS alone is not replay. |
 
-Consequences: an NPC can't "react" to something they saw, because no object receives the event and judges it by its own tastes. Adding requirements, standing or loyalty tests as more free functions would add more loose tables. The owner's direction (2026-09-27): **make the Character object the focus.** Characters should react like real people, the state should make sense, and every mechanic should be reusable across game modes.
+Target APIs below are proposed. Older [social-v2](../reference/SOCIAL_ENGINE_V2_DESIGN.md) and [character redesign](../reference/CHARACTER_WORLD_MODEL_REDESIGN.md) documents remain history/fixture references; this proposal governs conflicting future design.
 
-## Fix direction
+## 3. Object ownership
 
-### 1. Design principles
+| Object | Owned state and behavior |
+|---|---|
+| WorldModel | Aggregate: World, CharacterRegistry, EpistemicLedger, AgreementBook, immutable StoryRules, ConversationState, Outcome. |
+| World | Simulation clock, places, physical events and ordered event sequence. |
+| Character | Profile/VoiceProfile, Personality, DeceptionProfile, Standards, Heart, Persona, Agenda, Body, Presence and scoped views. |
+| Heart / Bond | Directional target bonds: existing feelings, optional standings, cause-linked impression history. |
+| Profile / Personality | Identity/attributes/voice; temperament, tastes, activity preferences and objectives. |
+| Persona | Immutable self-claim history, not universal truth. |
+| Agenda | Intentions, goals, cooldowns and subjective PlanExpectations. |
+| Body / Presence | Place, route, routine, availability; onstage/offstage/commentator capabilities and channels. |
+| Scoped views | Memories, beliefs, commitments and conversations backed by shared stores; prompt callers do not manually filter owner strings. |
 
-1. **A Character is an object with an inner life, not a row.** Everything *about one person's point of view* is a component of that character: tastes, standards, feelings toward each person, claims about themselves, and intentions. Code asks the character (`minori.opinion_of(player)`, `minori.respond(act)`), never a table.
-2. **Shared things stay shared, and only genuinely shared things.** World truth (the event log and places), the transmission chain of claims (`EpistemicLedger`), and two-party contracts (`AgreementBook`) belong to no single person. Characters reach them through **views scoped to themselves** (`character.memories`, `character.beliefs`, `character.commitments`), so callers never filter by `owner` strings.
-3. **Perceive → appraise → feel → want → act.** This is the one loop that makes NPCs human. Every consequential thing that happens is a world `Event`. Each character who *perceives* it (witnessed, overheard, told) *appraises* it with their own personality. That produces **impressions** (attributed feeling changes) and **reactions** (new intentions). Nothing changes feelings without an event cause.
-4. **Characters judge from what they believe, not from truth.** Requirement checks read the character's *beliefs* about the other person. A lie that is believed passes, and it fails the moment it's exposed. This makes lying, gossip and discovery work with no special cases.
-5. **Characters never call an LLM** (constraint from [CHARACTER_WORLD_MODEL_REDESIGN.md](../reference/CHARACTER_WORLD_MODEL_REDESIGN.md) §2.5). They are data plus deterministic, seeded methods. LLMs only *classify* input (extractor decisions) and *render* prose (storyteller, panel) from what characters decided.
-6. **Generic engine, story data.** Nothing says "Terrace", "romance" or "height" in engine code. Tracks, tiers, requirements, conditions, endings, clocks and commentators are all declared in story JSON. The murder mystery uses the same classes: a suspect's `candor` track, gated by evidence shown, and a confession ending.
-7. **No arbitrary scores** (from [SOCIAL_ENGINE_V2_DESIGN.md](../reference/SOCIAL_ENGINE_V2_DESIGN.md) §3). A standing value is the capped sum of **impressions**, each with a cause event, a behavior tag and a minute. It is explainable and auditable, and it feeds the panel.
+The player is a Character whose voluntary decisions come from input. Never invent player preferences, emotions, actions or consent. External events may affect them without selecting their response. Director/panelists have specific perception/contact capabilities, not omniscient narration.
 
-### 2. Object model (target)
+Character methods perform no provider I/O. Application services obtain typed semantic proposals and pass them in. Deterministic replay of supplied proposals does **not** mean utility arithmetic replaces nuanced judgment.
 
-```
-WorldModel (aggregate root, saved per game)
-├── world: World                         shared truth: clock, places, event log
-├── epistemics: EpistemicLedger          shared: propositions, assertions, transmissions
-├── agreements: AgreementBook            shared: two-party contracts (dates, promises, LEAVE_TOGETHER)
-├── rules: StoryRules                    immutable, from story JSON (tracks, conditions, endings, clocks)
-├── cast: dict[id, Character]            every person incl. player and offstage people
-└── outcome: Outcome | None              the ending that fired (replaces romance_* fields)
+Proposed interfaces:
+- Character.perceive(event, channel, view) → Perception or none.
+- Character.appraise(perception, proposal, policy) → Appraisal: validate actor-local interpretation, calculate bounded effects/reactions.
+- Bond.apply(impression, rules) → AppliedEffect: sole social-state writer, idempotent by effect ID.
+- Character.consider(act, candidates, view) → DecisionProposal; respond(...) → Verdict: hybrid choice under standards, feasibility and consent.
+- Character.plan_speech(obligations, verdict, view) → SpeechPlan; response_context(...) → CharacterContext: voice, disclosure, answers and deliberate deceptive intent.
+- Agenda.choose(opportunity, proposals, seed) → ActionProposal or none.
 
-Character
-├── profile: Profile                     immutable authored identity: name, gender, role, voice, attributes
-├── personality: Personality
-│     ├── temperament: Temperament       0..1 dials: patience, jealousy, forgiveness, skepticism, openness, pride
-│     └── tastes: Tastes                 behavior-tag weights: likes / dislikes (+ intensity)
-├── standards: Standards                 Requirements per track (gates, dealbreakers, disclosure, tells)
-├── heart: Heart                         dict[target_id, Bond]  (this person's feelings about each other person)
-│     └── Bond
-│          ├── feelings: RelationshipState     (trust/affection/fear/suspicion/jealousy, existing class)
-│          ├── standings: dict[track, Standing] (0..100, tiered, capped, closed)
-│          ├── impressions: ImpressionLog       (attributed deltas; bounded, summarized when old)
-│          └── stage: str                       derived from the tier of the primary track
-├── persona: Persona                     claims this character made about themselves (player and NPCs)
-├── agenda: Agenda                       Intentions ranked by priority (pursue, compete, confront, test, repair, leave)
-├── body: Body                           availability, activity, routine, block (today's CharacterState fields)
-├── presence: Presence                   onstage | offstage | commentator (who can be where, and how they perceive)
-└── views (not stored): memories, beliefs, commitments   scoped windows onto the shared stores
-```
+SocialAct(kind, actor, participants, source_event_id, terms) represents invites, confessions, exclusivity, departure, acceptance and withdrawal through a closed extensible registry. Verdict(answer: accept/not_yet/reject/defer, private_reason_refs, disclosure_safe_hint, proposed_effects) remains tentative until the turn commits. Typed effects target the owning objects rather than patching arbitrary state fields. An accepted confession does not silently imply exclusivity; its actual offered terms and each participant's decisions determine the agreement.
 
-**The player is a `Character`** (`presence=onstage`, no `personality`/`standards` needed, but it has a `persona`). The **director** is an offstage `Character` who reaches the player only through the existing contact channel (`contact.py`). The **panelists** are `Character`s with `presence=commentator`. They perceive through the camera (§3.8) and appraise with their own tastes, using the same code as housemates.
+Impressions explain an observer's changed opinion. Standing is optional progression derived from accepted effects; feelings retain trust/affection/fear/suspicion/jealousy. DramaticPolicy ranks **admissible** opportunities; it never writes feelings, creates evidence or overrides refusal. These responsibilities complement each other.
 
-### 3. Components in detail
+## 4. Hybrid judgment, standing and knowledge
 
-#### 3.1 `Profile` and `Persona`: who you are vs. what you've said
+### Hybrid choices and drama
 
-- `Profile` is authored truth about an NPC: `gender`, `age`, `occupation`, plus a free `attributes` map (`height_cm`, `family_profession`, `smokes`…). Declared keys come from `rules.attribute_keys` (story JSON). An NPC's own `persona` is seeded from its profile as honest claims.
-- `Persona` holds `SelfClaim(key, value, minute, utterance_event_id, audience: frozenset[id])` entries: what this character has *said* about themselves and who heard it.
-  - `persona.claim(key, value, event)`: the **first claim of a key is locked** (`persona.locked(key)`). A later claim with a different value is recorded as a `Contradiction(first, second)`.
-  - Each claim is also written to the epistemic ledger as a structured `Proposition(subject=self, predicate=key, value)` via `assert_claim`, and transmitted to every listener. So **each listener now *believes* it**, and gossip can carry it on through existing `transmit`.
-  - A lie is exposed **in a listener's mind** when that listener's `Belief` on `(subject, key)` has two different values supported (the existing `Belief.stance == "disputed"`, extended to structured values). That listener then appraises a `lie_exposed` event (§3.5). There's no global "is a liar" flag: exposure is per person and spreads through gossip.
-- Player facts come only from chat (owner decision). NPC facts come from `Profile`, and an NPC can lie too if the author gives it a `false_claims` list, which is useful for mysteries.
+The extraction LLM interprets input and proposes acts, semantic appraisals and nuanced choices. Jev assists supported classification, relevance and candidate evaluation. Reconcile into typed proposals with actor, source spans, evidence IDs, uncertainty and reasons. Neither provider directly writes saves.
 
-#### 3.2 `Personality`: `Temperament` and `Tastes`
+Construct feasible/admissible options **before** ranking. Standards and participant consent constrain acts; a threshold is eligibility, never automatic acceptance. Semantic proposals, preferences and DramaticPolicy then select plausible dramatic, quiet or comic responses. Local math enforces bounds and can rank; it is not the sole authority for nuanced foreground choices. Never reroll refusal until acceptance wins. Candidate order and paraphrased duplicate beats must not change seeded outcomes.
 
-- `Temperament` holds a few 0..1 dials that change *how* a person reacts: `patience` (tolerance for pushing), `jealousy`, `forgiveness` (how fast negative impressions fade), `skepticism` (probes claims, triggers loyalty tests), `openness` (starting warmth to strangers) and `pride` (how rejection hurts).
-- `Tastes` maps behavior tags to weights: `{"cooked_for": +1.5, "bragged": -2.0, "kept_promise": +1.0, "flirted_with_other": -3.0}`. The vocabulary is the story's closed `behavior_tag_vocabulary` (the existing extractor ability 11 in `decision_registry.py::behavior_tag_decision`, BL-16-gated), extended with payload qualifiers (`gave_gift:flowers`). Unlisted tags use the story's `default_tastes`, so standard characters need only a short list.
+Private input stays actor-scoped. The extraction LLM may receive the public scene plus one designated actor's private decision view; private-informed decisions from that call are only for that actor. Others use independently scoped Jev tasks or explicit local policies/defer. One prompt containing all private minds is not isolation. Response generation receives public material and disclosure-safe SpeechPlans, not raw private bonds. No per-NPC LLM fan-out.
 
-#### 3.3 `Standing` and `TrackSpec` (pure math, no I/O)
+Before cutover compare hybrid, legacy and local utility on identical recorded work/date, refusal, tentative offer, jealousy, deception and comic/quiet fixtures. Hold knowledge and eligible options constant; record reasons, disagreement, enjoyment and invariant failures. Hybrid is already selected; comparisons validate/tune it. Extra offline model experiments need an explicit budget; this document authorizes none.
 
-```python
-@dataclass(frozen=True)
-class Tier:                     # from story JSON
-    id: str; floor: int; ceiling: int
-    gate: Condition             # must hold (from the holder's viewpoint) to rise past `ceiling`
+### Standing, impressions and closed conditions
 
-@dataclass(frozen=True)
-class TrackSpec:                # e.g. "romance", "candor", "loyalty"
-    id: str; tiers: tuple[Tier, ...]
-    max_gain_per_day: int; repeat_decay: float; neglect_decay_per_day: float
+TrackSpec(id, tiers, daily_gain_cap, repeat_decay, neglect_decay), Tier(id, floor, ceiling, gate), Standing.apply(...), Requirement(...) and Condition.evaluate(Viewpoint) are pure typed components testable without providers or a running world.
 
-@dataclass
-class Standing:
-    track: str; value: float = 0; closed_by: str = ""        # requirement id that closed it
-    day_gain: dict[int, float] = field(default_factory=dict)  # day -> points gained (for the daily cap)
-    def apply(self, spec, delta, day, gate_open: Callable[[Tier], bool]) -> float: ...
-    def tier(self, spec) -> Tier: ...
-```
+Gain order: suppress when closed; apply same-tag/day diminishing returns; limit by remaining daily allowance; traverse only open tier gates; clip to reachable ceiling and discard surplus. Count actual accepted gain against the daily cap. Losses apply while closed and can lower tiers. Decay is an explicit ordered clock event, not a read-time side effect. Define stable ordering for simultaneous events.
 
-- `apply` enforces, in order: closed → no gain. The daily cap applies. Repeats of the same `(tag, day)` get `repeat_decay ** n`. Otherwise the gain is added up to the current tier's ceiling, and if the next gate is closed, **the surplus is discarded** (not banked). Losses always apply and can drop tiers.
-- `neglect_decay_per_day` is applied by `Heart.tick(days)` when the world clock advances with no shared events.
-- 100% unit-testable with no world, extractor or LLM.
+Persist proposed/applied effects, cause/effect IDs, actor, target, dimension/track, tag, channel, simulation minute, sequence and policy version. Replay chronological **applied effects**, not uncapped proposals. Bound in-memory impressions with checkpoints and retained audit/cause references. Never recompute old effects under new tuning. Route legacy deltas through this writer once; never apply both a delta and derived impression for the same effect.
 
-#### 3.4 `Standards`, `Requirement` and `Condition`: the shared rule language
+Closed Condition kinds: BelievedAttribute, EventCount, AgreementCount, Feeling, StandingAtLeast, TierReached, Knows, DaysKnown, DaysInTier, CounterAtLeast, Not, All, Any and typed committed-act/agreement predicates. No executable story expressions. Each kind has validation/explanation.
+- Character Viewpoints see only their knowledge; engine truth Viewpoints are privileged and never enter prompts.
+- Return true / false / unknown. Not(unknown) stays unknown, never a dealbreaker. Belief conditions require established belief, not testimony alone.
+- Tier gates cap progression; dealbreakers close tracks under configured evidence/reopening rules. Neither overrides withdrawal.
+- Stage is derived. Reject contradictory gates, invalid ranges, missing references and unreachable endings. Numbers remain tuning hypotheses.
 
-`engine/rules/conditions.py` holds one small typed condition language, **shared by requirements, tier gates, endings, clocks and beats**:
+### Testimony, belief, lies and disclosure
 
-```python
-class Condition(Protocol):
-    def holds(self, vp: Viewpoint) -> bool: ...
-    def explain(self, vp: Viewpoint) -> str: ...     # engine-only reason, e.g. "needs 2 dates"
+Persona records SelfClaim(key, value, utterance_id, audience, asserted_at, valid_time). First claim is immutable **history**, not eternal truth. Changed circumstances, corrections and conflicting claims coexist. Profile truth seeds NPC self-knowledge, not knowledge for everyone.
 
-# Kinds (closed set, JSON "kind" discriminator):
-BelievedAttribute(subject, key, op, value)   # uses vp.beliefs, NOT truth
-EventCount(kind, match, with_subject, min)   # dates completed, gifts (payload filter), promises kept
-AgreementCount(activity, status, min)
-Feeling(dimension, op, value)                # on the holder->subject bond
-StandingAtLeast(track, value) / TierReached(track, tier)
-Knows(proposition)                           # the holder knows a fact (clue shown, secret learned)
-DaysKnown(min) / DaysInTier(track, tier, min)
-Not(c) / All(cs) / Any(cs)
-CounterAtLeast(clock_id, n)                  # for endings/beats
-```
+Hearing creates attributed testimony/transmission. Belief acceptance is separate appraisal using evidence, reliability and skepticism. Contradiction creates dispute, not proof of lying. Distinguish suspicion, perceived deception, engine-established deliberate deception and honest mistakes. Consequences follow a character's justified perception, with uncertainty and repair.
 
-- `Viewpoint(holder, subject, model)` gives *whose eyes* the rule is judged through: a character (`holder` = Minori judging `subject` = player) or `Viewpoint.truth(model)` for endings and clocks. **The same condition class serves both.**
-- `Requirement(id, track, tier, condition, on_fail: "cap" | "dealbreaker", disclosure: DisclosurePolicy, tell: str)`:
-  - `cap`: the tier's gate is `All(tier.gate, *requirements for that tier)`.
-  - `dealbreaker`: when `Not(condition)` becomes *believed-true*, the track closes (`closed_by = req.id`). It is re-checked on every belief change, so a later-exposed lie can close a romance that was open.
-  - `tell` is a behavioral hint the storyteller may show while the requirement fails ("cools when height comes up, deflects if asked"). This reuses the idea of the existing `Character.tells`.
-- A "standard" personality uses `rules.default_standards[track]`. Custom NPCs add requirements on top (about half the Terrace pool, per owner).
+Actual source, claimed source, transmission root and intent are distinct. Deliberate lies can name false sources without creating source events or laundering hearsay into truth. Circular gossip has one root, not independent corroboration. A believed lie may pass a preference gate; later evidence may change belief and decision.
 
-#### 3.5 `Heart`, `Bond` and `appraise()`: how a character reacts
+DeceptionProfile controls tells by skill/stress/context. Generally hint, but nervousness is not proof and skilled liars need not visibly confess. Voice-only calls cannot reveal visual tells. DisclosurePolicy filters explanations before generation; hidden requirements do not leak because they influenced a verdict.
 
-```python
-class Character:
-    def perceive(self, event: Event, channel: str, model) -> Perception: ...
-    def appraise(self, perception: Perception, model) -> Appraisal:
-        """Deterministic. For each behavior in the event, judged by *this* person:
-           delta = tastes.weight(tag) * base(tag) * relevance(self, actor, target)
-           - actor acted toward me       -> my bond with actor
-           - actor acted toward someone I care about / my rival / my partner
-             -> jealousy, loyalty, protectiveness on bonds (temperament-scaled)
-           - told_by channel             -> scaled by trust in the teller (gossip is weaker)
-           Returns Impressions (bond deltas with cause event id) + Reactions (candidate Intentions)."""
-    def feel(self, appraisal: Appraisal, model) -> None:   # applies impressions via Standing.apply / feelings
-    def opinion_of(self, other_id) -> Bond: ...
-```
+## 5. Atomic turns, speech and inference
 
-- **Impression** = `(target, track|dimension, delta, tag, cause_event_id, minute, channel)`. `ImpressionLog` keeps the most recent N per bond and folds older ones into per-tag totals, so it stays bounded while the panel can still say "she complained about the bragging 4 times."
-- **The same code runs for every observer.** When the player flirts with Riko at dinner, Riko appraises *flirted (toward me)*. Minori, who is dating the player, appraises *flirted_with_other (by my partner)* and gets jealousy and a trust hit scaled by her `jealousy` temperament. Makoto, who likes Riko, appraises *a rival move*. **One event produces three different human reactions**, and nothing in the code is Terrace-specific.
-- Existing `character_graph.update_edge` calls from the extractor's rel-state deltas are routed through `Bond` as impressions carrying the current utterance event as cause. That's one writer for feelings.
+### Transaction boundary
 
-#### 3.6 `Agenda` and `Intention`: what a character wants and does
+1. Resolve (session_id, request_id) against durable receipt; reject the same ID with different normalized input. Exact committed retry returns saved reply without inference/mutation.
+2. Load revision/pinned ruleset and create tentative snapshot. Extract ordered typed commands/questions with one extraction LLM plus bounded Jev.
+3. Validate authority, source, presence, ambiguity and feasibility. Execute ordered travel/time, perception, appraisal, decisions and agreements tentatively. A skip requiring confirmation returns its preview before advancement.
+4. Evaluate clocks/endings on that result, deduplicating event IDs. Produce scoped SpeechPlans, answer obligations, public beats and any panel dossier.
+5. Single response LLM realizes those plans. Validate speaker/channel, consequential speech acts, attribution and answer coverage **before display**. Model annotations are proposals, not proof of equivalent meaning.
+6. Use calibrated Jev/local checks and safe constrained substitutions within budget. If safe realization is unavailable, abort gameplay effects and return parenthesized error/clarification; retain a failed/no-effect receipt for retry and metrics.
+7. Atomically CAS revision and persist state, event batch, utterances matching final text, outcome, exact reply receipt and outbox. Stale writers cannot overwrite newer state.
+8. Deliver committed content. Outbox delivery is idempotent/retryable. Pre-commit crash exposes no effects; post-commit crash replays saved result.
 
-- `Intention(kind, target, priority, reason_ids, prerequisites: Condition, expires)`. Kinds form a closed, generic set: `pursue`, `compete_for`, `confront`, `test_loyalty`, `repair`, `withdraw_from`, `share_news`, `protect`, `leave_house`, `pursue_goal` (career/dream threads from `threads.py`).
-- Intentions are **born from appraisal reactions** (a jealousy spike leads to `test_loyalty(partner)`, an exposed lie leads to `confront(liar)`, rising romance leads to `pursue(x)`, a rival's success leads to `compete_for(x)`), **from authored goals** (`state.Character.goal`), and **from tier changes** (reaching the dating tier leads to `pursue` with `leave_house` preconditions).
-- `Agenda.choose(opportunity, rng) -> ActionProposal | None` is deterministic and seeded, and respects temperament and cooldowns. It is used in three places that exist today:
-  1. **Off-screen:** `offscreen.py::resolve_offscreen` asks both characters' agendas instead of rolling flat `BASE_WEIGHTS`. A `compete_for` rival alone with the target proposes a date (the `AgreementBook.propose` path already exists). This replaces `intentions.py::propose_rival_invitations` and the `rivalry` weight hack.
-  2. **On-screen initiative:** `speakers.py` chooses who takes initiative from the highest-priority feasible intention among present characters, and hands the storyteller a **beat** (`"Minori wants to ask where you were last night"`) instead of free improvisation.
-  3. **NPC–NPC courtship:** two NPCs whose bonds reach the ready tier form a `LEAVE_TOGETHER` agreement off-screen. That is a couple departure, which feeds the director clock.
+This replaces act_confirmed as post-display repair. Atomicity prevents state/reply divergence; semantic validation separately proves the prose expresses the verdict. Endings are not a second post-reply transaction. A substitution must match committed effects or the tentative operation aborts.
 
-#### 3.7 `SocialAct` and `respond()`: confessions, asks, invitations
+The initial backend receipt slice wraps the supported existing boundary without a full reducer rewrite. Frontend already sends request_id. Crash tests prove storage atomicity, not an in-memory deduplication cache.
 
-```python
-@dataclass(frozen=True)
-class SocialAct:
-    kind: str            # invite | confess | ask_exclusive | ask_leave_together | accept_offer | leave_alone
-    actor: str; target: str; event_id: str; payload: dict
+### Character speech
 
-@dataclass(frozen=True)
-class Verdict:
-    answer: str          # accept | not_yet | reject
-    reason_req: str      # the failing Requirement / tier gate id (engine-only)
-    reason_hint: str     # in-character, disclosure-safe phrasing seed
-    effects: tuple       # impressions (e.g. public rejection), cooldowns, agreement ops
+ConversationState records source questions, addressees, pending/resolved/deferred state and interruptions. Resolve only through the addressee's answer, refusal, uncertainty or acknowledged deferral. Chatter is not an answer; multiple questions remain separately traceable.
 
-class Character:
-    def respond(self, act: SocialAct, model) -> Verdict: ...
-```
+VoiceProfile controls register/directness/expressiveness/length/examples. Voice changes preserve mechanical outcomes. CharacterContext contains perceived evidence and permitted plans, not a global notebook. Scene validates identity, introductions, encounters, presence and channels. Narration avoids invented player actions/emotion, repetitive decoration and fake return greetings.
 
-- The *target character* decides from its own bond, standards and viewpoint, e.g. `ask_leave_together` needs `TierReached("romance", "ready")` plus the stage requirements. If a requirement fails, the answer is `not_yet` or `reject`. `reason_hint` is filtered by the requirement's `DisclosurePolicy`, so a reluctant character never states the hidden rule unless disclosure allows it.
-- `confess` accepted moves the bond to the `dating` stage and creates an `exclusive` Agreement (bilateral, per SOCIAL_V2 §3). Rejected becomes a **public** `confession_rejected` event: witnesses appraise it, the actor's pride is hurt, and a cooldown starts.
-- `ask_leave_together` accepted creates a `LEAVE_TOGETHER` **Agreement** (proposer, counterpart, both decisions `accepted`). This replaces the six `romance_*` fields, because an agreement is already the codebase's model of mutual consent. Committing it is the ending trigger (§3.9).
-- **Recognizing acts:** one new extractor decision, `social_act_decision`, runs in the existing pre-generation batch (`turn_extractor.py`, next to `departure_check`) with no extra LLM call. Options are generated from `rules.social_acts` × present eligible targets, plus `NONE`. Criticality is `CRITICAL` (on failure, do nothing). This replaces the regexes in `world_model/romance.py`.
-- **Same-turn narration:** the verdict is computed *before* the storyteller call, and projection adds a one-turn directive ("Minori does not agree yet; reason seed: …"). For `accept` verdicts on terminal acts, a post-reply `act_confirmed` check (one small Jev call, only on those turns) must pass before the agreement commits. This prevents false wins.
-- NPC → player offers come from the agenda (`pursue` at the ready tier, alone with the player), and the player's reply is classified as `accept_offer`.
+Consequential attribution needs an admissible source set before semantic matching. Calibrate negation, pronouns, reported speech, qualifications, ambiguity and omitted answers; a keyword/event ID alone is insufficient. Unsupported claims use approved safe wording. Prefer in-character uncertainty/refusal in the normal response call; canned recovery is exceptional and measured.
 
-#### 3.8 `Presence` and perception channels
+### Provider budget and quality
 
-- `onstage` characters perceive by place (existing `present_with_player`, availability).
-- `offstage` characters (the director) perceive only through events explicitly routed to them (clocks, contact).
-- `commentator` characters perceive through a **camera** channel: every event whose place is `rules.filmed_places` (house, cars, dates), plus public events. They never perceive private memories, beliefs or confessional asides (the protected-content rule already in `SOCIAL_ENGINE_V2_DESIGN.md` §3). So the panel literally knows only what the footage showed.
-- Panelists appraise with their own `Tastes` and `Temperament`: Yamasato's `bragged`/`calculated` weights are strongly negative and his temperament is cynical, Torichan rewards `romantic_gesture`, Yukiko Ehara rewards `sincere` and punishes `two_timing`. **Their disagreement emerges from their tastes**, not from a prompt instruction.
+At most **two LLM provider attempts per gameplay turn**, including retries/background/shadow/translation: extraction assisted by Jev, then response. Reserve one attempt for response. No third verifier, repair, panel or per-character call. Receipt replay and deterministic engine previews need none.
 
-#### 3.9 `StoryRules`: endings, clocks and beats (world-level, not per character)
+TurnInferenceBudget counts attempts across callers, propagates cancellation/deadlines and separately bounds/batches Jev through existing registry/provider seams. Unsupported tasks abstain; only independent inputs run concurrently. Late results cannot commit after cancellation. Do not impose a two-second timeout or silently alter operational timeouts.
 
-- `Ending(id, kind: win|loss|neutral, condition: Condition, exit_beat, epilogue: "panel_finale"|None, ends_run)`, evaluated in declared order against `Viewpoint.truth` once per turn, after commit. First match sets `model.outcome` (idempotent, persisted). Terrace: `left_together` ← `AgreementCommitted(LEAVE_TOGETHER, includes=player)`. `cut_by_director` ← `CounterAtLeast("couples_left", 3)`. `left_alone` ← `ActCommitted(leave_alone)`. The mystery: `confession` ← `StandingAtLeast(mastermind, "candor", 90) & Knows(...)` in a later phase. Until then, its regex stays behind a legacy condition kind.
-- `Clock(id, counts: EventFilter, warn_at, trigger_at, warn_beat)`: a counter over committed events (`couple_departure` excluding the player). The warning beat is delivered by the offstage **director** character through the contact queue as a call.
-- `Beat(id, speaker, intent, directive)`: a one-turn storyteller directive with an authored intent. It's used by clocks, endings (exit scenes) and verdicts.
-- `gameplay.win_condition_detected` and the `END GAME …` string in `prompt_engine.py` are replaced by `model.outcome` plus a structured `ending` payload. `debug.html` keeps its text marker.
+Repository defaults gate Jev through TYPESAFE_ENABLED with JEV_ENABLED_TASKS empty and JEV_SHADOW_SAMPLE_RATE zero; deployed overrides were not inspected. Existing small hand-built cases/smoke evidence do not calibrate every proposed relevance/attribution/answer task.
 
-#### 3.10 Commentary: the panel service (LLM rendering, not character logic)
+Calibrate each enabled task on labeled examples, including missing/truncated/corrupt evidence, ambiguity, false sources and denials. Report false acceptance/rejection/abstention. Test enabled, absent, timeout and malformed modes. With Jev unavailable, reuse extraction proposals plus deterministic checks where safe; otherwise clarify/defer uncertainty. No third LLM. Both games must remain playable under this fallback; that quality floor is not yet demonstrated.
 
-- `commentary/dossier.py::build(model, subject)` is deterministic. From commentator-perceivable events plus the subject's bonds' impression logs, it extracts arcs (tier timeline per bond), key acts and verdicts, lies told and exposed (only if exposed on camera), promises kept or broken, two-timing, conflicts and repairs, rivals, and requirements discovered or missed. Every item carries event ids.
-- `commentary/panel.py` builds each panelist's `Appraisal` of the dossier (the same `appraise` code, §3.8), then makes LLM calls: **outline** (segments, each panelist's stance from their appraisal) → **segments** (structured dialogue with `speaker_id`, cites event ids) → **verdicts** (a label per panelist: good/bad/evil…, and a prediction).
-- `commentary/validator.py` rejects sentences citing no dossier event, and applies the behavior-not-worth guardrail (TERRACE_HOUSE §M6).
-- Modes: `aside` (existing narrator asides, now voiced by the panelists), `departure_segment` (~300 words, NPC exits) and `finale` (~2,000 words, no skip, rendered by `frontend/dialogue.js` with panelist portraits).
+**O26a rollout gate:** at most **5%** visible canned/constrained recovery among eligible gameplay turns, reported per game and separately for consequential scenes. Predeclare scenario mix/denominator; use at least 100 eligible turns per enabled game and report counts/uncertainty. Sample size is an engineering starting point, not a measured pass. Track invisible provider fallback, canned substitution, clarification, abort/error and dropped responses separately; aborting more turns cannot conceal poor quality. Compare voice/answer coverage with baseline. Critical source/consent violations remain zero. If the gate fails, fix context/false rejection or retain prior safe scope; never weaken validation to reach 5%.
 
-#### 3.11 Projection: `character.project(viewer, focus)`
+## 6. Agreements, travel, time and independent life
 
-- This finally implements CHARACTER_WORLD_MODEL_REDESIGN **P9**. Each present character renders its own prompt card: identity/voice, mood, **its bond with the player and with others present, as words not numbers**, its top intention as a scene aim, any failing requirement's `tell`, and disclosure-allowed facts. `TurnView.cards` already exists as the slot.
-- `rules.context_focus` (TERRACE_HOUSE §M7) sets the budget per component category (relationships vs. places vs. clues). It's applied in `project()` and the Jev context selector.
+AgreementBook owns participant roles, individual decisions, terms/revisions, conditions, invitations, amendments and fulfillment. Keep a two-party convenience API, not a second book. Benefiting from a promise does not imply acceptance; nobody consents for another. Private-plan joins require appropriate participants' new agreement.
 
-### 4. Turn pipeline (where each piece runs)
+Distinguish proposed, tentative, confirmed, withdrawn, cancelled, fulfilled, missed and excused. “Maybe after work” stays tentative. Character-owned PlanExpectation may be optimistic/mistaken without changing terms. Hopeful attendance can cause disappointment, not fabricated breach. Clarification updates expectations without rewriting history.
 
-```
-begin_turn
-  1. clock advance → step_world, threads, Heart.tick(days)           (existing + decay)
-  2. off-screen:   Agenda.choose per encounter → events → perceive/appraise/feel for witnesses
-  3. player utterance event (existing)
-  4. extractor batch (existing pre-generation call) → behavior tags, self_claims, social_act
-  5. behavior events committed → every perceiver.appraise → feel → agenda reactions
-  6. self-claims → player.persona.claim → ledger assertions → listeners' beliefs; contradictions → lie_exposed
-  7. dealbreaker re-check for characters whose beliefs changed
-  8. social act → target.respond() → Verdict (pending until confirmation if terminal)
-  9. clocks evaluated; beats selected (verdict > clock warning > agenda initiative > conflict focus)
- 10. projection: character cards + beats → storyteller
-end_turn
- 11. utterance events for NPC lines (existing), act_confirmed check if needed → commit agreement
- 12. endings evaluated → outcome → exit beat already written / finale scheduled
-```
+Body, Activity, Schedule and Route own availability, preparation, departure and arrival. Acceptance is a plan, not relocation. Future/conditional requests do not move anyone now. Charge travel once in input order: wait-then-go differs from go-then-wait. Attendance is not completion; record shared activity/witnesses. Consequences apply once, only to observers/informed actors.
 
-Steps 2, 5 and 6 use the same `perceive → appraise → feel` method, so on-screen and off-screen life follow one set of rules.
+Before skipping important player-known events, preview **all** affected known events in parentheses, tentative plans labeled: “(You will miss your date with Yuki and the tentative rehearsal with Mako. Continue?)”. Require revision-bound explicit confirmation. Stale previews refresh; decline advances no time; duplicates advance once; ordinary dialogue is not approval. Hidden events stay hidden. Player↔engine control messages are parenthesized and excluded from NPC memory.
 
-### 5. Persistence and migration
+One simulation clock processes commitments, routes, decay and opportunities chronologically. Moderate, tunable autonomy is default. More simulated elapsed time permits causal chains/butterfly effects, not merely bigger random rolls. Equivalent partitioned waits preserve opportunity scheduling; changed input can cause divergence. App-closed wall time does nothing.
 
-- `WorldModel.VERSION` 2 → 3. Each `Character.to_dict()` nests its own components (`personality` and `standards` are *not* saved; they rebuild from story JSON by id, so authored edits apply to existing saves). `heart`, `persona`, `agenda` and `body` are saved.
-- **Feelings ownership:** in phase B, `Bond.feelings` *is* the existing `RelationshipEdge.state` object (the same reference, obtained from `CharacterGraph`), so there is no dual write. Phase G makes `CharacterGraph` a read facade over `cast[a].heart` and removes its separate serialization.
-- **Two Character classes:** `state.Character` (authored + legacy prompt fields) becomes the source of `Profile` and is gradually thinned. `world_model.CharacterState` becomes `Character`'s `Body`, with `CharacterState = Character` as a compatibility alias until its callers migrate.
-- v2 → v3 loader: `romance_relationship_partner` becomes the bond at the `dating` tier plus an `exclusive` agreement. A finished `romance_outcome` becomes `model.outcome`. Missing components are built empty. Round-trip tests go in `test_state.py` / `world_model` tests.
+Agenda combines social and career/personal aims. On/offscreen actions share consent/feasibility with bounded work and actor cooldowns; attention does not freeze others. Jev can assess scoped options; routine/offscreen scheduling uses documented local policies without per-tick LLM calls. NPC couples need both decisions, not high scores alone. Disinterest/inaction remain valid. Nobody plans from another's private feelings.
 
-### 6. Build phases (each ships behind story config, is verified on beta and follows `/ship-and-verify`)
+EvidenceEntity exposes actual inspect/request-footage/calendar/witness affordances. InvestigationTask persists pending/denied/completed state and evidence revisions. Missing records are not fabricated; unchanged surfaces do not yield repeat discoveries. Notebook remains player-scoped. Reuse the same event/evidence system, not a separate mystery truth store.
 
-| Phase | Delivers | Closes / advances |
+## 7. Endings, clocks and commentary
+
+StoryRules declares typed Ending, Clock and Beat. Outcome is persisted with ending/reply in the same turn, evaluated once in declared priority order. Mutual departure requires an explicitly accepted agreement; refusal, withdrawal, solo exit and continued play differ. Replacement cast gets fresh identities/private state. Adapt supported existing outcomes first; scores/regex alone cannot manufacture consent.
+
+Terrace: earned progression over simulated days, no fixed run timer or automatic day-one win. Director warns at two **other** happy couple departures and cuts at three; count unique committed departures excluding the player couple. Contact, counters and endings are reusable; numbers/romantic eligibility are content.
+
+Panelists are commentator Characters. Camera channel admits filmed/public events under rules.filmed_places. Dossier contains only that evidence and each commentator's **own** appraisal. Subject impression logs, hidden standings/tiers, undisclosed conditions, memories and confessionals are not footage. Distinguish facts from opinions/inferences.
+
+Retain named Terrace panelists and content modes: brief asides, ~300-word NPC departures, ~2,000-word finale on player win/cut/solo exit with authored no-skip presentation. These are content settings, not universal response lengths. Judge conduct, not identity/personal worth.
+
+Build dossier and 5–7-segment outline locally; Jev may assist scoped assessment. The **same response LLM call** renders exit scene, all panel segments and verdict lines. No outline/segment/verdict call chain. Validate evidence support before commit; IDs alone are insufficient. Allocate explicit finale output allowance; measure latency separately; never split into extra calls. Failed/truncated finales follow safe failure, not partial publication of uncommitted consequences.
+
+Commentary is intended enabled for Terrace and default off elsewhere. Developer arena is separate and off for playtest review. This proposal authorizes no arena run.
+
+## 8. Configuration, authoring and migration
+
+StoryDefinition compiles immutable StoryRules/SimulationRuleset: engine defaults → capability preset → story overrides → permitted character/activity overrides. Validate fields/vocabularies/ranges/references/dependencies/reachability. Rename characters, story IDs and venues in fixtures: behavior must follow data, not names.
+
+| Owner | Tuning / disabled behavior |
+|---|---|
+| Voice/Deception/Personality | Examples, tastes, skepticism, jealousy, forgiveness, activities, composure/cues. Neutral compatible defaults; no invented dealbreakers. |
+| Standards/Bond | Optional tracks/gates/caps/decay/reopening. Disabled standing leaves consent explicit. |
+| Agenda/DramaticPolicy | Moderate autonomy, aims, tension/humor/repetition, cooldowns/budgets. Disabling initiative does not abandon obligations. |
+| Agreement/Schedule/Route | Grace periods, expiry, guests, routine, preparation/travel/flexibility. Static scenes cannot promise impossible travel. |
+| Perception/Epistemics | Channels, barriers, attention, reliability, gossip/deception. Gossip may be off; source/visibility integrity cannot be. |
+| Conversation/Narration | Answer priority/deferral, speakers, texture/length. Addressed response and player agency remain invariant. |
+| Investigation/Needs | Optional affordances/fatigue/energy; do not require unused mechanics in every game. |
+| Outcomes/Clocks/Commentary | Conditions, terminal/open-ended play, counters, filmed places/content. Off does not suppress ordinary world events. |
+| Skip/Interpretation | Importance criteria, tentative expectations, clarification tendency. Unknown stays unknown; known-event confirmation cannot silently disappear. |
+
+Phase D includes actual content migration: profiles for all 17 Terrace candidates, compatible mystery goals/voice from existing content. Implementing feature owner owns defaults/mappings/drafts/validation/fixtures. Sparse characters must behave plausibly with neutral defaults and no invented exclusions; a full tuning pass is not required to load/improve a story. Rich tastes/standards improve distinction. New significant lore/dealbreakers need content review. Numbers remain hypotheses until tested.
+
+Pin schema, content/ruleset hash and policy version per save; authored edits never silently retune ongoing games. Phase B wraps existing graph state. At one tested cutover Bond becomes persisted owner and CharacterGraph forwards reads/commands; remove obsolete writers/serialization together. Migrate only evidenced agreements/outcomes; ambiguous legacy flags stay unknown/legacy, not new acceptance or backdated events.
+
+Required drill: isolated old saves with pending agreements/jobs/disputes; migrate; compare identity/knowledge/consent/schedules; round-trip; inject crashes/concurrency/retries; replay hashes; exercise pre-turn rollback and compatible post-migration handling without lost progress. Mid-save disabling drains obligations, explicitly cancels with events or rejects the change. Incompatible old writers cannot write newer saves. Backups/version routing precede old-session opt-in.
+
+## 9. Thinking feedback and latency
+
+Source confirms existing three animated dots in frontend/index.html: typing-indicator/typing-bounce, shown before fetch, hidden on success/error. Preserve them. This is not a new browser lifecycle/accessibility test. Verify pending/success/error/cancellation/navigation and reduced-motion/accessibility in the UI slice. Added engine status wording belongs in parentheses.
+
+Reuse backend/app/utils/stage_timer.py::StageTimer and stage ledger. Add client monotonic timestamps for submit, indicator paint, response completion, first meaningful result paint and final typewriter completion, correlated by request ID/build/ruleset. Include commit and total duration; existing pre-commit latency log is insufficient. Record LLM/Jev attempts/timing, errors/timeouts/cost separately. No private dialogue in timing telemetry or subtraction of unsynchronized clocks.
+
+[September 22 historical baseline](../archive/PHASE_0B_BASELINE_2026_09_22.json): only 24 Terrace requests; cohort p50 ~3.09–3.95 s, p95 ~4.44–5.87 s. Not a current two-game baseline or proof of two-second capability. Measure desktop/mobile, warm/cold and ordinary/skip/finale workloads with sample sizes, p50/p95/p99/max and failures.
+
+Current speed is owner-accepted. Earlier 1–2-second wish is future optimization context, not an immediate deadline or reason to sacrifice gameplay/extraction/validation. dialogue.js::revealBlocks is post-response typewriter, not server streaming. True streaming is deferred until validated segments, committed consequential decisions, reconnect sequence IDs and durable receipts are designed.
+
+## 10. Release units and roadmap
+
+Runtime changes follow ship-and-verify: integrated tests and actual hosted beta behavior. A proposal/unit test alone is not completion. Independent useful fixes need not wait for every phase.
+
+| Independent unit | Small contract | Proof / dependencies |
 |---|---|---|
-| **A. Endings & UI** | `StoryRules` loader + `Ending`, `model.outcome`, `ending` payload, ending overlay, goal card (reads today's romance state) | BL-33 (UI part) |
-| **B. Character aggregate** | `Character` with `Profile`, `Body`, `Heart`/`Bond` wrapping existing edges, scoped views; the six `romance_*` fields removed via migration; no behavior change | BL-38 (single owner) |
-| **C. Standing + conditions** | `engine/rules/conditions.py`, `TrackSpec`/`Standing`, `Standards`/`Requirement`, `Viewpoint`; impressions from existing rel deltas | BL-33 |
-| **D. Perceive/appraise** | behavior vocabulary for Terrace, `Personality` authored for the 17, `appraise` for witnesses and gossip, `ImpressionLog`, dealbreakers | BL-34, BL-35 |
-| **E. Persona & lies** | `self_claim` decision, `Persona`, structured propositions/values in the ledger, contradiction → `lie_exposed`, disclosure policies, `tell`s | new |
-| **F. Social acts** | `social_act_decision`, `respond()`, confession/ask/accept/leave-alone, the `LEAVE_TOGETHER` agreement, `act_confirmed`; delete the `romance.py` regexes | BL-33 |
-| **G. Agenda** | `Intention`/`Agenda`, off-screen and initiative driven by agendas, NPC–NPC courtship and couple departures, loyalty tests; `CharacterGraph` becomes a facade | BL-34 |
-| **H. Clocks & director** | `Clock`, `Beat`, offstage director via contact, cut ending | new |
-| **I. Commentary** | commentator presence/camera, dossier, panel service + validator, three modes, dialogue UI, no skip | new |
-| **J. Projection & focus** | `character.project()`, `context_focus`, playtest tuning of thresholds (hosted, both genders) | P9 |
+| Opening text O12 | Reproduce IU escape/line-break defect; repair field or proven generic boundary; preserve literal escapes. | Raw segments and desktop/mobile. No new types. Skip patch if no longer reproducible. |
+| Addressed answers O08 | ConversationState + character response-context adapter at extraction/prompt seams; persist questions/deferrals. | Two questions and interrupted/resumed exchange with grounded response/refusal/unknown. No full ledger migration. |
+| Durable receipt O15/O24 | Backend transaction: supported state change + exact reply under current request_id; input hash/revision CAS. | Lost reply, restart, concurrent duplicate, same ID/different input, pre/post-commit crashes. No frontend ID redesign. |
+| Continuity/agency O09/O11 | Narrow identity/presence/opening fixes through current objects. | No invented player actions/wrong addressee/absent speaker; independent of standings. |
 
-### 7. Tests (no skips; per phase)
+BL-35 attendance may ship its proven subset separately; remaining travel/misunderstanding stays open. A–J leads gameplay; correctness contracts apply immediately when a phase touches their state.
 
-- **Pure units:** `Standing.apply` (cap, surplus not banked, daily cap, repeat decay, losses, closed), every `Condition` kind under both character and truth viewpoints, `Requirement` cap vs. dealbreaker, and `Persona` lock/contradiction.
-- **Reaction matrix:** one behavior event × observers with different relations (target, partner, rival, stranger, told-by-gossip) produces the expected impression signs per temperament. Asserting "Minori reacts differently from Riko to the same event" is a required test.
-- **Belief-based judging:** a believed lie passes a requirement. After exposure (a second claim heard by the same listener, or gossip connecting the two claims), a dealbreaker closes the track only for characters who now hold the disputed belief.
-- **Social acts:** a verdict per tier, and a disclosure-safe reason. Public rejection is witnessed. Cooldown. A false act (joke, hypothetical, a third party speaking) gives `NONE`. `act_confirmed` failing means no agreement.
-- **Agenda:** a rival with `compete_for` invites the target off-screen. No overlapping interest means no sabotage (SOCIAL_V2 P4-02). An NPC couple departure increments the clock.
-- **Endings/clocks:** each ending fires once and survives reload. The warning fires exactly once at 2, the cut at 3. The player's own departure is excluded from the count.
-- **Commentary:** the dossier is deterministic. Commentators never see private memories or confessionals. The validator rejects uncited claims. Panelist stances differ for a mixed-conduct fixture.
-- **Migration:** v2 saves (with romance fields) load into v3 and round-trip.
-- **Simulation:** seeded 30-day runs where a passive player gets cut, a strategic player can win, and a pushy or lying player gets rejected. Report the median days-to-win for tuning.
-- **Hosted:** SOCIAL_V2 §17 campaigns plus a Terrace win, a cut and a solo run, both player genders.
+| Phase | Deliverable | Gate |
+|---|---|---|
+| **A — Endings/UI** | Typed Outcome/Ending adapter over evidenced current decisions; structured payload, goal/ending card. | Atomic outcome/reply; no score-only win; accept/decline/solo/reload. Does not yet claim earned-standing progression. |
+| **B — Character aggregate** | Profile/Body/Heart/Bond wrappers, legacy adapters, scoped views/context. | Identical graph state reference; no duplicates/private leakage/behavior change. |
+| **C — Standing/conditions** | TrackSpec/Standing, tri-state conditions, Standards, ordered effect journal. | Caps/repetition/decay/replay; one writer; cause IDs. |
+| **D — Perception/appraisal** | Hybrid adapter, tastes/temperament/reactions, 17-character Terrace content and mystery defaults. | Scoped provenance before activation; reaction matrix, rename tests, Jev outages/content review. |
+| **E — Persona/belief** | Time-indexed claims, correction/dispute, reliability, deception/cues/disclosure. | Correction is not automatic lie exposure; actual/claimed sources, unknowns and privacy. |
+| **F — Social acts/commitments** | Typed extraction, hybrid Verdict, participant decisions, tentative expectations, scheduling/travel. | Validate before display + atomic commit; no post-display act_confirmed; explicit consent; replace regex after parity. |
+| **G — Agendas/cutover** | Shared on/offscreen acts, independent aims, NPC courtship, bounded scheduling, graph facade. | Both participants decide; fairness/replay/old-save drill; obsolete writers removed. |
+| **H — Clocks/director** | Generic counters, warning/trigger beats, offstage contact. | Warn at two/cut at three other couples; no duplicates/player inclusion/leaks. |
+| **I — Commentary** | Camera views, dossier/local outline, one-response-call panel, dialogue UI. | No private subject state; supported citations/output/failure tests; arena off. |
+| **J — Projection/evidence/tuning** | Consolidated safe adapters, investigation affordances/tasks, focus policies, tuning/campaigns. | Applicable O gates plus earned win/cut/solo and both existing gender paths. Privacy is required earlier, never deferred to J. |
 
-## Why deferred / cautions
+Reuse already-shipped correctness slices. Split substantial implementations into bounded ledger tasks with phase/API/acceptance IDs. Related defect items stay open until their own proof passes. No phase is completed by this consolidation.
 
-- This is roughly ten phases of work across `prompt_engine.py` (3,700+ lines), the extractor and the world model. Ship phase by phase. Each phase must pass the full suite and hosted verification before the next one starts.
-- **Latency:** the new extractor decisions ride the existing batch. The only new LLM calls are `act_confirmed` (rare) and the panel (once per exit). Measure p50/p95 per SOCIAL_V2 §17.
-- **Prompt drift:** the directive must make the storyteller narrate the engine's verdict. The `act_confirmed` check exists because it sometimes won't.
-- **Tuning:** thresholds (tiers, daily caps, clock pace) need hosted playtests. The owner wants wins to be hard, not impossible. The simulation phase gives numbers before hosted play.
-- Don't enable LLM arena runs for validation without asking the owner (`ARENA_LLM_ENABLED`).
+## 11. Acceptance contract
 
-## Touches
+Stable BL-38 acceptance IDs are retained below for tests and backlog references. All are required future evidence, not results of this documentation task.
 
-`backend/app/engine/world_model/` (`character.py`, `model.py`, `offscreen.py`, `intentions.py`, `romance.py`, `speakers.py`, `projection.py`, `turn.py`, `epistemics.py`, `gossip.py`, `contact.py`, new `heart.py`, `persona.py`, `personality.py`, `standing.py`, `standards.py`, `appraisal.py`, `agenda.py`, `social_acts.py`), new `backend/app/engine/rules/` (`conditions.py`, `story_rules.py`, `endings.py`, `clocks.py`, `beats.py`), new `backend/app/engine/commentary/`, `engine/extractors/decision_registry.py` + `turn_extractor.py`, `engine/character_graph.py`, `engine/state.py`, `engine/gameplay.py`, `engine/authoring_checklist.py`, `api/prompt_engine.py`, `api/story.py`, `backend/app/stories/7_six_strangers/*.json` (and later `1_iu_murder_mystery`), `frontend/index.html`, `frontend/dialogue.js`, plus tests under `tests/backend/app/engine/` and `tests/backend/app/engine/world_model/`.
+| ID | Concern | Required evidence |
+|---|---|---|
+| O01 | Date does not happen — BL-35 | Clear acceptance creates one confirmed agreement in the same turn; realistic departure/arrival occurs at the venue across save/reload; no teleport or duplicate arrival on retry. |
+| O02 | Consent, conditions and private dates — BL-35 | “Maybe, if work finishes” remains tentative; refusal stays refusal; third-party join request cannot amend private terms; explicit withdrawal cancels affected future actions. |
+| O03 | Promises lack consequences — BL-35 | Fulfilled, missed, excused and cancelled obligations differ; attendance is not completion; only observers/informed actors appraise consequences, exactly once. |
+| O04 | Invented sources — BL-36/38 | Named, pronoun, reported-speech, negated and paraphrased source claims are grounded; intentional lies do not fabricate actual source events; a circular rumor is one root. |
+| O05 | Investigation stalls — BL-36 | Available footage/calendar/witness lead executes through a real affordance to evidence, denial or pending status; missing records are not invented; pending tasks survive reload. |
+| O06 | Evidence versus testimony — BL-36 | Conflicting statements remain visible as disputes; reinspection does not rediscover unchanged surfaces; new surface revisions can reveal new observations; notebook is player-scoped. |
+| O07 | Passive rivals/independent aims — BL-34 | Across authored rosters, independent work/social aims generate feasible actions; uninterested characters can remain uninterested; NPCs cannot inspect each other's hidden feelings to plan. |
+| O08 | Direct questions ignored — BL-37 | Correct addressee answers, refuses, expresses uncertainty or acknowledges deferral; multiple questions remain tracked; chatter does not close them. |
+| O09 | Player agency — BL-29 | Neither opening nor generated narration invents voluntary action, emotion or consent; legitimate external consequences remain possible and source-linked. |
+| O10 | Repetitive prose/voices — BL-37 | Voice changes preserve identical mechanical outcomes; characters remain distinguishable; repeated decoration falls without suppressing necessary answers or forcing conflict. |
+| O11 | Identity/scene continuity — BL-31/37 | Introductions persist; return greetings require a relevant encounter transition; correct second-person player address; no speech from absent/ineligible speakers. |
+| O12 | Broken opening text — BL-37 | Authored opening renders intended line breaks and characters in desktop/mobile; deliberate literal escapes are preserved; content validation gives actionable field errors. |
+| O13 | Physical/time regression — BL-30 | Wait-then-go and go-then-wait preserve order and charge travel once; appointments during long skips execute chronologically; interruption reports actual reached time. |
+| O14 | Endings/cast — BL-33 | Both existing gender paths reach a validated mutual ending; refusal, withdrawal, solo leaving and continued play behave distinctly; replacements inherit no private state. |
+| O15 | Atomicity/replay — BL-38 | Inject failures before generation, before/after commit and during outbox delivery. Same request returns same reply and one event batch; concurrent workers cannot overwrite; replay hashes match. |
+| O16 | Reuse and configuration — BL-38 | Run the same action contracts in social, mystery and a minimal third test fixture (e.g. workplace appointment) using only data/policies, without adding a product story. Invalid flag combinations fail explicitly. |
+| O17 | Migration/disable — BL-38 | Old saves retain facts/unknowns; no new consent or knowledge appears; disabling mechanics handles outstanding work explicitly; incompatible rollback is rejected. |
+| O18 | Privacy and source isolation — BL-27/38 | Remove a witness and their knowledge/planning input changes; alter a secret unknown to an NPC and its input does not change; private calls/confessionals never appear in unauthorized contexts. |
+| O19 | Plausible drama and humor — owner decision | Given a work/date conflict, a character may choose a plausible dramatic exception with downstream costs; a comic line cannot silently cancel work, force consent or create an impossible route. Human review compares scene enjoyment, not just schedule compliance. |
+| O20 | Skip preview and engine channel — owner decision | Multiple known important events trigger one parenthesized preview before time changes; tentative plans are labeled; hidden events do not leak; parenthesized control messages never enter NPC memory. Decline changes no time, stale tokens refresh, duplicate confirmation advances once, ordinary dialogue does not approve a skip. |
+| O21 | Moderate autonomy and butterfly effects — owner decision | Longer simulated absences enable causal multi-step changes; equivalent partitioned waits preserve opportunity scheduling; changed player input can diverge outcomes; app-closed wall time does nothing. High/low tuning changes initiative within valid constraints. |
+| O22 | Skill-dependent deception hints — owner decision | Low/high skill and pressure change cue distributions over fixed-seed fixtures; generally informative hints remain nonconclusive; honest nervousness is possible; unavailable visual cues never appear on voice-only calls. |
+| O23 | Real misunderstandings — owner decision | One actor expects a meeting after “maybe” while the other's recorded decision remains tentative; voluntary hopeful attendance is allowed; disappointment is subjective, not a false breach or player-consent event. Clarification updates beliefs without rewriting the exchange. |
+| O24 | Standalone release progress — review Q1/Q7 | O12 ships without new engine types; addressed-response tracking works through current adapters; a lost-response/retry transaction slice shows one effect without waiting for the full reducer or ledger migration. |
+| O25 | Actual inference budget and latency — review Q3 | Six characters/two objectives use one extraction LLM call assisted by bounded Jev work, then one response LLM call; never more than two LLM attempts including retries/background work. Count Jev separately and test its failure fallback without a third LLM. Correlate existing server-stage timing with client wait/paint/reveal durations and measure the accepted current baseline. Report percentiles/max/errors; no immediate two-second gate or speed-driven gameplay simplification. |
+| O26 | Source/answer verifier calibration — review Q4 | Labeled questions, denials, paraphrases, omitted answers and explicit deceptive acts produce the expected verdict/fallback; corrupted/missing/truncated evidence cannot justify an attribution; report false accepts/rejects/abstentions. |
+| O26a | Visible fallback quality | Gate at <=5% visible canned/constrained recovery, measured per section 5 by game/consequential scene; distinguish provider fallback, clarifications, aborts and dropped turns. Zero critical consent/source violations. |
+| O27 | Dramatic selection determinism — review Q5 | Candidate-order permutation preserves choice, refusal is not rerolled, quiet in-character choices remain admissible, and paraphrased duplicate beats share cooldowns. |
+| O28 | Old-save cutover/rollback | Complete section 8 migration drill, including pending agreements/jobs, crashes, concurrency, pre-turn rollback and post-turn compatible routing without lost progress. |
+| O29 | Thinking indicator — owner request | Preserve the existing three animated dots before results; verify pending/success/error/cancel/navigation lifecycle on desktop/mobile, distinguish typewriter reveal from streaming, and cover accessible status/reduced-motion behavior when changing the UI. Source presence is confirmed; full browser acceptance remains to run with the implementation slice. |
+
+Additional BL-39 gates:
+- Standing: cap order, discarded surplus, duplicate causes, losses while closed, decay, replay/checkpoints and policy versions. Conditions: unknown/negation under character and truth views.
+- One flirt produces distinct target/partner/rival/stranger reactions with one engine. Remove a witness and perceived input changes. No duplicate effect from legacy deltas.
+- High standing alone never creates consent. Hypothetical, conditional, quoted and third-party acts do not silently commit.
+- Endings/warnings survive reload and fire once. NPC couples use the same participant rules. Seeded long simulations permit passive cuts, earned wins and plausible rejection without guaranteeing success.
+- Camera dossier excludes hidden impressions/conditions/confessionals; commentary uses the existing response call and permissible evidence.
+- Fault/replay checks cover safe substitutions, terminal/interrupted turns and state/speech agreement. Rename story content and exercise a minimal workplace fixture alongside both games.
+- Hosted proof: complete Terrace and mystery campaigns, earned Terrace win/cut/solo paths, both existing gender paths, desktop/mobile, request traces, defects and human gameplay grades. Arena stays off.
+
+## 12. Decision log and review answers
+
+| Question | Answer / evidence status |
+|---|---|
+| Which plan leads? | This combined BL-39 is the master; BL-38 tracks open correctness work. No independent competing implementations. |
+| Impressions versus appraisal versus drama? | Character appraisal proposes impressions; Bond alone applies; optional Standing records progression; DramaticPolicy selects admissible opportunities. |
+| Who decides NPC behavior? | Owner chose hybrid extraction LLM + Jev proposals under character/engine constraints. Character objects still perform no provider I/O. |
+| What gives if two seconds is exceeded? | The immediate target, not correctness/gameplay. Current speed is accepted; current two-game p50/p95 remains to be measured. |
+| Which Jev tasks are calibrated? | Limited task/smoke evidence is not plan-wide calibration. Enable task by task after labeled/outage tests; deployed overrides were not inspected. |
+| Quality floor without Jev? | Existing extraction proposal + safe deterministic checks, otherwise clarify/defer uncertainty; no third LLM. Full quality comparison remains unmeasured. |
+| Fallback ceiling? | Owner accepted 5%; provisional O26a gate with zero critical source/consent errors. Not a measured result. |
+| Who authors profiles? | Feature implementer owns defaults/mappings/drafts; D includes all 17 Terrace candidates and mystery compatibility. New significant lore needs review; neutral defaults support sparse characters. |
+| Independent fixes? | Section 10 opening, addressed answers, receipts and continuity ship without waiting for all A–J. |
+| Does hearing/contradiction prove truth/lying? | No. Testimony, belief, dispute, evidence and deliberate deception differ. First claim is history. |
+| How are acceptance and narration aligned? | Scoped proposal, semantic checks before display, atomic effects/outcome/reply commit. No post-display act_confirmed patch. |
+| Can panelists see hidden state or make extra calls? | No. Camera/public evidence and their own appraisals; local outline and existing response call. Default off elsewhere; developer arena off for review. |
+| Missing thinking dots? | Source confirms they exist. Preserve and lifecycle-test; add correlated client/server measurement. True streaming is deferred. |
+
+Historical questions/evidence remain in the [first review](../research/ENGINE_PLAN_FIRST_REVIEW_QA_2026_09_28.md) and [second review](../research/ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md). They are audit records, not competing instructions. Design choices are resolved; implementation, calibration, migration and hosted proof remain open.

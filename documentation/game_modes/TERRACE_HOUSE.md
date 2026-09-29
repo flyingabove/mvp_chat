@@ -4,7 +4,7 @@
 
 - **Status:** proposal, not built. Game-mode doc, moved here from `proposals/`. Created 2026-09-26, rewritten the same day after the owner Q&A (decisions in §2).
 - **Closes when shipped:** [BL-33](../backlog/BL-33-terrace-relationship-goal-and-ending.md); most of [BL-34](../backlog/BL-34-terrace-rivals-with-independent-aims.md).
-- **Engineering plan:** [BL-39](../backlog/BL-39-character-centric-social-engine.md) (character-centric object model, phases A–J).
+- **Engineering authority:** [consolidated BL-39](../backlog/BL-39-character-centric-social-engine.md), updated 2026-09-28: character-centric model and phases A–J, incorporating BL-38's correctness contracts. This file specifies Terrace content, not a competing engine architecture. The original claim-lock and multi-call panel design has been corrected to match the latest owner decisions.
 - **Background:** Appendix A (the real show and how it maps to the game).
 - **Related:** [SOCIAL_ENGINE_V2_DESIGN.md](../reference/SOCIAL_ENGINE_V2_DESIGN.md), [CAST_LIFECYCLE_DESIGN.md](../reference/CAST_LIFECYCLE_DESIGN.md), [JEV_DYNAMIC_CONTEXT_DESIGN.md](../reference/JEV_DYNAMIC_CONTEXT_DESIGN.md), [GAME_DESIGN_SYSTEMS.md](../proposals/GAME_DESIGN_SYSTEMS.md).
 
@@ -25,7 +25,7 @@ You are a cast member on a reality show. You move into a Tokyo house with **five
 | Battles | **All of them:** rival competition, conflicts with the crush, loyalty tests, confession risk. As dramatic as possible, emerging from the mechanics rather than scripted. |
 | Mistakes | **Dealbreakers** can close a romance permanently. Other mistakes can be recovered from, slowly. |
 | Stages | Hidden stages plus a **confession**. About **50% of NPCs are "standard"**. The rest have **personal conditions** (a height, a job, a family type, "must bring flowers on a date"…). Some conditions rule the player out from the start. NPCs are **reluctant to disclose** them. Rivals may figure them out first. |
-| Player facts | A fact about the player becomes true **the first time the player states it in chat**, then it's locked. The player **may lie**. Lies are recorded and can be exposed. |
+| Player facts | Facts are elicited through chat. The first claim remains immutable history, not eternal truth. Testimony, belief, correction, changed circumstances and deliberate lies remain distinct; a contradiction alone is not proof of lying. |
 | Two-timing | Allowed, but risky: gossip, loyalty tests, dealbreakers, and the panel will call it out. |
 | Loss | **Fixed count: cut when 3 other couples have left happy.** After the 2nd, the **director phones the player**: "one more couple leaves before you and you're cut." |
 | Cut ending | An exit scene with the director, then the full panel, then a Game Over card. |
@@ -43,8 +43,8 @@ The core mechanic. It generalizes "the score can't pass 60 without X, Y and Z."
 - A **track** is a 0–100 score that one character holds toward another (NPC → player, and NPC → NPC). Stories declare their tracks: Terrace has `romance`. The mystery could have `candor` (how much a suspect will tell you).
 - A track has **tiers**. Each tier has a **ceiling** and **gates**. Points above a ceiling are **not banked**: the score stays at the cap until every gate of the next tier opens. So "over 60 is unattainable without X, Y and Z" is expressed as data.
 - **Gains are slow by construction:** a per-day gain cap (`max_gain_per_day`), diminishing returns for repeating the same kind of action, and decay after long neglect. A big gesture can't jump tiers on day one.
-- **Dealbreakers** are conditions that, once true and *known to the holder*, set the track to `closed`. A closed track never rises again. A dealbreaker can be true from the start (a player fact that rules you out), so the romance is closed the moment the NPC learns it.
-- The score is fed by what the engine already extracts each turn (relationship deltas, behavior tags, agreements kept or broken), multiplied by the holder's **preferences**: authored `likes`/`dislikes` over a shared behavior-tag vocabulary. A player who flatters someone who hates flattery loses points while thinking they're gaining.
+- **Dealbreakers** close a track when the holder's scoped belief/evidence establishes the condition, never from unknown alone. New gains stop; losses still apply. Story content declares reopening rules, including correction of mistaken evidence; closure must not preserve an engine error as eternal truth.
+- Cause-linked appraisals use extracted behavior and observed agreements with the holder's preferences. Bond is the single writer: legacy relationship deltas and derived impressions cannot both apply the same effect. Persist applied effects for ordered replay, including caps and discarded surplus.
 - **Pure, deterministic, unit-testable:** `standing.apply(track, deltas, day) -> track`, `standing.evaluate_gates(track, facts) -> open/closed`.
 
 Terrace `romance` defaults (standard personality):
@@ -56,7 +56,7 @@ Terrace `romance` defaults (standard personality):
 | Interested | 45–60 | seeks you out, jealousy | ≥2 **dates outside the house** (completed agreements) |
 | **Confession** | cap 60 | — | an **accepted confession** (M4) |
 | Dating | 60–75 | a couple in front of the house | ≥3 days dating, no unresolved conflict, no known two-timing |
-| **Ready to leave** | ≥70 | — | the departure ask (M4) |
+| **Ready to leave** (eligibility, not another overlapping tier) | ≥70 and all Dating exit requirements | — | an explicitly accepted departure ask (M4); score alone never creates consent |
 
 A **custom** NPC adds personal gates on top, for example:
 
@@ -71,26 +71,26 @@ A **custom** NPC adds personal gates on top, for example:
 ]
 ```
 
-Condition kinds are a **closed vocabulary**, so the checks are code, not LLM judgment:
+These content labels compile to BL-39's closed typed Condition vocabulary. Evaluation is local and three-valued (true/false/unknown); the supporting belief can come from hybrid semantic appraisal. JSON above is illustrative content, not a second runtime schema. Character viewpoints cannot read privileged world truth or another person's private track:
 
 | Kind | Checks |
 |---|---|
-| `player_fact` | the fact ledger (M2) |
+| `player_fact` | the holder's accepted belief from M2, not automatically the first claim |
 | `event` | `world_model` events and agreements (gifts, dates, promises kept) |
 | `relationship` | trust/suspicion/etc. on the graph edge |
 | `knowledge` | the player (or holder) knows a given fact |
 | `time` | days known, days dating |
 | `absence` | "no known two-timing", "no exposed lie" |
-| `track` | another track's value, e.g. the holder's romance toward a rival |
+| `track` | another track owned by this holder; another character's private score is unavailable |
 
 **Reuse in other stories:** in the murder mystery, a suspect's `candor` is capped at 40 until the player presents a specific clue (a `knowledge` gate), and a confession requires `candor` ≥ 90. The mastermind win can later move from regex to standing, the same way Terrace moves now.
 
 ### M2. Player fact ledger (claims, locks, lies)
 
 - A new extractor decision identifies **self-claims** in the player's message: height, job, age, family, hometown, relationship history, hobbies. The keys are declared by the story (`player_fact_keys`).
-- The **first claim locks** the fact. It's stored with who heard it (the listeners of that utterance).
-- A **later contradicting claim** is recorded as an **exposed lie** to everyone who heard both claims. Otherwise it's an inconsistency waiting to be found. It becomes a public `lie_exposed` event that gossip can spread.
-- The engine doesn't know the "real" truth. The ledger treats the player's first word as the truth, and inconsistency is the lie. This keeps it deterministic and fair. The player can lie *consistently*. The risk is holders with a `verify` behavior (a skeptic asks follow-up questions, a doctor friend quizzes you) and other people who heard a different claim.
+- The **first claim is immutable history**, recorded with its audience and valid time; it is not eternal truth or automatically believed.
+- A later incompatible claim creates a **dispute** for listeners who receive both. Honest corrections, changed circumstances, mistakes and deliberate deception have distinct semantics. Gossip carries attributed claims and evidence, not automatic public lie exposure.
+- The engine does not invent unknown player truth. Listeners appraise testimony using their own evidence, trust and skepticism. They can believe a consistent lie; verification may change their belief. Suspicion is not proof of intent, and perceived deception is distinct from engine-established deliberate lying.
 - **Reuse:** any story where the player creates their own persona (an alias in a heist, a cover story in a spy game).
 
 ### M3. Secret rules and discovery (on existing epistemics)
@@ -103,9 +103,9 @@ Condition kinds are a **closed vocabulary**, so the checks are code, not LLM jud
 ### M4. Social acts: confession and the departure ask
 
 - One extractor decision, registered in the **existing pre-generation batch** (no extra LLM call), classifies the player's message into `NONE | CONFESS:<id> | ASK_LEAVE:<id> | ACCEPT_OFFER:<id> | LEAVE_ALONE`. The acts come from story config, so other stories can declare their own (e.g. `ACCUSE:<id>` in a mystery).
-- **The engine decides the answer from the track, not the storyteller:** `ACCEPT`, `NOT_YET(reason)` or `REJECT(reason)`. A reason is a failed gate phrased *in character and non-revealing* ("we've never really been out, just us"). A failing personal condition only gets revealed as far as its `disclosure` allows.
-- **A confession is a public risk:** a rejection becomes a house-visible event. It lowers the track, adds a cooldown, gives rivals an opening, and changes the house mood (as with Hikaru and Misaki on the show).
-- The storyteller receives a one-turn directive to narrate the decided answer clearly. On an ACCEPT turn, a small post-reply check confirms the prose really shows the acceptance before any state commits (no false wins).
+- **Hybrid decision:** extraction LLM plus Jev propose nuanced choices; the target Character enforces feasibility, standards and consent, returning ACCEPT, NOT_YET, REJECT or DEFER. A track qualifies an option, never forces acceptance. Reasons pass character disclosure policy before narration.
+- **A confession can be a public risk:** witnesses perceive the outcome and appraise it individually; a private rejection does not automatically become house knowledge. Cooldowns and consequences are cause-linked and configurable.
+- The response LLM narrates the tentative verdict. Validate meaning before display, then atomically commit effects, outcome and exact reply. There is no post-display act_confirmed repair and no extra LLM verification call.
 - NPCs use the same acts toward each other off-screen, so **NPC couples form and leave by the same rules** as the player.
 - The partner can also make the offer themselves when they're ready, and a plain "yes" from the player then counts.
 
@@ -145,11 +145,11 @@ Condition kinds are a **closed vocabulary**, so the checks are code, not LLM jud
 | `finale` | the player leaves (win, cut or alone) | ~2,000 words, no skip |
 
 **Finale pipeline:**
-1. **Run dossier (deterministic):** built from `world_model` events. It contains every relationship arc with the tier timeline, confessions (accepted and rejected), dates, gifts, promises kept and broken, lies told and exposed, two-timing, conflicts and repairs, rivals beaten or lost to, and the conditions the player figured out (and the ones they never did). It also includes computed **conduct tags** (kind, strategic, manipulative, loyal, two-faced, cruel…) with evidence event ids.
-2. **Outline call:** the panel agrees on 5–7 segments (first impressions, turning points, the worst move, the best move, the romance, a verdict debate). Each panelist gets an assigned stance so they **disagree**.
-3. **Segment calls:** write each segment as structured dialogue (`speaker_id` = panelist), citing only dossier events. A validator rejects claims with no event id.
-4. **Verdict:** each panelist ends with a one-line label, which may be good, bad or evil, plus a prediction ("they'll last" / "six months, tops").
-5. **Delivery:** through the existing per-speaker dialogue renderer (`frontend/dialogue.js`) with panelist portraits, tap to advance, **no skip button**, then the ending card.
+1. **Run dossier (local):** only camera/public events and panelists' own appraisals. Include observable conduct and evidence IDs, never subjects' private impressions, hidden tier values, undisclosed conditions or confessionals. Separate opinion from observable fact.
+2. **Outline (local):** select 5–7 evidence-backed segments. Each panelist appraises the same footage through their own tastes; disagreement should be plausible, not forced.
+3. **One response LLM call:** render the exit scene, all structured panel dialogue and final verdict lines together within the normal response budget. Jev can assist scoped assessments; there are no extra outline, segment or verdict LLM calls.
+4. **Validation and commit:** claims need actual supporting admissible evidence, not merely an ID. Validate before committing outcome/reply together. A truncated or invalid finale follows the master's safe failure contract.
+5. **Delivery:** existing per-speaker renderer with portraits, tap to advance, **no skip button**, then ending card. Allocate finale output allowance explicitly and measure its latency separately.
 - **Guardrail:** judge the player's **behavior**, never their worth. No slurs, no mocking appearance or identity, no piling on. The panel can call a move evil; it never says the player deserves harm. This is the lesson from the show's cancellation (see Appendix A.5).
 - **Reuse:** the mystery's "press conference after the arrest", a courtroom epilogue, a sports broadcast.
 
@@ -194,23 +194,17 @@ Condition kinds are a **closed vocabulary**, so the checks are code, not LLM jud
 | Relationship edges (trust/affection/…) | Kept. They are inputs to tracks, not replaced. |
 | Off-screen resolver, gossip, agreements, cast lifecycle | Reused as the substrate for NPC–NPC courtship, rule discovery and couple departures. |
 
-New modules (proposed): `engine/standing/` (tracks, tiers, gates, conditions), `engine/player_facts.py`, `engine/social_acts.py`, `engine/story_clocks.py`, `engine/endings.py`, `engine/commentary/` (dossier, outline, segments, validator).
+Module ownership and implementation order follow consolidated BL-39. Persona belongs to Character, standings to Bond, shared rules/clocks to StoryRules and commentary to a scoped rendering service; do not build parallel free-function stores from this content design.
 
 ## 7. Build order (each phase ships and is verified on beta)
 
-1. **Endings registry + ending payload + ending overlay + goal card.** It runs on today's romance state, and the player sees the goal and a real ending immediately. *(Generic.)*
-2. **Standing tracks M1:** tiers, gates, preferences, daily caps and dealbreakers, fed by the existing extractor deltas. Author standard profiles for all 17. *(Generic.)*
-3. **Social acts M4:** confession and ask/accept/leave-alone, engine-decided answers, post-reply verification. Deletes the regex adapters.
-4. **Player fact ledger M2 + discovery M3:** custom conditions for about half the cast, gossip-spread rules, lie exposure.
-5. **NPC–NPC courtship and couple departures + story clocks M5:** the director call and the cut.
-6. **Commentary M6:** named asides, the departure segment, then the finale pipeline (dossier, outline, segments, validator, dialogue UI with no skip).
-7. **Context focus M7** and tuning from hosted playtests: how many days a skilled player needs, how often NPC couples leave, and whether the cut is fair.
+Use consolidated BL-39 section 10's A–J roadmap and independent correctness releases. Terrace content maps to endings/UI (A), standings (C), cast profiles/appraisal (D), claims/discovery (E), hybrid social acts/scheduling (F), NPC life (G), director clocks (H), camera-limited commentary (I) and projection/tuning (J). Phase B supplies character adapters; no separate architecture is implied here. Validate-before-display and atomic commit apply from the first consequential release.
 
 ## 8. Tests (per phase; no skips)
 
 - **Standing:** ceilings hold until gates open; points over a cap are not banked; the daily cap; diminishing returns; decay; a dealbreaker closes the track only once the holder knows it; standard and custom profiles; NPC → NPC tracks.
 - **Conditions:** every condition kind, true and false; the disclosure policy controls what the storyteller sees.
-- **Fact ledger:** first claim locks; a contradiction heard by the same listener becomes exposed; one heard by different listeners stays latent until gossip connects the two claims; save/reload.
+- **Fact ledger:** immutable claim history, separate testimony/belief, honest correction and time-varying facts; contradictions remain disputes until evidence supports further judgment. Gossip preserves provenance; save/reload preserves scoped beliefs.
 - **Social acts:** confession/ask/accept/alone classification; jokes and hypotheticals give NONE; engine verdict per tier; cooldowns; public rejection event; post-reply verification blocks false wins; both player genders; ineligible (same-gender, absent, rotated-out) targets.
 - **Clocks:** the warning beat fires exactly once at 2; the cut at 3; player-inclusive couples are excluded; persistence.
 - **Endings:** each ending triggers once; a resumed finished session shows its ending; `ends_run: false` continues.
@@ -221,7 +215,7 @@ New modules (proposed): `engine/standing/` (tracks, tiers, gates, conditions), `
 ## 9. Cautions and open items
 
 - **Real names:** the 17 housemates use the real season's cast names. The owner states we have **explicit permission to use real names**, because StoriesChat is a **non-commercial app** (see `.claude/CLAUDE.md`, "Real Names and Trademarks").
-- **Cost and latency:** the finale takes roughly 5–8 LLM calls, run once per game. The departure segment is 1 call. The acts decision rides the existing extractor batch.
+- **Cost and latency:** at most two LLM attempts per gameplay turn, extraction assisted by Jev plus response. Exit/departure/panel prose shares that response call; no finale exemption. Current speed is accepted; measure ordinary and finale latency separately.
 - **Arena:** the arena rubric will need Terrace ending checks later. LLM arena runs stay disabled unless the owner asks.
 
 ## Appendix A: The real show (researched 2026-09-26)

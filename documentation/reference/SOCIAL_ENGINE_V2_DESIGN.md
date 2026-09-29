@@ -1,5 +1,7 @@
 # Social engine v2: causality, knowledge, and consequential relationships
 
+> **Target-design authority, 2026-09-28:** [consolidated BL-39](../backlog/BL-39-character-centric-social-engine.md) supersedes conflicting future architecture here. Preserve this document's implementation history and P-series acceptance evidence; it does not authorize a second relationship writer or deterministic-only replacement of hybrid NPC judgment.
+
 Status: engineering target with an initial implementation in progress, 2026-09-26. Section 18 records implemented slices and remaining acceptance gaps. Scope: a reusable engine for Terrace and other social stories, with epistemic infrastructure reusable by IU. No four-week deadline is enabled by this proposal.
 
 ## 1. Architectural decision

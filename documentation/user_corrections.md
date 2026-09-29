@@ -4,6 +4,14 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-28: One BL-39-led proposal, hybrid Jev and 5% fallback ceiling
+
+Owner selected consolidation: BL-39 supplies the Character → Heart → Bond model and A–J roadmap; BL-38 correctness contracts are mandatory within it, not another architecture. Use [the master](backlog/BL-39-character-centric-social-engine.md). Keep independent opening/answer/receipt fixes shippable.
+
+NPC judgment is hybrid: extraction LLM plus Jev propose nuanced choices; character/engine rules enforce feasibility, authority and consent. Pure character methods accept application-supplied proposals without provider I/O. Do not silently replace nuanced decisions with deterministic utility alone.
+
+Owner accepted a provisional 5% visible canned/constrained fallback ceiling and delegated practical judgment. Treat as a measured rollout gate with zero critical source/consent violations, not a claimed achieved rate. Continue gameplay-first latency priorities and the two-LLM-attempt cap. Panelists use camera/public evidence, never subject private state; panel prose shares the response call.
+
 ## 2026-09-27: Gameplay first; two LLM calls plus Jev and visible thinking dots
 
 Latest user direction supersedes the earlier unresolved latency question and any immediate 1–2-second optimization gate: current response speed feels good. Focus on gameplay, measure latency, and defer speed optimization/true streaming. Keep at most two LLM calls per gameplay turn: extraction LLM assisted by Jev, then response LLM. Use Jev extensively for supported work with bounded batching and separate latency/cost accounting; do not replace the extraction LLM with local-only intent parsing or add a third LLM verifier/repair/background call.

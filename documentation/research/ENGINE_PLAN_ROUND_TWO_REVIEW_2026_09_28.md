@@ -1,4 +1,6 @@
-# Engine plans: second review, evidence and unresolved decisions
+# Engine plans: second review, historical evidence and resolution
+
+**Resolved 2026-09-28:** the owner selected BL-39 as the combined master with BL-38 correctness contracts, hybrid extraction LLM + Jev choices under engine constraints, and a provisional 5% visible fallback ceiling. Origin/beta through 2cc10fe was pulled and merged in f3b8489. [Consolidated BL-39](../backlog/BL-39-character-centric-social-engine.md) now governs; its final section answers these questions. The findings below describe the earlier review state, not continuing implementation blocks. “Pending,” branch locations, and section numbers below are historical. No runtime calibration or implementation completion is implied.
 
 2026-09-28. Documentation review only. No engine changes, model experiments, live configuration inspection or production migration. The sibling checkout was read, never edited. This report answers the seven second-round questions and records the conflicts that must be settled before implementing shared social state.
 

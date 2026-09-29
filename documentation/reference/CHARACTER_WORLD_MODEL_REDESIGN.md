@@ -1,5 +1,7 @@
 # Character & World Model Redesign
 
+> **Target-design authority, 2026-09-28:** [consolidated BL-39](../backlog/BL-39-character-centric-social-engine.md) governs future Character/relationship ownership and hybrid decisions. This document remains a reference for existing work. Characters remain free of provider I/O while consuming application-supplied LLM/Jev proposals.
+
 > **What this doc is for:** The agreed design for a robust character object, a world-owned location index,
 > events, memories and relationship edges. Together these make the game world consistent and engaging.
 > Edit this doc when the data model, a mechanic, or the build order changes.

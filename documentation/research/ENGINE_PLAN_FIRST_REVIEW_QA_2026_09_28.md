@@ -1,6 +1,6 @@
 # BL-38 first-review Q&A record
 
-Preserved 2026-09-28 to keep the implementation proposal navigable. This is a historical discussion record, not the current decision authority. In particular, the sibling checkout's BL-39 has now been inspected. See [second-review findings](ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md) for conflicts and pending owner decisions, and [BL-38](../backlog/BL-38-social-engine-authority-and-epistemic-transactions.md) for the current proposal.
+Preserved 2026-09-28 as historical discussion, not current authority. Both plans are now consolidated in [BL-39](../backlog/BL-39-character-centric-social-engine.md), including owner answers. Section numbers below refer to the earlier BL-38 revision; current release contracts are master section 10. The [second review](ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md) preserves evidence and its resolution.
 ## 15. Review questions and answers — 2026-09-27
 
 The supplied review refers to BL-38/BL-39. Only BL-38 exists in this checkout at review time; these answers update that document. “Answered” means specified, not implemented or performance-verified. Latest owner direction: current response speed is acceptable; prioritize gameplay, keep extraction LLM + Jev and response LLM within two LLM calls, measure latency, preserve thinking dots, and defer optimization/streaming. The earlier 1–2-second aspiration is not an immediate release gate. Playtest arena judging is off.

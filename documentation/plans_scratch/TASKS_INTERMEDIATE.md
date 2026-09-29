@@ -4,6 +4,15 @@ Use this file as the single source of truth for intermediate execution tasks.
 
 ## Active
 
+### 2026-09-28 Engine proposal consolidation
+
+- [x] Pull and merge origin/beta through 2cc10fe (merge f3b8489), preserving both documentation histories and unrelated attendance edits.
+- [x] Make BL-39 the single target architecture/roadmap, incorporate BL-38 correctness contracts, retain acceptance IDs and resolve owner choices: hybrid Jev plus provisional 5% visible fallback gate.
+- [x] Align Terrace content, catalogue and historical design/review pointers; retain BL-38 as an open correctness tracker.
+- [ ] Implement and verify the master release units/phases; all existing runtime acceptance gaps remain open.
+
+Architecture/build order for the older active list below now comes from [consolidated BL-39](../backlog/BL-39-character-centric-social-engine.md). Its A–J phases and independent release units supersede competing future designs; existing P-series tests/history still supply evidence and are not marked complete by this documentation task.
+
 ### 2026-09-26 Social engine v2 implementation and hosted play
 
 - [ ] Phase 1: canonical turn/event reducer, durable retry/revision/outbox, one clock, save/replay and scene validation; pass P1-01..08.
