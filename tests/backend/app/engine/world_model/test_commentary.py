@@ -92,7 +92,7 @@ def test_panelists_never_speak_inside_the_house_scene():
     record_social_act(state, SocialActUpdate("leave_alone"))
     begin_turn(state, "I'm leaving the house alone.", 0)
     prompt = dialogue_prompt(state)
-    assert "TV studio" in prompt and "only in the final studio panel section" in prompt
+    assert "TV studio" in prompt and "`panel` array" in prompt
     segments = [{"kind": "narration", "text": "You pack."},
                 {"kind": "dialogue", "speaker_id": "reina", "speaker_name": "Reina Triendl", "text": "Going somewhere?"},
                 {"kind": "narration", "text": "You step out."},
@@ -148,6 +148,29 @@ def test_on_the_exit_turn_the_people_being_left_can_still_say_goodbye():
     assert "ben" not in model.view.allowed_speakers
     begin_turn(state, "Walking on.", 0)
     assert "ann" not in model.view.allowed_speakers, "only on the exit turn"
+
+
+def test_the_finale_schema_requires_a_panel_the_model_cannot_skip():
+    """BL-42: the model skipped the panel in 5/5 live finales; on finale turns only,
+    the strict response schema requires a panel array of panelist lines."""
+    from backend.app.engine.dialogue import decode_dialogue_response, dialogue_response_format, finale_turn
+    import json as _json
+    model = make_model({"ann": "kitchen"})
+    state = _state(model)
+    begin_turn(state, "Hi.", 0)
+    ordinary = dialogue_response_format(state)["json_schema"]["schema"]
+    assert "panel" not in ordinary["properties"] and not finale_turn(state)
+    record_social_act(state, SocialActUpdate("leave_alone"))
+    begin_turn(state, "I'm leaving the house alone.", 0)
+    schema = dialogue_response_format(state)["json_schema"]["schema"]
+    assert "panel" in schema["required"] and finale_turn(state)
+    assert schema["properties"]["panel"]["items"]["properties"]["speaker_id"]["enum"] == ["reina", "yamasato", "yukiko"]
+    raw = _json.dumps({"segments": [{"kind": "narration", "speaker_id": None, "text": "You go."}],
+                       "panel": [{"speaker_id": "yamasato", "text": "Bold."}, {"speaker_id": "ann", "text": "x"}],
+                       "state": {"emotion": "calm", "rel_delta": 0}})
+    decoded = decode_dialogue_response(raw, state)
+    assert decoded.index("You go.") < decoded.index("[SPEAKER:yamasato]Bold.[/SPEAKER]")
+    assert "[SPEAKER:ann]x" not in decoded, "only panelists may speak in the panel"
 
 
 def test_the_director_trigger_also_opens_the_finale():

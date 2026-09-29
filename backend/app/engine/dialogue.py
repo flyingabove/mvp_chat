@@ -37,11 +37,11 @@ def _panel_speakers(state) -> dict[str, str]:
 def _panel_prompt(panel: dict[str, str]) -> str:
     if not panel:
         return ""
-    return ("\nFINALE FORMAT: first the exit scene with the house cast above. Then a separate final section: the "
-            "studio panel " + json.dumps(panel, ensure_ascii=False) + " are in a TV studio watching the footage, "
-            "not in the house; nobody in the house can hear them. Use their IDs only in the final studio panel "
-            "section, after the exit scene ends, and never for anyone in the house. This reply MUST end with the "
-            "studio panel section: at least 4 panel dialogue segments, then one verdict line from each panelist.")
+    return ("\nFINALE FORMAT: `segments` holds the exit scene with the house cast above. The studio panel "
+            + json.dumps(panel, ensure_ascii=False) + " are in a TV studio watching the footage, not in the house; "
+            "nobody in the house can hear them, so they never appear in `segments`. This reply MUST end with the "
+            "studio panel section: write it in the `panel` array, at least 6 lines of the panelists talking with "
+            "each other about the footage, then one verdict line from each panelist.")
 
 
 def dialogue_prompt(state) -> str:
@@ -94,10 +94,21 @@ def _allowed_speaker_ids(state) -> list[str]:
     return [key for key in ids if key in set(allowed)]
 
 
+def finale_turn(state) -> bool:
+    """True on the one turn where the studio panel closes the run."""
+    return bool(_panel_speakers(state))
+
+
 def dialogue_response_format(state) -> dict:
-    """Constrain speaker IDs and require an ordered scene on the generation call."""
+    """Constrain speaker IDs and require an ordered scene on the generation call.
+
+    On the finale turn a required `panel` array holds the studio panel, so the
+    model cannot end the reply after the exit scene (BL-42).
+    """
     ids = _allowed_speaker_ids(state)
-    return {"type": "json_schema", "json_schema": {
+    panel_ids = list(_panel_speakers(state))
+    ids = [key for key in ids if key not in panel_ids]
+    response = {"type": "json_schema", "json_schema": {
         "name": "story_scene", "strict": True,
         "schema": {"type": "object", "additionalProperties": False,
                    "required": ["segments", "state"], "properties": {
@@ -115,6 +126,13 @@ def dialogue_response_format(state) -> dict:
                                  }},
                    }},
     }}
+    if panel_ids:
+        schema = response["json_schema"]["schema"]
+        schema["required"] = ["segments", "panel", "state"]
+        schema["properties"]["panel"] = {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["speaker_id", "text"],
+            "properties": {"speaker_id": {"type": "string", "enum": panel_ids}, "text": {"type": "string"}}}}
+    return response
 
 
 QUOTE_PAIRS = (('"', '"'), ("“", "”"), ("‘", "’"))
@@ -209,6 +227,10 @@ def decode_dialogue_response(raw: str, state=None) -> str:
                 parts.append(f"[SPEAKER:{speaker}]{part}[/SPEAKER]" if speaker else part)
         else:
             parts.append(text)
+    panel_ids = set(_panel_speakers(state)) if state is not None else set()
+    for line in value.get("panel") or []:
+        if isinstance(line, dict) and line.get("speaker_id") in panel_ids and isinstance(line.get("text"), str):
+            parts.append(f"[SPEAKER:{line['speaker_id']}]{clean_spoken_text(MARKER.sub('', line['text']))}[/SPEAKER]")
     if isinstance(value.get("state"), dict):
         parts.append("[[STATE]]" + json.dumps(value["state"]) + "[[/STATE]]")
     return "\n\n".join(parts)

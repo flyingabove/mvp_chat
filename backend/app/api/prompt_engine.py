@@ -85,7 +85,7 @@ from backend.app.engine.state import (
 )
 from backend.app.engine.dialogue import (
     present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
-    dialogue_response_format, decode_dialogue_response,
+    dialogue_response_format, decode_dialogue_response, finale_turn,
     has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene, drop_narrated_player_echo,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
@@ -3486,8 +3486,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         "messages": messages,
         "response_format": dialogue_response_format(state),
         "temperature": TEMPERATURE,
-        # Reserve room for per-speaker metadata as well as the existing prose budget.
-        "max_tokens": max(1024, MAX_TOKENS * 2),
+        # Reserve room for per-speaker metadata as well as the existing prose budget;
+        # the finale (exit scene + studio panel) gets an explicit larger allowance.
+        "max_tokens": max(2048 if finale_turn(state) else 1024, MAX_TOKENS * 2),
     }
 
     _log({
