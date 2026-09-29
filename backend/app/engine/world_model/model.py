@@ -3,6 +3,7 @@ contact queue and visible traces. Everything else is a query over these."""
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
@@ -121,6 +122,8 @@ class WorldModel:
     romance_relationship_npc_choice: str = ""
     romance_relationship_partner: str = ""
     conversation: ConversationState = field(default_factory=ConversationState)
+    knows_player_name: list[str] = field(default_factory=list)       # characters who heard the player's name
+    last_with_player: dict[str, int] = field(default_factory=dict)   # character -> last turn together
     view: TurnView = field(default_factory=TurnView)       # transient
 
     # -- queries -----------------------------------------------------------------
@@ -152,6 +155,15 @@ class WorldModel:
     def descriptors(self) -> dict[str, str]:
         return {cid: c.descriptor or "someone" for cid, c in self.characters.items()}
 
+    def hear_player_name(self, text: str, listeners: Iterable[str]) -> None:
+        """Characters who hear the player's name spoken learn it."""
+        name = (self.player_name or "").strip()
+        if not name or name == "the player" or not re.search(rf"\b{re.escape(name)}\b", text or "", re.I):
+            return
+        for cid in listeners:
+            if cid in self.characters and cid not in self.knows_player_name:
+                self.knows_player_name.append(cid)
+
     def add_trace(self, minute: int, place: str, text: str, involves: Iterable[str] = ()) -> None:
         self.traces.append(Trace(minute, place, text, tuple(involves)))
         self.traces = self.traces[-40:]
@@ -174,7 +186,9 @@ class WorldModel:
                 "romance_relationship_player_choice": self.romance_relationship_player_choice,
                 "romance_relationship_npc_choice": self.romance_relationship_npc_choice,
                 "romance_relationship_partner": self.romance_relationship_partner,
-                "conversation": self.conversation.to_dict()}
+                "conversation": self.conversation.to_dict(),
+                "knows_player_name": list(self.knows_player_name),
+                "last_with_player": dict(self.last_with_player)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -204,4 +218,6 @@ class WorldModel:
                    romance_relationship_player_choice=str(data.get("romance_relationship_player_choice") or ""),
                    romance_relationship_npc_choice=str(data.get("romance_relationship_npc_choice") or ""),
                    romance_relationship_partner=str(data.get("romance_relationship_partner") or ""),
-                   conversation=ConversationState.from_dict(data.get("conversation") or {}))
+                   conversation=ConversationState.from_dict(data.get("conversation") or {}),
+                   knows_player_name=list(data.get("knows_player_name") or []),
+                   last_with_player={str(k): int(v) for k, v in (data.get("last_with_player") or {}).items()})

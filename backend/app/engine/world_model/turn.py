@@ -166,8 +166,14 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         model.player_availability = "awake"
     model.world.minute = now
     mirror_locations(model, state)
+    if model.turn == 1 and not model.last_with_player:
+        # The authored welcome party already met the player in the opening.
+        for cid in getattr(state, "opening_cast", None) or []:
+            if cid in model.characters:
+                model.last_with_player[cid] = 0
     if message.strip() and not sleeping and not PRIVATE_ASIDE.fullmatch(message):
         present = model.present_with_player()
+        model.hear_player_name(message, present)
         event = model.world.add_event(now, model.player_place(), (PLAYER, *present),
                                       f"@{PLAYER} said: {message.strip()[:300]}", kind="utterance",
                                       operation_id=f"utterance:{model.turn}:player" if model.turn else "",
@@ -205,7 +211,10 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         c = model.characters[cid]
         activity = c.activity or "here"
         view.cards.append(f"{c.name} ({c.descriptor}): {activity}; {c.availability}"
-                          + (f"; mood: {c.mood}" if c.mood else ""))
+                          + (f"; mood: {c.mood}" if c.mood else "")
+                          + f"; {_encounter_note(model, cid)}; {_name_note(model, cid)}")
+    for cid in present:
+        model.last_with_player[cid] = model.turn
     for cid in asleep_here:
         view.cards.append(f"{names[cid]} is asleep here and cannot talk unless woken")
     lifecycle = getattr(state, "cast_lifecycle", None)
@@ -258,11 +267,16 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
     view.plan = select_speakers(model, candidates, message, warmth_fn(state), owes_answer=owes_answer)
     _, mentioned = addressed_ids(model, message, list(model.characters))
+    # Label the player explicitly so a speaker never treats the person in
+    # front of them as an absent third party (O11).
+    memory_names = {**names, PLAYER: f"the player ({names[PLAYER]})"}
     for cid in view.plan.speakers:
         found = [m for m in model.memories.search(cid, message, mentions=mentioned, k=MAX_PERSPECTIVE + 1)
                  if not (m.minute == now and m.source == f"told_by:{PLAYER}")][:MAX_PERSPECTIVE]
-        rendered = [render(m.text, names) + (f" (heard from {names.get(m.source[8:], 'someone')})"
-                                             if m.source.startswith("told_by:") else "") for m in found]
+        rendered = [render(m.text, memory_names)
+                    + (f" (heard from {memory_names.get(m.source[8:], 'someone')})"
+                       if m.source.startswith("told_by:") and m.source != f"told_by:{PLAYER}" else "")
+                    for m in found]
         if rendered:
             view.perspectives[cid] = rendered
     unplaced = [cid for cid in model.characters if not model.is_placed(cid)]
@@ -272,6 +286,21 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     view.allowed_speakers = sorted(set(present) | set(unplaced) | set(view.plan.speakers) | on_call)
     view.ending_hint = ending_hint(model.endings)
     return view
+
+
+def _encounter_note(model: WorldModel, cid: str) -> str:
+    last = model.last_with_player.get(cid)
+    if last is None:
+        return "first time meeting the player"
+    if last >= model.turn - 1:
+        return "has been with the player; no greeting or 'welcome back'"
+    return "apart from the player since earlier; a greeting fits"
+
+
+def _name_note(model: WorldModel, cid: str) -> str:
+    if cid in model.knows_player_name:
+        return "knows the player's name; never asks it again"
+    return "has not learned the player's name"
 
 
 MAX_QUESTION_DIRECTIVES = 3
@@ -359,6 +388,7 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
         # A remote call is heard by its participants, not every resident
         # standing next to the player's phone.
         listeners = present | {speaker} if speaker in present else {speaker}
+        model.hear_player_name(text, listeners)
         listeners.add(PLAYER)
         event = model.world.add_event(now, model.world.place_of(speaker) or "",
                                       tuple(sorted(listeners)), f"@{speaker} said: {text[:240]}",

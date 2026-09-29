@@ -19,6 +19,10 @@ def render_scene_section(view: TurnView) -> str:
     lines = [f"\n{RULE}\n### WORLD STATE (engine-authoritative, overrides guesses)\n{RULE}"]
     if view.time_text:
         lines.append(f"Time: {view.time_text}.")
+    player = view.names.get("player")
+    if player:
+        lines.append(f'The player is {player}. Characters talking to the player address the player directly as "you" '
+                     f"(or by name); never speak of {player} as someone who is not here.")
     if view.cards:
         lines.append("People with the player right now (location, activity and state are facts):")
         lines.extend(f"- {card}" for card in view.cards)

@@ -50,6 +50,8 @@ gate (hosted, Jev + OpenAI). Watch BL-23 (the Jev length preference): trimming m
 judge penalizes. Read the gate's length check before calling it a regression. Don't trim narration that adds new
 information after the restated clause.
 
+**Still reproducing (2026-09-28, local real play on the O11 build):** Terrace narration added "making your stomach grumble" and "feeling a little more at home" to player turns that stated neither. BL-39 O09 remains open; the O11 continuity slice did not change narration agency. The IU authored opening's second-person backstory is owner content and was left unchanged.
+
 ## Touches
 `backend/app/engine/prompt_builder.py`, `backend/app/engine/dialogue.py`, `backend/app/api/prompt_engine.py`
 (apply the trimmer next to `drop_player_echo`), `tests/backend/app/engine/test_dialogue*.py`,
