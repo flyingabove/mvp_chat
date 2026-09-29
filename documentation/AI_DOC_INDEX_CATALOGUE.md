@@ -12,6 +12,7 @@
 - **`ai_learnings_mistakes/`** — process rules and postmortems, not gameplay/architecture design.
 - **`human_north_star_docs/`** — vision only, human-owned.
 - **`auto_update_docs/`** — deleted 2026-09-26 (was stale since January, described a pre-rewrite "Terminal Frontend", and no generator script exists in the repo to refresh it). Recreate it only if a real doc-generation tool is added.
+- **`game_modes/`** — one design doc per game mode (added 2026-09-26).
 - **`research/`**, **`plans_scratch/`** — supporting material, unchanged by this reorg.
 
 A doc's status is either implied by its folder (`reference`/`proposals`/`archive`) or spelled out inline when a single doc is a mix (mostly-done docs kept in `reference/` still note their open items in the table below).
@@ -85,16 +86,24 @@ hosted-play review of the in-progress build is in
 | [WORLD_ATLAS_DESIGN.md](reference/WORLD_ATLAS_DESIGN.md) | ...map metadata, coordinates, routes or map UI behavior changes. Built and current. |
 | [SOCIAL_MODE_DESIGN.md](reference/SOCIAL_MODE_DESIGN.md) | ...the optional `mode` story-JSON schema, the mode prompt layer, or ensemble/slice-of-life (`social_sim`) authoring guidance changes. **References to the deleted reference story ("The Common Room") and "no schedules" are stale — routines now exist.** |
 
+## Game Modes — `game_modes/`
+
+One doc per game mode: its design (proposal and built status), the generic engine mechanics it configures, and background research. The mechanics themselves must stay generic engine code; a game mode only configures them in story JSON.
+
+| Doc | Edit this doc if... |
+|-----|---------------------|
+| [TERRACE_HOUSE.md](game_modes/TERRACE_HOUSE.md) | ...anything about the Terrace House mode (`7_six_strangers`) changes: the win (leave together), the loss (the director cuts you after 3 other couples leave), earned romance (standing tracks with gated ceilings, personal conditions, dealbreakers), the player fact ledger and lies, confessions, story clocks, the endings registry, the judges panel, or context focus. Also holds the real-show research (Appendix A). **Proposal, not built; closes BL-33 and most of BL-34.** |
+
 ## Not Yet Built — `proposals/`
 
-The [2026-09-28 engine-plan review](research/ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md) compares BL-38 with the sibling checkout's BL-39, records historical latency/Jev evidence, and identifies unresolved authority and NPC-decision choices. Read it before implementing shared character/relationship ownership. Detailed first-round Q&A is preserved in [the review record](research/ENGINE_PLAN_FIRST_REVIEW_QA_2026_09_28.md); BL-38 section 15 now contains only current decisions and navigation.
+The [2026-09-28 engine-plan review](research/ENGINE_PLAN_ROUND_TWO_REVIEW_2026_09_28.md) compares BL-38 with BL-39, records historical latency/Jev evidence, and identifies unresolved authority and NPC-decision choices. Read it before implementing shared character/relationship ownership. Detailed first-round Q&A is preserved in [the review record](research/ENGINE_PLAN_FIRST_REVIEW_QA_2026_09_28.md); BL-38 section 15 now contains only current decisions and navigation.
 
 | Doc | Edit this doc if... |
 |-----|---------------------|
 | [GAME_DESIGN_SYSTEMS.md](proposals/GAME_DESIGN_SYSTEMS.md) | ...core gameplay systems change (world state, time, quests, difficulty, win conditions). **World state and time are built; quests, difficulty/rerolls, decay, and the post-milestone loop ("winning doesn't end the game" — currently it does, `prompt_engine.py` sets `over=True`) are not.** |
-| [LEAVE_TOGETHER_WIN_CONDITION.md](proposals/LEAVE_TOGETHER_WIN_CONDITION.md) | ...the Terrace "convince a partner to leave with you" win, the generic goal card / ending screen, the `leave_together` extractor decision, or the partner acceptance thresholds change. **Not built; closes BL-33. Replaces the regex detectors in `world_model/romance.py`.** |
 | [NPC_SIDEQUEST_DESIGN.md](proposals/NPC_SIDEQUEST_DESIGN.md) | ...NPC behavior, sidequest triggers, or quest logic changes. **Not built at all; reconcile with `world_model/threads.py` (personal threads/commitments) before resuming this, since they now cover similar ground.** |
 | [BL-38: reusable object-centered simulation engine](backlog/BL-38-social-engine-authority-and-epistemic-transactions.md) | ...the proposed character-owned voice/context, object ownership, agreements/travel, evidence, NPC objectives, per-game policies, migration or acceptance gates change. **Detailed engineering proposal expanded 2026-09-27; existing components and uncommitted attendance work are distinguished from proposed APIs. Runtime completion is not claimed.** |
+| [BL-39: character-centric social engine](backlog/BL-39-character-centric-social-engine.md) | ...the Character → Heart → Bond model, cause-linked impressions, story-declared standing tracks, endings or the judges panel change. **Overlaps BL-38 on Character/relationship ownership; the owner is consolidating both into one plan. Do not implement shared social state from either doc until that lands.** |
 | [PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md](proposals/PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md) | ...the `SessionFactory`/`SnapshotCodec`/`TurnService`/`PlayerView`/`StoryDefinition.validate()` contracts, the `application/` package layout, or the handler decomposition order change. **Not started; `prompt_engine.py` is 3,700+ lines.** |
 | [PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md](proposals/PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md) | ...any of the 11 optimization rows' design, measurement method, or ship/drop threshold changes. **1 of 11 done differently (source-aware memory merge, BL-26), 1 dropped by design (cache registry/BM25), the rest not started.** |
 | [PHASE_5_FRONTEND_MODULARIZATION_DESIGN_2026_09_22.md](proposals/PHASE_5_FRONTEND_MODULARIZATION_DESIGN_2026_09_22.md) | ...the frontend module extraction order, the asset-manifest schema, or the motion-settings design changes. **Not started; the asset-manifest idea was superseded by content-hash cache-busting (`b792f44`) — update this doc's §5 to match rather than building the original design.** |
