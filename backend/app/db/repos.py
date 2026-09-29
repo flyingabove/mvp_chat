@@ -4,6 +4,7 @@ import re
 import time
 import asyncio
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from backend.app.db.database import get_connection, DATA_DIR, init_db
 
@@ -86,11 +87,33 @@ class SessionRevisionConflict(Exception):
     """The saved session advanced while this turn was being prepared."""
 
 
+@dataclass(frozen=True)
+class TurnReceipt:
+    """The exact reply a committed request produced, keyed by request_id."""
+    request_id: str
+    input_hash: str
+    reply_json: str
+
+
+@dataclass(frozen=True)
+class StoredReceipt:
+    input_hash: str | None  # None for a legacy last_request_* row
+    reply_json: str
+
+
+# Clients retry within seconds; older receipts only need to outlive realistic
+# retries, not the whole game.
+RECEIPTS_KEPT_PER_SESSION = 200
+
+
 def _session_revision_connection() -> sqlite3.Connection:
     """Upgrade a legacy session table before a revision-aware read/write."""
     conn = get_connection()
     columns = {row[1] for row in conn.execute("PRAGMA table_info(game_sessions)")}
-    if "revision" not in columns:
+    has_receipts = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'turn_receipts'"
+    ).fetchone()
+    if "revision" not in columns or not has_receipts:
         conn.close()
         init_db()
         conn = get_connection()
@@ -104,11 +127,14 @@ class SessionRepo:
         player_name: str, gender: str, state_json: str, flags_json: str,
         last_message: str = "", turns: int = 0,
         last_request_id: str | None = None, last_reply_json: str | None = None,
-        expected_revision: int | None = None,
+        expected_revision: int | None = None, receipt: TurnReceipt | None = None,
+        reset_receipts: bool = False,
     ) -> int:
         # A02 fix: reject unsafe session_ids before they can ever be stored
         # and later turned into a filesystem path elsewhere in this class.
         validate_session_id(session_id)
+        if receipt is not None:
+            last_request_id, last_reply_json = receipt.request_id, receipt.reply_json
         now = int(time.time())
         conn = _session_revision_connection()
         try:
@@ -160,6 +186,28 @@ class SessionRepo:
                  now, now, turns, last_message[:120], state_json, flags_json,
                  last_request_id, last_reply_json),
             )
+            if reset_receipts:
+                # A new playthrough replaces the old one; its requests are no
+                # longer retries of anything in this session.
+                conn.execute(
+                    "DELETE FROM turn_receipts WHERE session_id = ? AND user_id = ?",
+                    (session_id, user_id),
+                )
+            if receipt is not None:
+                # Same transaction as the state: a failure here rolls the
+                # state write back too, so no turn commits without its reply.
+                conn.execute(
+                    "INSERT INTO turn_receipts (session_id, user_id, request_id, input_hash, "
+                    "reply_json, revision, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (session_id, user_id, receipt.request_id, receipt.input_hash,
+                     receipt.reply_json, current_revision + 1, now),
+                )
+                conn.execute(
+                    "DELETE FROM turn_receipts WHERE session_id = ? AND request_id NOT IN ("
+                    "SELECT request_id FROM turn_receipts WHERE session_id = ? "
+                    "ORDER BY revision DESC LIMIT ?)",
+                    (session_id, session_id, RECEIPTS_KEPT_PER_SESSION),
+                )
             conn.commit()
             return current_revision + 1
         except Exception:
@@ -190,6 +238,29 @@ class SessionRepo:
             if row is None:
                 return None, None
             return row["last_request_id"], row["last_reply_json"]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _get_receipt(session_id: str, user_id: str, request_id: str) -> StoredReceipt | None:
+        conn = _session_revision_connection()
+        try:
+            row = conn.execute(
+                "SELECT input_hash, reply_json FROM turn_receipts "
+                "WHERE session_id = ? AND user_id = ? AND request_id = ?",
+                (session_id, user_id, request_id),
+            ).fetchone()
+            if row is not None:
+                return StoredReceipt(row["input_hash"], row["reply_json"])
+            # Turns committed before turn_receipts existed only have the
+            # last_request_* columns, with no input hash to compare.
+            legacy = conn.execute(
+                "SELECT last_request_id, last_reply_json FROM game_sessions WHERE id = ? AND user_id = ?",
+                (session_id, user_id),
+            ).fetchone()
+            if legacy is not None and legacy["last_request_id"] == request_id and legacy["last_reply_json"]:
+                return StoredReceipt(None, legacy["last_reply_json"])
+            return None
         finally:
             conn.close()
 
@@ -261,6 +332,11 @@ class SessionRepo:
                 "DELETE FROM game_sessions WHERE id = ? AND user_id = ?",
                 (session_id, user_id),
             )
+            if cur.rowcount > 0:
+                conn.execute(
+                    "DELETE FROM turn_receipts WHERE session_id = ? AND user_id = ?",
+                    (session_id, user_id),
+                )
             conn.commit()
             deleted = cur.rowcount > 0
         finally:
@@ -283,13 +359,18 @@ class SessionRepo:
         player_name: str, gender: str, state_json: str, flags_json: str,
         last_message: str = "", turns: int = 0,
         last_request_id: str | None = None, last_reply_json: str | None = None,
-        expected_revision: int | None = None,
+        expected_revision: int | None = None, receipt: TurnReceipt | None = None,
+        reset_receipts: bool = False,
     ) -> int:
         return await asyncio.to_thread(
             cls._upsert, session_id, user_id, story_id, story_title,
             player_name, gender, state_json, flags_json, last_message, turns,
-            last_request_id, last_reply_json, expected_revision,
+            last_request_id, last_reply_json, expected_revision, receipt, reset_receipts,
         )
+
+    @classmethod
+    async def get_receipt(cls, session_id: str, user_id: str, request_id: str) -> StoredReceipt | None:
+        return await asyncio.to_thread(cls._get_receipt, session_id, user_id, request_id)
 
     @classmethod
     async def get_revision(cls, session_id: str, user_id: str) -> int:

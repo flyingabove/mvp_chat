@@ -27,6 +27,20 @@ STORY_FOLDER = first_story_folder()
 # Shared fixtures
 # ============================================================================
 
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    """Give every test its own SQLite file instead of the developer's
+    ./data/storieschat.db, so durable receipts and sessions from one test or
+    an earlier run cannot leak into another."""
+    from backend.app.db import database, repos
+
+    monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "storieschat.db")
+    monkeypatch.setattr(repos, "DATA_DIR", tmp_path)
+    database.init_db()
+    return tmp_path
+
+
 @pytest.fixture()
 def client(monkeypatch):
     """Create a FastAPI TestClient with network calls mocked."""
@@ -1330,7 +1344,9 @@ def test_different_request_id_still_processes_normally(client):
     )
 
 
-def test_turn_without_request_id_invalidates_older_retry_token(client):
+def test_reused_request_id_with_different_input_is_rejected_without_mutation(client):
+    """BL-39 O15: the same request_id with different text is a client bug,
+    not a new turn and not a retry. Reject it and change nothing."""
     from backend.app.api import prompt_engine as pe_mod
 
     sid = "dedup_no_id_followup"
@@ -1344,8 +1360,110 @@ def test_turn_without_request_id_invalidates_older_retry_token(client):
     before = pe_mod.SESSIONS[sid]["state"].turns
     response = client.post("/api/chat", json={"session_id": sid, "message": "different turn",
                            "request_id": "old-request"}, headers=headers)
-    assert response.status_code == 200
-    assert pe_mod.SESSIONS[sid]["state"].turns == before + 1
+    assert response.status_code == 409
+    assert pe_mod.SESSIONS[sid]["state"].turns == before
+
+
+def test_retry_of_older_request_replays_after_later_turns(client):
+    """BL-39 O15: receipts are per request, not only the last one. A lost
+    response retried after another turn committed must replay, not re-run."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "receipt_older_retry"
+    headers = {"X-Guest-Id": "55555555-6666-4777-8888-999999999999"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    first = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "turn-1"}, headers=headers)
+    assert first.status_code == 200
+    assert client.post("/api/chat", json={"session_id": sid, "message": "next",
+                      "request_id": "turn-2"}, headers=headers).status_code == 200
+    before = pe_mod.SESSIONS[sid]["state"].turns
+    retry = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "turn-1"}, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    assert pe_mod.SESSIONS[sid]["state"].turns == before
+
+
+def test_retry_replays_from_durable_receipt_after_server_restart(client):
+    """BL-39 O15: the receipt lives in SQLite, not in the in-memory session."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    sid = "receipt_restart"
+    headers = {"X-Guest-Id": "66666666-7777-4888-9999-aaaaaaaaaaaa"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    first = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "restart-1"}, headers=headers)
+    assert first.status_code == 200
+    user_id = pe_mod.SESSIONS[sid]["state"].user_id
+    revision = SessionRepo._get_revision(sid, user_id)
+    pe_mod.SESSIONS.pop(sid)  # simulate a new worker / restart
+
+    retry = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "restart-1"}, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    assert SessionRepo._get_revision(sid, user_id) == revision
+
+
+def test_duplicate_that_misses_the_receipt_lookup_replays_the_committed_reply(client, monkeypatch):
+    """BL-39 O15: two copies of one request race; the second passes the
+    early lookup before the first commits. Its commit must not publish a
+    second turn: the receipt key rejects it and it replays the first reply."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    sid = "receipt_race"
+    headers = {"X-Guest-Id": "88888888-9999-4aaa-bbbb-cccccccccccc"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    first = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "race-1"}, headers=headers)
+    assert first.status_code == 200
+    user_id = pe_mod.SESSIONS[sid]["state"].user_id
+    saved_before = SessionRepo._get(sid, user_id)
+
+    real_get_receipt = SessionRepo.get_receipt
+    calls = {"n": 0}
+
+    async def miss_once(*args):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else await real_get_receipt(*args)
+
+    monkeypatch.setattr(SessionRepo, "get_receipt", miss_once)
+    retry = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "race-1"}, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    saved_after = SessionRepo._get(sid, user_id)
+    assert (saved_after["revision"], saved_after["state_json"]) == (
+        saved_before["revision"], saved_before["state_json"])
+
+
+def test_new_game_retry_returns_the_same_game(client):
+    """BL-39 O15: the opening cast is drawn at random, so re-running a lost
+    new-game request would silently swap the player into a different game."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    sid = "receipt_newgame_retry"
+    headers = {"X-Guest-Id": "77777777-8888-4999-aaaa-bbbbbbbbbbbb"}
+    payload = {"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris",
+               "request_id": "newgame-1"}
+    first = client.post("/api/chat", json=payload, headers=headers)
+    assert first.status_code == 200
+    user_id = pe_mod.SESSIONS[sid]["state"].user_id
+    saved_before = SessionRepo._get(sid, user_id)
+
+    retry = client.post("/api/chat", json=payload, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    saved_after = SessionRepo._get(sid, user_id)
+    assert saved_after["revision"] == saved_before["revision"]
+    assert saved_after["state_json"] == saved_before["state_json"]
 
 
 def test_anon_session_skips_dedup_check(client):

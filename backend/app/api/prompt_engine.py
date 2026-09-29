@@ -10,14 +10,16 @@ from backend.app.engine.extractors.turn_extractor import (
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
-from backend.app.db.repos import SessionRepo, SessionRevisionConflict, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
+from backend.app.db.repos import SessionRepo, SessionRevisionConflict, TurnReceipt, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 
 import asyncio
 import copy
 import dataclasses
+import hashlib
 import httpx
 import json
 import logging
+import sqlite3
 
 import re
 
@@ -2259,6 +2261,27 @@ def _get_session_lock(session_id: str) -> asyncio.Lock:
     return lock
 
 
+async def _committed_reply(session_id: str, user_id: str, request_id: str, input_hash: str) -> dict | None:
+    """Return the stored reply for an already-committed request, or None.
+
+    Raises 409 when the request_id was committed for different input.
+    """
+    try:
+        stored = await SessionRepo.get_receipt(session_id, user_id, request_id)
+    except Exception:
+        logger.exception("Receipt lookup failed for session %s", session_id)
+        raise HTTPException(status_code=503, detail="Your session could not be loaded. Please try again.")
+    if stored is None:
+        return None
+    if stored.input_hash is not None and stored.input_hash != input_hash:
+        raise HTTPException(status_code=409, detail="This request was already used for a different message.")
+    try:
+        return json.loads(stored.reply_json)
+    except ValueError:
+        logger.error("Stored reply for request %s in session %s is unreadable", request_id, session_id)
+        raise HTTPException(status_code=503, detail="Your previous reply could not be restored. Please try again.")
+
+
 # ---------------------------------------------------------------------------
 # MAIN CHAT ENDPOINT
 # ---------------------------------------------------------------------------
@@ -2305,17 +2328,18 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # mutation. Anon sessions never persist (see the `user_id != "anon"`
     # guard at the save point below), so they have no durable identity to
     # dedup against and are skipped here.
+    # BL-39 O15: receipts are durable and per request (turn_receipts), so a
+    # retry of any recent committed request replays, and a reused id with
+    # different text is rejected rather than run as a new turn.
     client_request_id = str(data.get("request_id") or "").strip()
+    # Persona fields change a new game, so they are part of its input.
+    input_hash = hashlib.sha256(json.dumps(
+        [msg] + [str(data.get(key) or "") for key in ("persona_mode", "persona_name", "persona_other")]
+    ).encode("utf-8")).hexdigest()
     if client_request_id and user_id != "anon":
-        try:
-            prior_request_id, prior_reply_json = await SessionRepo.get_last_request(session_id, user_id)
-        except Exception:
-            prior_request_id, prior_reply_json = None, None
-        if prior_request_id == client_request_id and prior_reply_json:
-            try:
-                return json.loads(prior_reply_json)
-            except Exception:
-                pass  # stored reply corrupt/unparseable - fall through and reprocess
+        replay = await _committed_reply(session_id, user_id, client_request_id, input_hash)
+        if replay is not None:
+            return replay
 
     sess = get_session(session_id, user_id)
     if user_id != "anon" and not msg.startswith("__cmd_newgame__:") and msg != "__cmd_reset__":
@@ -2799,6 +2823,12 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             {"role": "assistant", "content": opening}
         ]
 
+        # Build the exact reply before saving so its receipt matches it.
+        reply = opening
+        if bool(sess.get("chinese_mode", False)):
+            reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
+        newgame_result = {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
+
         # Persist new session to DB (authenticated users only)
         if user_id != "anon":
             try:
@@ -2819,21 +2849,29 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     }),
                     last_message=opening[:120],
                     turns=0,
+                    receipt=TurnReceipt(client_request_id, input_hash, json.dumps(newgame_result))
+                    if client_request_id else None,
+                    reset_receipts=True,
                 )
                 sess["_db_revision"] = new_revision
-                # A new-game command replaces the prior playthrough.  Its
-                # next turn must not be mistaken for a network retry of the
-                # old playthrough's final request.
-                await SessionRepo.clear_last_request(session_id, new_state.user_id)
+                if not client_request_id:
+                    # A new-game command replaces the prior playthrough.  Its
+                    # next turn must not be mistaken for a network retry of the
+                    # old playthrough's final request.  With a receipt the
+                    # save above already replaced last_request_*.
+                    await SessionRepo.clear_last_request(session_id, new_state.user_id)
+            except sqlite3.IntegrityError:
+                # A concurrent duplicate of this new-game request committed
+                # first; its game is the saved one, so return that instead.
+                SESSIONS.pop(session_id, None)
+                replay = await _committed_reply(session_id, user_id, client_request_id, input_hash)
+                if replay is not None:
+                    return replay
+                raise
             except Exception:
                 logger.exception("Failed to persist new session %s for user %s", session_id, user_id)
 
-        # Apply Chinese translation if chinese_mode is enabled
-        reply = opening
-        if bool(sess.get("chinese_mode", False)):
-            reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
-
-        return {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
+        return newgame_result
 
     # REGULAR TURN — auto-reinitialize if game state is missing
     if not state.story or not state.story_cfg:
@@ -3684,6 +3722,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     last_request_id=client_request_id or "",
                     last_reply_json=json.dumps(result) if client_request_id else "",
                     expected_revision=int(sess.get("_db_revision") or 0),
+                    receipt=TurnReceipt(client_request_id, input_hash, json.dumps(result))
+                    if client_request_id else None,
                 )
                 await ConversationRepo.append_turns(
                     user_id=user_id,
@@ -3696,12 +3736,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     segments=segments,
                 )
                 sess["_db_revision"] = committed_revision
-        except SessionRevisionConflict as exc:
+        except (SessionRevisionConflict, sqlite3.IntegrityError) as exc:
             SESSIONS.pop(session_id, None)
             if client_request_id:
-                prior_id, prior_reply = await SessionRepo.get_last_request(session_id, user_id)
-                if prior_id == client_request_id and prior_reply:
-                    return json.loads(prior_reply)
+                # A concurrent duplicate of this request may have committed first.
+                replay = await _committed_reply(session_id, user_id, client_request_id, input_hash)
+                if replay is not None:
+                    return replay
             raise HTTPException(status_code=409, detail="This session changed elsewhere. Please retry your turn.") from exc
         except Exception as exc:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)

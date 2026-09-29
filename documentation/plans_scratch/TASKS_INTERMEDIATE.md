@@ -17,8 +17,8 @@ Owner follow-up: push the consolidated proposal and record standing authorizatio
 
 Order: the four independent section-10 units first (each ships alone through ship-and-verify), then phases A–J. Each item below is one beta push with its own hosted proof.
 
-- [ ] O12 opening text: IU `opening.text` had 20 literal `\n` (double-escaped JSON); no real U+FFFD in data. Field repaired; `content_validation.find_text_defects` + per-active-story test gate it (no runtime logging: the registry rescans per request). Local: full pytest 1262 passed/1 xfailed, Node 10 passed; `verify_story_opening_browser.py` fails on old data (40 raw escapes, all 3 modes) and passes on the fix; screenshots inspected. Pending: hosted beta check.
-- [ ] O15/O24 durable receipt: `(session_id, request_id)` receipt persisted atomically with state + reply; same ID/different input rejected; crash before/after commit, restart, concurrent duplicate.
+- [x] O12 opening text: IU `opening.text` had 20 literal `\n` (double-escaped JSON); no real U+FFFD in data. Field repaired; `content_validation.find_text_defects` + per-active-story test gate it. Local: pytest 1262 passed/1 xfailed, Node 10; browser check fails on old data (40 raw escapes, all 3 modes), passes on the fix. Hosted `26053bb`: desktop Chromium, iPhone WebKit, standalone WebKit all 0 raw/rendered escapes, API host beta-api; screenshots inspected.
+- [ ] O15/O24 durable receipt: `turn_receipts` table written in the state transaction; per-request replay, reused-id 409, restart, race, new-game receipts/reset. Local pytest 1273 passed/1 xfailed. Pending: local + hosted `scripts/verify_turn_receipts.py`. Remaining gaps recorded in BL-38.
 - [ ] O08 addressed answers: ConversationState + response-context adapter; two questions, interrupted/resumed exchange.
 - [ ] O09/O11 continuity/agency: narrow identity/presence/opening fixes through current objects.
 - [ ] Phases A–J per BL-39 section 10 (split into bounded tasks when started).

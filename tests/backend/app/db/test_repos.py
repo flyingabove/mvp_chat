@@ -101,6 +101,106 @@ def test_two_workers_racing_same_revision_commit_only_one_reply(tmp_data_dir):
     assert saved["last_reply_json"] == '{"reply":"' + saved["last_request_id"] + '"}'
 
 
+# ---------------------------------------------------------------------------
+# BL-39 O15/O24: durable per-request turn receipts
+# ---------------------------------------------------------------------------
+
+_RECEIPT_SESSION = dict(user_id="uid1", story_id="s1", story_title="T",
+                        player_name="A", gender="M", flags_json="{}")
+
+
+def test_receipt_commits_with_state_and_survives_later_turns(tmp_data_dir):
+    from backend.app.db.repos import SessionRepo, StoredReceipt, TurnReceipt
+
+    sid = "receipt_survives"
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=1, expected_revision=0,
+                        receipt=TurnReceipt("r1", "h1", '{"reply":"one"}'))
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=2, expected_revision=1,
+                        receipt=TurnReceipt("r2", "h2", '{"reply":"two"}'))
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=3, expected_revision=2)
+
+    assert SessionRepo._get_receipt(sid, "uid1", "r1") == StoredReceipt("h1", '{"reply":"one"}')
+    assert SessionRepo._get_receipt(sid, "uid1", "r2") == StoredReceipt("h2", '{"reply":"two"}')
+    assert SessionRepo._get_receipt(sid, "uid1", "unknown") is None
+    assert SessionRepo._get_receipt(sid, "other_user", "r1") is None
+    saved = SessionRepo._get(sid, "uid1")
+    assert (saved["last_request_id"], saved["last_reply_json"]) == ("r2", '{"reply":"two"}')
+
+
+def test_failed_receipt_insert_rolls_back_the_state_write(tmp_data_dir):
+    import sqlite3 as _sqlite3
+    from backend.app.db.repos import SessionRepo, TurnReceipt
+
+    sid = "receipt_atomic"
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json='{"turn":1}', turns=1, expected_revision=0,
+                        receipt=TurnReceipt("r1", "h1", '{"reply":"one"}'))
+    with pytest.raises(_sqlite3.IntegrityError):
+        SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json='{"turn":2}', turns=2, expected_revision=1,
+                            receipt=TurnReceipt("r1", "h1", '{"reply":"again"}'))
+    saved = SessionRepo._get(sid, "uid1")
+    assert saved["revision"] == 1
+    assert saved["state_json"] == '{"turn":1}'
+    assert SessionRepo._get_receipt(sid, "uid1", "r1").reply_json == '{"reply":"one"}'
+
+
+def test_stale_worker_conflict_writes_no_receipt(tmp_data_dir):
+    from backend.app.db.repos import SessionRepo, SessionRevisionConflict, TurnReceipt
+
+    sid = "receipt_conflict"
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=1, expected_revision=0,
+                        receipt=TurnReceipt("r1", "h1", '{"reply":"one"}'))
+    with pytest.raises(SessionRevisionConflict):
+        SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=2, expected_revision=0,
+                            receipt=TurnReceipt("r2", "h2", '{"reply":"stale"}'))
+    assert SessionRepo._get_receipt(sid, "uid1", "r2") is None
+
+
+def test_legacy_last_request_row_is_readable_without_hash(tmp_data_dir):
+    from backend.app.db.repos import SessionRepo, StoredReceipt
+
+    sid = "receipt_legacy"
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=1,
+                        last_request_id="old", last_reply_json='{"reply":"legacy"}')
+    assert SessionRepo._get_receipt(sid, "uid1", "old") == StoredReceipt(None, '{"reply":"legacy"}')
+
+
+def test_receipts_are_pruned_to_the_most_recent(tmp_data_dir, monkeypatch):
+    from backend.app.db import repos
+    from backend.app.db.repos import SessionRepo, TurnReceipt
+
+    monkeypatch.setattr(repos, "RECEIPTS_KEPT_PER_SESSION", 3)
+    sid = "receipt_prune"
+    for revision in range(5):
+        SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=revision + 1,
+                            expected_revision=revision,
+                            receipt=TurnReceipt(f"r{revision}", "h", "{}"))
+    kept = [rid for rid in ("r0", "r1", "r2", "r3", "r4") if SessionRepo._get_receipt(sid, "uid1", rid)]
+    assert kept == ["r2", "r3", "r4"]
+
+
+def test_new_playthrough_reset_drops_old_receipts_but_keeps_its_own(tmp_data_dir):
+    from backend.app.db.repos import SessionRepo, TurnReceipt
+
+    sid = "receipt_reset"
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=1, expected_revision=0,
+                        receipt=TurnReceipt("old-turn", "h", "{}"))
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=0, reset_receipts=True,
+                        receipt=TurnReceipt("newgame", "h", '{"reply":"opening"}'))
+    assert SessionRepo._get_receipt(sid, "uid1", "old-turn") is None
+    assert SessionRepo._get_receipt(sid, "uid1", "newgame").reply_json == '{"reply":"opening"}'
+
+
+@pytest.mark.asyncio
+async def test_deleting_a_session_deletes_its_receipts(tmp_data_dir):
+    from backend.app.db.repos import SessionRepo, TurnReceipt
+
+    sid = "receipt_delete"
+    SessionRepo._upsert(sid, **_RECEIPT_SESSION, state_json="{}", turns=1, expected_revision=0,
+                        receipt=TurnReceipt("r1", "h1", "{}"))
+    assert await SessionRepo.delete_session(sid, "uid1")
+    assert SessionRepo._get_receipt(sid, "uid1", "r1") is None
+
+
 @pytest.mark.asyncio
 async def test_upsert_updates_existing_user(tmp_data_dir):
     from backend.app.db.repos import UserRepo
