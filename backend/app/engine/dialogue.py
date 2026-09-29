@@ -34,9 +34,19 @@ def _panel_speakers(state) -> dict[str, str]:
     return dict(getattr(view, "panel_speakers", None) or {})
 
 
+def _panel_prompt(panel: dict[str, str]) -> str:
+    if not panel:
+        return ""
+    return ("\nFINALE FORMAT: first the exit scene with the house cast above. Then a separate final section: the "
+            "studio panel " + json.dumps(panel, ensure_ascii=False) + " are in a TV studio watching the footage, "
+            "not in the house; nobody in the house can hear them. Use their IDs only in the final studio panel "
+            "section, after the exit scene ends, and never for anyone in the house. This reply MUST end with the "
+            "studio panel section: at least 4 panel dialogue segments, then one verdict line from each panelist.")
+
+
 def dialogue_prompt(state) -> str:
     panel = _panel_speakers(state)
-    cast = {key: (panel[key] if key in panel else state.characters[key].name) for key in _contract_cast_ids(state)}
+    cast = {key: state.characters[key].name for key in _contract_cast_ids(state) if key not in panel}
     return (
         "\n\n[SPEAKER PRESENTATION CONTRACT]\n"
         "Return the JSON object required by the response schema. Its segments array "
@@ -67,6 +77,7 @@ def dialogue_prompt(state) -> str:
         "write [[STATE]] tags in scene text. "
         "This JSON transport replaces prose-only output formatting.\nCast IDs: "
         + json.dumps(cast, ensure_ascii=False)
+        + _panel_prompt(panel)
     )
 
 
@@ -323,6 +334,12 @@ def ground_social_scene(segments: list[dict], state) -> list[dict]:
     present = set(model.present_with_player())
     invalid_speech = any(segment.get("kind") == "dialogue" and not segment.get("speaker_id")
                          for segment in segments)
+    if social_mode and invalid_speech and not present and _panel_speakers(state):
+        # Finale turn: the player has just walked out, so a voice calling after them is expected.
+        # Keep the exit scene; unattributed speech becomes quoted narration.
+        segments = [{"kind": "narration", "text": f"“{s.get('text', '')}”"}
+                    if s.get("kind") == "dialogue" and not s.get("speaker_id") else s for s in segments]
+        invalid_speech = False
     if social_mode and invalid_speech and not present:
         from backend.app.engine.time_utils import WorldTimeFormatter
         timestamp = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""),

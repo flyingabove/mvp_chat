@@ -39,7 +39,9 @@ from backend.app.engine.world_model.agenda import (
 )
 from backend.app.engine.state import PendingEvent
 from backend.app.engine.rules.clocks import clocks_for, due_beats
-from backend.app.engine.world_model.commentary import commentary_for, dossier, finale_directive, scrub_panel
+from backend.app.engine.world_model.commentary import (
+    commentary_for, dossier, fallback_panel, finale_directive, scrub_panel,
+)
 from backend.app.engine.world_calendar import day_number
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
@@ -220,13 +222,14 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
     conflict_focus = choose_conflict(model.drama, set(model.present_with_player()), model.world.day_index(now))
     # A sleeping player saw nothing of the night: no "came in / left" beats.
     view = _build_view(model, state, message, None if sleeping else step, place_names,
-                       None if sleeping else conflict_focus)
+                       None if sleeping else conflict_focus, farewell=protected)
     model.view = view
     return view
 
 
 def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_names: dict[str, str],
-                conflict_focus: Any = None) -> TurnView:
+                conflict_focus: Any = None, farewell: Iterable[str] = ()) -> TurnView:
+    """`farewell`: who was with the player when this turn began; on an exit turn they may still speak."""
     names = model.names()
     view = TurnView(names=names)
     here = model.player_place()
@@ -342,8 +345,9 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     # Someone on a phone call with the player can speak without being present.
     from backend.app.engine.active_characters import get_on_call_character_keys
     on_call = {k for k in get_on_call_character_keys(state) if k in model.characters}
+    exit_voices = set(farewell) & set(model.characters) if view.panel_speakers else set()
     view.allowed_speakers = sorted(set(present) | set(unplaced) | set(view.plan.speakers) | on_call
-                                   | set(view.panel_speakers))
+                                   | set(view.panel_speakers) | exit_voices)
     view.ending_hint = ending_hint(model.endings)
     return view
 
@@ -639,6 +643,9 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
     commentary = commentary_for(getattr(state, "story_cfg", {}) or {})
     if commentary is not None and model.view.panel_speakers:
         scrub_panel(segments, commentary)
+        if not any(s.get("speaker_id") in model.view.panel_speakers for s in segments):
+            segments.extend(fallback_panel(commentary, dossier(model, commentary)))
+            model.view.panel_fallbacks += 1
     for verdict in model.pending_verdicts:
         model.view.verdict_repairs += validate_verdict(verdict, segments, names)
         witnesses = tuple(c for c in present if c != verdict.act.target)

@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from backend.app.engine.character_assets import DEFAULT_PERSONA_AVATAR
 from backend.app.engine.world_model.model import PLAYER, WorldModel
 
 FOOTAGE_KINDS = frozenset({"behavior", "self_claim", "confess_accepted", "confess_declined",
@@ -120,10 +121,41 @@ def finale_directive(commentary: Commentary, footage: list[FootageItem]) -> str:
     return "\n".join(lines)
 
 
+def fallback_panel(commentary: Commentary, footage: list[FootageItem]) -> list[dict]:
+    """A short footage-only panel when the reply omitted it (counted as a canned recovery)."""
+    lines = []
+    for panelist in commentary.panelists:
+        leaning, liked, disliked = stances(commentary, footage)[panelist.id]
+        if leaning == "warm" and liked:
+            text = f"I keep thinking about that moment: {liked}. That was sweet."
+        elif leaning == "critical" and disliked:
+            text = f"Come on. {disliked}. The cameras saw that."
+        else:
+            text = "Hard to call. They kept a lot to themselves on camera."
+        lines.append({"kind": "dialogue", "speaker_id": panelist.id, "speaker_name": panelist.name,
+                      "portrait_url": DEFAULT_PERSONA_AVATAR, "text": text})
+    return lines
+
+
 def scrub_panel(segments: list[dict], commentary: Commentary) -> int:
-    """Remove panel lines that leak internal mechanics. Returns how many were removed."""
+    """Keep the panel in its closing section and free of internal mechanics. Returns repairs made.
+
+    Panelists are in a studio, not the house: a panel-labelled line before
+    the closing run of panel lines was really a house line, so it becomes
+    narration. Panel lines that mention scores/tiers/rules are dropped.
+    """
     ids = {p.id for p in commentary.panelists}
-    removed = [s for s in segments if s.get("speaker_id") in ids and INTERNAL.search(str(s.get("text") or ""))]
-    for segment in removed:
+    start = len(segments)
+    while start > 0 and segments[start - 1].get("speaker_id") in ids:
+        start -= 1
+    repairs = 0
+    for segment in segments[:start]:
+        if segment.get("speaker_id") in ids:
+            text = str(segment.get("text") or "")
+            segment.clear()
+            segment.update({"kind": "narration", "text": f"“{text}”"})
+            repairs += 1
+    leaked = [s for s in segments if s.get("speaker_id") in ids and INTERNAL.search(str(s.get("text") or ""))]
+    for segment in leaked:
         segments.remove(segment)
-    return len(removed)
+    return repairs + len(leaked)

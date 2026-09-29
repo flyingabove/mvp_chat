@@ -84,6 +84,72 @@ def test_the_finale_turn_lets_panelists_speak_and_ordinary_turns_do_not():
     assert [s["text"] for s in leaked] == ["Bold exit."], "internal mechanics never reach the screen"
 
 
+def test_panelists_never_speak_inside_the_house_scene():
+    """Live finale (2026-09-29): the model gave housemates' goodbyes to Reina and Yukiko
+    ("Are you going somewhere?") because panelists were listed with the house cast."""
+    model = make_model({"ann": "kitchen"})
+    state = _state(model)
+    record_social_act(state, SocialActUpdate("leave_alone"))
+    begin_turn(state, "I'm leaving the house alone.", 0)
+    prompt = dialogue_prompt(state)
+    assert "TV studio" in prompt and "only in the final studio panel section" in prompt
+    segments = [{"kind": "narration", "text": "You pack."},
+                {"kind": "dialogue", "speaker_id": "reina", "speaker_name": "Reina Triendl", "text": "Going somewhere?"},
+                {"kind": "narration", "text": "You step out."},
+                {"kind": "dialogue", "speaker_id": "yamasato", "speaker_name": "Ryota Yamasato", "text": "Bold exit."},
+                {"kind": "dialogue", "speaker_id": "yukiko", "speaker_name": "Yukiko Ehara", "text": "Sincere, though."}]
+    end_turn(state, "I'm leaving the house alone.", segments)
+    assert segments[1] == {"kind": "narration", "text": "“Going somewhere?”"}
+    assert [s.get("speaker_id") for s in segments[3:]] == ["yamasato", "yukiko"], "the closing panel stays"
+
+
+def test_a_reply_without_the_panel_gets_a_footage_only_fallback():
+    """Live finale (2026-09-29): the model wrote the exit scene but no panel."""
+    model = make_model({"ann": "kitchen"})
+    state = _state(model)
+    record_behavior(model, "player", "ann", "boastful", (), "b1")
+    record_social_act(state, SocialActUpdate("leave_alone"))
+    begin_turn(state, "I'm leaving the house alone.", 0)
+    assert "MUST end with the studio panel section" in dialogue_prompt(state)
+    segments = [{"kind": "narration", "text": "You step out."}]
+    end_turn(state, "I'm leaving the house alone.", segments)
+    panel = [s for s in segments if s.get("speaker_id") in {"reina", "yamasato", "yukiko"}]
+    assert [s["speaker_name"] for s in panel] == ["Reina Triendl", "Ryota Yamasato", "Yukiko Ehara"]
+    assert "boastful" in panel[1]["text"], "Yamasato's line cites the footage he disliked"
+    assert model.view.panel_fallbacks == 1
+    assert not any(word in s["text"].lower() for s in panel for word in ("score", "tier", "standing"))
+
+
+def test_the_finale_keeps_the_exit_scene_when_the_player_has_walked_out():
+    """Live finale: the player moved to the street, a goodbye came from an unidentified voice,
+    and the empty-scene gate replaced the whole exit scene with 'no one is here'."""
+    from backend.app.engine.dialogue import ground_social_scene
+    model = make_model({"ann": "kitchen"})
+    state = _state(model)
+    record_social_act(state, SocialActUpdate("leave_alone"))
+    begin_turn(state, "I'm leaving the house alone.", 0)
+    model.world.move("player", "street")
+    state.location = "Street"
+    scene = [{"kind": "narration", "text": "You pull the door shut."},
+             {"kind": "dialogue", "speaker_id": None, "text": "Take care!"}]
+    grounded = ground_social_scene(scene, state)
+    assert grounded[0]["text"] == "You pull the door shut."
+    assert grounded[1] == {"kind": "narration", "text": "“Take care!”"}
+    assert not any("no one is here" in s["text"] for s in grounded)
+
+
+def test_on_the_exit_turn_the_people_being_left_can_still_say_goodbye():
+    model = make_model({"ann": "kitchen", "ben": "garden"})
+    state = _state(model)
+    record_social_act(state, SocialActUpdate("leave_alone"))
+    state.location_id = "street"
+    begin_turn(state, "I'm leaving the house alone.", 0)
+    assert model.player_place() == "street" and "ann" in model.view.allowed_speakers
+    assert "ben" not in model.view.allowed_speakers
+    begin_turn(state, "Walking on.", 0)
+    assert "ann" not in model.view.allowed_speakers, "only on the exit turn"
+
+
 def test_the_director_trigger_also_opens_the_finale():
     model = make_model({"ann": "kitchen"})
     model.counters["couples_left"] = 3
