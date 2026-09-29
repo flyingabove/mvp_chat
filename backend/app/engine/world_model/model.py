@@ -13,6 +13,7 @@ from backend.app.engine.world_model.conversation import ConversationState
 from backend.app.engine.world_model.epistemics import EpistemicLedger
 from backend.app.engine.world_model.drama import DramaBook
 from backend.app.engine.world_model.memory import MemoryStore
+from backend.app.engine.world_model.standing import StandingBook
 from backend.app.engine.world_model.threads import Thread
 from backend.app.engine.world_model.world import World
 
@@ -124,6 +125,8 @@ class WorldModel:
     conversation: ConversationState = field(default_factory=ConversationState)
     knows_player_name: list[str] = field(default_factory=list)       # characters who heard the player's name
     last_with_player: dict[str, int] = field(default_factory=dict)   # character -> last turn together
+    first_met_day: dict[str, int] = field(default_factory=dict)      # character -> day they met the player
+    standing: StandingBook = field(default_factory=StandingBook)     # sole writer of track standings
     view: TurnView = field(default_factory=TurnView)       # transient
 
     # -- queries -----------------------------------------------------------------
@@ -188,7 +191,9 @@ class WorldModel:
                 "romance_relationship_partner": self.romance_relationship_partner,
                 "conversation": self.conversation.to_dict(),
                 "knows_player_name": list(self.knows_player_name),
-                "last_with_player": dict(self.last_with_player)}
+                "last_with_player": dict(self.last_with_player),
+                "first_met_day": dict(self.first_met_day),
+                "standing": self.standing.to_dict()}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -220,4 +225,6 @@ class WorldModel:
                    romance_relationship_partner=str(data.get("romance_relationship_partner") or ""),
                    conversation=ConversationState.from_dict(data.get("conversation") or {}),
                    knows_player_name=list(data.get("knows_player_name") or []),
-                   last_with_player={str(k): int(v) for k, v in (data.get("last_with_player") or {}).items()})
+                   last_with_player={str(k): int(v) for k, v in (data.get("last_with_player") or {}).items()},
+                   first_met_day={str(k): int(v) for k, v in (data.get("first_met_day") or {}).items()},
+                   standing=StandingBook.from_dict(data.get("standing") or {}))

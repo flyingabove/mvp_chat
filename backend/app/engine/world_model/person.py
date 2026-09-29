@@ -54,6 +54,10 @@ class Person:
     def last_with_player(self) -> Optional[int]:
         return None if self.is_player else self._model.last_with_player.get(self.id)
 
+    def standing(self, target: str, track: str):
+        """This person's standing toward `target` on a story track (None if never moved)."""
+        return self._model.standing.get(self.id, target, track)
+
     def warmth_toward(self, target: str) -> float:
         bond = self.heart.bond(target)
         return bond.warmth() if bond is not None else 0.0

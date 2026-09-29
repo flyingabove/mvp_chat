@@ -175,6 +175,7 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         for cid in getattr(state, "opening_cast", None) or []:
             if cid in model.characters:
                 model.last_with_player[cid] = 0
+                model.first_met_day.setdefault(cid, 0)
     if message.strip() and not sleeping and not PRIVATE_ASIDE.fullmatch(message):
         present = model.present_with_player()
         model.hear_player_name(message, present)
@@ -217,8 +218,10 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         view.cards.append(f"{c.name} ({c.descriptor}): {activity}; {c.availability}"
                           + (f"; mood: {c.mood}" if c.mood else "")
                           + f"; {_encounter_note(model, cid)}; {_name_note(model, cid)}")
+    today = model.world.day_index(model.world.minute)
     for cid in present:
         model.last_with_player[cid] = model.turn
+        model.first_met_day.setdefault(cid, today)
     for cid in asleep_here:
         view.cards.append(f"{names[cid]} is asleep here and cannot talk unless woken")
     lifecycle = getattr(state, "cast_lifecycle", None)
