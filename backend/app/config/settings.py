@@ -128,6 +128,10 @@ JEV_MAX_QUESTIONS_PER_BATCH: int = int(_os.getenv("JEV_MAX_QUESTIONS_PER_BATCH",
 #   compare - rules apply; Jev is asked too and both answers are logged
 # An operator can override per request with the X-NPC-Decision-Mode header.
 NPC_DECISION_MODE: str = _os.getenv("NPC_DECISION_MODE", "rules")
+# Jev decides whether an open promise was carried out (world_model/promise_judge.py). OFF by default:
+# measured 98.8% recall on kept promises (2 misses in 171), just under the owner's 99% bar, so it is opt-in
+# (needs TYPESAFE_ENABLED). Reminders are once-only and lapses silent either way.
+PROMISE_JUDGE_ENABLED: bool = _os.getenv("PROMISE_JUDGE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 
 # Dynamic memory selection is a separate opt-in Jev task. It is active only
 # when TYPESAFE_ENABLED is true AND JEV_ENABLED_TASKS includes

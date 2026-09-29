@@ -14,7 +14,8 @@ def test_due_promise_is_not_fulfilled_merely_by_building_a_scene():
     state = SimpleNamespace(cast_lifecycle=None, characters=model.characters, character_graph=None)
     first = _build_view(model, state, "What are we doing?", None, {})
     second = _build_view(model, state, "What are we doing?", None, {})
-    assert first.must_address and second.must_address
+    assert first.must_address, "the due promise is raised once"
+    assert not second.must_address, "and never nagged again (2026-09-29 tea loop)"
     assert own.status == "open" and counterpart.status == "open"
 
 
@@ -521,35 +522,8 @@ def test_player_utterance_is_observed_by_present_people_but_confessional_is_not(
     assert len(model.epistemics.observations) == before
 
 
-def test_explicit_performance_completes_agreement_but_future_talk_does_not():
-    from backend.app.engine.world_model.agreements import propose, decide
-    from backend.app.engine.world_model.commitments import complete_actions
-
-    model = make_model({"ann": "kitchen"})
-    agreement = propose(model.agreements, "player", "ann", "cook dinner together", 60, 0)
-    decide(model.agreements, agreement.id, "ann", "accepted", 1)
-    model.world.minute = 60
-    assert complete_actions(model, "I plan to cook dinner with Ann.", []) == []
-    assert agreement.status == "accepted"
-    completed = complete_actions(model, "I cook dinner with Ann.", [])
-    assert completed == [agreement.id]
-    assert agreement.status == "completed"
-    assert complete_actions(model, "I cook dinner with Ann.", []) == []
-
-
-def test_npc_promise_requires_own_action_not_player_prediction():
-    from backend.app.engine.world_model.commitments import add_commitment, complete_actions
-
-    model = make_model({"ann": "kitchen"})
-    add_commitment(model, "ann", "player", "cook dinner", 60, 0)
-    model.world.minute = 60
-    assert complete_actions(model, "Ann will cook dinner for me.", []) == []
-    assert complete_actions(model, "", [{"kind": "dialogue", "speaker_id": "ann",
-                                          "text": "I cooked dinner for you."}]) == []
-    assert {m.status for m in model.memories.open_promises()} == {"open"}
-
-
-def test_expired_agreement_creates_one_causal_conflict_not_fake_fulfillment():
+def test_lapsed_promise_expires_silently_never_accusing_anyone():
+    """It may have been kept and not noticed; the game must not turn that into a grievance."""
     from backend.app.engine.world_model.commitments import add_commitment, expire_commitments
 
     model = make_model({"ann": "kitchen"})
@@ -557,7 +531,7 @@ def test_expired_agreement_creates_one_causal_conflict_not_fake_fulfillment():
     expired = expire_commitments(model, 60 + 12 * 60)
     assert {m.status for m in expired} == {"expired"}
     assert model.agreements.get("A1").status == "expired"
-    assert len(model.drama.threads) == 1
+    assert model.drama.threads == [] and model.world.events == []
 
 
 def test_accepted_plan_without_legacy_promise_memory_expires_once():

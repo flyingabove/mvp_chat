@@ -3219,6 +3219,16 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             if extraction.commitments and world_turn.enabled(state):
                 world_turn.ensure_model(state, lore=_lore_chunks_for(state))
                 world_turn.record_commitments(state, extraction.commitments)
+            # Jev judges whether open promises between people who are here were carried out (a kept
+            # promise closes before the scene is built; anything uncertain closes quietly).
+            if world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                for _ruling in await world_turn.review_promises(
+                        state, str(getattr(state, "last_turn_user_msg", "") or ""),
+                        str(getattr(state, "last_turn_assistant_reply", "") or ""), msg):
+                    _log({"kind": "promise_judgment", "req_id": req_id, "session_id": session_id,
+                          "story": state.story or "", "memory_id": _ruling.memory_id, "action": _ruling.action,
+                          "choice": _ruling.choice, "confidence": _ruling.confidence, "reason": _ruling.reason})
             # BL-39 O08: close questions the previous reply resolved, then
             # queue the player's new ones before begin_turn builds the scene.
             if (extraction.questions or extraction.question_updates) and world_turn.enabled(state):

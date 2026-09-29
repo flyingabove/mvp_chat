@@ -59,6 +59,7 @@ class Memory:
     agreement_id: str = ""             # recall projection of authoritative agreement
     assertion_id: str = ""             # epistemic claim behind a retelling
     transmission_id: str = ""          # immediate delivery in the claim ledger
+    reminded: bool = False             # promises: the scene has already been told it is due
 
     def __post_init__(self) -> None:
         if not valid_source(self.source):
@@ -77,7 +78,7 @@ class Memory:
                 "status": self.status, "private": self.private, "counterpart": self.counterpart,
                 "root_source_id": self.root_source_id, "parent_memory_id": self.parent_memory_id,
                 "agreement_id": self.agreement_id, "assertion_id": self.assertion_id,
-                "transmission_id": self.transmission_id}
+                "transmission_id": self.transmission_id, "reminded": self.reminded}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Memory":
@@ -92,7 +93,8 @@ class Memory:
                    parent_memory_id=str(data.get("parent_memory_id") or ""),
                    agreement_id=str(data.get("agreement_id") or ""),
                    assertion_id=str(data.get("assertion_id") or ""),
-                   transmission_id=str(data.get("transmission_id") or ""))
+                   transmission_id=str(data.get("transmission_id") or ""),
+                   reminded=bool(data.get("reminded")))
 
 
 def _tokens(text: str) -> list[str]:

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
-from backend.app.engine.world_model.commitments import due_commitments
+from backend.app.engine.world_model.commitments import due_commitments, mark_reminded
 from backend.app.engine.world_model.model import PLAYER, ContactMessage
 from backend.app.engine.world_model.memory import render
 
@@ -35,6 +35,7 @@ def queue_contacts(model: "WorldModel", start: int, end: int,
         for promise in due_commitments(model, end, owner=cid):
             if promise.counterpart == PLAYER:
                 intent = f"about their promise: {render(promise.text, model.names())}"
+                mark_reminded(model, promise)
                 break
         if not intent and character.last_contact_day != day and warmth(cid) >= WARM_CONTACT_THRESHOLD \
                 and model.rng(f"contact:{cid}", end).random() < WARM_CONTACT_CHANCE:

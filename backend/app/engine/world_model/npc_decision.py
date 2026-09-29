@@ -254,19 +254,27 @@ async def _no_language_model(_request: Any) -> None:
 _resolver: Any = None
 
 
+def build_resolver(task: str) -> Any:
+    """A Jev-only resolver for one bounded task (TYPESAFE_ENABLED is the master switch).
+
+    The fallback never reaches a language model, so the per-turn LLM budget is untouched.
+    """
+    from backend.app.config import settings
+    from backend.app.llm.decisions.resolver import DecisionResolver, JevConfig
+    from backend.app.llm.factory import get_shared_breaker, get_shared_httpx_client
+    from backend.app.llm.providers.jev import JevClient
+    return DecisionResolver(
+        jev=JevClient(get_shared_httpx_client()), legacy=_no_language_model, health=get_shared_breaker(),
+        config=JevConfig(enabled=settings.TYPESAFE_ENABLED, enabled_tasks=frozenset({task}),
+                         shadow_tasks=frozenset(), shadow_sample_rate=0.0, timeout_ms=settings.JEV_TIMEOUT_MS,
+                         max_questions_per_batch=settings.JEV_MAX_QUESTIONS_PER_BATCH))
+
+
 def default_resolver() -> Any:
-    """Shared Jev resolver for NPC verdicts (TYPESAFE_ENABLED is the master switch)."""
+    """Shared Jev resolver for NPC verdicts."""
     global _resolver
     if _resolver is None:
-        from backend.app.config import settings
-        from backend.app.llm.decisions.resolver import DecisionResolver, JevConfig
-        from backend.app.llm.factory import get_shared_breaker, get_shared_httpx_client
-        from backend.app.llm.providers.jev import JevClient
-        _resolver = DecisionResolver(
-            jev=JevClient(get_shared_httpx_client()), legacy=_no_language_model, health=get_shared_breaker(),
-            config=JevConfig(enabled=settings.TYPESAFE_ENABLED, enabled_tasks=frozenset({TASK}),
-                             shadow_tasks=frozenset(), shadow_sample_rate=0.0, timeout_ms=settings.JEV_TIMEOUT_MS,
-                             max_questions_per_batch=settings.JEV_MAX_QUESTIONS_PER_BATCH))
+        _resolver = build_resolver(TASK)
     return _resolver
 
 

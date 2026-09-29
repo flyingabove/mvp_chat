@@ -13,10 +13,10 @@ from __future__ import annotations
 import re
 from typing import Any, Callable, Iterable, Optional
 
-from backend.app.engine.world_model import bootstrap
+from backend.app.engine.world_model import bootstrap, promise_judge
 from backend.app.engine.world_model.companions import choose_companions
 from backend.app.engine.world_model.commitments import (due_commitments, expire_commitments, record_commitment,
-                                                         complete_actions)
+                                                         mark_reminded)
 from backend.app.engine.world_model.contact import deliver, queue_contacts
 from backend.app.engine.world_model.evidence import find_inspect_target, inspect
 from backend.app.engine.world_model.memory import render
@@ -305,9 +305,11 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
             view.must_address.append(f"{names[promise.owner]} promised earlier: {render(promise.text, names)}. "
                                      f"It is due now; {names[promise.owner]} can act on it or bring it up. "
                                      "Do not describe it as completed unless the action actually occurs.")
+            mark_reminded(model, promise)
         elif promise.owner == PLAYER and promise.counterpart in present_set:
             view.must_address.append(f"The player promised {names[promise.counterpart]}: {render(promise.text, names)}. "
                                      f"{names[promise.counterpart]} may remind them.")
+            mark_reminded(model, promise)
     owes_answer = _question_directives(model, view, present_set, names)
     for verdict in model.pending_verdicts:
         view.must_address.append(verdict_directive(verdict, names))
@@ -695,17 +697,8 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
     record_relationship_decisions(state, message, segments)
     record_departure_decisions(state, message, segments, prior_relationship_partner)
     record_solo_departure(state, message)
-    completed = complete_actions(model, message, segments)
     repaired = record_repair_dialogue(model, message, segments)
     relationships = GraphRelationships(getattr(state, "character_graph", None))
-    for agreement_id in completed:
-        agreement = model.agreements.get(agreement_id)
-        event = next((e for e in model.world.events if e.id == agreement.outcome_event_id), None)
-        if event is not None:
-            actor = str(event.payload.get("actor") or "")
-            other = agreement.counterpart if actor == agreement.proposer else agreement.proposer
-            relationships.adjust(other, actor, trust_delta=0.05,
-                                 narrative=f"Kept agreement {agreement_id}: {agreement.activity}")
     for thread_id in repaired:
         thread = model.drama.get(thread_id)
         a, b = thread.participants[:2]
@@ -715,6 +708,20 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
     if last is not None:
         model.endings = (model.endings + [classify_ending(str(last.get("text")))])[-6:]
     _prune(model)
+
+
+async def review_promises(state: Any, prior_user: str, prior_reply: str, message: str, resolver: Any = None) -> list:
+    """Ask Jev whether the open promises between people who are here have been carried out.
+
+    Runs before the scene is built, so a promise kept in the last exchange is closed before it can be raised.
+    """
+    from backend.app.config import settings
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or not getattr(settings, "PROMISE_JUDGE_ENABLED", False):
+        return []
+    now = int(getattr(state, "minute", 0) or model.world.minute)
+    return await promise_judge.review(model, prior_user, prior_reply, message, now,
+                                      GraphRelationships(getattr(state, "character_graph", None)), resolver)
 
 
 def record_commitments(state: Any, updates: Iterable[Any]) -> list:
