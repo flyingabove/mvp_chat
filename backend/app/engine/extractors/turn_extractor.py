@@ -197,6 +197,13 @@ MAX_SELF_CLAIMS = 4
 
 
 @dataclass(frozen=True)
+class SocialActUpdate:
+    """The one consequential social act the player's CURRENT message makes, if any."""
+    kind: str
+    target: str = ""
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -214,6 +221,7 @@ class TurnExtraction:
     questions: List[QuestionAsked] = field(default_factory=list)
     question_updates: List[QuestionStatusUpdate] = field(default_factory=list)
     self_claims: List[SelfClaimUpdate] = field(default_factory=list)
+    social_act: Optional[SocialActUpdate] = None
 
 
 class TurnExtractor:
@@ -500,7 +508,20 @@ class TurnExtractor:
             questions=TurnExtractor._parse_questions(obj.get("questions"), allowed_character_keys),
             question_updates=TurnExtractor._parse_question_updates(obj.get("question_status")),
             self_claims=TurnExtractor._parse_self_claims(obj.get("self_claims")),
+            social_act=TurnExtractor._parse_social_act(obj.get("social_act"), allowed_character_keys),
         )
+
+    @staticmethod
+    def _parse_social_act(raw: Any, allowed_character_keys: set[str]) -> Optional[SocialActUpdate]:
+        if not isinstance(raw, dict):
+            return None
+        kind = str(raw.get("kind") or "").strip().lower()
+        target = str(raw.get("target") or "").strip().lower()
+        if not kind or kind == "none":
+            return None
+        if target and allowed_character_keys and target not in allowed_character_keys:
+            target = ""
+        return SocialActUpdate(kind=kind, target=target)
 
     @staticmethod
     def _parse_self_claims(raw: Any) -> List[SelfClaimUpdate]:
@@ -1126,6 +1147,13 @@ class TurnExtractor:
             "    \"nurse\", \"no\"). correction=true only when the player explicitly corrects something they said\n"
             "    before (\"actually I'm 175\", \"sorry, I meant...\"). NOT claims: facts about other people, questions,\n"
             "    jokes, hypotheticals, or things said in earlier turns. Omit when unsure.\n"
+            "15) social_act: ONLY when SOCIAL ACTS are listed below. The one act the player's CURRENT USER\n"
+            "    MESSAGE sincerely performs: confess (tells a character they have romantic feelings / asks to\n"
+            "    date), ask_leave_together (asks their partner to leave the house together as a couple),\n"
+            "    leave_alone (decides to leave the house alone now), withdraw (ends their relationship).\n"
+            "    target = the character addressed (for confess/ask_leave_together). Jokes, hypotheticals,\n"
+            "    questions ABOUT feelings, quoting someone, or talking about a third person are NONE.\n"
+            "    Use {\"kind\": \"none\"} when unsure.\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
@@ -1139,10 +1167,12 @@ class TurnExtractor:
             '  "commitments": [{"owner": "player|character_key", "counterpart": "player|character_key", "what": "string", "when": "string"}],\n'
             '  "questions": [{"addressee": "character_key", "question": "string"}],\n'
             '  "question_status": [{"id": "open question id", "status": "answered|refused|unknown|deferred|unanswered"}],\n'
-            '  "self_claims": [{"key": "player fact key", "value": "string", "correction": false}]\n'
+            '  "self_claims": [{"key": "player fact key", "value": "string", "correction": false}],\n'
+            '  "social_act": {"kind": "none|<listed act>", "target": "character_key|null"}\n'
             "}\n"
         )
         fact_keys = [str(k).strip() for k in (request.player_fact_keys or ()) if str(k or "").strip()]
+        act_kinds = [str(k).strip() for k in (request.social_act_kinds or ()) if str(k or "").strip()]
 
         open_question_lines = [
             f"- {q.get('id')}: asked {str(q.get('addressee') or '').strip().lower()}: {str(q.get('text') or '').strip()}"
@@ -1176,6 +1206,8 @@ class TurnExtractor:
             + ("\n".join(open_question_lines) if open_question_lines else "- none")
             + "\n\nPLAYER FACT KEYS:\n"
             + (", ".join(fact_keys) if fact_keys else "- none")
+            + "\n\nSOCIAL ACTS:\n"
+            + (", ".join(act_kinds) if act_kinds else "- none")
             + behavior_window_block
         )
 
@@ -1221,6 +1253,7 @@ class TurnExtractor:
         allowed_behavior_tags: List[str] | None = None,
         open_questions: List[Dict[str, str]] | None = None,
         player_fact_keys: List[str] | None = None,
+        social_act_kinds: List[str] | None = None,
     ) -> TurnExtraction:
         """Internally: batch builder -> resolver -> assembler (see class
         docstring and JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12 step 3).
@@ -1253,6 +1286,7 @@ class TurnExtractor:
             allowed_behavior_tags=tuple(allowed_behavior_tags or ()),
             open_questions=tuple(open_questions or ()),
             player_fact_keys=tuple(player_fact_keys or ()),
+            social_act_kinds=tuple(social_act_kinds or ()),
             invoke=_invoke,
         )
 

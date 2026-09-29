@@ -2195,6 +2195,13 @@
     "warm", "attentive", "funny", "complimentary", "flirtatious", "helpful", "generous", "honest",
     "supportive_of_goals", "boastful", "rude", "dismissive", "pushy", "evasive"
   ],
+  "social_acts": [
+    {"kind": "confess", "track": "romance", "requires_tier": "interested", "cooldown_days": 1},
+    {"kind": "ask_leave_together", "track": "romance", "requires_tier": "dating", "min_standing": 70,
+     "requires_relationship": true, "cooldown_days": 1},
+    {"kind": "leave_alone"},
+    {"kind": "withdraw"}
+  ],
   "player_fact_keys": [
     "height", "occupation", "age", "hometown", "family_profession", "smokes", "drivers_license",
     "relationship_history"

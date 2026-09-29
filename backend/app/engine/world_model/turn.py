@@ -28,6 +28,11 @@ from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
 from backend.app.engine.world_model.persona import SelfClaim
 from backend.app.engine.world_model.standards import enforce_dealbreakers, failing_requirements, viewpoint
+from backend.app.engine.world_model.social_acts import (
+    SocialAct, Verdict, act_specs, commit as commit_act, decide, directive as verdict_directive,
+    validate as validate_verdict,
+)
+from backend.app.engine.world_model.romance import _eligible_present as romance_eligible_present
 from backend.app.engine.world_model.intentions import propose_rival_invitations
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
@@ -281,6 +286,10 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
             view.must_address.append(f"The player promised {names[promise.counterpart]}: {render(promise.text, names)}. "
                                      f"{names[promise.counterpart]} may remind them.")
     owes_answer = _question_directives(model, view, present_set, names)
+    for verdict in model.pending_verdicts:
+        view.must_address.append(verdict_directive(verdict, names))
+        if verdict.act.target in present_set:
+            owes_answer.add(verdict.act.target)
     addressed_now, _ = addressed_ids(model, message, present)
     _tell_directives(model, state, view, message, present_set, owes_answer | addressed_now, names)
     _requirement_hints(model, state, view, present_set, names)
@@ -452,6 +461,29 @@ def _requirement_hints(model: WorldModel, state: Any, view: TurnView, present: s
                     view.must_address.append(f"{names.get(cid, cid)}: {requirement.tell}.{reason}")
 
 
+def social_act_kinds(state: Any) -> list[str]:
+    return sorted(act_specs(getattr(state, "story_cfg", {}) or {}))
+
+
+def record_social_act(state: Any, proposal: Any) -> Optional[Verdict]:
+    """Decide this turn's social act from the target's own view; held until end_turn validates it."""
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or proposal is None or model.romance_outcome:
+        return None
+    specs = act_specs(getattr(state, "story_cfg", {}) or {})
+    spec = specs.get(str(getattr(proposal, "kind", "")))
+    if spec is None:
+        return None
+    rules = social_rules(getattr(state, "story_cfg", {}) or {})
+    if rules is not None:
+        model.standing.bind(rules.tracks)
+    verdict = decide(model, spec, SocialAct(spec.kind, str(getattr(proposal, "target", "") or "")),
+                     romance_eligible_present(state))
+    if verdict is not None:
+        model.pending_verdicts = [verdict]
+    return verdict
+
+
 def open_questions(state: Any) -> list[dict[str, str]]:
     """Open player questions, in the shape the turn extractor lists them."""
     model = getattr(state, "world_model", None)
@@ -523,6 +555,13 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
                           event.truth, now)
             if cid != PLAYER:
                 model.memories.add(cid, event.truth, "witnessed", now, kind="dialogue", event_id=event.id)
+    specs = act_specs(getattr(state, "story_cfg", {}) or {})
+    names = model.names()
+    for verdict in model.pending_verdicts:
+        model.view.verdict_repairs += validate_verdict(verdict, segments, names)
+        witnesses = tuple(c for c in present if c != verdict.act.target)
+        commit_act(state, specs[verdict.act.kind], verdict, witnesses)
+    model.pending_verdicts = []
     prior_relationship_partner = model.romance_relationship_partner
     record_relationship_decisions(state, message, segments)
     record_departure_decisions(state, message, segments, prior_relationship_partner)

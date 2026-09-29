@@ -49,6 +49,8 @@ class LegacyExtractionRequest:
     open_questions: Sequence[Mapping[str, str]] = ()
     # Story-declared keys for facts the player may state about themselves.
     player_fact_keys: Sequence[str] = ()
+    # Story-declared social acts the message may perform (confess, ...).
+    social_act_kinds: Sequence[str] = ()
     # The actual legacy call, injected so DecisionResolver never imports
     # TurnExtractor (would create an engine <-> llm import cycle). Returns
     # the legacy call's raw parsed JSON dict (pre-TurnExtraction-assembly),

@@ -96,6 +96,7 @@ class TurnView:
     cards: list[str] = field(default_factory=list)
     elsewhere: list[str] = field(default_factory=list)
     names: dict[str, str] = field(default_factory=dict)
+    verdict_repairs: int = 0      # displayed lines replaced because they contradicted a verdict
 
 
 @dataclass
@@ -130,7 +131,9 @@ class WorldModel:
     standing: StandingBook = field(default_factory=StandingBook)     # sole writer of track standings
     appraised_events: list[str] = field(default_factory=list)        # behavior events already judged
     persona: PersonaBook = field(default_factory=PersonaBook)        # self-claims with their audiences
+    act_cooldowns: dict[str, int] = field(default_factory=dict)      # "act:target" -> last blocked day
     view: TurnView = field(default_factory=TurnView)       # transient
+    pending_verdicts: list = field(default_factory=list)   # transient: this turn's social-act verdicts
 
     # -- queries -----------------------------------------------------------------
     def rng(self, purpose: str, minute: Optional[int] = None) -> random.Random:
@@ -198,7 +201,8 @@ class WorldModel:
                 "first_met_day": dict(self.first_met_day),
                 "standing": self.standing.to_dict(),
                 "appraised_events": list(self.appraised_events),
-                "persona": self.persona.to_dict()}
+                "persona": self.persona.to_dict(),
+                "act_cooldowns": dict(self.act_cooldowns)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -234,4 +238,5 @@ class WorldModel:
                    first_met_day={str(k): int(v) for k, v in (data.get("first_met_day") or {}).items()},
                    standing=StandingBook.from_dict(data.get("standing") or {}),
                    appraised_events=list(data.get("appraised_events") or []),
-                   persona=PersonaBook.from_dict(data.get("persona") or {}))
+                   persona=PersonaBook.from_dict(data.get("persona") or {}),
+                   act_cooldowns={str(k): int(v) for k, v in (data.get("act_cooldowns") or {}).items()})

@@ -5761,6 +5761,35 @@ def test_player_behavior_moves_the_witnesses_standing_through_the_chat_turn(clie
     assert standing is not None and standing.value > 0
 
 
+def test_typed_acts_carry_a_terrace_game_from_confession_to_a_win(client, monkeypatch):
+    """BL-39 phase F end to end: confession accepted at the right tier, then
+    the explicit ask; the win ending arrives with that turn's reply."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import SocialActUpdate, TurnExtraction
+    from backend.app.engine.world_model.standing import Standing
+
+    _terrace_session(client, "typed_win", {})
+    state = pe_mod.SESSIONS["typed_win"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    target = state.world_model.present_with_player()[0]
+    state.gender = "F" if genders[target] == "M" else "M"
+    state.world_model.standing.standings[(target, "player", "romance")] = Standing(value=50)
+
+    acts = [SocialActUpdate("confess", target), SocialActUpdate("ask_leave_together", target)]
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(social_act=acts.pop(0) if acts else None)
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    first = client.post("/api/chat", json={"session_id": "typed_win", "message": "I have feelings for you."}).json()
+    assert "ending" not in first
+    model = pe_mod.SESSIONS["typed_win"]["state"].world_model
+    assert model.romance_relationship_partner == target
+    model.standing.standings[(target, "player", "romance")] = Standing(value=80)
+    second = client.post("/api/chat", json={"session_id": "typed_win", "message": "Let's leave together."}).json()
+    assert second["ending"]["id"] == "left_together" and second["ending"]["kind"] == "win"
+
+
 def test_new_game_returns_the_goal_card(client):
     _, opening = _terrace_session(client, "ending_goal_card", {})
     assert opening["goal"]["status"] == "No mutual relationship yet."

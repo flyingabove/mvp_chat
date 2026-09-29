@@ -8,6 +8,57 @@ from backend.app.engine.world_model import bootstrap
 from backend.app.engine.world_model.model import PLAYER
 
 
+def typed_acts(state: Any) -> bool:
+    """Stories that declare social_acts decide relationships through typed acts, not these regexes."""
+    cfg = getattr(state, "story_cfg", {}) or {}
+    return isinstance(cfg, dict) and bool(cfg.get("social_acts"))
+
+
+def commit_relationship(model: Any, partner: str, cause_ids: tuple[str, ...] = ()) -> None:
+    if model.romance_relationship_partner == partner:
+        return
+    model.romance_relationship_partner = partner
+    model.world.add_event(model.world.minute, model.player_place(), (PLAYER, partner),
+                          f"The player and @{partner} mutually chose a romantic relationship",
+                          kind="romance_relationship", operation_id=f"romance:relationship:{model.turn}:{partner}",
+                          payload={"partner": partner}, cause_ids=cause_ids)
+
+
+def end_relationship(model: Any) -> None:
+    model.romance_relationship_partner = ""
+    model.romance_relationship_player_choice = ""
+    model.romance_relationship_npc_choice = ""
+    model.romance_player_choice = ""
+    model.romance_npc_choice = ""
+
+
+def commit_mutual_departure(state: Any, partner: str) -> None:
+    model = state.world_model
+    model.romance_outcome = "mutual_departure"
+    ending = model.world.add_event(model.world.minute, model.player_place(), (PLAYER, partner),
+                                   f"The player and @{partner} chose to leave the house together as a couple",
+                                   kind="romance_ending", visibility="public",
+                                   operation_id=f"romance:ending:{model.turn}:{partner}",
+                                   payload={"partner": partner},
+                                   cause_ids=tuple(event.id for event in model.world.events
+                                                   if event.kind in {"romance_relationship", "relationship_decision"}
+                                                   and partner in event.participants))
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    if lifecycle is not None and getattr(lifecycle, "enabled", False):
+        lifecycle.depart_for_ending(partner, minute=model.world.minute,
+                                    event_id=f"{ending.id}:partner", reason="mutual romantic departure")
+    model.world.remove(partner)
+    model.world.remove(PLAYER)
+
+
+def commit_solo_departure(model: Any) -> None:
+    model.romance_outcome = "solo_departure"
+    model.world.add_event(model.world.minute, model.player_place(), (PLAYER,),
+                          "The player chose to leave the house alone", kind="solo_ending",
+                          operation_id=f"romance:solo:{model.turn}")
+    model.world.remove(PLAYER)
+
+
 def _eligible_present(state: Any) -> set[str]:
     model = getattr(state, "world_model", None)
     cfg = getattr(state, "story_cfg", {}) or {}
@@ -59,7 +110,7 @@ def _withdraws(text: str, topic: str) -> bool:
 def record_relationship_decisions(state: Any, player_message: str, segments: list[dict]) -> bool:
     model = getattr(state, "world_model", None)
     present = _eligible_present(state)
-    if model is None or not present or model.romance_outcome:
+    if model is None or not present or model.romance_outcome or typed_acts(state):
         return False
     partner = model.romance_relationship_partner
     if partner in present and _withdraws(player_message, r"date|be with|relationship"):
@@ -84,13 +135,7 @@ def record_relationship_decisions(state: Any, player_message: str, segments: lis
             model.romance_relationship_npc_choice = speaker
     partner = model.romance_relationship_player_choice
     if partner and partner == model.romance_relationship_npc_choice and partner in present:
-        if model.romance_relationship_partner != partner:
-            model.romance_relationship_partner = partner
-            model.world.add_event(model.world.minute, model.player_place(), (PLAYER, partner),
-                                  f"The player and @{partner} mutually chose a romantic relationship",
-                                  kind="romance_relationship", operation_id=f"romance:relationship:{model.turn}:{partner}",
-                                  payload={"partner": partner},
-                                  cause_ids=_current_utterance_ids(model, {PLAYER, partner}))
+        commit_relationship(model, partner, _current_utterance_ids(model, {PLAYER, partner}))
         return True
     return False
 
@@ -120,6 +165,8 @@ def record_departure_decisions(state: Any, player_message: str, segments: list[d
     model = getattr(state, "world_model", None)
     if model is None or model.romance_outcome:
         return bool(model and model.romance_outcome)
+    if typed_acts(state):
+        return False
     present = _eligible_present(state)
     relationship_partner = model.romance_relationship_partner
     # A relationship established in this same generated turn is not enough;
@@ -160,21 +207,7 @@ def record_departure_decisions(state: Any, player_message: str, segments: list[d
                                   cause_ids=_current_utterance_ids(model, {speaker}))
     partner = model.romance_player_choice
     if partner and partner == model.romance_npc_choice and partner == relationship_partner and partner in present:
-        model.romance_outcome = "mutual_departure"
-        ending = model.world.add_event(model.world.minute, model.player_place(), (PLAYER, partner),
-                              f"The player and @{partner} chose to leave the house together as a couple",
-                              kind="romance_ending", visibility="public",
-                              operation_id=f"romance:ending:{model.turn}:{partner}",
-                              payload={"partner": partner},
-                              cause_ids=tuple(event.id for event in model.world.events
-                                              if event.kind in {"romance_relationship", "relationship_decision"}
-                                              and partner in event.participants))
-        lifecycle = getattr(state, "cast_lifecycle", None)
-        if lifecycle is not None and getattr(lifecycle, "enabled", False):
-            lifecycle.depart_for_ending(partner, minute=model.world.minute,
-                                        event_id=f"{ending.id}:partner", reason="mutual romantic departure")
-        model.world.remove(partner)
-        model.world.remove(PLAYER)
+        commit_mutual_departure(state, partner)
         return True
     return False
 
@@ -182,7 +215,7 @@ def record_departure_decisions(state: Any, player_message: str, segments: list[d
 def record_solo_departure(state: Any, player_message: str) -> bool:
     model = getattr(state, "world_model", None)
     cfg = getattr(state, "story_cfg", {}) or {}
-    if model is None or model.romance_outcome or not isinstance(cfg, dict):
+    if model is None or model.romance_outcome or not isinstance(cfg, dict) or typed_acts(state):
         return False
     if not ((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"):
         return False
@@ -190,9 +223,5 @@ def record_solo_departure(state: Any, player_message: str) -> bool:
     if not re.match(r"^I\s+(?:choose|decide|will)\s+to\s+(?:leave\s+(?:the\s+house\s+)?|move\s+out\s+)alone\b",
                     words, re.I):
         return False
-    model.romance_outcome = "solo_departure"
-    model.world.add_event(model.world.minute, model.player_place(), (PLAYER,),
-                          "The player chose to leave the house alone", kind="solo_ending",
-                          operation_id=f"romance:solo:{model.turn}")
-    model.world.remove(PLAYER)
+    commit_solo_departure(model)
     return True
