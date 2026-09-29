@@ -21,5 +21,7 @@ Prompt changes alter both games and need arena and human review; this is not a r
 
 **Hosted limit:** a fresh beta `fe54691` browser turn asked two housemates to introduce themselves after the player introduced themselves; a later housemate still asked “What’s your name?” Decorative kitchen narration remained. The direct-answer and repetition gates are still open.
 
+**O12 opening text (2026-09-28):** the IU `opening.text` held 20 double-escaped `\\n` sequences. The chat bubble hid them (`formatMsgText` and `dialogue.js` rewrite every literal `\n`), but the raw `/api/chat` reply, the session `last_message` preview and storyteller history carried the literal escapes. The data had no real U+FFFD; the replay's "replacement characters" were curly quotes mangled by a Windows console. Fixed the field; `engine/content_validation.py::find_text_defects` plus a per-active-story test now gate literal `\n`/`\t` and U+FFFD with field paths; `scripts/verify_story_opening_browser.py` checks the raw API body and rendered opener in all three browser modes. Follow-up, not done: the frontend's global `\n` rewrite contradicts "preserve deliberate literal escapes" and masks authoring errors; revisit only if a story needs a literal backslash. The opening's second-person backstory ("You didn't ask for details") is O09/BL-29 content, unchanged here.
+
 ## Touches
 `backend/app/engine/prompt_builder.py`, `dialogue.py`, Terrace voice data, tests and hosted evaluation.

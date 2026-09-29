@@ -13,6 +13,16 @@ Owner follow-up: push the consolidated proposal and record standing authorizatio
 - [x] Align Terrace content, catalogue and historical design/review pointers; retain BL-38 as an open correctness tracker.
 - [ ] Implement and verify the master release units/phases; all existing runtime acceptance gaps remain open.
 
+### 2026-09-28 BL-39 execution (Claude, mvp_chat checkout)
+
+Order: the four independent section-10 units first (each ships alone through ship-and-verify), then phases A–J. Each item below is one beta push with its own hosted proof.
+
+- [ ] O12 opening text: IU `opening.text` had 20 literal `\n` (double-escaped JSON); no real U+FFFD in data. Field repaired; `content_validation.find_text_defects` + per-active-story test gate it (no runtime logging: the registry rescans per request). Local: full pytest 1262 passed/1 xfailed, Node 10 passed; `verify_story_opening_browser.py` fails on old data (40 raw escapes, all 3 modes) and passes on the fix; screenshots inspected. Pending: hosted beta check.
+- [ ] O15/O24 durable receipt: `(session_id, request_id)` receipt persisted atomically with state + reply; same ID/different input rejected; crash before/after commit, restart, concurrent duplicate.
+- [ ] O08 addressed answers: ConversationState + response-context adapter; two questions, interrupted/resumed exchange.
+- [ ] O09/O11 continuity/agency: narrow identity/presence/opening fixes through current objects.
+- [ ] Phases A–J per BL-39 section 10 (split into bounded tasks when started).
+
 Architecture/build order for the older active list below now comes from [consolidated BL-39](../backlog/BL-39-character-centric-social-engine.md). Its A–J phases and independent release units supersede competing future designs; existing P-series tests/history still supply evidence and are not marked complete by this documentation task.
 
 ### 2026-09-26 Social engine v2 implementation and hosted play
