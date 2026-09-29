@@ -2206,6 +2206,20 @@
      "summary": "Three other couples left happy before you. The director decided your story was over.",
      "when": {"kind": "counter_at_least", "counter": "couples_left", "value": 3}}
   ],
+  "commentary": {
+    "segments": 6,
+    "unfilmed_places": ["shared_bathroom", "toilet", "washroom"],
+    "panelists": [
+      {"id": "reina", "name": "Reina Triendl", "role": "sweet, romantic read; decodes body language",
+       "tastes": {"flirtatious": 1.5, "complimentary": 1.0, "warm": 1.0, "attentive": 1.0, "dismissive": -1.0,
+                  "rude": -1.5}},
+      {"id": "yamasato", "name": "Ryota Yamasato", "role": "sharp, cynical comedian who hunts for flaws",
+       "tastes": {"boastful": -2.5, "flirtatious": -0.5, "pushy": -2.0, "evasive": -1.5, "funny": 1.0,
+                  "honest": 0.5}},
+      {"id": "yukiko", "name": "Yukiko Ehara", "role": "relaxed big sister who defends sincerity and calls out games",
+       "tastes": {"honest": 2.0, "supportive_of_goals": 1.5, "evasive": -2.0, "pushy": -1.5, "warm": 1.0}}
+    ]
+  },
   "clocks": [
     {"id": "director_patience", "counter": "couples_left", "warn_at": 2, "trigger_at": 3,
      "warn_beat": "The show's director calls the player off-camera: two couples have left happy. If one more leaves before the player does, the player is done here. The director is only a voice on the phone; keep the call brief.",

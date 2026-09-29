@@ -39,6 +39,7 @@ from backend.app.engine.world_model.agenda import (
 )
 from backend.app.engine.state import PendingEvent
 from backend.app.engine.rules.clocks import clocks_for, due_beats
+from backend.app.engine.world_model.commentary import commentary_for, dossier, finale_directive, scrub_panel
 from backend.app.engine.world_calendar import day_number
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
@@ -303,9 +304,16 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
             owes_answer.add(verdict.act.target)
     addressed_now, _ = addressed_ids(model, message, present)
     day = model.world.day_index(model.world.minute)
+    ending_now = any(v.answer == "accept" and v.act.kind in ("ask_leave_together", "leave_alone")
+                     for v in model.pending_verdicts)
     for key, text in due_beats(clocks_for(getattr(state, "story_cfg", {}) or {}), model.counters):
         view.must_address.append(text)
         model.counters[key] = 1
+        ending_now = ending_now or key.endswith(":trigger")
+    commentary = commentary_for(getattr(state, "story_cfg", {}) or {})
+    if ending_now and commentary is not None:
+        view.must_address.append(finale_directive(commentary, dossier(model, commentary)))
+        view.panel_speakers = {p.id: p.name for p in commentary.panelists}
     beat = None if owes_answer else next_beat(model, present_set, day)   # direct questions come first
     if beat is not None:
         cid, intention = beat
@@ -334,7 +342,8 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     # Someone on a phone call with the player can speak without being present.
     from backend.app.engine.active_characters import get_on_call_character_keys
     on_call = {k for k in get_on_call_character_keys(state) if k in model.characters}
-    view.allowed_speakers = sorted(set(present) | set(unplaced) | set(view.plan.speakers) | on_call)
+    view.allowed_speakers = sorted(set(present) | set(unplaced) | set(view.plan.speakers) | on_call
+                                   | set(view.panel_speakers))
     view.ending_hint = ending_hint(model.endings)
     return view
 
@@ -627,6 +636,9 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
                 model.memories.add(cid, event.truth, "witnessed", now, kind="dialogue", event_id=event.id)
     specs = act_specs(getattr(state, "story_cfg", {}) or {})
     names = model.names()
+    commentary = commentary_for(getattr(state, "story_cfg", {}) or {})
+    if commentary is not None and model.view.panel_speakers:
+        scrub_panel(segments, commentary)
     for verdict in model.pending_verdicts:
         model.view.verdict_repairs += validate_verdict(verdict, segments, names)
         witnesses = tuple(c for c in present if c != verdict.act.target)

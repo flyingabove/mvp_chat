@@ -23,12 +23,20 @@ def _contract_cast_ids(state) -> list[str]:
     lived there (live prod 2026-09-24: "Yuto should be back from practice")."""
     lifecycle = getattr(state, "cast_lifecycle", None)
     gated = lifecycle is not None and getattr(lifecycle, "enabled", False)
-    return [key for key in (getattr(state, "characters", {}) or {})
+    cast = [key for key in (getattr(state, "characters", {}) or {})
             if key != "player" and (not gated or lifecycle.is_scene_eligible(key))]
+    return cast + [key for key in _panel_speakers(state) if key not in cast]
+
+
+def _panel_speakers(state) -> dict[str, str]:
+    """Studio panelists allowed to speak on this (finale) turn only."""
+    view = getattr(getattr(state, "world_model", None), "view", None)
+    return dict(getattr(view, "panel_speakers", None) or {})
 
 
 def dialogue_prompt(state) -> str:
-    cast = {key: state.characters[key].name for key in _contract_cast_ids(state)}
+    panel = _panel_speakers(state)
+    cast = {key: (panel[key] if key in panel else state.characters[key].name) for key in _contract_cast_ids(state)}
     return (
         "\n\n[SPEAKER PRESENTATION CONTRACT]\n"
         "Return the JSON object required by the response schema. Its segments array "
@@ -195,9 +203,12 @@ def decode_dialogue_response(raw: str, state=None) -> str:
     return "\n\n".join(parts)
 
 
-def _segment(text: str, speaker: str | None, characters: dict) -> dict:
+def _segment(text: str, speaker: str | None, characters: dict, panel: dict | None = None) -> dict:
     if speaker is None:
         return {"kind": "narration", "text": text}
+    if panel and speaker in panel:
+        return {"kind": "dialogue", "speaker_id": speaker, "speaker_name": panel[speaker],
+                "portrait_url": DEFAULT_PERSONA_AVATAR, "text": text}
     ch = characters.get(speaker)
     name = ch.name if ch else "Unknown voice"
     # Only authored local image paths are exposed, never arbitrary model URLs.
@@ -232,6 +243,7 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     Untagged legacy paragraphs are retained as narration, without guessing.
     """
     characters = getattr(state, "characters", {}) or {}
+    panel = _panel_speakers(state)
     segments = []
     speaker = None
     offset = 0
@@ -239,13 +251,13 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
         body = text[offset:match.start()].strip()
         if body:
             resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
-            segments.append(_segment(body, resolved or speaker, characters))
+            segments.append(_segment(body, resolved or speaker, characters, panel))
         speaker = match.group(1).strip() if match.group(1) is not None else None
         offset = match.end()
     body = text[offset:].strip()
     if body:
         resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
-        segments.append(_segment(body, resolved or speaker, characters))
+        segments.append(_segment(body, resolved or speaker, characters, panel))
     clean = MARKER.sub("", text).strip()
     # Each authored/model segment is a readable scene beat, even when one
     # character speaks twice. Coalescing them recreated the giant bubble.

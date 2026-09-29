@@ -367,7 +367,7 @@ def _seed_player_visibility(state: GameState) -> None:
 # Story rules read only by engine code (BL-39); kept in the runtime story
 # config and excluded from any prompt/transient seeding.
 ENGINE_ONLY_STORY_KEYS = ("endings", "social_tracks", "personalities", "default_personality", "player_fact_keys",
-                          "social_acts", "clocks")
+                          "social_acts", "clocks", "commentary")
 
 
 _BASIC_CHARACTER_KEYS = {

@@ -98,6 +98,7 @@ class TurnView:
     elsewhere: list[str] = field(default_factory=list)
     names: dict[str, str] = field(default_factory=dict)
     verdict_repairs: int = 0      # displayed lines replaced because they contradicted a verdict
+    panel_speakers: dict[str, str] = field(default_factory=dict)   # finale turn only: panelist id -> name
 
 
 @dataclass
