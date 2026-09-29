@@ -71,10 +71,20 @@ class AppraisalPolicy:
 
 
 @dataclass(frozen=True)
+class CouplePolicy:
+    """When NPCs pursue, pair up and leave together (tiers on the appraisal track)."""
+    interested_tier: str
+    dating_tier: str
+    committed_tier: str
+    days_together: int = 2
+
+
+@dataclass(frozen=True)
 class SocialRules:
     tracks: dict[str, TrackSpec]
     requirements: dict[str, tuple[Requirement, ...]]   # character id or "default" -> requirements
     appraisal: Optional[AppraisalPolicy] = None
+    couples: Optional[CouplePolicy] = None
 
     def requirements_for(self, owner: str, track: str) -> tuple[Requirement, ...]:
         own = self.requirements.get(owner)
@@ -138,7 +148,25 @@ def social_rules(story_cfg: dict[str, Any]) -> Optional[SocialRules]:
         ids = [r.id for r in items]
         if len(ids) != len(set(ids)):
             raise ValueError("requirement ids must be unique per character")
-    return SocialRules(tracks, requirements, _appraisal(raw.get("appraisal"), tracks))
+    appraisal = _appraisal(raw.get("appraisal"), tracks)
+    return SocialRules(tracks, requirements, appraisal, _couples(raw.get("couples"), tracks, appraisal))
+
+
+def _couples(raw: Optional[dict[str, Any]], tracks: dict[str, TrackSpec],
+             appraisal: Optional[AppraisalPolicy]) -> Optional[CouplePolicy]:
+    if not raw:
+        return None
+    if appraisal is None:
+        raise ValueError("couples need an appraisal track")
+    policy = CouplePolicy(_text(raw, "interested_tier"), _text(raw, "dating_tier"), _text(raw, "committed_tier"),
+                          int(raw.get("days_together", 2)))
+    tiers = {t.id for t in tracks[appraisal.track].tiers}
+    for tier in (policy.interested_tier, policy.dating_tier, policy.committed_tier):
+        if tier not in tiers:
+            raise ValueError(f"couples name unknown tier {tier!r}")
+    if policy.days_together < 0:
+        raise ValueError("days_together must be >= 0")
+    return policy
 
 
 def _appraisal(raw: Optional[dict[str, Any]], tracks: dict[str, TrackSpec]) -> Optional[AppraisalPolicy]:

@@ -33,7 +33,12 @@ from backend.app.engine.world_model.social_acts import (
     validate as validate_verdict,
 )
 from backend.app.engine.world_model.romance import _eligible_present as romance_eligible_present
-from backend.app.engine.world_model.intentions import propose_rival_invitations
+from backend.app.engine.world_model.intentions import propose_agenda_invitations, propose_rival_invitations
+from backend.app.engine.world_model.agenda import (
+    SocialContext, couples_leaving, couples_ready, next_beat, refresh_agendas,
+)
+from backend.app.engine.state import PendingEvent
+from backend.app.engine.world_calendar import day_number
 from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
                                                     record_solo_departure)
 from backend.app.engine.world_model.epistemics import observe_event
@@ -175,7 +180,7 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         step = step_world(model, minute_before, now, protected, player_asleep=sleeping)
         advance_threads(model, minute_before, now)
         resolve_offscreen(model, step, GraphRelationships(getattr(state, "character_graph", None)),
-                          scorer, rivalry_context(state))
+                          scorer, rivalry_context(state), social=social_context(state))
         expire_commitments(model, now)
         queue_contacts(model, minute_before, now, warmth_fn(state))
         model.player_availability = "awake"
@@ -203,8 +208,13 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
             model.world.add_event(now, model.player_place(), (PLAYER, present[0]),
                                   f"@{PLAYER} and @{present[0]} talked alone", kind="private_talk",
                                   operation_id=f"private_talk:{model.turn}")
-    propose_rival_invitations(model, rivalry_context(state),
-                              GraphRelationships(getattr(state, "character_graph", None)), now)
+    ctx = social_context(state)
+    if ctx is not None and ctx.rules.couples is not None:
+        advance_npc_life(state, model, ctx, now)
+        propose_agenda_invitations(model, now)
+    else:
+        propose_rival_invitations(model, rivalry_context(state),
+                                  GraphRelationships(getattr(state, "character_graph", None)), now)
     conflict_focus = choose_conflict(model.drama, set(model.present_with_player()), model.world.day_index(now))
     # A sleeping player saw nothing of the night: no "came in / left" beats.
     view = _build_view(model, state, message, None if sleeping else step, place_names,
@@ -291,6 +301,14 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         if verdict.act.target in present_set:
             owes_answer.add(verdict.act.target)
     addressed_now, _ = addressed_ids(model, message, present)
+    day = model.world.day_index(model.world.minute)
+    beat = None if owes_answer else next_beat(model, present_set, day)   # direct questions come first
+    if beat is not None:
+        cid, intention = beat
+        view.must_address.append(BEAT_TEXT[intention.kind].format(name=names.get(cid, cid)))
+        model.initiative_last_day[f"beat:{cid}"] = day
+        if intention.kind == "test_loyalty":
+            model.agendas[cid] = [i for i in model.agendas.get(cid, []) if i != intention]
     _tell_directives(model, state, view, message, present_set, owes_answer | addressed_now, names)
     _requirement_hints(model, state, view, present_set, names)
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
@@ -358,21 +376,69 @@ def _question_directives(model: WorldModel, view: TurnView, present: set[str], n
     return owes
 
 
+def social_context(state: Any) -> Optional[SocialContext]:
+    cfg = getattr(state, "story_cfg", {}) or {}
+    rules = social_rules(cfg) if isinstance(cfg, dict) else None
+    if rules is None or rules.appraisal is None:
+        return None
+    genders = {str(c.get("key")): str(c.get("gender") or "").upper() for c in cfg.get("characters") or []}
+    genders[PLAYER] = str(getattr(state, "gender", "") or "").upper()
+    return SocialContext(rules, genders)
+
+
 def record_behaviors(state: Any, behaviors: Iterable[Any]) -> list:
     """Observed behavior this turn -> each present perceiver's impressions (story tracks only)."""
     model = getattr(state, "world_model", None)
     if model is None or not enabled(state) or not behaviors:
         return []
-    cfg = getattr(state, "story_cfg", {}) or {}
-    rules = social_rules(cfg)
-    if rules is None or rules.appraisal is None:
+    ctx = social_context(state)
+    if ctx is None:
         return []
     witnesses = set(model.present_with_player()) if model.player_place() else set()
-    genders = {str(c.get("key")): str(c.get("gender") or "").upper() for c in cfg.get("characters") or []}
-    genders[PLAYER] = str(getattr(state, "gender", "") or "").upper()
-    return appraise_behaviors(model, rules, personalities(cfg), behaviors, witnesses,
+    return appraise_behaviors(model, ctx.rules, personalities(state.story_cfg), behaviors, witnesses,
                               getattr(state, "character_graph", None), turn_key=str(model.turn + 1),
-                              genders=genders)
+                              genders=ctx.genders)
+
+
+def advance_npc_life(state: Any, model: WorldModel, ctx: SocialContext, now: int) -> None:
+    """Agendas from each character's own standing; couples form and leave only by mutual qualification."""
+    policy, track = ctx.rules.couples, ctx.rules.appraisal.track
+    day = model.world.day_index(now)
+    refresh_agendas(model, track, policy.interested_tier, ctx.eligible, day)
+    place = model.player_place()
+    for a, b in couples_ready(model, track, policy.dating_tier, ctx.eligible, day):
+        key = f"{a}|{b}"
+        model.npc_couples[key] = day
+        model.world.add_event(now, model.world.place_of(a) or place, (a, b), f"@{a} and @{b} became a couple",
+                              kind="npc_couple_formed", visibility="public", operation_id=f"couple:{key}")
+        model.add_trace(now, model.world.place_of(a) or place, f"@{a} and @{b} seem to be together now",
+                        involves=(a, b))
+    lifecycle = getattr(state, "cast_lifecycle", None)
+    for a, b in couples_leaving(model, track, policy.committed_tier, policy.days_together, day):
+        key = f"{a}|{b}"
+        model.departed_couples.append(key)
+        model.counters["couples_left"] = model.counters.get("couples_left", 0) + 1
+        model.world.add_event(now, model.world.place_of(a) or place, (a, b),
+                              f"@{a} and @{b} left the house together as a couple", kind="couple_departure",
+                              visibility="public", operation_id=f"couple_departure:{key}")
+        model.add_trace(now, place, f"@{a} and @{b} have packed up and left the house together", involves=(a, b))
+        if lifecycle is not None and getattr(lifecycle, "enabled", False):
+            for cid in (a, b):
+                if cid not in lifecycle.active_ids():
+                    continue
+                lifecycle.propose_departure(cid, minute=now, reason="left the house as a couple",
+                                            event_id=f"couple_propose_{key}_{cid}")
+                state.pending_events.append(PendingEvent(
+                    event_id=f"couple_replace_{key}_{cid}", event_type="cast_departure_replacement",
+                    scheduled_day=day_number(now), payload={"departing_id": cid, "reason": "left as a couple"},
+                    created_minute=now))
+
+
+BEAT_TEXT = {
+    "test_loyalty": "{name} saw the player being flirtatious with someone else and wants to find out where "
+                    "they stand; they may bring it up.",
+    "pursue": "{name} is drawn to the player and may look for a moment with them.",
+}
 
 
 def _claim_grounded(key: str, value: str, message: str) -> bool:

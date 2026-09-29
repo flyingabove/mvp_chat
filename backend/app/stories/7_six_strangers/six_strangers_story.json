@@ -2273,6 +2273,8 @@
       "track": "romance", "gain_scale": 3, "witness_scale": 0.3, "feeling_scale": 0.02,
       "romantic_tags": ["flirtatious", "complimentary"], "jealousy_tier": "interested",
       "eligible": "opposite_gender"
-    }
+    },
+    "couples": {"interested_tier": "interested", "dating_tier": "dating", "committed_tier": "committed",
+                "days_together": 2}
   }
 }

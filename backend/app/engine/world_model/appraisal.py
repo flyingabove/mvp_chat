@@ -13,13 +13,16 @@ from typing import Any, Iterable
 
 from backend.app.engine.rules.personality import Personality
 from backend.app.engine.rules.tracks import SocialRules
+from backend.app.engine.world_model.agenda import add_intention
 from backend.app.engine.world_model.events import Event
+from backend.app.engine.world_model.intent import Intention
 from backend.app.engine.world_model.model import PLAYER, WorldModel
 from backend.app.engine.world_model.standards import apply_impression, enforce_dealbreakers
 from backend.app.engine.world_model.standing import AppliedEffect, Impression
 
 
 APPRAISED_KEEP = 500
+REACTION_DAYS = 2
 
 
 @dataclass
@@ -108,5 +111,9 @@ def appraise_behaviors(model: WorldModel, rules: SocialRules, personalities: dic
             if graph is not None:
                 for toward, deltas in appraisal.feelings.items():
                     graph.update_edge(perceiver, toward, narrative="", **deltas)
+            day = model.world.day_index(event.minute)
+            for kind, toward in appraisal.reactions:
+                add_intention(model, perceiver, Intention(kind, toward, 0.8, f"reacting to {event.id}",
+                                                          day + REACTION_DAYS))
             enforce_dealbreakers(model, rules, perceiver, actor, event.id, graph)
     return applied

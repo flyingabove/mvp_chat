@@ -15,6 +15,7 @@ from backend.app.engine.world_model.drama import DramaBook
 from backend.app.engine.world_model.memory import MemoryStore
 from backend.app.engine.world_model.standing import StandingBook
 from backend.app.engine.world_model.persona import PersonaBook
+from backend.app.engine.world_model.intent import Intention
 from backend.app.engine.world_model.threads import Thread
 from backend.app.engine.world_model.world import World
 
@@ -132,6 +133,10 @@ class WorldModel:
     appraised_events: list[str] = field(default_factory=list)        # behavior events already judged
     persona: PersonaBook = field(default_factory=PersonaBook)        # self-claims with their audiences
     act_cooldowns: dict[str, int] = field(default_factory=dict)      # "act:target" -> last blocked day
+    agendas: dict[str, list[Intention]] = field(default_factory=dict)  # character -> own intentions
+    npc_couples: dict[str, int] = field(default_factory=dict)        # "a|b" -> day the couple formed
+    departed_couples: list[str] = field(default_factory=list)        # couples who left the house
+    counters: dict[str, int] = field(default_factory=dict)           # story clocks (e.g. couples_left)
     view: TurnView = field(default_factory=TurnView)       # transient
     pending_verdicts: list = field(default_factory=list)   # transient: this turn's social-act verdicts
 
@@ -202,7 +207,10 @@ class WorldModel:
                 "standing": self.standing.to_dict(),
                 "appraised_events": list(self.appraised_events),
                 "persona": self.persona.to_dict(),
-                "act_cooldowns": dict(self.act_cooldowns)}
+                "act_cooldowns": dict(self.act_cooldowns),
+                "agendas": {cid: [i.to_dict() for i in items] for cid, items in self.agendas.items()},
+                "npc_couples": dict(self.npc_couples), "departed_couples": list(self.departed_couples),
+                "counters": dict(self.counters)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -239,4 +247,9 @@ class WorldModel:
                    standing=StandingBook.from_dict(data.get("standing") or {}),
                    appraised_events=list(data.get("appraised_events") or []),
                    persona=PersonaBook.from_dict(data.get("persona") or {}),
-                   act_cooldowns={str(k): int(v) for k, v in (data.get("act_cooldowns") or {}).items()})
+                   act_cooldowns={str(k): int(v) for k, v in (data.get("act_cooldowns") or {}).items()},
+                   agendas={str(cid): [Intention.from_dict(i) for i in items]
+                            for cid, items in (data.get("agendas") or {}).items()},
+                   npc_couples={str(k): int(v) for k, v in (data.get("npc_couples") or {}).items()},
+                   departed_couples=list(data.get("departed_couples") or []),
+                   counters={str(k): int(v) for k, v in (data.get("counters") or {}).items()})
