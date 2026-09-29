@@ -3923,13 +3923,43 @@ if ("serviceWorker" in navigator) {
 }
 
 var SHELL_REVISION = "__SHELL_REVISION__";
+var UPDATE_RETRY_MS = 60000;
+var UPDATE_ATTEMPT_KEY = "storieschat_update_attempt";
 var checkingUpdate = false;
+// Decide what a newer server shell means for this page: "none", "reload" or "prompt".
+// Live iPhone Safari (2026-09-29) reloaded 161 times in 52s: each reload came back
+// with the same stale page, still older than version.json, so it reloaded again and
+// the screen flashed "Loading…". Reload automatically once per new revision; if the
+// page is still stale after that, ask the player instead of looping.
+function appUpdateAction(serverRevision, pageRevision, href, now, attemptedRevision){
+  if (!serverRevision || serverRevision === pageRevision) return "none";
+  if (attemptedRevision === serverRevision) return "prompt";
+  var stamp = Number(new URL(href).searchParams.get("_hr"));
+  if (stamp && now - stamp >= 0 && now - stamp < UPDATE_RETRY_MS) return "prompt";
+  return "reload";
+}
+function showUpdateBanner(){
+  if (document.getElementById("app-update-banner")) return;
+  var bar = document.createElement("button");
+  bar.id = "app-update-banner";
+  bar.type = "button";
+  bar.textContent = "A new version is ready. Tap to update.";
+  bar.style.cssText = "position:fixed;left:16px;right:16px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:9999;padding:10px 14px;border:0;border-radius:12px;background:var(--red,#e50914);color:#fff;font-family:inherit;font-size:14px;font-weight:600;";
+  bar.addEventListener("click", function(){ hardReloadApp(false); });
+  document.body.appendChild(bar);
+}
 function checkAppUpdate(){
   if (checkingUpdate || document.hidden || appState.awaitingResponse) return;
   checkingUpdate = true;
   fetch("version.json", {cache: "no-store"}).then(function(r){ return r.json(); }).then(function(v){
-    if (v.shell_revision && v.shell_revision !== SHELL_REVISION) {
+    var attempted = "";
+    try { attempted = sessionStorage.getItem(UPDATE_ATTEMPT_KEY) || ""; } catch(e) {}
+    var action = appUpdateAction(v.shell_revision, SHELL_REVISION, window.location.href, Date.now(), attempted);
+    if (action === "reload") {
+      try { sessionStorage.setItem(UPDATE_ATTEMPT_KEY, v.shell_revision); } catch(e) {}
       hardReloadApp(false);
+    } else if (action === "prompt") {
+      showUpdateBanner();
     }
   }).catch(function(){}).finally(function(){ checkingUpdate = false; });
 }

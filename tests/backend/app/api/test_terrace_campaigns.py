@@ -4,6 +4,7 @@ No model calls: extraction is scripted and the storyteller is faked, so these
 prove the rules (earned win, director cut, solo exit on both player-gender
 paths), not prose quality.
 """
+import random
 import types
 
 import pytest
@@ -16,6 +17,12 @@ from backend.app.engine.extractors.turn_extractor import BehaviorTagUpdate, Soci
 def campaign(monkeypatch, tmp_path):
     from backend.app.api import prompt_engine as pe
     from backend.app.db import database, repos
+    from backend.app.engine import cast_lifecycle
+
+    # The opening roster is drawn with secrets.SystemRandom, so an unseeded campaign
+    # was a different house every run and the passive-cut test failed ~1 in 3 on the
+    # Railway build (2026-09-29). Seed 0 is one of the slowest houses measured.
+    monkeypatch.setattr(cast_lifecycle.secrets, "SystemRandom", lambda: random.Random(0))
 
     monkeypatch.setattr(database, "DATA_DIR", tmp_path)
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "storieschat.db")
@@ -72,7 +79,8 @@ def _say(c, sid, message="Hi."):
 def test_a_passive_player_is_eventually_cut_by_the_director(campaign):
     state = _new_game(campaign, "passive", "M")
     ending = None
-    for _ in range(120):   # casts are random; the cut should come within a few in-game months
+    # A 12-roster sweep (2026-09-29) cut the passive player on days 94-135; 180 leaves margin.
+    for _ in range(180):
         body = _say(campaign, "passive", "__cmd_skip__:DAY")
         ending = body.get("ending") or ending
         if ending:
