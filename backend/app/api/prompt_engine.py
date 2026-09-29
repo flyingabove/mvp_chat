@@ -11,6 +11,7 @@ from backend.app.engine.extractors.turn_extractor import (
 from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
 from backend.app.db.repos import SessionRepo, SessionRevisionConflict, TurnReceipt, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
+from backend.app.engine.rules.endings import Outcome, goal_payload, resolve_outcome
 
 import asyncio
 import copy
@@ -100,8 +101,6 @@ from backend.app.engine.gameplay import (
     advance_time,
 
     advance_time_by,
-
-    win_condition_detected,
 
     process_pending_events,
 
@@ -1625,6 +1624,7 @@ def _serialize_state(state: GameState, log: list) -> str:
         "relationship": state.relationship,
         "turns": state.turns,
         "over": state.over,
+        "outcome": getattr(state, "outcome", None),
         "instance": state.instance,
         "language_theme": (
             state.language_theme.value
@@ -1713,6 +1713,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         restored.relationship = saved.get("relationship", 0)
         restored.turns = saved.get("turns", 0)
         restored.over = saved.get("over", False)
+        restored.outcome = saved.get("outcome") or None
         restored.instance = saved.get("instance", 1)
         restored.world_start_datetime = saved.get("world_start_datetime", "")
         restored.last_travel_from_id = saved.get("last_travel_from_id", "")
@@ -2828,6 +2829,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         if bool(sess.get("chinese_mode", False)):
             reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
         newgame_result = {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
+        new_goal = goal_payload(new_state)
+        if new_goal is not None:
+            newgame_result["goal"] = new_goal
 
         # Persist new session to DB (authenticated users only)
         if user_id != "anon":
@@ -2893,7 +2897,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             return {"reply": "Session expired. Please start a new game from the home screen.", "character": "default"}
 
     if state.over:
-        return {"reply": "This story has ended. Start a new game from the home screen to play again.", "character": "default"}
+        ended = {"reply": "(This story has ended. Start a new game from the home screen to play again.)",
+                 "character": "default"}
+        if getattr(state, "outcome", None):
+            ended["ending"] = Outcome.from_dict(state.outcome).payload()
+        return ended
 
     # Phase 1.1: isolate this turn's mutations from the live cached session.
     #
@@ -3626,12 +3634,15 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     except Exception:
         pass
 
-    if getattr(getattr(state, "world_model", None), "romance_outcome", "") == "solo_departure":
-        state.over = True
-        clean += f"\n\nEND GAME -- You chose to leave the house alone. Turns: {state.turns}"
-    elif win_condition_detected(clean, state):
-        state.over = True
-        clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
+    # BL-39 phase A: one typed ending, evaluated once from committed
+    # decisions and saved in the same commit as this reply. The END GAME text
+    # stays for the operator debug harness (debug_engine string-matches it).
+    outcome = resolve_outcome(state, clean)
+    if outcome is not None:
+        state.outcome = outcome.to_dict()
+        state.over = outcome.ends_run
+        marker = "END GAME YOU WIN" if outcome.kind == "win" else f"END GAME -- {outcome.title}"
+        clean += f"\n\n{marker} -- turns: {state.turns}"
 
     # Persist this completed turn for next turn's single-call extractor analysis.
     # These must be set BEFORE the session save below so the persisted row
@@ -3680,6 +3691,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
 
     result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
+    if outcome is not None:
+        result["ending"] = outcome.payload()
+    goal = goal_payload(state)
+    if goal is not None:
+        result["goal"] = goal
     # prompt_debug carries the FULL assembled system prompt (all canonical
     # facts, character secrets, retrieval chunk text) and is only for the
     # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,

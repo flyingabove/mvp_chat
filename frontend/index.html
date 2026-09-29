@@ -842,6 +842,32 @@
       border-top: 1px solid rgba(255,255,255,0.05);
       display: flex; align-items: center; gap: 10px;
     }
+    #chat-goal-pill {
+      flex-shrink: 0;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+      margin: 6px 12px 0; padding: 6px 12px;
+      border: 1px solid var(--border); border-radius: 14px;
+      background: var(--card); color: var(--text-sub);
+      font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+    }
+    #chat-goal-pill[hidden] { display: none; }
+    #chat-goal-pill .goal-label { color: var(--text); font-weight: 600; }
+    #chat-goal-text { flex-basis: 100%; color: var(--text); line-height: 1.4; }
+    .ending-card {
+      margin: 16px auto; max-width: 420px; padding: 18px 20px;
+      border-radius: 16px; border: 1px solid var(--border);
+      background: var(--card); text-align: center;
+    }
+    .ending-card.win { border-color: #f5c542; }
+    .ending-card.loss { border-color: var(--red); }
+    .ending-card .ending-label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-sub); }
+    .ending-card .ending-title { margin: 6px 0; font-size: 20px; font-weight: 700; color: var(--text); }
+    .ending-card .ending-summary { font-size: 14px; line-height: 1.45; color: var(--text); }
+    .ending-card .ending-turns { margin-top: 6px; font-size: 12px; color: var(--text-sub); }
+    .ending-card button {
+      margin-top: 14px; padding: 10px 20px; border: 0; border-radius: 20px;
+      background: var(--red); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+    }
     #chat-ai-disclaimer {
       flex-shrink: 0;
       text-align: center;
@@ -1394,6 +1420,13 @@
       <div class="dropdown-item" id="dd-exit" style="color:#ff6b6b;"><span class="di-icon">🚪</span> Exit Game</div>
     </div>
   </div>
+
+  <!-- Story goal (BL-39 phase A): authored goal + progress the player has seen -->
+  <button id="chat-goal-pill" type="button" hidden aria-expanded="false">
+    <span class="goal-label">Goal</span>
+    <span id="chat-goal-status"></span>
+    <span id="chat-goal-text" hidden></span>
+  </button>
 
   <!-- Message area with character header at top -->
   <div id="chat-scroll-wrapper">
@@ -2631,6 +2664,8 @@ function launchChat(story, playerName, gender, guestMode){
   appState.userAvatarLabel = getPlayerAvatarLabel(playerName);
 
   // Setup chat UI
+  renderGoal(null);
+  setChatEnded(false);
   $("chat-char-name").textContent = story.title;
   $("chat-char-sub").textContent = story.genre || "Game";
   renderAvatarImage($("chat-char-avatar-mini"), story.thumbnail_url || getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
@@ -2728,6 +2763,8 @@ function resumeGameFromSession(sess){
   dialoguePresentation.finish();
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
+  renderGoal(sess.goal || null);
+  setChatEnded(false);
 
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
 
@@ -2759,6 +2796,7 @@ function resumeGameFromSession(sess){
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
         if (!entries.length) addSystemMessage("(Continue where you left off)");
+        renderEnding(data.ending || sess.ending);
       })
       .catch(function(){
         addSystemMessage("(History unavailable — continue where you left off)");
@@ -2959,8 +2997,58 @@ function showTypingIndicator(){ $("typing-indicator").classList.add("visible"); 
 function hideTypingIndicator(){ $("typing-indicator").classList.remove("visible"); }
 
 /* ─── SEND / RECEIVE ────────────────────────────── */
+/* ─── GOAL AND ENDING (BL-39 phase A) ───────────── */
+function renderGoal(goal){
+  var pill = $("chat-goal-pill");
+  if (!pill) return;
+  if (!goal || !goal.text){ pill.hidden = true; return; }
+  $("chat-goal-status").textContent = goal.status || "Tap to see your goal";
+  $("chat-goal-text").textContent = goal.text;
+  pill.hidden = false;
+}
+
+function setChatEnded(ended){
+  appState.gameEnded = Boolean(ended);
+  var input = $("chat-text-input");
+  var sendBtn = $("chat-send-btn");
+  if (input){
+    input.disabled = appState.gameEnded;
+    input.placeholder = appState.gameEnded ? "This story has ended." : "Message...";
+  }
+  if (sendBtn && appState.gameEnded) sendBtn.disabled = true;
+}
+
+function renderEnding(ending){
+  if (!ending) return;
+  var msgs = $("chat-messages");
+  if (!msgs.querySelector(".ending-card")){
+    var card = document.createElement("div");
+    card.className = "ending-card " + (ending.kind || "neutral");
+    card.setAttribute("role", "status");
+    card.innerHTML =
+      '<div class="ending-label">' + escapeHTML(ending.label || "Story ended") + '</div>' +
+      '<div class="ending-title">' + escapeHTML(ending.title || "") + '</div>' +
+      '<div class="ending-summary">' + escapeHTML(ending.summary || "") + '</div>' +
+      (ending.turns ? '<div class="ending-turns">' + escapeHTML(String(ending.turns)) + ' turns</div>' : '') +
+      (ending.ends_run ? '<button type="button" class="ending-home-btn">Back to home</button>' : '');
+    var home = card.querySelector(".ending-home-btn");
+    if (home) home.addEventListener("click", function(){ showScreen("home"); });
+    msgs.appendChild(card);
+    scrollChatToBottom();
+  }
+  if (ending.ends_run) setChatEnded(true);
+  if (appState.session){ appState.session.ending = ending; saveSession(appState.session); }
+}
+
+$("chat-goal-pill").addEventListener("click", function(){
+  var text = $("chat-goal-text");
+  text.hidden = !text.hidden;
+  this.setAttribute("aria-expanded", String(!text.hidden));
+});
+
 function sendMessage(text, isInit, options){
   options = options || {};
+  if (appState.gameEnded && !isInit) return;
   if (/^\s*(?:\[(?:m|map)\]|\((?:m|map)\))\s*$/i.test(text)) { showMapModal(true); return; }
   if (appState.awaitingResponse && !isInit) return;
   appState.awaitingResponse = true;
@@ -3010,6 +3098,11 @@ function sendMessage(text, isInit, options){
       if (reply) addMessage("npc", reply, { segments: data.segments });
       if (data && data.cast_roster) renderCastRoster(data.cast_roster);
       addDebugBox(data && data.debug_box);
+      if (data && data.goal){
+        renderGoal(data.goal);
+        if (session){ session.goal = data.goal; }
+      }
+      if (data && data.ending) renderEnding(data.ending);
 
       // Update session
       if (session){
@@ -3035,7 +3128,7 @@ function sendMessage(text, isInit, options){
   .finally(function(){
     appState.awaitingResponse = false;
     if (sendBtn) {
-      sendBtn.disabled = ($("chat-text-input").value.trim().length === 0);
+      sendBtn.disabled = appState.gameEnded || ($("chat-text-input").value.trim().length === 0);
     }
   });
 }

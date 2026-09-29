@@ -5717,6 +5717,73 @@ def test_a_question_about_bedtime_does_not_put_the_player_to_sleep(client):
     assert pe_mod.SESSIONS[sid]["state"].minute - before < 60
 
 
+def _terrace_session(client, sid, headers):
+    from backend.app.api import prompt_engine as pe_mod
+
+    r = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+                    headers=headers)
+    assert r.status_code == 200
+    return pe_mod, r.json()
+
+
+def test_new_game_returns_the_goal_card(client):
+    _, opening = _terrace_session(client, "ending_goal_card", {})
+    assert opening["goal"]["status"] == "No mutual relationship yet."
+    assert "leave the house together" in opening["goal"]["text"]
+
+
+def test_mutual_departure_returns_a_win_ending_saved_with_the_reply(client):
+    """BL-39 phase A: the ending is structured, fires once, and is committed
+    with the reply; the next request and a reload both show it."""
+    import json as _json
+    from backend.app.db.repos import SessionRepo
+
+    headers = {"X-Guest-Id": "99999999-aaaa-4bbb-8ccc-dddddddddddd"}
+    pe_mod, _ = _terrace_session(client, "ending_win", headers)
+    state = pe_mod.SESSIONS["ending_win"]["state"]
+    partner = state.world_model.present_with_player()[0]
+    state.world_model.romance_relationship_partner = partner
+    state.world_model.romance_outcome = "mutual_departure"
+
+    r = client.post("/api/chat", json={"session_id": "ending_win", "message": "Let's go.", "request_id": "end-1"},
+                    headers=headers)
+    body = r.json()
+    assert body["ending"]["id"] == "left_together" and body["ending"]["kind"] == "win"
+    assert body["ending"]["label"] == "You won" and body["ending"]["ends_run"] is True
+    assert "END GAME YOU WIN" in body["reply"], "operator debug marker is kept"
+
+    user_id = pe_mod.SESSIONS["ending_win"]["state"].user_id
+    saved = SessionRepo._get("ending_win", user_id)
+    saved_state = _json.loads(saved["state_json"])
+    assert saved_state["over"] is True and saved_state["outcome"]["ending_id"] == "left_together"
+    assert _json.loads(saved["last_reply_json"])["ending"] == body["ending"]
+
+    after = client.post("/api/chat", json={"session_id": "ending_win", "message": "Hello?"}, headers=headers).json()
+    assert after["ending"] == body["ending"]
+    pe_mod.SESSIONS.pop("ending_win")
+    reloaded = client.post("/api/chat", json={"session_id": "ending_win", "message": "Anyone?"}, headers=headers).json()
+    assert reloaded["ending"] == body["ending"]
+    history = client.get("/api/user/sessions/ending_win/history", headers=headers).json()
+    assert history["ending"] == body["ending"], "resuming a finished game shows its ending"
+
+
+def test_solo_departure_is_a_neutral_ending(client):
+    pe_mod, _ = _terrace_session(client, "ending_solo", {})
+    pe_mod.SESSIONS["ending_solo"]["state"].world_model.romance_outcome = "solo_departure"
+    body = client.post("/api/chat", json={"session_id": "ending_solo", "message": "Bye."}).json()
+    assert (body["ending"]["id"], body["ending"]["kind"], body["ending"]["label"]) == (
+        "left_alone", "neutral", "Story ended")
+    assert "YOU WIN" not in body["reply"]
+
+
+def test_ordinary_turns_and_declined_offers_have_no_ending(client):
+    pe_mod, _ = _terrace_session(client, "ending_none", {})
+    body = client.post("/api/chat", json={"session_id": "ending_none",
+                                          "message": "Do you want to leave together? No? Okay."}).json()
+    assert "ending" not in body
+    assert pe_mod.SESSIONS["ending_none"]["state"].over is False
+
+
 def test_addressed_question_reaches_the_storyteller_and_stays_owed(client, monkeypatch):
     """BL-39 O08 end to end: the extraction call reports a question to a
     present character; the storyteller prompt carries the obligation, and it
