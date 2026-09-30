@@ -279,6 +279,15 @@ Built and pushed to beta, one commit per phase, each hosted-checked: independent
 
 Not done, tracked: O09 narration agency (BL-29, owner: backlog), relationship-graph storage cutover (BL-40), IU investigation records/interviews (BL-41, owner content), invites/dates/travel and the "2 completed dates" romance gate (BL-35), panel asides and NPC departure segments, context-focus policies, true streaming, and the hosted 20-turn campaigns with human grading. Terrace personality numbers and the romance ladder are tuning drafts pending owner review. Target decisions use a documented local policy (standing + standards), not a model call.
 
+**Hosted-play hardening shipped 2026-09-29 (beta `eb4cae1`, each covered by unit tests; suite 1511 pass):**
+- **Invited movement** (`world_model/companions.py`, called from `begin_turn`): a present, awake, not-cold resident travels with the player only on an explicit invitation (named, or the sole person present); future or conditional invitations move nobody. Closes the "date happened in an empty room" hole for on-the-spot invitations; scheduled arrival stays in BL-35.
+- **Question backstop** (`world_model/conversation.py`): `PendingQuestion.replies`, `MAX_DIRECTED_REPLIES = 1`; a question closes on the addressee's first reply, so no character answers twice (O08 follow-up, see BL-37).
+- **Promises** (`commitments.py`, `promise_judge.py`, `turn.py`, `contact.py`): once-only reminders (`Memory.reminded`, `mark_reminded`), silent lapse for promise-derived plans, word-overlap completion deleted, Jev promise judge (choice + yes/no in one request, either says done; `PROMISE_JUDGE_ENABLED`, on by default and inert when Jev is off). Accuracy gate: `pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py` (2% miss rate, nothing wrongly kept, never run on deploy); measured 0.6-1.2%. Design and evidence: `proposals/PROMISE_COMPLETION_JEV_2026_09_29.md`.
+- **Update-reload loop** (`frontend/index.html` `appUpdateAction`): the version check reloads automatically at most once per server revision, then shows a tap-to-update bar; fixes the iPhone Safari "flashing Loading" loop (161 reloads in 52 s). `tests/frontend/app_update.test.cjs`.
+- **Deterministic campaigns** (`tests/backend/app/api/test_terrace_campaigns.py`): the opening roster RNG is seeded and the passive-cut budget is 180 days; the unseeded roster had failed the deploy gate about one run in three.
+- **Owner rules recorded** in `documentation/user_corrections.md` (2026-09-29): state trackers may forget but must never register a kept promise as unkept; semantic matching goes to Jev with a measured bar or is removed.
+- **Opened from that play:** BL-43 (name and nickname matching via Jev), BL-44 (resume of a server-deleted session shows a blank chat), BL-45 (remaining promise-judge misses), BL-46 (a refused "leave this house" ask walks the player outdoors), BL-47 (arrival introductions replayed, stock refusal lines).
+
 ## 12. Decision log and review answers
 
 | Question | Answer / evidence status |

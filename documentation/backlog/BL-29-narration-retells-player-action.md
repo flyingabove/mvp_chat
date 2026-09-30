@@ -56,3 +56,5 @@ information after the restated clause.
 `backend/app/engine/prompt_builder.py`, `backend/app/engine/dialogue.py`, `backend/app/api/prompt_engine.py`
 (apply the trimmer next to `drop_player_echo`), `tests/backend/app/engine/test_dialogue*.py`,
 `tests/backend/app/api/test_prompt_engine.py`.
+
+**Hosted recurrence (2026-09-29, beta `eed2fd0`, 35 turns):** narration still restates the player's action as its opening line, for example turn 8 "Inviting her to join you in the Living Room. As you lead the way ...". The bounded echo trimmer does not catch paraphrased or gerund-form restatements. Keep open.

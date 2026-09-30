@@ -27,6 +27,7 @@
 5. Stopgap, only if the above is delayed: forbid moving a housemate out of the scene unless the player asks or a validated event says so.
 Cover each step with a live check in which an NPC leaves the room.
 **Touches:** `backend/app/engine/extractors/turn_extractor.py`, `backend/app/api/prompt_engine.py`.
+**Status check (2026-09-29):** partly delivered by the world model, not closed. `world_model/routine.py` and `stepper.py` move residents by authored daily blocks (Terrace story JSON `world_model.routines`), residents in the scene with the player are protected from vanishing, and `state.character_locations` is now a projection of the world index (`turn.py` `mirror_locations`), which covers steps 2-3 of the list above. Still missing: step 1 (an extractor field for narration-driven NPC moves; `npc_movements` has no hits in `backend/app`) and step 4 (per-NPC last-seen place and time). No live check with an NPC leaving the room was run.
 
 ### BL-23 — Arena judge (Jev) favors longer replies despite instructions (source: arena calibration, 2026-09-24)
 **What:** Calibration's `shorten` control (same meaning, fewer words) lost to the longer original in 3/3 resolved cases (1 unresolved) although every question says not to prefer length. Previously miscounted as a pass; the expectation is now `original_not_win`, so reports show it failing, and every report carries a per-game "longer side won" table (`report.py` `length_confound`).
@@ -51,6 +52,7 @@ Cover each step with a live check in which an NPC leaves the room.
 **Why deferred:** Found while building the evaluation arena; the fix changes live extractor behavior in another agent's in-flight Jev rollout (BL-17), so it needs that owner's decision and its own ship-and-verify pass rather than riding along with the arena commit.
 **What's needed:** Map list criteria for `noul` to `{"true": criteria[0], "false": "not: " + criteria[0]}` in ONE place (`JevClient._build_criteria`), add a regression test that asserts the request shape, and re-verify live that the knowledge/speaker/relationship-history batches return answers. The arena's own probes already use the map shape (`evaluation/rubric.py` `CriticalProbe.criteria`).
 **Touches:** `backend/app/llm/providers/jev.py`, `tests/backend/app/llm/providers/`.
+**Status check (2026-09-29):** still open. Reconfirmed live while building the promise judge: a `noul` Decision built with list criteria came back from the shared resolver as `http_error` (HTTP 422 from Jev), and the same decision with a map (`{"carried_out": "..."}`) returned a probability. `decision_registry.py` lines 182, 326 and 386 still pass lists and `jev.py` `_build_criteria` still passes them through, so those abilities never get a real Jev answer on beta. New Jev decisions must use a criteria map (see `promise_judge.done_decision_for`); the one-place fix in `_build_criteria` plus a request-shape test is unchanged.
 
 ### BL-19 — Arena Phase 2: server receipts, controlled init, snapshots, response forks (source: Jev game arena, 2026-09-23)
 **What:** The arena runs in observational mode: public `/api/chat` + the player-facing `[D]` debug box. Not yet built: server-side per-turn receipts (applied events, pre/post state hashes, component versions), seeded/controlled initialization (roster, RNG streams), snapshot export/restore, and the identical-state response-fork track (design §5B). Checks needing them (`cast_capacity`, `rng_stream_parity`, `state_transition_legality`, `snapshot_round_trip`) are reported as not measured.
@@ -125,6 +127,7 @@ Cover each step with a live check in which an NPC leaves the room.
 **Why deferred:** A real scheduling/quest/resource engine is a substantial, genre-spanning feature, not something to bolt on while adding one story mode layer.
 **What's needed:** Design a lightweight, story-JSON-declarable schedule/trigger primitive (e.g. NPC location-by-time-of-day, simple flag-gated triggers) that both mystery and social_sim stories could opt into.
 **Touches:** `backend/app/engine/gameplay.py`, story JSON schema, `documentation/proposals/GAME_DESIGN_SYSTEMS.md`.
+**Status check (2026-09-29):** the schedule half is delivered (per-character routines, sleep, off-screen life and commitments in `backend/app/engine/world_model/`, declared in story JSON). Quests, flag-gated triggers and resource tracking are still absent, so this stays open for those.
 
 ---
 

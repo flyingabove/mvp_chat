@@ -27,3 +27,5 @@ Prompt changes alter both games and need arena and human review; this is not a r
 
 ## Touches
 `backend/app/engine/prompt_builder.py`, `dialogue.py`, Terrace voice data, tests and hosted evaluation.
+
+**O08 follow-up from hosted play (2026-09-29, beta `eb4cae1`):** the first version of the engine backstop closed an unresolved question only after two addressee replies, which guaranteed a second answer (seen three times: Minori's reason for joining and her hopes, Hikaru's favourite thing to cook). `conversation.py` `MAX_DIRECTED_REPLIES` is now 1: a question closes on the addressee's first reply after it was asked (a dodge is let go; the owner's rule is that repeating is the visible failure, forgetting is not). Verified live: eight questions to five housemates were each answered once and not repeated on later turns. Related still open here: stock phrases reused across characters and turns ([BL-47](BL-47-arrival-introductions-replayed-and-stock-lines.md)).

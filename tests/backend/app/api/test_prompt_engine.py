@@ -1595,7 +1595,8 @@ def test_extraction_outbox_row_marked_done_after_successful_extraction(client, m
         assert r1.status_code == 200
 
         async def _wait_and_check():
-            for _ in range(100):
+            # Polls up to 20s (returns the moment the row settles): a cold IU load or a busy builder pushed past the old 5s ceiling and failed the gate intermittently.
+            for _ in range(400):
                 await asyncio.sleep(0.05)
                 pending = await FactExtractionOutboxRepo.fetch_pending()
                 if not any(row["session_id"] == sid for row in pending):
@@ -1726,7 +1727,8 @@ def test_extraction_failure_leaves_row_pending_not_falsely_done(client, monkeypa
     ).status_code == 200
 
     async def _wait_for_row():
-        for _ in range(100):
+        # Polls up to 20s (returns the moment the row settles): a cold IU load or a busy builder pushed past the old 5s ceiling and failed the gate intermittently.
+        for _ in range(400):
             await asyncio.sleep(0.05)
             conn = get_connection()
             try:
