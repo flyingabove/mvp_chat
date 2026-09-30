@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/evidence.py
-"""Judge evidence packets (JEV_GAME_ARENA_DESIGN.md §6-7).
+"""Judge evidence packets (design/JEV_GAME_ARENA.md §6-7).
 
 One packet = one Jev `state` for one scene window of a pair, in ONE order
 (A/B). The pipeline builds the swapped packet separately.

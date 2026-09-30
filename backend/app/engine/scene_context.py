@@ -6,7 +6,7 @@ scattered across module-level functions in `prompt_builder.py`
 `_get_scene_speaker_keys`, `_scene_cast_keys`, `_scene_presence_keys`,
 `_fact_owner_only_upcoming`, `_main_character_scene_eligible`,
 `_scene_presence_has_been_computed`) into one object, per the Six Strangers
-audit's recommendation (documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md,
+audit's recommendation (SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md (removed; see git history),
 "one reusable context-selection policy separating membership, physical
 presence, known public history, and private knowledge").
 

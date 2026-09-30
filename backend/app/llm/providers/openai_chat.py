@@ -4,7 +4,7 @@
 Extracts the pattern duplicated across today's call sites (turn_extractor.py,
 the storyteller call and Chinese translation call in prompt_engine.py,
 location_extractor.py, dialogue_extractor.py, knowledge_resolution_extractor.py)
-into one client, per JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §5's
+into one client, per design/JEV.md (provider architecture) §5's
 "Before/After" description: each of those sites builds its own
 httpx.AsyncClient and hardcodes its own URL today; this is the shared
 implementation they migrate to, one at a time, in later steps.

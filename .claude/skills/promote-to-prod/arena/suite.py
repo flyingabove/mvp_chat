@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/suite.py
-"""The versioned benchmark suite (JEV_GAME_ARENA_DESIGN.md §9).
+"""The versioned benchmark suite (design/JEV_GAME_ARENA.md §9).
 
 Both active games, two starting conditions each (player gender selects a
 different Six Strangers slot/bedroom, and a different IU persona opening),

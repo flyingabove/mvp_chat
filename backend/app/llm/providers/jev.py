@@ -2,9 +2,9 @@
 """Raw TypeSafe AI (Jev) transport client.
 
 Request/response shapes verified against the LIVE API on 2026-09-22 — see
-documentation/JEV_EXTRACTOR_REDESIGN_2026_09_22.md §7 for the full evidence
+documentation/design/JEV.md §7 for the full evidence
 (5 real requests, 21 questions, all answers correct) and
-documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §8 for the request
+documentation/design/JEV.md §8 for the request
 schema this implements exactly.
 
 No policy here: no flags, no circuit breaker, no fallback. That is
@@ -111,7 +111,7 @@ class JevClient:
 
         Raises a ProviderTransportError subtype on timeout/connect/non-2xx/
         unparseable body — resolve() catches this and applies fallback
-        (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §4). Never returns a
+        (design/JEV.md (provider architecture) §4). Never returns a
         partial result silently; a malformed per-question answer raises
         here rather than producing a half-populated JevRawResult.
         """

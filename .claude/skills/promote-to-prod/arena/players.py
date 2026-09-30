@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/players.py
-"""Player policies (JEV_GAME_ARENA_DESIGN.md §5A, §6 PlayerObservation).
+"""Player policies (design/JEV_GAME_ARENA.md §5A, §6 PlayerObservation).
 
 A player sees ONLY what a human sees: the public story card
 (`/api/story/{id}` of the release it is playing) and the reply text. It

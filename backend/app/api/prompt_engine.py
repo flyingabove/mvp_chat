@@ -441,7 +441,7 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "characters": characters,
         "relationships": src.get("relationships") or {},
         # Optional ensemble/slice-of-life mode context (see
-        # documentation/model_output_docs/SOCIAL_MODE_DESIGN.md). Absent for
+        # documentation/design/SOCIAL_ENGINE.md). Absent for
         # all pre-existing stories, so this key is simply {} for them and the
         # prompt_builder mode layer emits nothing.
         "mode": src.get("mode") or {},
@@ -3102,7 +3102,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 "current_location_name": state.location,
             })
             # Step 1 of the Jev provider architecture (see
-            # documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §1): the
+            # documentation/design/JEV.md §1): the
             # stage ledger instrumented retrieval/storyteller/commit but NOT
             # extraction, so production extractor latency was an inference
             # rather than a recorded fact. Locally this call measured ~3.6s

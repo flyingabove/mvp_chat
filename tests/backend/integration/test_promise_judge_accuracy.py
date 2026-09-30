@@ -10,7 +10,7 @@ It needs TYPESAFE_API_KEY (auto-loaded from `.env.test`). Missing credentials ma
 kept (miss rate <= 2%), and nothing may be registered as kept that was not done.
 
 The labeled exchanges live in tests/eval_cases/promise_judge_cases.json and promise_judge_holdout.json. See
-documentation/proposals/PROMISE_COMPLETION_JEV_2026_09_29.md for how they were built and what they measure.
+documentation/design/JEV.md for how they were built and what they measure.
 """
 import pytest
 

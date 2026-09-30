@@ -119,7 +119,7 @@ If instructions every conflict with what is designed in the doc, always update t
 4. **Explain Changes:** High-level summary at each step
 5. **Document Results:** Add review section to `tasks/todo.md`
 6. **Capture Lessons:** Update `tasks/lessons.md` after corrections
-7. **Track Deferred Work:** Whenever work is knowingly deferred instead of finished (a finding fixed only partially, a manual owner action, a follow-up), add one file per item to `documentation/backlog/` using the `/add-and-remove-from-backlog` skill. Check the folder at session start alongside the doc index. When an item is fixed, **delete its file in the fixing commit** (`Closes BL-<n>`). The old `documentation/BACKLOG.md` is legacy: no new entries.
+7. **Track Deferred Work:** Whenever work is knowingly deferred instead of finished (a finding fixed only partially, a manual owner action, a follow-up), add one `### BL-<n>` entry to the single file `documentation/BACKLOG.md` (open work only) using the `/add-and-remove-from-backlog` skill. Check that file at session start alongside the doc index. When an item is fixed, **delete its entry in the fixing commit** (`Closes BL-<n>`); there is no Done section.
 
 ## Core Principles (核心原则)
 - **Simplicity First:** Make every change as simple as possible. Impact minimal code.

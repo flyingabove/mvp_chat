@@ -1,4 +1,4 @@
-"""Tests for .claude/skills/promote-to-prod/arena/aggregate.py (JEV_GAME_ARENA_DESIGN.md §8)."""
+"""Tests for .claude/skills/promote-to-prod/arena/aggregate.py (design/JEV_GAME_ARENA.md §8)."""
 import math
 
 import pytest

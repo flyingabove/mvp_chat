@@ -1,7 +1,7 @@
 # backend/app/llm/
 """All provider I/O lives here.
 
-Per documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §2: `engine/`
+Per documentation/design/JEV.md §2: `engine/`
 defines decisions as pure data (backend/app/engine/extractors/
 decision_registry.py) and assembles results; this package performs the
 actual network calls. `engine/` must never import from this package —

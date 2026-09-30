@@ -1,6 +1,6 @@
 """Tests for JevCircuitBreaker (backend/app/llm/decisions/health.py).
 
-Covers every case in JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §11's circuit
+Covers every case in design/JEV.md (provider architecture) §11's circuit
 breaker test plan. Uses an injectable fake clock throughout so cooldown
 timing is deterministic, never a real sleep().
 """

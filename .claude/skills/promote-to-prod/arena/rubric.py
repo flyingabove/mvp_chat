@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/rubric.py
-"""Judged dimensions, weights and criteria (JEV_GAME_ARENA_DESIGN.md §7).
+"""Judged dimensions, weights and criteria (design/JEV_GAME_ARENA.md §7).
 
 Each dimension is ONE narrow pairwise choice (A / B / tie /
 insufficient_evidence) plus a diagnostic 0-4 score per side. Weights are the

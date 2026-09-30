@@ -1,8 +1,8 @@
 # backend/app/llm/protocols.py
 """Shared provider protocols.
 
-Defined once here per JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §5 /
-PHASE_2_BACKEND_RESTRUCTURE_DESIGN_2026_09_22.md §5: both the Jev design and
+Defined once here per design/JEV.md (provider architecture) §5 /
+design/ROADMAP_NOT_BUILT.md (Phase 2) §5: both the Jev design and
 the Phase 2 backend restructure depend on this exact seam. Jev's
 DecisionResolver (backend/app/llm/decisions/resolver.py, step 3+) IS a
 DecisionProvider implementation — TurnExtractor depends only on this
@@ -10,7 +10,7 @@ protocol, never on Jev directly, so Jev can be swapped, mocked, or disabled
 without TurnExtractor's code changing.
 
 Step 2 note: these protocols are not wired to any call site yet. That is
-step 3 of the Jev implementation order (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md
+step 3 of the Jev implementation order (design/JEV.md (provider architecture)
 §12) — refactoring TurnExtractor into a batch builder / resolver / assembler.
 LegacyExtractionRequest's exact field set may be refined then, once the
 batch-builder code that constructs it is actually written; the shape below

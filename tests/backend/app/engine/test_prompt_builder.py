@@ -947,7 +947,7 @@ def test_character_identity_section_main_character_unconditional_regardless_of_p
 
 
 # ─── Optional `mode` layer (social_sim / ensemble slice-of-life games) ───────
-# See documentation/model_output_docs/SOCIAL_MODE_DESIGN.md for the schema.
+# See documentation/design/SOCIAL_ENGINE.md for the schema.
 
 def test_mode_context_section_absent_when_no_mode_key():
     """Backward compatibility: a story without `mode` gets zero extra content."""

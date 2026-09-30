@@ -1,10 +1,10 @@
 # backend/app/engine/extractors/decision_registry.py
 """Pure-data Decision definitions for TurnExtractor's Jev-eligible abilities.
 
-Per JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9 and §12 step 5 ("smallest
+Per design/JEV.md (provider architecture) §9 and §12 step 5 ("smallest
 slice first"): only the abilities that are pure `choice`, need no fan-out,
 no vocabulary authoring, and no arithmetic mapping are registered here.
-Ability numbers refer to JEV_EXTRACTOR_REDESIGN_2026_09_22.md's chart:
+Ability numbers refer to design/JEV.md (extractor redesign)'s chart:
 
   ability 1 (movement_intent)         -> movement_intent
   ability 2 (destination_id)          -> movement_destination
@@ -18,7 +18,7 @@ dedicated field was never reliable anyway.
 No engine/-purity violation: this module is pure data (dataclasses, no I/O,
 no httpx import) even though it lives under engine/extractors/ alongside
 turn_extractor.py, matching the package layout in
-JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §2.
+design/JEV.md (provider architecture) §2.
 
 KNOWN SCOPE LIMITATION, documented rather than silently worked around:
 `movement_destination`'s `allowed` set is built from the FULL
@@ -352,7 +352,7 @@ def relationship_history_decision(target_id: str, field_name: str) -> Decision:
     target) pair, anchored to the player, same NPC-to-NPC scope limitation
     as ability 9 above (the legacy schema allows NPC-to-NPC pairs, but the
     combinatorics of an O(n^2) fan-out are not worth it for a fact this
-    rare — see JEV_EXTRACTOR_REDESIGN_2026_09_22.md's cost analysis).
+    rare — see design/JEV.md (extractor redesign)'s cost analysis).
     "Gated": the caller (relationship_history_batch_decisions) only builds
     these for characters actually present in the current exchange, not
     every known character — these are rare, explicitly-confirmed facts, not

@@ -14,7 +14,7 @@ Debug System — AI Learnings & Reference
 > **Not the release evaluator.** The beta-vs-prod quality comparison (paired games, blinded Jev
 > judging, deterministic checks, Elo-equivalent with intervals) is the separate Jev game arena:
 > `.claude/skills/promote-to-prod/arena/` (local-only skill tooling), CLI `python .claude/skills/promote-to-prod/arena_cli.py`, design
-> `documentation/reference/JEV_GAME_ARENA_DESIGN.md`. This debug grader's CSV scores are
+> `documentation/design/JEV_GAME_ARENA.md`. This debug grader's CSV scores are
 > not interchangeable with arena ratings.
 
 Overview

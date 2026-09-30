@@ -1,4 +1,4 @@
-"""Generic character & world model (documentation/model_output_docs/CHARACTER_WORLD_MODEL_REDESIGN.md).
+"""Generic character & world model (documentation/design/WORLD_MODEL.md).
 
 Pure, deterministic engine code: no LLM calls and no I/O. Story JSON supplies the
 differences between games (routines, threads, evidence, homes). `turn.py` is

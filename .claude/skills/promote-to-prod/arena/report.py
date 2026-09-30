@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/report.py
-"""Arena report (JEV_GAME_ARENA_DESIGN.md §8, §11 step 5).
+"""Arena report (design/JEV_GAME_ARENA.md §8, §11 step 5).
 
 build_report() is pure: manifest + arms + pair judgments -> JSON-able dict.
 render_html() turns that dict into one self-contained page (no external

@@ -25,14 +25,14 @@ from backend.app.engine.extractors.decision_registry import (
 from backend.app.llm.decisions.types import DecisionBatch, DecisionOutcome, FallbackReason, Provider
 from backend.app.llm.protocols import DecisionProvider, LegacyExtractionRequest
 
-# Step 3 of documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12:
+# Step 3 of documentation/design/JEV.md §12:
 # httpx is NO LONGER imported here. The legacy HTTP call moved to
 # TurnExtractor._call_legacy_raw, which is injected into the resolver as a
 # LegacyExtractionCallable rather than living inline in extract(). This is
 # what makes the import-direction test in test_engine_purity.py pass for
 # this file (location_extractor.py and knowledge_resolution_extractor.py
 # still import httpx directly and remain on that test's documented
-# allowlist — see JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §2).
+# allowlist — see design/JEV.md (provider architecture) §2).
 
 
 @dataclass(frozen=True)
@@ -227,7 +227,7 @@ class TurnExtraction:
 class TurnExtractor:
     """Single-call extractor for movement, previous-scene signals, and knowledge updates.
 
-    Step 3 of JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12: internally
+    Step 3 of design/JEV.md (provider architecture) §12: internally
     restructured into batch builder (_build_batches) -> resolver
     (DecisionResolver, injected via `resolver`) -> assembler
     (_parse_dict + _apply_decision_overrides). extract()'s signature and
@@ -280,7 +280,7 @@ class TurnExtractor:
         existing validation rule (unknown location -> NONE, from_id must be
         'player', departure/shift coercion rules, etc.) is retained here,
         untouched by the Jev integration. Jev choosing something never
-        bypasses this — see JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9's
+        bypasses this — see design/JEV.md (provider architecture) §9's
         'Two invariants that are code's job, not Jev's'.
 
         BL-16 fix: `allowed_behavior_tags` is the story's closed vocabulary
@@ -596,7 +596,7 @@ class TurnExtractor:
         abilities are now Jev-eligible (ability 12's `new_value` free text
         still needs legacy — see social_shift_certainty_decision's
         docstring). NOTE the still-unresolved "hybrid trap"
-        (JEV_EXTRACTOR_REDESIGN_2026_09_22.md): extract()'s "legacy_raw is
+        (design/JEV.md (extractor redesign)): extract()'s "legacy_raw is
         None" branch below still unconditionally calls legacy whenever the
         resolver itself didn't need to (e.g. a sparse turn where every
         registered decision resolved via Jev) — shrinking the legacy prompt
@@ -699,7 +699,7 @@ class TurnExtractor:
         back to NONE, matching _parse_dict's own
         `if destination_id and allowed_location_ids and destination_id not
         in allowed_location_ids: destination_id = ""; intent = "NONE"` rule
-        exactly (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9 invariant #2)."""
+        exactly (design/JEV.md (provider architecture) §9 invariant #2)."""
         intent = base.movement_intent
         destination_id = base.destination_id
         confidence = base.confidence
@@ -1256,7 +1256,7 @@ class TurnExtractor:
         social_act_kinds: List[str] | None = None,
     ) -> TurnExtraction:
         """Internally: batch builder -> resolver -> assembler (see class
-        docstring and JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12 step 3).
+        docstring and design/JEV.md (provider architecture) §12 step 3).
         `allowed_behavior_tags` is new (BL-16 fix) and optional/keyword-only
         with an empty default, so every existing caller is unaffected."""
         allowed_location_ids = set((world_locations or {}).keys())

@@ -29,7 +29,7 @@ def get_shared_httpx_client() -> httpx.AsyncClient:
     """Process-wide client for the JevClient used by the default resolver.
 
     NOTE: this is a temporary, minimal client — Phase 3 row 1
-    (PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md §1) specifies a full
+    (design/ROADMAP_NOT_BUILT.md (Phase 3) §1) specifies a full
     lifespan-managed ClientRegistry with per-provider connection limits and
     clean shutdown. That is not built yet; this getter exists so today's
     wiring has exactly one place to upgrade later, not eighteen.

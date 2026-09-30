@@ -1,5 +1,5 @@
 """Tests for .claude/skills/promote-to-prod/arena/judge.py: fail-closed validation, retry
-policy and request shape (JEV_GAME_ARENA_DESIGN.md §3, §7, §10)."""
+policy and request shape (design/JEV_GAME_ARENA.md §3, §7, §10)."""
 import pytest
 
 from arena.evidence import build_packet

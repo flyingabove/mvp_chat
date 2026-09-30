@@ -836,7 +836,7 @@ def test_every_catalogued_story_initializes_end_to_end(client, story):
 
 # ============================================================================
 # Six Strangers audit Phase 1: future-resident leakage, focal-NPC/solitude,
-# atomic turn commit (see documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md)
+# atomic turn commit (see SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md (removed; see git history))
 # ============================================================================
 
 def test_upcoming_character_private_facts_excluded_from_canonical_stack(client):

@@ -1,7 +1,7 @@
 # backend/app/llm/usage.py
 """Per-turn token/cost accounting, attributed by provider and task.
 
-Per JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §10: "Extend UsageLedger to
+Per design/JEV.md (provider architecture) §10: "Extend UsageLedger to
 attribute tokens per provider, so 'cost per successfully committed turn'
 (the Phase 0B metric) splits into storyteller / Jev / legacy-extraction /
 memory." Designed to be merged into the existing turn_stage_ledger JSONL
@@ -10,7 +10,7 @@ separate log stream — one line per turn stays the single source of truth
 for "what did this turn cost."
 
 Pricing figures are the exact ones already used in
-documentation/JEV_EXTRACTOR_REDESIGN_2026_09_22.md §8's cost model — kept
+documentation/design/JEV.md §8's cost model — kept
 here as the one place they're defined, not duplicated per call site.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-# $ per million tokens. Source: JEV_EXTRACTOR_REDESIGN_2026_09_22.md §8.
+# $ per million tokens. Source: design/JEV.md (extractor redesign) §8.
 # NOT read from any provider response — these are known list prices, used
 # only to compute an ESTIMATED cost figure for the ledger. If a provider
 # ever reports real cost directly, prefer that instead of estimating.

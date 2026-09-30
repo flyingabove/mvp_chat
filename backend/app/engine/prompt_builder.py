@@ -991,7 +991,7 @@ def _mode_context_section(state) -> str:
     Optional game-mode context layer.
 
     Purely additive/backward-compatible: reads the OPTIONAL top-level `mode`
-    object from story_cfg (see documentation/model_output_docs/SOCIAL_MODE_DESIGN.md).
+    object from story_cfg (see documentation/design/SOCIAL_ENGINE.md).
     Stories that omit `mode` (all 5 pre-existing stories at the time this layer
     was added) get an empty string here, so the assembled prompt is unchanged
     for them. Intended for ensemble/slice-of-life "social_sim" style games

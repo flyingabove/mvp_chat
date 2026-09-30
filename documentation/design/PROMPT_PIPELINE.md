@@ -1,8 +1,12 @@
-# Storyteller Prompt Redesign (Plain-English, Scene-Based)
+# Prompt pipeline: storyteller prompt, turn extractor, message flow, layer coverage
+
+> This file merges several design documents (each keeps its own section, with its original status notes). Open work is in [../BACKLOG.md](../BACKLOG.md).
+
+## Storyteller Prompt Redesign (Plain-English, Scene-Based)
 
 > **What this doc is for:** Design of the narrative LLM prompt (Call 2 of the two-call turn). Edit this doc when the storyteller system prompt structure or injection order changes.
 
-## Implementation status (2026-02-13)
+### Implementation status (2026-02-13)
 
 - Phase A is implemented in `backend/app/engine/prompt_builder.py`:
    - paragraph-first storyteller contract
@@ -18,7 +22,7 @@
 
 Remaining phases (validator/rewrite pass and full scorer rubric migration) are still pending.
 
-## Why this redesign is needed
+### Why this redesign is needed
 
 The current prompt is structurally strong but too instruction-heavy and speaker-constrained. It pushes the model into a "single-character chatbot" posture, which creates two recurring issues:
 
@@ -33,7 +37,7 @@ Root cause is not missing data; it is **prompt framing and instruction priority 
 
 ---
 
-## Product direction
+### Product direction
 
 Shift from a chatbot-style prompt to a **storytelling engine prompt**:
 
@@ -46,7 +50,7 @@ This is a narrative game, not just an NPC chat widget.
 
 ---
 
-## Design goals
+### Design goals
 
 1. **Prompt readability for LLM**
    - Prefer paragraph sections with clear narrative intent over dense policy bullets.
@@ -67,7 +71,7 @@ This is a narrative game, not just an NPC chat widget.
 
 ---
 
-## Non-goals
+### Non-goals
 
 - Replacing epistemic stack architecture.
 - Removing deterministic state updates.
@@ -75,29 +79,29 @@ This is a narrative game, not just an NPC chat widget.
 
 ---
 
-## Proposed prompt architecture (paragraph-first)
+### Proposed prompt architecture (paragraph-first)
 
 Replace many fragmented command-style blocks with 6 prose sections in this order:
 
-### 1) Scene Framing Paragraph
+#### 1) Scene Framing Paragraph
 Short paragraph describing where/when we are, who is in focus, and emotional pressure in the moment.
 
-### 2) Narrative Contract Paragraph
+#### 2) Narrative Contract Paragraph
 Explain that the model is writing the next beat of an interactive story:
 - cinematic narration + embedded dialogue
 - no player action control
 - maintain continuity and momentum
 
-### 3) Character Lens Paragraph (main focus)
+#### 3) Character Lens Paragraph (main focus)
 Describe the main character's internal and outward stance, with explicit identity anchors in plain language.
 
-### 4) Cast & Tension Paragraph
+#### 4) Cast & Tension Paragraph
 Describe other relevant characters and relationships that can color response tone (suspicion, fear, trust, leverage).
 
-### 5) Truth & Knowledge Paragraph
+#### 5) Truth & Knowledge Paragraph
 Plain-English summary of what is canonically true, what is uncertain, and what must not be contradicted.
 
-### 6) Context Routing Paragraph (high-priority)
+#### 6) Context Routing Paragraph (high-priority)
 Describe who is currently in-scene, on-call, or actively mentioned so narrative focus stays local and does not drag in stale off-screen characters.
 
 Current runtime contract:
@@ -106,7 +110,7 @@ Current runtime contract:
 - If location is unchanged, prior-turn speakers are eligible carry-over into current cast list
 - Phone-call edge cases are deferred for now by product decision
 - **Focal-lens framing is conditional for lifecycle-enabled stories** (2026-09-19
-  fix, see `documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md`):
+  fix, see `SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md (removed; see git history)`):
   `_storyteller_scene_section` and `_character_identity_section` in
   `prompt_builder.py` only frame the main character as "the focal lens" (and
   inject their identity block) when `_main_character_scene_eligible(state)`
@@ -120,28 +124,28 @@ Current runtime contract:
 
 ---
 
-## Output behavior specification (Storyteller Mode)
+### Output behavior specification (Storyteller Mode)
 
-### Baseline behavior
+#### Baseline behavior
 - Output should read like a short story beat (1-4 compact paragraphs typically).
 - Main character stays central, but other characters may be referenced naturally when relevant.
 - Dialogue is woven into scene prose.
 
-### Multi-character handling
+#### Multi-character handling
 - If only one character is present, keep tight focus.
 - If multiple characters are relevant, narration may include their pressure/influence, but should not flatten POV into omniscient certainty.
 - Do not break epistemic limits: only reveal what active perspective could reasonably express.
 
-### Player-agency safety
+#### Player-agency safety
 - Continue prohibiting narration of player decisions/thoughts/body actions.
 - The narrative can describe atmosphere and NPC behavior around the player.
 
-### State tag continuity
+#### State tag continuity
 - `[[STATE]]` tags remain supported by the runtime parser, but the prompt no longer forces a mandatory terminal state line.
 
 ---
 
-## Identity handling policy (soft, non-forced)
+### Identity handling policy (soft, non-forced)
 
 Identity-sensitive prompts should be handled through canon-first continuity and uncertainty-aware storytelling, not brittle per-story hard guards.
 
@@ -152,7 +156,7 @@ Preferred behavior:
 
 ---
 
-## Relationship Word Mappings (deterministic)
+### Relationship Word Mappings (deterministic)
 
 All numeric relationship values are converted to human-readable words before entering the prompt.
 No raw numbers appear in the prompt — only these words.
@@ -163,7 +167,7 @@ TTL for transient buffer entries: `TRANSIENT_KNOWLEDGE_TURNS = 8` in `backend/ap
 
 Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and suspicion are stored as 0.0–1.0 internally but normalized to -1.0–+1.0 for word lookup.
 
-### Trust (-1.0 to +1.0)
+#### Trust (-1.0 to +1.0)
 
 | Value | Word |
 |-------|------|
@@ -189,7 +193,7 @@ Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and susp
 | +0.9 | unshakable |
 | +1.0 | absolute |
 
-### Affection (-1.0 to +1.0)
+#### Affection (-1.0 to +1.0)
 
 | Value | Word |
 |-------|------|
@@ -215,7 +219,7 @@ Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and susp
 | +0.9 | adoring |
 | +1.0 | deeply_bonded |
 
-### Fear (normalized -1.0 to +1.0; stored internally as 0.0–1.0)
+#### Fear (normalized -1.0 to +1.0; stored internally as 0.0–1.0)
 
 | Value | Word |
 |-------|------|
@@ -241,7 +245,7 @@ Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and susp
 | +0.9 | overwhelmed |
 | +1.0 | paralyzed |
 
-### Suspicion (normalized -1.0 to +1.0; stored internally as 0.0–1.0)
+#### Suspicion (normalized -1.0 to +1.0; stored internally as 0.0–1.0)
 
 | Value | Word |
 |-------|------|
@@ -267,7 +271,7 @@ Each dimension maps 21 values from -1.0 to +1.0 in 0.1 increments. Fear and susp
 | +0.9 | hypervigilant |
 | +1.0 | obsessed |
 
-### Belief Certainty (0.0 to 1.0)
+#### Belief Certainty (0.0 to 1.0)
 
 Belief confidence is stored on `KnowledgeChunk.confidence` (for chunks with `kind='claim'`) in the range 0.0–1.0.
 Internally, that value is rounded to the nearest 0.1 and converted to a deterministic certainty label:
@@ -303,7 +307,7 @@ Belief lines render with the natural confidence phrase in the visibility prefix,
 Currently only IU knows this with low confidence: IU died the prior week in the Nonhyeon-dong officetel closet; she is now the ghost in the apartment.
 ```
 
-### Behavior Stance (composite, deterministic)
+#### Behavior Stance (composite, deterministic)
 
 In addition to individual dimension words, a single **behavior tendency** sentence is generated from the combination of all four dimensions. Rules (evaluated in order, first match wins):
 
@@ -313,7 +317,7 @@ In addition to individual dimension words, a single **behavior tendency** senten
 4. **Defensive**: fear ≥ 0.3 OR suspicion ≥ 0.3 → "guarded defense, likely to hedge and reveal selectively"
 5. **Default**: → "neutral-watchful, likely to respond cautiously without full openness"
 
-### Prompt output format
+#### Prompt output format
 
 Each relationship renders as prose in the relationship context section, for example:
 ```
@@ -329,11 +333,11 @@ Runtime note:
 
 ---
 
-## Epistemic Knowledge Stack — Prose Rendering Rules
+### Epistemic Knowledge Stack — Prose Rendering Rules
 
 The knowledge stack is rendered as plain-English numbered prose instead of machine-readable tags. All rendering logic lives in `backend/app/engine/prompt_builder.py`.
 
-### Character identity chunk
+#### Character identity chunk
 
 The main character entry renders as a natural sentence:
 ```
@@ -341,7 +345,7 @@ IU is a ghost in this story.
 ```
 Source: `_knowledge_chunks_from_state()` — uses `f"{name} is a {role} in this story."`.
 
-### Tier headings
+#### Tier headings
 
 Each tier gets a prose heading instead of a `### TIER_NAME` header:
 
@@ -354,7 +358,7 @@ Each tier gets a prose heading instead of a `### TIER_NAME` header:
 
 Source: `_TIER_HEADINGS` dict in `prompt_builder.py`.
 
-### Visibility prose rules
+#### Visibility prose rules
 
 Each fact's `known_by`, `not_known_by`, and `maybe_known_by` lists are converted to a plain-English suffix sentence by `_visibility_prose()`. The rules (evaluated in order):
 
@@ -381,7 +385,7 @@ Each fact's `known_by`, `not_known_by`, and `maybe_known_by` lists are converted
 - Known character key → `Character.name` (e.g. `"iu"` → `"IU"`)
 - Unknown key fallback → `key.replace("_", " ").title()` (e.g. `"rival_trainee"` → `"Rival Trainee"`)
 
-### Preface instructions
+#### Preface instructions
 
 The stack preface tells the model how to use the facts:
 
@@ -389,7 +393,7 @@ The stack preface tells the model how to use the facts:
 >
 > "When a fact says a character does not know something, that character must not state, hint at, or act on that information. When a fact says everyone knows something, treat it as common knowledge. When uncertain about whether a character would know a detail not listed here, hedge naturally instead of asserting certainty. Never state as fact anything the active speaker does not know."
 
-### Full example output
+#### Full example output
 
 ```
 ────────────────────────────────────────
@@ -413,33 +417,33 @@ World context relevant to the current scene:
 
 ---
 
-## Implementation status
+### Implementation status
 
-### Implemented
+#### Implemented
 1. Prompt sections use prose-oriented epistemic headings and visibility language.
 2. Relationship context is rendered once in scene prose with deterministic relationship words.
 3. Active-character scope is constrained to current-turn mentions, same-location speakers, and active on-call markers.
 
-### Not implemented in runtime
+#### Not implemented in runtime
 1. No dedicated post-response rewrite validator pass is currently wired in runtime.
 2. Evaluation/rubric changes remain owned by scorer/integration evolution, not this prompt composer module.
 
 ---
 
-## Risks and mitigations
+### Risks and mitigations
 
-### Risk: prose sections become vague
+#### Risk: prose sections become vague
 Mitigation: keep explicit, short constraints inside each paragraph and preserve hard guard paragraph.
 
-### Risk: model over-narrates and slows interaction
+#### Risk: model over-narrates and slows interaction
 Mitigation: token cap + explicit "compact beat" instruction (1-4 paragraphs).
 
-### Risk: multi-character narration leaks unknown info
+#### Risk: multi-character narration leaks unknown info
 Mitigation: keep epistemic visibility suffix logic and unknown-handling rule in the truth paragraph.
 
 ---
 
-## Success criteria
+### Success criteria
 
 1. Responses feel like interactive narrative beats, not rigid chatbot turns.
 2. Main character remains clear focal lens while scene context can include other relevant characters.
@@ -447,10 +451,360 @@ Mitigation: keep epistemic visibility suffix logic and unknown-handling rule in 
 
 ---
 
-## Simple example of the new style (illustrative)
+### Simple example of the new style (illustrative)
 
 "The apartment settles into a tense quiet as IU's eyes drift toward the closet door. She doesn't dodge this time.\n\n
 \"You're asking about me,\" she says, voice low but steady. \"I was the previous tenant. I died in that closet.\"\n\n
 The words hang between you, and the room seems to shrink around them as she studies your reaction."
 
 This keeps narrative tone, identity truth, and player agency constraints at once.
+
+---
+
+## Single-Call Turn Extractor Design (Canonical)
+
+> **What this doc is for:** Design of the state-extraction LLM call (Call 1 of the two-call turn). Edit this doc when the extractor schema, prompt, or validation logic changes.
+
+### Purpose
+Lock extractor architecture to one LLM extractor call per regular turn.
+
+### Load When
+- You are changing extraction behavior.
+- You are investigating extraction latency/cost.
+- You are validating extractor JSON parse/validation behavior.
+
+### Canonical Code
+- `backend/app/engine/extractors/turn_extractor.py`
+- `backend/app/api/prompt_engine.py`
+- `tests/backend/app/api/test_prompt_engine.py`
+
+### Goal
+Guarantee **exactly one extractor LLM call per regular turn** in the prompt engine, with strict JSON output that is easy to parse and validate.
+
+### Non-Negotiable Rule
+- The prompt engine must call **only** `TurnExtractor.extract(...)` once per turn.
+- No additional location-classifier extractor call.
+- No additional post-reply knowledge-resolution extractor call in the same turn.
+
+### Why
+- Prevent accidental latency/cost regressions from multi-extractor pipelines.
+- Keep behavior deterministic and auditable.
+- Enforce one schema and one integration point for extraction mutations.
+
+### Extractor Input (Single Call)
+The single extractor receives:
+- current user message,
+- world locations (id -> name),
+- character map (key -> name),
+- previous-turn user message,
+- previous-turn assistant reply,
+- previous-turn unknown candidate chunks,
+- bounded conversation history.
+
+### Extractor Output Schema (JSON)
+```json
+{
+  "movement": {
+    "intent": "MOVE|NONE",
+    "destination_id": "string|null",
+    "confidence": 0.0,
+    "destination_text": "string"
+  },
+  "previous_scene": {
+    "location_id": "string|null",
+    "speakers": ["character_key"]
+  },
+  "knowledge_updates": [
+    {
+      "chunk_id": "string",
+      "knows": true,
+      "confidence": 0.0,
+      "reason": "string"
+    }
+  ]
+}
+```
+
+### Engine Application Rules
+1. Apply `movement` pre-render using a separate `go to <destination_id>` input if valid. Preserve the full player text for the storyteller, history, and next-turn extraction.
+2. Apply `previous_scene` into scene FIFO (`scene_knowledge_entries`).
+3. Apply `knowledge_updates` into belief graph + transient mirror entries.
+4. Persist current turn artifacts (`last_turn_user_msg`, `last_turn_assistant_reply`, `last_turn_retrieved_chunks`) for next turn extraction.
+5. After travel changes location, refresh destination scene presence before rendering, including an explicitly empty scene when appropriate. Do not carry the previous room's speakers or identity gates into the destination.
+
+### Validation Rules
+- `destination_id` must be in allowed world location ids; otherwise drop move.
+- `previous_scene.speakers` must be allowed character keys.
+- `knowledge_updates.chunk_id` must be in provided candidate list.
+- Confidence values are clamped to `[0.0, 1.0]`.
+
+### Relationship to Scene Presence
+- `people_present` is computed from world graph location + character location index each turn.
+- `speakers` come from extractor output for previous turn and carry into scene context when location is unchanged.
+
+### Ownership
+- Runtime implementation: `backend/app/engine/extractors/turn_extractor.py`
+- Prompt-engine integration: `backend/app/api/prompt_engine.py`
+- Flow trace: `documentation/design/PROMPT_PIPELINE.md`
+
+---
+
+## Message → Prompt Flow Trace (Current Code Path)
+
+> **What this doc is for:** Step-by-step trace of how a user message becomes an LLM prompt. Edit this doc when the prompt assembly pipeline changes.
+
+### Purpose
+Provide a deterministic, code-aligned trace from incoming user message to outgoing renderer prompt.
+
+### Load When
+- You are debugging prompt assembly.
+- You need to verify where extraction, retrieval, and state mutation happen.
+- You need the exact runtime order for prompt engine changes.
+
+### Canonical Code
+- `backend/app/api/prompt_engine.py`
+- `backend/app/engine/prompt_builder.py`
+- `tests/backend/app/api/test_prompt_engine.py`
+
+This document traces the exact runtime path from one completed LLM response to the next outgoing LLM request.
+
+### 0) Starting Point: Prior LLM Response Exists
+At the end of the prior turn, `prompt_engine.py` has already:
+- stripped `[[STATE]]...[[/STATE]]` via `extract_state_tag`,
+- applied state deltas with `apply_state_tag`,
+- appended user/assistant messages to session log,
+- persisted previous-turn extractor context:
+   - previous user message,
+   - previous assistant reply,
+   - previous retrieved chunks.
+
+This means the next turn starts from a state that may already include newly resolved knowledge ownership.
+
+---
+
+### 1) Request Intake
+Endpoint: `POST /api/chat` → `backend/app/api/prompt_engine.py::chat_handler`
+
+1. Parse `session_id` and message string.
+2. Strip UI quote prefix (`>`).
+3. Load session (`get_session`) and state/log references.
+4. Sync epistemic feature gate with session toggle (`set_master`).
+5. Handle early-return commands first: `[D]`, `[C]`, `[M]`, `[T]`, `[ES]`, `__cmd_reset__`, `__cmd_newgame__`.
+
+If no early return, continue to regular turn path.
+
+---
+
+### 2) Regular Turn Preprocessing
+1. Guard checks:
+   - no active game -> error reply,
+   - game over -> finished reply.
+2. Purge expired transient entries (`state.purge_transient_entries`):
+   - removes old transient objects by turn/minute TTL.
+3. Scene presence bootstrap:
+   - load latest scene knowledge object from FIFO queue,
+   - compare previous location_id vs current location_id,
+   - if unchanged, carry previous turn speakers into active-cast seed,
+   - query world location + character location index to derive `people_present`.
+4. Name handling:
+   - confirm guessed name from prior turn,
+   - extract user name phrases and update user state.
+
+---
+
+### 3) Retrieval (FAISS + BM25)
+1. Route retrieval namespace:
+   - activate character bundle (`IndexService.set_active_character(state.knowledge_character_id)`),
+   - build namespace `<user>-<story>-<instance>`.
+2. Call `retrieve_knowledge(msg, namespace=...)`.
+3. Retrieval logic in `backend/app/knowledge/runtime/retrieve.py`:
+   - load index bundle from `IndexService.get()`,
+   - hybrid ranking:
+     - BM25 lexical scores,
+     - FAISS vector search,
+     - reciprocal fusion,
+   - namespace filtering,
+   - return top chunks + debug metadata.
+
+Returned chunks are candidate memory fragments for prompt construction and for the next turn's single-call extractor.
+
+---
+
+### 4) Single-Call Turn Extraction (Pre-Render)
+1. If world runtime exists and current location is known:
+   - run `TurnExtractor.extract(...)` once with:
+     - current user message,
+     - world locations + character key map,
+     - previous-turn user message,
+     - previous-turn assistant reply,
+     - previous-turn unknown candidate chunks,
+     - recent conversation log.
+2. Extractor returns one strict JSON payload containing:
+   - movement intent (`MOVE|NONE`) + destination_id,
+   - previous-turn scene location_id,
+   - previous-turn speakers,
+   - previous-turn knowledge updates (`chunk_id/knows/confidence/reason`).
+3. If extractor yields a valid move destination:
+   - create a separate movement input, `go to <destination_id>`, for travel resolution only; preserve the complete player message.
+4. Apply extracted previous-turn scene knowledge into FIFO scene buffer.
+5. Apply extracted previous-turn knowledge updates into belief graph + transient mirror entries.
+6. The fallback heuristic can populate the separate movement input if the extractor returns no move.
+7. `advance_time` executes travel/time updates using that movement input (or the original message for a non-movement turn).
+8. After a location change, refresh destination people-present and active-character markers and scene FIFO context before rendering. Clear prior-location speakers; an empty destination must not fall back to the previous room's occupants.
+
+Movement normalization must never replace the player message in the storyteller
+prompt, conversation echo, in-memory history, persisted transcript, fact
+extraction, or `last_turn_user_msg`. A request such as “I return to the living
+room and ask Makoto about baseball” must retain its question as well as move
+the player. Destination characters' identity sections must be available on
+that same turn, not one turn later.
+
+---
+
+### 5) Transient Buffer Write (Conversation Echo)
+Before rendering:
+- add transient entry: `Player said: ...`
+- scope: `conversation`
+- TTL: `TRANSIENT_KNOWLEDGE_TURNS`.
+
+Scene markers updated before render:
+- `__active_character_marker__:<key>`
+- `__people_present_marker__:<key>`
+
+After reply, scene speaker markers are updated:
+- `__scene_speaker_marker__:<key>`
+
+---
+
+### 6) Prompt Build Input Assembly
+Create `PromptInput` with:
+- current `state`,
+- trimmed `log`,
+- complete player message (after request-intake cleanup, without replacing it with the travel command),
+- retrieved chunks,
+- truth mode toggle,
+- retrieval debug payload.
+
+Then call `build_messages(prompt_input, return_debug=True)`.
+
+---
+
+### 7) System Prompt Construction (`prompt_builder.py`)
+`system_prompt(...)` composes:
+1. Base behavior/style rules.
+2. Optional mode-context layer (`_mode_context_section`, see `design/SOCIAL_ENGINE.md (social mode)`) — tone/setting prose for stories that declare a top-level `mode` object (e.g. `social_sim` ensemble games). Empty string (no-op) for any story without `mode`.
+3. Epistemic knowledge stack (`_format_labeled_knowledge_stack`):
+   - `CANONICAL_CORE`: character basics + canonical facts,
+   - `CANONICAL_GRAPH`: current place info,
+   - `SUBJECTIVE_BELIEF`: belief claims for active speaker,
+   - `RETRIEVED_MEMORY`: FAISS/BM25 chunks.
+4. Relationship section (`character_graph.format_for_prompt`).
+5. Scene brief includes explicit per-turn scene context:
+   - `people_present` list and count,
+   - `speakers` list.
+6. Character self-knowledge (`_character_identity_section` — per-character; main character's block is unconditional, other present characters' blocks are gated by scene presence, see `design/SOCIAL_ENGINE.md (social mode)` §5).
+7. Optional truth-mode override.
+
+Important current rule in preface:
+- If chunk visibility is not explicit for speaker, model should make best reasonable determination; hedge when uncertain.
+
+---
+
+### 8) User Message Header + Final Message List
+`build_messages` appends a final user message with runtime header:
+- minute,
+- location,
+- emotion,
+- relationship,
+then raw user content.
+
+The final payload includes:
+- one system message,
+- trimmed history window,
+- one current user message.
+
+---
+
+### 9) Outbound LLM Call
+`prompt_engine.py` builds payload with:
+- model,
+- messages,
+- temperature,
+- max tokens,
+then sends to OpenAI Chat Completions.
+
+This is the exact point where the new prompt is sent.
+
+---
+
+### 10) Post-Response Mutation Pipeline
+After receiving response:
+1. Extract and apply `[[STATE]]`.
+2. Append final user/assistant text to log.
+3. Add transient entry: `NPC replied: ...` (TTL = `TRANSIENT_KNOWLEDGE_TURNS`).
+4. Evaluate win condition.
+5. Persist this completed turn into extractor carryover fields:
+   - `last_turn_user_msg`,
+   - `last_turn_assistant_reply`,
+   - `last_turn_retrieved_chunks`.
+
+Result can include `knowledge_resolution_updates` for debug/inspection (applied from single-call extractor output).
+
+---
+
+### 11) Where Each Graph/Store Is Used
+- Character graph: prompt relationship section, rel delta mapping.
+- Belief graph: seeded beliefs + single-call turn extractor knowledge updates.
+- World/place graph: movement extraction target set + travel + prompt location context.
+- FAISS/BM25: retrieval slice for prompt and unknown-chunk candidates.
+- Transient buffer:
+   - conversation flavor (8-turn TTL),
+  - resolved knowledge objects (8-turn TTL).
+- Scene knowledge FIFO (replacement for TTL scene memory flow):
+   - bounded to 8 entries,
+   - refreshed on upsert by key,
+   - used for previous-turn speaker carryover when location is unchanged.
+
+---
+
+### 12) Expiration / Cleanup Behavior
+- Cleanup trigger: each turn start (`state.purge_transient_entries`).
+- Knowledge-resolution mirror objects naturally disappear after 8 turns unless refreshed by later single-call extractor updates.
+- Location-scoped transients are cleared on travel by gameplay flow.
+- Scene knowledge objects are retained as FIFO queue items (max 8), not per-object countdown.
+
+---
+
+## Layer Coverage Mapping (IU Scenario)
+
+> **What this doc is for:** Maps which prompt layers are tested by which tests. Edit this doc when new prompt layers are added or test coverage changes.
+
+### Purpose
+Map IU scenario segments to epistemic layers and identify which tests verify each layer.
+
+### Load When
+- You update epistemic layer toggles.
+- You change IU scenario assertions.
+- You need to confirm whether layer failures are expected.
+
+### Canonical Files
+- Scenario harness: `backend/app/integration_playback/scenarios/scenario_epistemic_iu.py`
+- Toggle behavior tests: `tests/backend/app/config/test_epistemic_flags.py`
+- Prompt engine orchestration tests: `tests/backend/app/api/test_prompt_engine.py`
+
+### Layer to Segment Mapping
+- Truth layer: confession and disposal segments that become canonical facts.
+- Belief layer: denials/contradictions that remain character-local claims until resolved.
+- Narrative layer: visible scene output/flow steps in playback traces.
+- Retrieval layer: retrieved snippets and memory blocks used for non-authoritative support.
+- Mode-context layer (`_mode_context_section` in `prompt_builder.py`): optional tone/setting layer for the story-level `mode` object (e.g. `social_sim` ensemble games — see `design/SOCIAL_ENGINE.md (social mode)`). Emits nothing when `mode` is absent, so it never affects mystery-genre stories.
+
+### Test Alignment
+- `scenario_epistemic_iu` validates canonical facts, claims, and observations.
+- `test_epistemic_flags` toggles master/per-layer gates and asserts expected pass/fail behavior.
+- `test_prompt_engine` validates turn orchestration and prompt-layer assembly behavior.
+- `test_prompt_builder.py::test_mode_context_section_*` validates the mode-context layer: absent for stories without `mode`, byte-identical prompt output for a pre-existing story (backward compatibility), and correct content (including the confessional convention) when `mode` is present.
+
+### Maintenance Rules
+- Update this mapping when scenario step order or toggle semantics change.
+- Keep paths aligned with canonical source-mirrored test naming.

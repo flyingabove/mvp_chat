@@ -1,7 +1,7 @@
 # Codex collaboration workflow
 
 - The user designated the independent sibling clone `mvp_chat_for_codex_only` for Codex work. Use that checkout; do not edit or clean another agent's `mvp_chat` working tree.
-- Read `documentation/AI_DOC_INDEX_CATALOGUE.md` and the relevant project documentation before implementation. Track work in `documentation/plans_scratch/TASKS_INTERMEDIATE.md`.
+- Read `documentation/AI_DOC_INDEX_CATALOGUE.md` and the relevant project documentation before implementation. Track work in `documentation/TASKS_INTERMEDIATE.md`.
 - ALWAYS work directly on `beta`; never create or work on another branch. Pull latest `origin/beta` before code changes and again before shipping. This beta-only instruction supersedes prior feature-branch guidance.
 - Read conflicting commits, preserve both agents' intended behavior, and test the integrated result. Never force-push shared branches or use blanket ours/theirs conflict resolution.
 - Keep local credentials ignored. Stage explicit task files, never unrelated work or runtime data.

@@ -2,7 +2,7 @@
 """Jev circuit breaker — the mechanism behind "each request automatically
 knows" a Jev outage without paying a timeout on every subsequent turn.
 
-Exact design from documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6.
+Exact design from documentation/design/JEV.md §6.
 Per-process, in-memory. Single uvicorn worker is the documented deployment
 assumption (the same one prompt_engine.py's A12 _SESSION_LOCKS comment
 relies on). `allow_request()` touches only process memory — that is the
@@ -152,7 +152,7 @@ class JevCircuitBreaker:
 
     def snapshot(self) -> dict:
         """For GET /api/health's non-authoritative `jev` block and for
-        telemetry (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §10)."""
+        telemetry (design/JEV.md (provider architecture) §10)."""
         current = self.state()
         return {
             "state": current.value,

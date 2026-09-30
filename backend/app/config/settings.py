@@ -109,7 +109,7 @@ TYPESAFE_API_KEY: str = get_typesafe_api_key()
 TYPESAFE_MODEL: str = get_typesafe_model()
 TYPESAFE_ENABLED: bool = is_typesafe_enabled()
 
-# --- Jev rollout flags and tuning knobs (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §7) ---
+# --- Jev rollout flags and tuning knobs (design/JEV.md (provider architecture) §7) ---
 # Plain os.getenv tunables, not secrets - same pattern as STORY_MASTER_BASE_URL
 # above. Per-task allowlists are CSV strings parsed at the call site, not here,
 # so a "*" wildcard and an empty string both stay simple string comparisons
@@ -144,7 +144,7 @@ JEV_CONTEXT_CANDIDATE_LIMIT: int = int(_os.getenv("JEV_CONTEXT_CANDIDATE_LIMIT",
 JEV_CONTEXT_OPTIONAL_LIMIT: int = int(_os.getenv("JEV_CONTEXT_OPTIONAL_LIMIT", "6"))
 JEV_CONTEXT_MIN_RELEVANCE: float = float(_os.getenv("JEV_CONTEXT_MIN_RELEVANCE", "0.35"))
 
-# --- Jev circuit breaker parameters (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6) ---
+# --- Jev circuit breaker parameters (design/JEV.md (provider architecture) §6) ---
 JEV_BREAKER_FAIL_THRESHOLD: int = int(_os.getenv("JEV_BREAKER_FAIL_THRESHOLD", "3"))
 JEV_BREAKER_FAIL_WINDOW_S: float = float(_os.getenv("JEV_BREAKER_FAIL_WINDOW_S", "60"))
 JEV_BREAKER_FAIL_RATE_COUNT: int = int(_os.getenv("JEV_BREAKER_FAIL_RATE_COUNT", "5"))

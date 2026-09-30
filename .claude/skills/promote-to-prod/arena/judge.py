@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/judge.py
-"""Pairwise judge (JEV_GAME_ARENA_DESIGN.md §3, §7, §10).
+"""Pairwise judge (design/JEV_GAME_ARENA.md §3, §7, §10).
 
 A judge answers ONE evidence packet (one window, one A/B order). Order
 swapping, remapping to releases and aggregation happen in pipeline.py, so a

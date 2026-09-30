@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/calibration.py
-"""Judge sensitivity and bias checks (JEV_GAME_ARENA_DESIGN.md §9).
+"""Judge sensitivity and bias checks (design/JEV_GAME_ARENA.md §9).
 
 Mutation controls: take a real recorded arm, corrupt ONE reply in a known
 way, and judge original (beta slot) vs mutant (prod slot). A useful judge

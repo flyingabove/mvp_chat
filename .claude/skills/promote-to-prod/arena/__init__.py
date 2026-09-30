@@ -2,7 +2,7 @@
 """Jev game arena: paired beta-vs-prod play, blinded Jev judging,
 deterministic correctness checks and Elo-equivalent reporting.
 
-Design: documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md.
+Design: documentation/design/JEV_GAME_ARENA.md.
 
 Layout (pure core, I/O only at the edges):
   contracts.py    frozen data contracts shared by every stage

@@ -1,6 +1,6 @@
 # backend/app/api/eval_capabilities.py
 """GET /api/eval/capabilities — versioned contract telling the Jev game
-arena what this release can support (JEV_GAME_ARENA_DESIGN.md §10).
+arena what this release can support (design/JEV_GAME_ARENA.md §10).
 
 Read-only, no secrets, no state: it only states which evaluation features
 exist so the arena can label results (observational vs controlled) and

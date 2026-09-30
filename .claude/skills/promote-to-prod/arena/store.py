@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/store.py
-"""Experiment artifact store (JEV_GAME_ARENA_DESIGN.md §10).
+"""Experiment artifact store (design/JEV_GAME_ARENA.md §10).
 
 Layout under <root>/<experiment_id>/:
   manifest.json            immutable; re-opening with a different hash fails

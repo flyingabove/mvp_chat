@@ -8,7 +8,7 @@ user-invocable: true
 
 Production is sacred (CLAUDE.md §8). This skill is the only way beta reaches
 `prod`: the user must have **explicitly** asked for a promotion in this
-conversation. Design: `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md` §13-14.
+conversation. Design: `documentation/design/JEV_GAME_ARENA.md` §13-14.
 
 **Everything evaluation-related lives in this folder and runs only on this
 machine** (owner decision 2026-09-24) - it is never deployed and never runs
@@ -137,9 +137,9 @@ fails or smoke fails: tell the user immediately with the output; never
 
 ## Step 5 - Record and report
 
-- `documentation/plans_scratch/TASKS_INTERMEDIATE.md` -> Consumed History:
-  candidate sha, merge sha, precheck + gate experiment ids and verdicts.
-- Anything knowingly deferred -> a file in `documentation/backlog/` (`/add-and-remove-from-backlog`).
+- Put the candidate sha, merge sha, precheck + gate experiment ids and verdicts in the promotion commit message
+  and the report (not in `documentation/TASKS_INTERMEDIATE.md`, which holds only open items).
+- Anything knowingly deferred -> an entry in `documentation/BACKLOG.md` (`/add-and-remove-from-backlog`).
 - Commit + push the docs to beta (normal flow).
 - Tell the user: what shipped, the gate table, prod verification output,
   and the report link/path.

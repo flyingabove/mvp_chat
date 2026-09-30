@@ -4,7 +4,7 @@ No network calls here — mocked httpx, matching the codebase's existing test
 convention (see tests/backend/app/api/test_prompt_engine.py's client
 fixture). The mocked response bodies below are the EXACT shapes captured
 from live jev-1.13.0 responses during design research on 2026-09-22 (see
-documentation/JEV_EXTRACTOR_REDESIGN_2026_09_22.md §7 for the full evidence
+documentation/design/JEV.md §7 for the full evidence
 trail) — this file locks that real behavior into a test rather than
 inventing a plausible-looking mock shape.
 
@@ -51,7 +51,7 @@ def test_parse_answer_choice_matches_live_shape():
 
 def test_parse_answer_score_matches_live_shape_including_legend():
     """Real capture: attitude-strength question. `legend` is what makes the
-    level->delta mapping auditable in code (JEV_EXTRACTOR_REDESIGN_2026_09_22.md
+    level->delta mapping auditable in code (design/JEV.md (extractor redesign)
     TC-11) — must survive parsing, not be dropped."""
     raw = {"type": "score", "score": 1.95, "confidence": 0.93,
            "legend": {"0": "no attitude expressed at all", "1": "mild or passing expression",
@@ -114,7 +114,7 @@ class _FakeResponse:
 @pytest.mark.asyncio
 async def test_ask_sends_correct_request_shape(monkeypatch):
     """Locks the exact request body shape verified against the live API
-    (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §8): model/state/questions,
+    (design/JEV.md (provider architecture) §8): model/state/questions,
     each question as {type, instructions, criteria}."""
     captured = {}
 
@@ -219,7 +219,7 @@ async def test_ask_raises_malformed_on_non_json_body(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ask_multiple_questions_one_request():
-    """Verified live property (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §1):
+    """Verified live property (design/JEV.md (provider architecture) §1):
     N questions in one DecisionBatch produce exactly ONE HTTP request, not N —
     this is what makes fan-out cheap."""
     call_count = {"n": 0}

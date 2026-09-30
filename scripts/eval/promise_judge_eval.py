@@ -8,7 +8,7 @@ production path (promise_judge.ask -> DecisionResolver -> JevClient).
 Gate (owner rule, 2026-09-29, relaxed from 1% to 2% the same day): a promise that WAS carried out must
 be registered as kept. The miss rate on `done` cases must be <= 2%, and nothing may be "kept" that was not
 done. Above that, delete promise tracking and rely on plain conversation context (see
-documentation/proposals/PROMISE_COMPLETION_JEV_2026_09_29.md).
+documentation/design/JEV.md).
 
 The same measurement runs as an automated integration test that deploys never run:
     pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py

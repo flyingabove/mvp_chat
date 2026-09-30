@@ -10,7 +10,7 @@ After merging/integrating work into beta, always push the integrated HEAD to ori
 
 ## 2026-09-28: One BL-39-led proposal, hybrid Jev and 5% fallback ceiling
 
-Owner selected consolidation: BL-39 supplies the Character → Heart → Bond model and A–J roadmap; BL-38 correctness contracts are mandatory within it, not another architecture. Use [the master](backlog/BL-39-character-centric-social-engine.md). Keep independent opening/answer/receipt fixes shippable.
+Owner selected consolidation: BL-39 supplies the Character → Heart → Bond model and A–J roadmap; BL-38 correctness contracts are mandatory within it, not another architecture. Use [the master](design/SOCIAL_ENGINE.md). Keep independent opening/answer/receipt fixes shippable.
 
 NPC judgment is hybrid: extraction LLM plus Jev propose nuanced choices; character/engine rules enforce feasibility, authority and consent. Pure character methods accept application-supplied proposals without provider I/O. Do not silently replace nuanced decisions with deterministic utility alone.
 
@@ -38,7 +38,7 @@ The user clarified the reusable simulation proposal after review:
 - Intentional lying is allowed and should generally have observable hints, varying with character skill and circumstances. Skilled liars can be harder to read; nervousness is not proof.
 - Tentative plans and misunderstandings are valid gameplay. Preserve actual speech/decisions separately from each character's interpretation; never manufacture player consent or mutual agreement.
 
-Engineering contracts, tuning and acceptance scenarios are in [BL-38](backlog/BL-38-social-engine-authority-and-epistemic-transactions.md), especially the confirmed owner decisions and scenarios O19–O23. These are design requirements, not claims that the runtime already implements them.
+Engineering contracts, tuning and acceptance scenarios are in [BL-38](BACKLOG.md), especially the confirmed owner decisions and scenarios O19–O23. These are design requirements, not claims that the runtime already implements them.
 
 ## 2026-09-24: Documentation-only changes do not need a beta push
 
@@ -85,13 +85,13 @@ guidance for Codex; beta remains the deployment target.
 
 **Rule:** Treat localhost as debug/scorer-only (`/beta/debug`). App login and Google OAuth callbacks should be documented and configured for hosted domains.
 
-**Added to:** `documentation/reference/AUTH_AND_PERSISTENCE_DESIGN.md`, `documentation/reference/INFRASTRUCTURE.md`.
+**Added to:** `documentation/design/PLATFORM.md`, `documentation/design/PLATFORM.md`.
 
 ## 2026-03-21: Use one canonical intermediate task file
 
 **What happened:** Intermediate task tracking was spread across ad-hoc files/folders (`tasks/`), creating inconsistency and stale leftovers.
 
-**Rule:** Intermediate execution tasks must be tracked in one canonical file: `documentation/plans_scratch/TASKS_INTERMEDIATE.md`. Agents must consume this file before non-trivial work, update it during execution, and clean up completed entries at task end.
+**Rule:** Intermediate execution tasks must be tracked in one canonical file: `documentation/TASKS_INTERMEDIATE.md`. Agents must consume this file before non-trivial work, update it during execution, and clean up completed entries at task end.
 
 **Added to:** `documentation/ai_learnings_mistakes/AI_TASK_WORKFLOW.md`, `documentation/AI_DOC_INDEX_CATALOGUE.md`, `.gitignore`.
 
@@ -109,7 +109,7 @@ guidance for Codex; beta remains the deployment target.
 
 **Rule:** The deploy build runs unit tests only (`-m "not integration"`), with blank LLM keys and `TESTS_BLOCK_LLM_NETWORK=1` (conftest blocks LLM hosts). Real-API tests must carry `@pytest.mark.integration`. Live tests at build time only via explicit `RUN_LIVE_LLM_TESTS=1`. Never add evaluation or LLM calls to the Dockerfile, CI unit job, or app startup.
 
-**Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/reference/INFRASTRUCTURE.md`.
+**Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/design/PLATFORM.md`.
 
 
 ## 2026-09-29 — State trackers must never miss what happened

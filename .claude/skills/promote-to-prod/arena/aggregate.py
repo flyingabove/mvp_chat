@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/aggregate.py
-"""Pure rating statistics (JEV_GAME_ARENA_DESIGN.md §8). No I/O.
+"""Pure rating statistics (design/JEV_GAME_ARENA.md §8). No I/O.
 
 Units: one independent observation is a paired scenario replicate (an
 episode), never a turn, a question or an order swap.
