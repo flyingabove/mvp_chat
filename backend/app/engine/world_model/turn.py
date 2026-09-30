@@ -724,6 +724,25 @@ async def review_promises(state: Any, prior_user: str, prior_reply: str, message
                                       GraphRelationships(getattr(state, "character_graph", None)), resolver)
 
 
+def own_spoken_lines(state: Any) -> dict[str, list[str]]:
+    """What each character has already said in this game, oldest first (BL-47 replay check).
+
+    Read from the dialogue memories the world model keeps of every spoken line; the player's words, narration and
+    other people's lines are not anyone's own history.
+    """
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state):
+        return {}
+    lines: dict[str, list[str]] = {}
+    for memory in model.memories.memories:
+        if memory.kind != "dialogue" or memory.owner not in model.characters:
+            continue
+        prefix = f"@{memory.owner} said: "
+        if memory.text.startswith(prefix):
+            lines.setdefault(memory.owner, []).append(memory.text[len(prefix):])
+    return lines
+
+
 def record_commitments(state: Any, updates: Iterable[Any]) -> list:
     """Promises the turn extractor found in the previous exchange (CommitmentUpdate)."""
     model = getattr(state, "world_model", None)

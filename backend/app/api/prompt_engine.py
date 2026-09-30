@@ -86,6 +86,7 @@ from backend.app.engine.state import (
 )
 from backend.app.engine.dialogue import (
     present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
+    drop_own_repeated_lines, own_repeat_indexes,
     dialogue_response_format, decode_dialogue_response, finale_turn,
     has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene, drop_narrated_player_echo,
 )
@@ -3618,13 +3619,19 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     _recent_replies = [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:]
     _draft_segments = drop_player_echo(present_dialogue(extract_state_tag(reply)[0], state)[1], msg)
     _draft_empty = not any(str(seg.get("text") or "").strip() for seg in _draft_segments)
-    if _draft_empty or only_repeats(_draft_segments, _recent_replies):
-        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id, "empty": _draft_empty})
+    # BL-47: a character replaying a line they said many turns ago (the recent-replies check cannot see that far).
+    _own_lines = world_turn.own_spoken_lines(state)
+    _own_replay = bool(own_repeat_indexes(_draft_segments, _own_lines))
+    _only_repeats = only_repeats(_draft_segments, _recent_replies)
+    if _draft_empty or _only_repeats or _own_replay:
+        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id, "empty": _draft_empty,
+              "own_replay": _own_replay})
         retry_messages = payload["messages"] + [
             {"role": "assistant", "content": reply},
             {"role": "user", "content": (
                 "That draft had no new lines for the player." if _draft_empty else
-                "That draft only repeated lines that were already said."
+                "That draft only repeated lines that were already said." if _only_repeats else
+                "That draft had a character say again a line they already said earlier."
             ) + " Write a new beat that responds to the player's latest message; "
                 "do not repeat earlier lines or the player's own words."},
         ]
@@ -3680,6 +3687,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # because each copy re-entered the history (2026-09-24).
     segments = drop_repeated_lines(
         segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
+    segments = drop_own_repeated_lines(segments, _own_lines)
     segments = ground_social_scene(segments, state)
     authored_arrivals = opening_arrival_segments(state)
     if authored_arrivals:

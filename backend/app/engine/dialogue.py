@@ -669,6 +669,48 @@ def only_repeats(segments: list[dict], recent_replies: list[str]) -> bool:
     return bool(segments) and all(_is_repeat(seg, seen) for seg in segments)
 
 
+OWN_REPEAT_MIN_WORDS = 6            # shorter lines ("Goodnight, Paul-kun. Sleep well!") legitimately recur
+OWN_REPEAT_TRUNCATED_AT = 240       # world-model memories keep only this many characters of a spoken line
+
+
+def own_repeat_indexes(segments: list[dict], own_lines: dict[str, list[str]]) -> list[int]:
+    """Indexes of dialogue beats where a character replays a line THEY said earlier in the game.
+
+    Live beta 2026-09-29 (BL-47): two residents said their authored arrival introductions again, word for word,
+    when the player greeted them seven turns later; the recent-replies filter only looks at the last three
+    messages. `own_lines` maps a speaker id to what they have already said (oldest first). A replay is an exact
+    match after word normalisation, or, for a remembered line that was cut at OWN_REPEAT_TRUNCATED_AT characters, a
+    beat that begins with it. Narration and short lines are never replays.
+    """
+    found = []
+    for index, seg in enumerate(segments):
+        if seg.get("kind") != "dialogue":
+            continue
+        history = (own_lines or {}).get(seg.get("speaker_id") or "")
+        if not history:
+            continue
+        words = normalized_words(seg.get("text", ""))
+        if len(words.split()) < OWN_REPEAT_MIN_WORDS:
+            continue
+        for past in history:
+            said = normalized_words(past)
+            if len(said.split()) < OWN_REPEAT_MIN_WORDS:
+                continue
+            if words == said or (len(past) >= OWN_REPEAT_TRUNCATED_AT and words.startswith(said)):
+                found.append(index)
+                break
+    return found
+
+
+def drop_own_repeated_lines(segments: list[dict], own_lines: dict[str, list[str]]) -> list[dict]:
+    """Remove beats where a character repeats their own earlier line; never empty the reply."""
+    replays = set(own_repeat_indexes(segments, own_lines))
+    if not replays:
+        return segments
+    kept = [seg for index, seg in enumerate(segments) if index not in replays]
+    return kept or segments
+
+
 def _recent_text(recent_replies: list[str]) -> str:
     return " ".join(f" {normalized_words(reply)} " for reply in recent_replies if reply)
 
