@@ -27,7 +27,7 @@ CFG = {"social_tracks": TRACKS, "social_acts": [
     {"kind": "confess", "track": "romance", "requires_tier": "interested", "cooldown_days": 1},
     {"kind": "ask_leave_together", "track": "romance", "requires_tier": "dating", "min_standing": 70,
      "requires_relationship": True},
-    {"kind": "leave_alone"}, {"kind": "withdraw"}],
+    {"kind": "withdraw"}],
     "characters": [{"key": "ann", "gender": "F"}]}
 SPECS = act_specs(CFG)
 

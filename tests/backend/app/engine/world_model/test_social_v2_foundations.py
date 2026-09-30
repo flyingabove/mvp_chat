@@ -290,21 +290,6 @@ def test_structured_turn_sets_goal_only_after_prior_mutual_relationship():
                                                             "relationship_decision", "romance_ending"]
 
 
-def test_solo_departure_is_a_valid_nonwinning_ending():
-    from backend.app.engine.world_model.romance import record_solo_departure
-    from backend.app.engine.gameplay import win_condition_detected
-
-    model = make_model({"ann": "kitchen"})
-    state = SimpleNamespace(world_model=model, gender="M", story_cfg={
-        "mode": {"romance_goal": {"enabled": True, "partner_gender": "opposite_player"}},
-        "characters": [{"key": "ann", "gender": "F"}]},
-        characters={"ann": object()}, cast_lifecycle=None)
-    assert not record_solo_departure(state, "Maybe I should leave alone.")
-    assert record_solo_departure(state, "I choose to leave the house alone.")
-    assert model.romance_outcome == "solo_departure"
-    assert not win_condition_detected("I leave alone", state)
-
-
 def test_female_player_can_leave_with_active_male_partner_and_resume_terminal_state():
     from backend.app.engine.world_model.turn import end_turn
     from backend.app.engine.gameplay import win_condition_detected

@@ -140,8 +140,11 @@ class WorldModel:
     departed_couples: list[str] = field(default_factory=list)        # couples who left the house
     counters: dict[str, int] = field(default_factory=dict)           # story clocks (e.g. couples_left)
     decision_log: list[dict] = field(default_factory=list)           # NPC verdict records (rules vs Jev), bounded
+    pending_choice: dict = field(default_factory=dict)      # BL-46: an offer the player must answer (persisted)
     view: TurnView = field(default_factory=TurnView)       # transient
     pending_verdicts: list = field(default_factory=list)   # transient: this turn's social-act verdicts
+    pending_notes: list = field(default_factory=list)      # transient: extra storyteller directives for this turn
+    pending_meet: list = field(default_factory=list)       # transient: who joins the player after a plan skip's world step
 
     # -- queries -----------------------------------------------------------------
     def rng(self, purpose: str, minute: Optional[int] = None) -> random.Random:
@@ -213,7 +216,8 @@ class WorldModel:
                 "act_cooldowns": dict(self.act_cooldowns),
                 "agendas": {cid: [i.to_dict() for i in items] for cid, items in self.agendas.items()},
                 "npc_couples": dict(self.npc_couples), "departed_couples": list(self.departed_couples),
-                "counters": dict(self.counters), "decision_log": list(self.decision_log)}
+                "counters": dict(self.counters), "decision_log": list(self.decision_log),
+                "pending_choice": dict(self.pending_choice)}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "WorldModel":
@@ -256,4 +260,5 @@ class WorldModel:
                    npc_couples={str(k): int(v) for k, v in (data.get("npc_couples") or {}).items()},
                    departed_couples=list(data.get("departed_couples") or []),
                    counters={str(k): int(v) for k, v in (data.get("counters") or {}).items()},
-                   decision_log=list(data.get("decision_log") or []))
+                   decision_log=list(data.get("decision_log") or []),
+                   pending_choice=dict(data.get("pending_choice") or {}))

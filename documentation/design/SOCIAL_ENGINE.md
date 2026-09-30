@@ -291,7 +291,43 @@ Not done, tracked: O09 narration agency (BL-29, owner: backlog), relationship-gr
 - **Deterministic campaigns** (`tests/backend/app/api/test_terrace_campaigns.py`): the opening roster RNG is seeded and the passive-cut budget is 180 days; the unseeded roster had failed the deploy gate about one run in three.
 - **Own-line replay guard** (`dialogue.py` `own_repeat_indexes`/`drop_own_repeated_lines`, `world_model/turn.py` `own_spoken_lines`, wired in `prompt_engine.py`): a character repeating a line of 6+ words they said earlier (read from the world model's dialogue memories, so it reaches beyond the last three messages) triggers the existing one-shot regeneration, and any leftover replay is dropped unless it would empty the reply. Fixes residents replaying their arrival introductions when greeted (BL-47 part 1).
 - **Owner rules recorded** in `documentation/user_corrections.md` (2026-09-29): state trackers may forget but must never register a kept promise as unkept; semantic matching goes to Jev with a measured bar or is removed.
-- **Opened from that play:** BL-43 (name and nickname matching via Jev), BL-44 (resume of a server-deleted session shows a blank chat), BL-45 (remaining promise-judge misses), BL-46 (a refused "leave this house" ask walks the player outdoors), BL-47 (arrival introductions replayed, stock refusal lines).
+- **Opened from that play:** BL-43 (name and nickname matching via Jev), BL-44 (resume of a server-deleted session shows a blank chat), BL-45 (remaining promise-judge misses), BL-46 (a refused "leave this house" ask walks the player outdoors; fixed, see "Leave-together asks, choice cards and plans"), BL-47 (arrival introductions replayed, stock refusal lines).
+
+### Leave-together asks, choice cards and plans (BL-46, as built)
+
+Owner design 2026-09-29. Code: `world_model/choices.py`, `world_model/leave_meaning.py`, `social_acts.py`, `turn.py`
+(`answer_choice`, `leave_meaning_subject`, `apply_leave_meaning`, `_offer_skip_to_plan`), `prompt_engine.py`.
+
+- **`(...)` and `[...]` talk to the game master** (interchangeable). A question gets an author-voice answer; a command
+  or action ("(I walk out onto the street)") is carried out and narrated in scene (`prompt_builder.py` "DIRECT CHANNEL").
+- **Who moves the player.** A parenthesised movement command (`_engine_move_command`) always applies, even right after
+  a refusal. A plain first-person performed move ("I go to the kitchen") still applies (`_match_world_destination`).
+  On any turn that carries a typed social act (or a choice-card answer) the extractor's destination guess is ignored
+  otherwise: an ask, invitation or confession never moves anyone before it is answered.
+- **"Leave together" may be a walk or the win.** `leave_meaning.classify` (Jev, a bounded classifier, no extra LLM call;
+  only when `NPC_DECISION_MODE` is `jev` or `compare`) reads `couple`, `outing` or `unclear`. `couple` runs the normal
+  verdict (Terrace still needs the relationship via `requires_relationship`). `outing` and `unclear` are not typed acts:
+  no verdict, no cooldown, nobody moves; the target answers the invitation or asks which is meant
+  (`WorldModel.pending_notes`). No usable Jev answer, and in `rules` mode: a couple reads `couple`, anyone else `unclear`.
+- **A decline names the room.** `directive(verdict, names, place)` adds "The scene stays at {place}; nobody leaves
+  unless the player says so."
+- **A yes opens a choice card, not an ending.** Accepting `ask_leave_together` records the yes and a persisted
+  `WorldModel.pending_choice` (returned as `pending_choice` in the chat response and by the history endpoint, so a
+  reload or resume shows it again). Options: `leave_now` (play the judges' ending) and `keep_talking`. The card is
+  answered by an ordinary chat message, `__choice__:<id>:<option>` (bots and the arena use the same path), or by
+  typing `[play ending]`/`(play credits)` while the card is open. `leave_now` queues a `Verdict(..., hint="confirmed")`;
+  only that turn runs the finale directive and `commit_mutual_departure`. `keep_talking` is handled in the browser (a
+  "Play ending" chip stays). The yes lapses at the end of that in-game day, or when the relationship ends or the
+  partner is gone; the storyteller is told. Leaving needs the partner in the player's room.
+- **Agreed future plans offer a skip.** When the previous exchange's commitments include a plan between the player and
+  a resident more than 3 hours away, a `plan_skip` card offers "Skip to Saturday 12:00" / "Keep playing". Skipping
+  runs the clock to the due time through the existing time-skip path, brings the resident to the player after the world
+  steps (`pending_meet`), and everything in between happens off-screen. One card at a time: an open leave-together yes
+  is never replaced. The meeting place is not tracked yet (BL-35). The card appears one turn after the agreement,
+  because commitments are extracted from the previous exchange.
+- **The player cannot end the run alone.** `leave_alone` (act, extractor rule, `left_alone` ending, solo-departure
+  regex path) is removed. Only the director clock (`cut_by_director`) ends a losing run.
+- **Chat responses carry `location_id`**, so tests and browser checks need not infer the place from narration.
 
 ### 12. Decision log and review answers
 
@@ -580,7 +616,7 @@ For stochastic behavior, use a fixed declared seed matrix and paired baseline/ca
 | P5-05 False victory | Player says “we both agree,” quotes a departure line, or receives only a friendly/date acceptance. | No mutual-departure ending without both actual decisions and current eligibility. |
 | P5-06 Mutual departure | Both eligible parties independently accept the same departure plan. | One atomic ending, consistent resident state and saved result; retry/reload cannot repeat or undo it. |
 | P5-07 Withdrawal and rotation | Partner refuses/withdraws before commitment, or leaves the active cast before the final decision. | Revalidate at commit; no stale consent or unavailable partner used to win. |
-| P5-08 Alternate outcome | Player chooses to leave alone or ends a relationship. | Coherent recorded ending without falsely declaring romantic success. |
+| P5-08 Alternate outcome | Player ends a relationship (the player cannot leave alone; BL-46). | Coherent recorded state without falsely declaring romantic success. |
 | P5-09 Long skip ending | Advance across an agreed departure boundary and another scheduled event. | Deterministic ordering, correct interruption/ending, no scenes after the terminal transition. |
 
 **Hosted proof:** finish one genuine mutual-departure run, one refusal/solo run and one repair arc; test reload at the last decision. Perform a separate adversarial false-victory attempt. Use both player-gender paths and more than one active roster across the acceptance set.

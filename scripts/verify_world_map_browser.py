@@ -61,6 +61,8 @@ def main():
                     lambda response: "/api/story/six_strangers" in response.url
                 ):
                     page.locator("#onboard-continue-btn").click()
+                    page.wait_for_selector("#briefing-start-btn", state="visible", timeout=10000)  # BL-49 briefing
+                    page.locator("#briefing-start-btn").click()
                 page.locator("#chat-menu-btn").click()
                 page.locator("#dd-map").click()
                 host = page.locator(".atlas-host")

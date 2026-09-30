@@ -26,9 +26,9 @@ def test_mutual_departure_is_a_win_naming_the_partner():
                                  "turns": 14, "ends_run": True}
 
 
-def test_solo_departure_is_neutral_not_a_win():
-    outcome = resolve_outcome(_state(ROMANCE, "solo_departure"), "You pack your bag.")
-    assert (outcome.ending_id, outcome.kind, outcome.partner_id) == ("left_alone", "neutral", "")
+def test_there_is_no_solo_exit_ending_any_more():
+    """BL-46: the player cannot end the run by leaving alone; only the director's clock ends a losing run."""
+    assert resolve_outcome(_state(ROMANCE, "solo_departure"), "You pack your bag.") is None
 
 
 def test_no_committed_decision_means_no_ending_even_with_winning_words():

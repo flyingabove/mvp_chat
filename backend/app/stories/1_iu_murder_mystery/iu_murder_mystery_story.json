@@ -331,6 +331,10 @@
   "goal": {
     "win_text_rule": "The investigation ends only when the true mastermind verbally admits that they ordered the killing."
   },
+  "briefing": {
+    "goal": "Find out who really ordered the killing. The investigation ends only when the true mastermind admits it in conversation, so question the suspects, notice what they hide, and use what you learn.",
+    "controls": []
+  },
   "leads": [
     {
       "id": "closet_scuff",

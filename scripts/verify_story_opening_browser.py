@@ -34,6 +34,8 @@ def check_mode(p, mode, args, output):
         page.locator("#modal-play-btn").click()
         if page.locator("#onboard-continue-btn").count():
             page.locator("#onboard-continue-btn").click()
+            page.wait_for_selector("#briefing-start-btn", state="visible", timeout=10000)  # BL-49 briefing
+            page.locator("#briefing-start-btn").click()
         opener = page.locator("#chat-messages .msg-bubble.npc").first
         opener.wait_for(timeout=120000)
         page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)

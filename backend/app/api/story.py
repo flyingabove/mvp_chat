@@ -2,6 +2,7 @@ import os
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
+from backend.app.engine.briefing import resolved as resolve_briefing
 from backend.app.engine.story_loader import load_story, find_story_dir, STORIES_DIR
 from backend.app.engine.world.world_loader import WorldLoader
 from backend.app.engine.world.map_model import world_map_payload
@@ -132,6 +133,7 @@ def get_story_meta(story_id: str):
         "goal": {
             "win_text_rule": goal.get("win_text_rule", "")
         },
+        "briefing": resolve_briefing(story_cfg),
         "rules": {
             "player_role": rules.get("player_role", ""),
             "mode": rules.get("mode", ""),

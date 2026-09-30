@@ -116,6 +116,10 @@ def test_a_strategic_player_can_earn_the_win_on_both_gender_paths(campaign, gend
             social_act=act))
         body = _say(campaign, sid, f"I'm here for you, {target}.")
         confessed = confessed or model.romance_relationship_partner == target
+        if body.get("pending_choice"):
+            # BL-46: her yes opens a choice card; the win plays when the player confirms leaving.
+            assert body["pending_choice"]["id"] == "leave_together" and "ending" not in body
+            body = _say(campaign, sid, "__choice__:leave_together:leave_now")
         ending = body.get("ending")
         if ending:
             break
@@ -125,9 +129,10 @@ def test_a_strategic_player_can_earn_the_win_on_both_gender_paths(campaign, gend
         f"no win in 40 days (confessed={confessed}, standing={campaign.pe.SESSIONS[sid]['state'].world_model.standing.get(target, 'player', 'romance')})"
 
 
-def test_leaving_alone_is_available_on_day_one(campaign):
+def test_the_player_cannot_end_the_run_by_leaving_alone(campaign):
+    """BL-46: 'leave alone' is no longer a player act; only the director's clock ends a losing run."""
     _new_game(campaign, "solo", "F")
     campaign.script.append(TurnExtraction(social_act=SocialActUpdate("leave_alone")))
     body = _say(campaign, "solo", "I'm leaving the house alone.")
-    assert body["ending"]["id"] == "left_alone"
-    assert any(s.get("speaker_name") == "Yukiko Ehara" for s in body["segments"]), "the panel closes the run"
+    assert "ending" not in body
+    assert not campaign.pe.SESSIONS["solo"]["state"].over

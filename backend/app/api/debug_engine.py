@@ -30,6 +30,7 @@ from fastapi.responses import JSONResponse
 from backend.app.auth.dependencies import require_operator, require_operator_ws, _operator_token_configured
 from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
 from backend.app.db.database import DATA_DIR
+from backend.app.engine.briefing import brief_lines
 from backend.app.engine.story_loader import load_story
 from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
@@ -260,13 +261,17 @@ async def _build_player_brief(story_id: str, api_base: str) -> str:
     if player_role:
         lines.append(f"YOUR ROLE: {player_role}")
 
-    # Win condition shown in the UI instructions box (real users see this)
+    # BL-49: the same briefing every real player is shown before the first scene (goal + controls).
+    briefing = meta.get("briefing") or {}
+    if briefing.get("goal"):
+        lines.extend(brief_lines(briefing))
+        return "\n".join(lines)
+
+    # Older stories without a briefing: the win condition shown in the UI instructions box.
     goal = meta.get("goal") or {}
     win_text = goal.get("win_text_rule", "")
     if win_text:
         lines.append(f"HOW TO WIN: {win_text}")
-
-    lines.append("YOUR GOAL: Discover what happened and who is responsible.")
     return "\n".join(lines)
 
 

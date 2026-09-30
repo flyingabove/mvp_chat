@@ -198,3 +198,23 @@ Instructions for AI to create a game
 7) Verify frontend: story appears in /api/stories, map renders, location list shows descriptions.
 8) Add/extend integration tests to load the story, world, and map; ensure data paths resolve. Run full test suite (python -m pytest).
 9) If anything is unclear, stop and ask for clarification before proceeding.
+
+## Story `briefing` block (BL-49)
+
+Every active story JSON declares a `briefing`, validated by `backend/app/engine/briefing.py` (`validate`, logged when
+the story registry loads and enforced for every active story by `tests/backend/app/engine/test_briefing.py`):
+
+```json
+"briefing": {
+  "goal": "20-700 characters of player-facing text: what to do and what ends the run. No scores, tiers, cooldowns or spoilers.",
+  "controls": [{"title": "Leaving together", "text": "Extra cards for this game only (optional)."}]
+}
+```
+
+`briefing.resolved(story_cfg)` adds the controls shared by every game (plain text, `(...)`/`[...]` to the game master,
+`[map]` and `/map`, the menu) and the story's declared `endings` (title, kind). `/api/story/{id}` returns it as `briefing`.
+The frontend shows it as a Goal/Controls/Map screen after character selection and before the first scene (Start game or
+Skip), prints a "How to play" card at the top of every new chat, offers it from the chat menu, and shows it once when a
+game started before the briefing existed is resumed. The map uses the story's own `world.world_map_image`. The
+debug player agent's brief is built from the same resolved briefing (`debug_engine._build_player_brief`), so a bot sees
+what a real player sees.

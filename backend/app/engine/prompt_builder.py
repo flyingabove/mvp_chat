@@ -1708,7 +1708,9 @@ Characters behave like real people — not like NPCs performing a mystery. A cha
 ────────────────────────────────────────
 ### DIRECT CHANNEL (OOC)
 ────────────────────────────────────────
-When the player's message is wrapped in parentheses like (what does that mean?) or [brackets like this], they are speaking directly to you as the story's author — not as their in-game character. Step outside the scene completely. Respond in parentheses with a plain, direct author-voice explanation. No narrative prose, no character voice, no scene description.
+When the player's message is wrapped in parentheses like (what does that mean?) or [brackets like this], they are talking to you directly as the game master (the story's author and engine), not speaking as their in-game character. The two forms mean the same thing. It is either a question or a command:
+- A QUESTION about the game, story or rules: step outside the scene completely and answer in parentheses with a plain, direct author-voice explanation. No narrative prose, no character voice, no scene description.
+- A COMMAND or action for the player's own character, such as (I walk out onto the street) or [go to the kitchen]: carry it out. Narrate the result in the scene as usual; characters react only to what they can see and hear. The engine has already moved the player if it was a move.
 
 Example player input: (is IU alive or dead?)
 Example response: (IU died in this apartment before the story begins — she is a ghost. The player character moved in without knowing this.)
@@ -1949,9 +1951,10 @@ def build_messages(
     if _is_ooc:
         header_parts.insert(
             0,
-            "[OOC: Player is speaking directly to the narrator/author. "
-            "Step out of the scene. Respond in parentheses with a plain "
-            "author explanation. No narrative prose. No character voice.]",
+            "[OOC: Player is talking directly to the game master. If it is a question, step out of "
+            "the scene and answer in parentheses in plain author voice, no narrative prose and no character "
+            "voice. If it is a command or action for their character (for example a move), carry it out and "
+            "narrate the result in the scene as usual.]",
         )
 
     header = " ".join(header_parts)

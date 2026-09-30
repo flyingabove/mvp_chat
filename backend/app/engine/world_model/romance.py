@@ -51,14 +51,6 @@ def commit_mutual_departure(state: Any, partner: str) -> None:
     model.world.remove(PLAYER)
 
 
-def commit_solo_departure(model: Any) -> None:
-    model.romance_outcome = "solo_departure"
-    model.world.add_event(model.world.minute, model.player_place(), (PLAYER,),
-                          "The player chose to leave the house alone", kind="solo_ending",
-                          operation_id=f"romance:solo:{model.turn}")
-    model.world.remove(PLAYER)
-
-
 def _eligible_present(state: Any) -> set[str]:
     model = getattr(state, "world_model", None)
     cfg = getattr(state, "story_cfg", {}) or {}
@@ -210,18 +202,3 @@ def record_departure_decisions(state: Any, player_message: str, segments: list[d
         commit_mutual_departure(state, partner)
         return True
     return False
-
-
-def record_solo_departure(state: Any, player_message: str) -> bool:
-    model = getattr(state, "world_model", None)
-    cfg = getattr(state, "story_cfg", {}) or {}
-    if model is None or model.romance_outcome or not isinstance(cfg, dict) or typed_acts(state):
-        return False
-    if not ((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"):
-        return False
-    words = str(player_message or "").strip().strip('"“”')
-    if not re.match(r"^I\s+(?:choose|decide|will)\s+to\s+(?:leave\s+(?:the\s+house\s+)?|move\s+out\s+)alone\b",
-                    words, re.I):
-        return False
-    commit_solo_departure(model)
-    return True

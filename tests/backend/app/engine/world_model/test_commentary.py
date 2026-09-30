@@ -10,6 +10,7 @@ from backend.app.engine.world_model.appraisal import record_behavior
 from backend.app.engine.world_model.commentary import (
     commentary_for, dossier, finale_directive, outline, scrub_panel, stances,
 )
+from backend.app.engine.world_model.social_acts import CONFIRMED, SocialAct, Verdict
 from backend.app.engine.world_model.standing import Standing
 from backend.app.engine.world_model.turn import begin_turn, end_turn, record_social_act
 
@@ -23,6 +24,13 @@ def _state(model):
     return SimpleNamespace(world_model=model, minute=0, location_id="kitchen", player_name="Paul", story_cfg=TERRACE,
                            characters={c: SimpleNamespace(name=c.title(), tells=[], meta={}) for c in model.characters},
                            cast_lifecycle=None, character_graph=None, gender="M", turns=9, outcome=None)
+
+
+def _confirm_leaving(state, partner="ann"):
+    """The player confirmed leaving together (BL-46): the only way to reach the finale turn."""
+    model = state.world_model
+    model.romance_relationship_partner = partner
+    model.pending_verdicts = [Verdict(SocialAct("ask_leave_together", partner), "accept", CONFIRMED)]
 
 
 def _footage_model():
@@ -71,7 +79,7 @@ def test_the_finale_turn_lets_panelists_speak_and_ordinary_turns_do_not():
     state = _state(model)
     begin_turn(state, "Hi.", 0)
     assert model.view.panel_speakers == {} and "reina" not in _contract_cast_ids(state)
-    record_social_act(state, SocialActUpdate("leave_alone"))
+    _confirm_leaving(state)
     begin_turn(state, "I'm leaving the house alone.", 0)
     assert set(model.view.panel_speakers) == {"reina", "yamasato", "yukiko"}
     assert {"reina", "yamasato", "yukiko"} <= set(model.view.allowed_speakers)
@@ -89,7 +97,7 @@ def test_panelists_never_speak_inside_the_house_scene():
     ("Are you going somewhere?") because panelists were listed with the house cast."""
     model = make_model({"ann": "kitchen"})
     state = _state(model)
-    record_social_act(state, SocialActUpdate("leave_alone"))
+    _confirm_leaving(state)
     begin_turn(state, "I'm leaving the house alone.", 0)
     prompt = dialogue_prompt(state)
     assert "TV studio" in prompt and "`panel` array" in prompt
@@ -108,7 +116,7 @@ def test_a_reply_without_the_panel_gets_a_footage_only_fallback():
     model = make_model({"ann": "kitchen"})
     state = _state(model)
     record_behavior(model, "player", "ann", "boastful", (), "b1")
-    record_social_act(state, SocialActUpdate("leave_alone"))
+    _confirm_leaving(state)
     begin_turn(state, "I'm leaving the house alone.", 0)
     assert "MUST end with the studio panel section" in dialogue_prompt(state)
     segments = [{"kind": "narration", "text": "You step out."}]
@@ -126,7 +134,7 @@ def test_the_finale_keeps_the_exit_scene_when_the_player_has_walked_out():
     from backend.app.engine.dialogue import ground_social_scene
     model = make_model({"ann": "kitchen"})
     state = _state(model)
-    record_social_act(state, SocialActUpdate("leave_alone"))
+    _confirm_leaving(state)
     begin_turn(state, "I'm leaving the house alone.", 0)
     model.world.move("player", "street")
     state.location = "Street"
@@ -141,7 +149,7 @@ def test_the_finale_keeps_the_exit_scene_when_the_player_has_walked_out():
 def test_on_the_exit_turn_the_people_being_left_can_still_say_goodbye():
     model = make_model({"ann": "kitchen", "ben": "garden"})
     state = _state(model)
-    record_social_act(state, SocialActUpdate("leave_alone"))
+    _confirm_leaving(state)
     state.location_id = "street"
     begin_turn(state, "I'm leaving the house alone.", 0)
     assert model.player_place() == "street" and "ann" in model.view.allowed_speakers
@@ -160,7 +168,7 @@ def test_the_finale_schema_requires_a_panel_the_model_cannot_skip():
     begin_turn(state, "Hi.", 0)
     ordinary = dialogue_response_format(state)["json_schema"]["schema"]
     assert "panel" not in ordinary["properties"] and not finale_turn(state)
-    record_social_act(state, SocialActUpdate("leave_alone"))
+    _confirm_leaving(state)
     begin_turn(state, "I'm leaving the house alone.", 0)
     schema = dialogue_response_format(state)["json_schema"]["schema"]
     assert "panel" in schema["required"] and finale_turn(state)

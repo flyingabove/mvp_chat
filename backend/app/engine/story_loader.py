@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from backend.app.engine.briefing import validate as validate_briefing
 from backend.app.engine.character_graph import CharacterGraph
 from backend.app.engine.state import Character
 from backend.app.utils.logging_utils import jlog
@@ -200,6 +201,8 @@ def build_story_registry() -> Dict[str, Dict[str, Any]]:
         story_id = str(cfg.get("id") or os.path.splitext(os.path.basename(path))[0]).strip()
         if not story_id or story_id not in active_story_ids:
             continue
+        for problem in validate_briefing(cfg):     # BL-49: also enforced for every active story by a test
+            jlog({"kind": "story_briefing_invalid", "story_id": story_id, "path": path, "problem": problem})
         registry[story_id] = {"path": path, "subdir": subdir, "raw": cfg}
     return registry
 

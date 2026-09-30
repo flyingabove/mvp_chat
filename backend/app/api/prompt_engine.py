@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
 from backend.app.db.repos import SessionRepo, SessionRevisionConflict, TurnReceipt, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
 from backend.app.engine.rules.endings import Outcome, goal_payload, resolve_outcome
-from backend.app.engine.world_model import npc_decision
+from backend.app.engine.world_model import choices as world_choices, leave_meaning, npc_decision
 
 import asyncio
 import copy
@@ -1102,6 +1102,16 @@ def _parse_time_skip(msg: str) -> Optional[tuple[int, str]]:
     return TIME_SKIP_PRESETS.get(preset_key)
 
 
+def _parse_plan_skip(msg: str, state: GameState) -> Optional[tuple[int, str]]:
+    """BL-46: the player accepted the offer to skip ahead to an agreed plan; returns (minutes, cue)."""
+    model = getattr(state, "world_model", None)
+    choice = getattr(model, "pending_choice", None) or {}
+    if choice.get("kind") != world_choices.PLAN_SKIP or world_choices.answer(model, msg) != world_choices.SKIP_TO_PLAN:
+        return None
+    minutes = int(choice.get("due") or 0) - int(getattr(state, "minute", 0) or 0)
+    return (minutes, f"Time passes until {choice.get('when')}") if minutes > 0 else None
+
+
 def _parse_natural_wait(msg: str, state: GameState) -> Optional[tuple[int, str]]:
     """Resolve an explicit first-person wait by duration or clock time.
 
@@ -1186,11 +1196,24 @@ def _match_world_destination(msg: str, runtime, current_location_id: str = "") -
     return ""
 
 
+# BL-46: (...) and [...] talk to the game master. A parenthesised movement command ("(I walk out onto the
+# street)") is an explicit order and always applies; only that lets an extractor destination stand on a turn
+# that also carries a typed social act.
+_ENGINE_SEGMENT = re.compile(r"\(([^()]*)\)|\[([^\[\]]*)\]")
+_ENGINE_MOVE_VERB = re.compile(r"\b(?:go|walk|head|step|move|run|leave|exit|return|enter|follow|stroll)\b", re.I)
+
+
+def _engine_move_command(player_message: str) -> bool:
+    return any(_ENGINE_MOVE_VERB.search(a or b or "") for a, b in _ENGINE_SEGMENT.findall(player_message or ""))
+
+
 def _resolved_movement_destination(player_message: str, extracted_destination: str,
                                    explicit_destination: str) -> str:
     """A performed player move outranks an extractor's guess from future talk."""
     if explicit_destination:
         return explicit_destination
+    if _engine_move_command(player_message):
+        return extracted_destination      # "(I walk onto the street)" is an order even after a question
     if re.match(r"^\s*(?:would|could|can|will|should)\s+(?:you|we|she|he|they)\b",
                 player_message or "", re.I):
         return ""
@@ -2411,7 +2434,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     _wm_player_words = msg
     _movement_authority_message = msg
     _wm_sleeping = False
-    _time_skip = _parse_time_skip(msg) or (_parse_natural_wait(msg, state) if state is not None else None)
+    _time_skip = _parse_time_skip(msg) or (
+        (_parse_plan_skip(msg, state) or _parse_natural_wait(msg, state)) if state is not None else None)
     _is_time_skip_turn = False
     if _time_skip is not None and state is not None:
         _skip_minutes, _skip_cue = _time_skip
@@ -2975,6 +2999,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # Keep transient scene memory bounded.
     state.purge_transient_entries()
 
+    # BL-46: answering an in-chat choice card ("leave together now?") is a normal chat message; it
+    # replaces the raw command with a storyteller cue and never re-runs social-act extraction.
+    _choice_cue = None
+    if world_turn.enabled(state):
+        world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+        _choice_cue = world_turn.answer_choice(state, msg)
+        if _choice_cue:
+            msg = _movement_authority_message = _choice_cue
+            if not _is_time_skip_turn:      # a skip turn already voids the player's words (see the skip block)
+                _wm_player_words = _choice_cue
+
     # --- ACTIVE CHARACTER DETECTION (pre-prompt) ---
     # Detect which characters are mentioned in recent conversation or present
     # at the current location.  Markers stored in the transient buffer let the
@@ -3189,8 +3224,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     )
 
             if extraction.movement_intent == "MOVE" and extraction.destination_id:
+                # BL-46: an ask, invitation or confession never moves anyone before it is answered; only a
+                # performed move (regex) or a parenthesised command does.
+                _guessed_destination = extraction.destination_id
+                if (extraction.social_act is not None or _choice_cue)                         and not _engine_move_command(_movement_authority_message):
+                    _guessed_destination = ""
                 _resolved_destination = _resolved_movement_destination(
-                    _movement_authority_message, extraction.destination_id, _explicit_destination,
+                    _movement_authority_message, _guessed_destination, _explicit_destination,
                 )
                 if _resolved_destination and _resolved_destination in runtime.world_graph.locations:
                     movement_msg = f"go to {_resolved_destination}"
@@ -3240,14 +3280,25 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 world_turn.ensure_model(state, lore=_lore_chunks_for(state))
                 world_turn.record_claims(state, extraction.self_claims, message=msg)
             # BL-39 phase F: the target decides a typed social act before the scene is written.
-            if extraction.social_act is not None and world_turn.enabled(state):
+            _proposed_act = extraction.social_act if not _choice_cue else None
+            if _proposed_act is not None and world_turn.enabled(state):
                 world_turn.ensure_model(state, lore=_lore_chunks_for(state))
                 _npc_mode = _npc_decision_mode_for(request)
+                # BL-46: "leave together" may be a walk or the win; read which before the target judges it.
+                _leave_subject = world_turn.leave_meaning_subject(state, _proposed_act)
+                if _leave_subject is not None:
+                    _meaning = leave_meaning.COUPLE if _leave_subject[2] else leave_meaning.UNCLEAR
+                    if _npc_mode != "rules":
+                        _meaning = await leave_meaning.classify(msg, _leave_subject[1], _leave_subject[2])
+                    _log({"kind": "leave_meaning", "req_id": req_id, "session_id": session_id,
+                          "story": state.story or "", "target": _leave_subject[0], "meaning": _meaning})
+                    _proposed_act = world_turn.apply_leave_meaning(state, _proposed_act, _meaning)
+            if _proposed_act is not None and world_turn.enabled(state):
                 _npc_judgment = None
-                _npc_ask = world_turn.npc_question(state, extraction.social_act) if _npc_mode != "rules" else None
+                _npc_ask = world_turn.npc_question(state, _proposed_act) if _npc_mode != "rules" else None
                 if _npc_ask is not None:
                     _npc_judgment = await npc_decision.judge(*_npc_ask)
-                world_turn.record_social_act(state, extraction.social_act, mode=_npc_mode, judgment=_npc_judgment)
+                world_turn.record_social_act(state, _proposed_act, mode=_npc_mode, judgment=_npc_judgment)
                 _npc_log = (getattr(state.world_model, "decision_log", None) or [None])[-1]
                 if _npc_log is not None:
                     _log({"kind": "npc_decision", "req_id": req_id, "session_id": session_id,
@@ -3820,7 +3871,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     if bool(sess.get("chinese_mode", False)):
         reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
 
-    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
+    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default",
+              "location_id": str(getattr(state, "location_id", "") or "")}
+    _choice_card = world_choices.payload(state.world_model) if getattr(state, "world_model", None) is not None else None
+    if _choice_card is not None and outcome is None:
+        result["pending_choice"] = _choice_card
     if outcome is not None:
         result["ending"] = outcome.payload()
     goal = goal_payload(state)

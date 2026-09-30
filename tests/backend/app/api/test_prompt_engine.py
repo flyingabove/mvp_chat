@@ -5858,7 +5858,10 @@ def test_typed_acts_carry_a_terrace_game_from_confession_to_a_win(client, monkey
     assert model.romance_relationship_partner == target
     model.standing.standings[(target, "player", "romance")] = Standing(value=80)
     second = client.post("/api/chat", json={"session_id": "typed_win", "message": "Let's leave together."}).json()
-    assert second["ending"]["id"] == "left_together" and second["ending"]["kind"] == "win"
+    assert "ending" not in second and second["pending_choice"]["id"] == "leave_together", "a yes opens the card (BL-46)"
+    third = client.post("/api/chat", json={"session_id": "typed_win",
+                                           "message": "__choice__:leave_together:leave_now"}).json()
+    assert third["ending"]["id"] == "left_together" and third["ending"]["kind"] == "win"
 
 
 def _confession_session(client, monkeypatch, sid, mode, judge_choice=None, headers=None):

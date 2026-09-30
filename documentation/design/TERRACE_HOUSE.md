@@ -19,7 +19,7 @@ You are a cast member on a reality show. You move into a Tokyo house with **five
 | Frame | The game is a reality TV show. The player is a cast member. |
 | After a win | Terrace: the departure scene, then the **long panel debate**, then the run ends. (Other stories may keep going after a win. Endings are configurable per story.) |
 | Panel | **Three panelists from the real show: Reina Triendl ("Torichan"), Ryota Yamasato ("Yamachan") and Yukiko Ehara.** Honest mix of praise and roast, grounded in real events from the run. Verdicts may call the player good, bad or evil. About 2,000 words, **no skip**. |
-| Panel on other exits | A **short segment** when NPCs leave (as a couple or alone). The **full debate** on any player exit: win, cut or leaving alone. |
+| Panel on other exits | A **short segment** when NPCs leave (as a couple or alone). The **full debate** on any player exit: a win or a director cut. The player cannot leave alone (BL-46). |
 | Difficulty | **No time limit.** Winning someone takes many days, strategy and conflict. No single-day wins. |
 | Preferences | Every NPC is **fully authored** (likes, dislikes, dealbreakers, conditions). The **starting roster and arrival order are random** each run (5 strangers from the pool). |
 | Battles | **All of them:** rival competition, conflicts with the crush, loyalty tests, confession risk. As dramatic as possible, emerging from the mechanics rather than scripted. |
@@ -131,7 +131,6 @@ These content labels compile to BL-39's closed typed Condition vocabulary. Evalu
 ```json
 "endings": [
   {"id": "left_together", "kind": "win",  "when": "romance_outcome == mutual_departure", "exit_scene": "...", "epilogue": "panel_finale", "ends_run": true},
-  {"id": "left_alone",    "kind": "neutral", "when": "act LEAVE_ALONE confirmed",          "epilogue": "panel_finale", "ends_run": true},
   {"id": "cut_by_director","kind": "loss", "when": "clock director_patience",             "exit_scene": "...", "epilogue": "panel_finale", "ends_run": true}
 ]
 ```

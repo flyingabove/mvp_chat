@@ -112,9 +112,6 @@ def endings_for(story_cfg: dict[str, Any]) -> list[Ending]:
         endings.append(Ending("left_together", "win", "You left together",
                               "You and {partner} both chose to leave the house together.",
                               {"kind": "world_outcome", "equals": "mutual_departure"}))
-        endings.append(Ending("left_alone", "neutral", "You left alone",
-                              "You chose to leave the house on your own.",
-                              {"kind": "world_outcome", "equals": "solo_departure"}))
     patterns = (cfg.get("win_detection") or {}).get("regex") or []
     if patterns:
         endings.append(Ending("confession", "win", "Case closed",

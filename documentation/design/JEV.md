@@ -1848,7 +1848,7 @@ Per request, an operator can override the mode without a redeploy: send `X-NPC-D
 
 ### Bounds (why Jev cannot make consent looser)
 
-1. Hard rules stay with the rules and Jev is not even asked: cooldown after a refusal, a closed track (dealbreaker), "must be together first" for a leave-together ask, the player's own acts (leave alone, withdraw).
+1. Hard rules stay with the rules and Jev is not even asked: cooldown after a refusal, a closed track (dealbreaker), "must be together first" for a leave-together ask, the player's own act (withdraw). Leaving alone is no longer a player act (BL-46).
 2. Jev can never say yes below the required tier and minimum standing. Such a yes is clamped to "not yet" and flagged `clamped`. Jev can be stricter than the rules; it cannot be looser.
 3. Jev sees only the target's own view: their nature and tastes, the stage they are at (in words), how they feel, what the player told them (disputed claims read as "unsure"), and what they noticed the player do. No other character's standing, memories or private state, and no engine internals.
 4. Jev's answer is a proposal to the same validate-before-display and atomic-commit path as the rules' verdict (`social_acts.validate/commit`).

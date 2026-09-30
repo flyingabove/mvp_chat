@@ -1,89 +1,9 @@
-# Terrace: a refused ask walks the player outdoors
+# Terrace: leave-together asks (remaining work after the BL-46 fix)
 
-Owner design session 2026-09-29. This file is over the ~3 KB guideline on purpose: it holds the agreed design until it
-ships, then the as-built rules move to `design/SOCIAL_ENGINE.md` and this section is deleted.
+The BL-46 design shipped 2026-09-30 (as built: `design/SOCIAL_ENGINE.md`, "Leave-together asks, choice cards and plans").
+Only the unmeasured or unbuilt parts remain.
 
-## BL-46 — A "leave together" ask moves the player, and a yes ends the game without asking
-
-- **Open:** hosted beta 2026-09-29 turn 12: Minori declined in dialogue, but the narration moved the scene to the
-  street for several turns ("glancing down the street", "as you walk back to the house"). One player line is read by
-  four parts of the code that never check each other: the typed social act (`prompt_engine.py` ~L3243), the
-  extractor movement guess (`MOVE`, applied ~L3191 *before* the act is decided), the regex fallback
-  `_match_world_destination`, and companions (`companions.py` `INVITE`, only matters once the player moved). The decline
-  directive (`social_acts.py` `directive`) never says where the scene is, so narration can drift even when state does
-  not. The chat response has no location field, so the report came from narration alone. A second problem: an
-  accepted `ask_leave_together` commits the ending immediately (`commit_mutual_departure`); the player never chooses
-  when to end.
-
-- **Status 2026-09-30: nothing built yet; the movement itself is unconfirmed.** A probe on beta `eed2fd0`/`654db09`
-  (fresh guest game, an early "let's leave this house together, right now" on turn 2) did **not** reproduce it: the
-  narration stayed in the living room. So the outdoor scene from the 35-turn play could be storyteller flavour rather than
-  a saved location change; only design point 10 (`location_id` in the chat response) can tell them apart. Do that
-  first, then replay the original path (kitchen, back to the living room, then the ask at turn 12) before trusting
-  any movement fix. Point 4 (the decline directive names the room) covers the "narration drifts even when state does
-  not" case either way. The companion rule already ignores future or conditional invitations, but `companions.py`
-  `INVITE` still matches "let's leave"; design point 7 keeps that on purpose.
-
-### Agreed design (owner decisions)
-
-1. **Parentheses talk to the game master.** `(...)` and `[...]` are interchangeable. They go to the game master (the
-   engine plus storyteller), not to the characters. The content can be a question (`(what does that mean?)`: answered
-   in author voice, as today) or a command/action (`(I walk outside onto the street)`: performed and narrated in scene).
-   The existing whole-message OOC header (`prompt_builder.py` "DIRECT CHANNEL") changes to cover both kinds.
-2. **Who moves the player.** In order of authority:
-   - A parenthesised action is an explicit command and always applies, even right after a decline ("you walk alone").
-   - A plain first-person performed move ("I walk to the kitchen") still applies (`_match_world_destination`).
-   - The extractor's movement guess is **ignored on any turn that carries a typed social act**. An ask, an invitation or
-     a question never moves anyone before it is answered.
-   - An ask plus a walk in one message (`"Minori, leave with me? (I walk onto the street)"`): the ask is decided
-     first and the player walks either way; a yes still produces the choice card in point 5.
-3. **"Leave together" means two things; decide which before judging.** A Jev question (new task `leave_meaning`, the
-   same bounded pattern as `npc_decision.judge`, no extra LLM call) reads the player's line with the relationship
-   status: `leave_as_couple` (leave the house/show for good together), `outing` (go out for a walk/date and come back)
-   or `unclear`.
-   - `leave_as_couple`: the normal `ask_leave_together` verdict. Terrace's win rule stays: they must already be a
-     couple (`requires_relationship`, `romance_relationship_partner`); otherwise the hard `not_yet` ("we're not even
-     together") applies.
-   - `outing`: no typed act, no verdict, no cooldown, nobody moves this turn. The target answers the invitation in
-     character; the player then goes with a parenthesised action or a performed move (companions follow as today).
-   - `unclear`, or Jev unavailable while they are not a couple: the target asks a clarifying question in character
-     ("Do you mean go for a walk, or leave the house together, for good?"). No verdict, no cooldown.
-   - Jev unavailable while they are a couple: `leave_as_couple` (the current behaviour).
-4. **The scene stays put on a decline.** Every non-accept directive names the current place: "The scene stays at
-   {place}; nobody leaves unless the player says so."
-5. **A yes to leaving together shows a choice card, never an instant ending.** Accepting records the yes and a
-   `pending_choice` in session state. The chat shows an in-chat card: **[Leave together now — play the judges' ending]**
-   and **[Keep talking]**.
-   - Leave now: commit `commit_mutual_departure`, then run the finale turn (exit scene + studio panel, "You win!" card).
-   - Keep talking: the card collapses and the game master says: `(Minori's yes stands. Type [play ending] or tap
-     "Play ending" when you're ready.)` A "Play ending" chip stays in the chat. `[play ending]`/`(play ending)` works too.
-   - The card is part of the saved session, so a reload, app restart or resume mid-choice shows it again
-     (the history endpoint returns `pending_choice`, like `ending`).
-   - The yes lapses at the end of that in-game day, or at once if the relationship ends or the partner leaves the
-     house; the game master then says so. (Owner skipped this question; this is the proposed default.)
-6. **A yes to a future plan also offers a jump.** When an accepted player/resident plan with a future time is
-   recorded ("date next Saturday"), a card offers **[Skip to Saturday 12:00]** / **[Keep playing]**. Skipping runs the
-   world forward to the due time (everything in between happens off-screen: consequences are the player's) and brings
-   the counterpart to the player. Plans are extracted from the previous exchange, so the card appears one turn after
-   the yes. The meeting place is not tracked yet (BL-35); the counterpart joins the player where they are.
-7. **Ordinary "come with me now" invitations move at once, no card** (`companions.py`, unchanged). Cards are only for
-   things that skip time or end the game. `INVITE` keeps `leave` ("let's leave for the cafe" is a real invitation).
-8. **Remove the player's "leave alone" mechanic.** The player cannot end the game by walking out. `leave_alone` is
-   removed from the social acts, the extractor prompt, the six-strangers story JSON, `record_solo_departure`,
-   `commit_solo_departure` and the `left_alone` ending. The only losing exit is the director cutting the player
-   (the `director_patience` clock), which ends with the panel judging the run.
-9. **Bots use the same choice.** The chat response carries `pending_choice {id, kind, prompt, options}`; the choice is
-   sent back as a normal chat message (`__choice__:<id>:<option>`), so the player agent and the arena can answer it. The
-   arena defaults to the ending/skip option so runs still finish.
-10. **`location_id` in the chat response** so tests and browser checks can see where the player is.
-
-- **Next:** failing-first tests through `/api/chat` with a scripted extractor: (a) `ask_leave_together` + `not_yet` +
-  extractor `MOVE -> neighborhood` leaves the player's and Minori's places unchanged and the directive names the room;
-  (b) the same plus `(I walk onto the street)` moves the player alone; (c) an accept returns `pending_choice`, keeps
-  `over=False`, and `__choice__:...:leave_now` produces the win ending; (d) `outing`/`unclear` give no verdict and no
-  cooldown. Update the arena player agent for `pending_choice`. Behaviour change for Terrace: needs the arena gate at
-  the next promotion.
-- **Touches:** `api/prompt_engine.py`, `engine/prompt_builder.py`, `world_model/social_acts.py`, `turn.py`,
-  `romance.py`, new `world_model/leave_meaning.py` and `world_model/choices.py`, `extractors/turn_extractor.py`,
-  `rules/endings.py`, `api/user_sessions.py`, `stories/7_six_strangers/six_strangers_story.json`, `frontend/index.html`,
-  `api/debug_engine.py` / arena player agent, `design/SOCIAL_ENGINE.md`.
+## BL-46 — Leave-together follow-ups: Jev accuracy, arena handling, plan meeting place
+- **Open:** (1) `world_model/leave_meaning.py` (Jev `couple`/`outing`/`unclear`) has no accuracy measurement. It only runs when `NPC_DECISION_MODE` is `jev` or `compare`; in `rules` mode (the default) a couple reads `couple` and anyone else `unclear`, so a walk invitation from a couple is still treated as the win ask. Owner rule (`user_corrections.md`, asymmetric state errors): a mechanic that can wrongly end the game needs a measured bar (at least 99%) or must be dropped. (2) The arena and debug player agent are only told `[play ending]` through the briefing controls; nothing yet defaults them to answer a `pending_choice` card, so an arena run that earns a yes can stall before the win. (3) A skip-to-plan card brings the resident to the player wherever they are; the plan's meeting place is untracked (BL-35). (4) The card appears one turn after the agreement, because commitments are extracted from the previous exchange.
+- **Next:** (1) write 60+ `leave_meaning` cases ("leave with me" as a walk, as a date, as moving out together, with and without a relationship) to a fresh file, measure like `scripts/eval/promise_judge_eval.py`, gate on false `couple` readings, then decide whether `jev` mode may be the default. (2) In the arena player loop, answer an open `pending_choice` with `leave_now` (a single `__choice__:<id>:leave_now` message) so runs can finish, and add a test. (3) Depends on BL-35. (4) Accept or move plan extraction into the current turn.
+- **Touches:** `world_model/leave_meaning.py`, `tests/eval_cases/`, `scripts/eval/`, the arena player loop (`api/debug_engine.py`), `design/SOCIAL_ENGINE.md`.

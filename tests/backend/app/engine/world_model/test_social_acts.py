@@ -8,7 +8,7 @@ from backend.app.engine.rules.endings import resolve_outcome
 from backend.app.engine.world_model.romance import record_relationship_decisions
 from backend.app.engine.world_model.social_acts import act_specs
 from backend.app.engine.world_model.standing import Standing
-from backend.app.engine.world_model.turn import begin_turn, end_turn, record_social_act
+from backend.app.engine.world_model.turn import answer_choice, begin_turn, end_turn, record_social_act
 
 from tests.backend.app.engine.world_model.helpers import make_model
 
@@ -19,7 +19,7 @@ TRACKS = {"tracks": [{"id": "romance", "daily_gain_cap": 10, "repeat_decay": 0.5
 ACTS = [{"kind": "confess", "track": "romance", "requires_tier": "interested", "cooldown_days": 1},
         {"kind": "ask_leave_together", "track": "romance", "requires_tier": "dating", "min_standing": 70,
          "requires_relationship": True},
-        {"kind": "leave_alone"}, {"kind": "withdraw"}]
+        {"kind": "withdraw"}]
 CFG = {"world_model": {"enabled": True}, "social_tracks": TRACKS, "social_acts": ACTS,
        "mode": {"romance_goal": {"enabled": True, "partner_gender": "opposite_player"}},
        "characters": [{"key": "ann", "gender": "F"}, {"key": "cat", "gender": "F"}, {"key": "ben", "gender": "M"}]}
@@ -110,20 +110,24 @@ def test_high_standing_alone_never_ends_the_game_leaving_needs_the_explicit_ask(
     _set(model, "ann", 80)
     _turn(state, "Ann, let's leave the house together.", SocialActUpdate("ask_leave_together", "ann"),
           [{"kind": "dialogue", "speaker_id": "ann", "text": "Let's go."}])
-    assert model.romance_outcome == "mutual_departure"
+    assert model.romance_outcome == "" and resolve_outcome(state, "") is None, "a yes only opens the choice card"
+    assert model.pending_choice["partner"] == "ann"
+    cue = answer_choice(state, "__choice__:leave_together:leave_now")
+    assert "leave the house together" in cue
+    _turn(state, cue)
+    assert model.romance_outcome == "mutual_departure" and model.pending_choice == {}
     assert resolve_outcome(state, "").ending_id == "left_together"
 
 
-def test_leaving_alone_and_withdrawing_are_the_players_own_decisions():
+def test_withdrawing_is_the_players_own_decision_and_leaving_alone_is_gone():
     model = make_model({"ann": "kitchen"})
     state = _state(model)
     model.romance_relationship_partner = "ann"
     _turn(state, "I'm ending this, Ann.", SocialActUpdate("withdraw"))
     assert model.romance_relationship_partner == ""
     assert any(e.kind == "relationship_withdrawn" for e in model.world.events)
-    _turn(state, "I'm leaving the house alone.", SocialActUpdate("leave_alone"))
-    assert model.romance_outcome == "solo_departure"
-    assert resolve_outcome(state, "").kind == "neutral"
+    assert record_social_act(state, SocialActUpdate("leave_alone")) is None, "BL-46: the player cannot end the run alone"
+    assert model.romance_outcome == ""
 
 
 def test_acts_need_an_eligible_present_target():
@@ -146,8 +150,9 @@ def test_typed_act_stories_turn_off_the_regex_adapters():
 
 
 def test_act_specs_validate_story_content():
-    assert set(act_specs(CFG)) == {"confess", "ask_leave_together", "leave_alone", "withdraw"}
-    for bad in ([{"kind": "elope"}], [{"kind": "confess"}], [{"kind": "leave_alone"}, {"kind": "leave_alone"}]):
+    assert set(act_specs(CFG)) == {"confess", "ask_leave_together", "withdraw"}
+    for bad in ([{"kind": "elope"}], [{"kind": "confess"}], [{"kind": "leave_alone"}],
+                [{"kind": "withdraw"}, {"kind": "withdraw"}]):
         with pytest.raises(ValueError):
             act_specs({"social_acts": bad})
 

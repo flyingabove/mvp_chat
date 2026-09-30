@@ -40,6 +40,8 @@ def check(p, mode, args, output):
         page.locator("#modal-play-btn").click()
         if page.locator("#onboard-continue-btn").count():
             page.locator("#onboard-continue-btn").click()
+            page.wait_for_selector("#briefing-start-btn", state="visible", timeout=10000)  # BL-49 briefing
+            page.locator("#briefing-start-btn").click()
         page.locator("#chat-messages .msg-bubble.npc").first.wait_for(timeout=120000)
         pill = page.locator("#chat-goal-pill")
         pill.wait_for(state="visible", timeout=10000)

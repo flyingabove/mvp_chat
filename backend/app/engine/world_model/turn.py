@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from typing import Any, Callable, Iterable, Optional
 
-from backend.app.engine.world_model import bootstrap, promise_judge
+from backend.app.engine.world_model import bootstrap, choices, promise_judge
 from backend.app.engine.world_model.companions import choose_companions
 from backend.app.engine.world_model.commitments import (due_commitments, expire_commitments, record_commitment,
                                                          mark_reminded)
@@ -30,7 +30,7 @@ from backend.app.engine.world_model.deception import DeceptionProfile, choose_cu
 from backend.app.engine.world_model.persona import SelfClaim
 from backend.app.engine.world_model.standards import enforce_dealbreakers, failing_requirements, viewpoint
 from backend.app.engine.world_model.social_acts import (
-    NEEDS_TARGET, SocialAct, Verdict, act_specs, assess, commit as commit_act, directive as verdict_directive,
+    CONFIRMED, NEEDS_TARGET, SocialAct, Verdict, act_specs, assess, commit as commit_act, directive as verdict_directive,
     validate as validate_verdict,
 )
 from backend.app.engine.world_model.npc_decision import (
@@ -47,8 +47,7 @@ from backend.app.engine.world_model.commentary import (
     commentary_for, dossier, fallback_panel, finale_directive, scrub_panel,
 )
 from backend.app.engine.world_calendar import day_number
-from backend.app.engine.world_model.romance import (record_departure_decisions, record_relationship_decisions,
-                                                    record_solo_departure)
+from backend.app.engine.world_model.romance import record_departure_decisions, record_relationship_decisions
 from backend.app.engine.world_model.epistemics import observe_event
 from backend.app.engine.world_model.drama import choose_conflict, record_repair_dialogue
 from backend.app.engine.world_model.projection import classify_ending, ending_hint
@@ -175,6 +174,9 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
     place_names = place_names or {}
     model.turn += 1
     model.conversation.lapse_stale(model.turn)
+    lapsed = choices.refresh(model)
+    if lapsed:
+        model.pending_notes.append(lapsed)
     model.player_name = str(getattr(state, "player_name", "") or model.player_name)
     sync_membership(model, state)
     previous_place = model.player_place()
@@ -196,6 +198,10 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
         expire_commitments(model, now)
         queue_contacts(model, minute_before, now, warmth_fn(state))
         model.player_availability = "awake"
+    for cid in model.pending_meet:
+        if cid in model.characters and model.player_place():
+            model.world.move(cid, model.player_place())
+    model.pending_meet = []
     model.world.minute = now
     mirror_locations(model, state)
     if model.turn == 1 and not model.last_with_player:
@@ -311,13 +317,17 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
                                      f"{names[promise.counterpart]} may remind them.")
             mark_reminded(model, promise)
     owes_answer = _question_directives(model, view, present_set, names)
+    for note in model.pending_notes:
+        view.must_address.append(note)
+    model.pending_notes = []
     for verdict in model.pending_verdicts:
-        view.must_address.append(verdict_directive(verdict, names))
+        view.must_address.append(verdict_directive(verdict, names, _place_name(place_names, here)))
         if verdict.act.target in present_set:
             owes_answer.add(verdict.act.target)
     addressed_now, _ = addressed_ids(model, message, present)
     day = model.world.day_index(model.world.minute)
-    ending_now = any(v.answer == "accept" and v.act.kind in ("ask_leave_together", "leave_alone")
+    # A yes only opens the choice card; the finale plays on the turn the player confirms leaving (BL-46).
+    ending_now = any(v.answer == "accept" and v.act.kind == "ask_leave_together" and v.hint == CONFIRMED
                      for v in model.pending_verdicts)
     for key, text in due_beats(clocks_for(getattr(state, "story_cfg", {}) or {}), model.counters):
         view.must_address.append(text)
@@ -591,6 +601,84 @@ def npc_question(state: Any, proposal: Any):
     return jev_decision(act.target, act), view
 
 
+def leave_meaning_subject(state: Any, proposal: Any):
+    """(target_id, target_name, already_a_couple) when this act is an "ask to leave together", else None.
+
+    Only that act is ambiguous ("leave with me" may be a walk or the win), so it is the only one whose
+    meaning is read before the target judges it (BL-46).
+    """
+    model = getattr(state, "world_model", None)
+    if model is None or not enabled(state) or proposal is None or model.romance_outcome:
+        return None
+    if str(getattr(proposal, "kind", "")) != "ask_leave_together":
+        return None
+    target = str(getattr(proposal, "target", "") or "")
+    if target not in model.characters:
+        return None
+    return target, model.names().get(target, target), model.romance_relationship_partner == target
+
+
+def apply_leave_meaning(state: Any, proposal: Any, meaning: str) -> Any:
+    """The act to judge: the proposal when it means leaving as a couple, else None plus a storyteller note.
+
+    An outing or an unclear ask is not a typed act: no verdict, no cooldown, nobody moves this turn.
+    """
+    subject = leave_meaning_subject(state, proposal)
+    if subject is None or meaning == "couple":
+        return proposal
+    model, name = state.world_model, subject[1]
+    if meaning == "outing":
+        model.pending_notes.append(
+            f"The player asked {name} to go somewhere together for a while, not to leave the house for good. "
+            f"{name} answers the invitation in character. Nobody moves until the player does.")
+    else:
+        model.pending_notes.append(
+            f"{name} is not sure whether the player means a short outing or leaving the house for good together "
+            f"as a couple. {name} asks which they mean, in character, before answering. It is not a yes or a no yet.")
+    return None
+
+
+def answer_choice(state: Any, message: str) -> Optional[str]:
+    """Handle a choice-card answer. Returns the storyteller cue that replaces the message, or None.
+
+    `leave_now` queues the confirmed departure verdict (the finale plays on this turn). Anything else that
+    names a card (keep talking, a stale or unknown option) continues the scene without ending it.
+    """
+    model = getattr(state, "world_model", None)
+    text = (message or "").strip()
+    if model is None or not enabled(state):
+        return None
+    is_choice_text = text.startswith(choices.CHOICE_PREFIX)
+    if not is_choice_text and not choices.PLAY_ENDING.match(text):
+        return None
+    lapsed = choices.refresh(model)
+    if lapsed:
+        model.pending_notes.append(lapsed)
+    picked = choices.answer(model, text)
+    if picked in (choices.SKIP_TO_PLAN, choices.KEEP_PLAYING):
+        choice, partner = model.pending_choice, str(model.pending_choice.get("partner") or "")
+        name, when, what = model.names().get(partner, partner), choice.get("when"), choice.get("what")
+        model.pending_choice = {}
+        if picked == choices.KEEP_PLAYING:
+            return "[The player keeps playing; the plan stays on their mind.]"
+        if model.player_place():
+            model.pending_meet.append(partner)      # they meet, wherever the player is (BL-35), after the world steps
+        return (f"[The player skips ahead to {when} for their plan with {name}: {what}. "
+                f"It is now {when} and they are together.]")
+    if picked == choices.LEAVE_NOW:
+        partner = str(model.pending_choice.get("partner") or "")
+        name = model.names().get(partner, partner)
+        if not choices.partner_here(model):
+            model.pending_notes.append(f"{name} is not here, so the player cannot leave with them yet. "
+                                       "They have to find them first.")
+            return f"[The player wants to leave the house together with {name} now, but {name} is not here.]"
+        model.pending_verdicts = [Verdict(SocialAct("ask_leave_together", partner), "accept", CONFIRMED)]
+        return f"[The player chooses to leave the house together with {name} now.]"
+    if picked == choices.KEEP_TALKING:
+        return "[The player chooses to keep talking for now.]"
+    return "[The player tried to answer an offer that no longer stands.]" if is_choice_text else None
+
+
 def record_social_act(state: Any, proposal: Any, *, mode: str = "rules", judgment: Any = None) -> Optional[Verdict]:
     """Decide this turn's social act (rules, Jev within the rules, or both logged); held until end_turn validates it."""
     context = _act_context(state, proposal)
@@ -696,7 +784,6 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
     prior_relationship_partner = model.romance_relationship_partner
     record_relationship_decisions(state, message, segments)
     record_departure_decisions(state, message, segments, prior_relationship_partner)
-    record_solo_departure(state, message)
     repaired = record_repair_dialogue(model, message, segments)
     relationships = GraphRelationships(getattr(state, "character_graph", None))
     for thread_id in repaired:
@@ -755,7 +842,24 @@ def record_commitments(state: Any, updates: Iterable[Any]) -> list:
                                    str(getattr(update, "what", "")), str(getattr(update, "when", "later")), now)
         if memory is not None:
             recorded.append(memory)
+            _offer_skip_to_plan(model, memory, now)
     return recorded
+
+
+def _offer_skip_to_plan(model: WorldModel, memory: Any, now: int) -> None:
+    """A plan the player and a resident agreed for later can be skipped to (BL-46); never forced."""
+    if memory.due is None or memory.due - now < choices.MIN_SKIP_MINUTES:
+        return
+    people = {memory.owner, memory.counterpart}
+    partner = next(iter(people - {PLAYER}), "") if PLAYER in people and len(people) == 2 else ""
+    if partner in model.characters:
+        choices.offer_plan_skip(model, partner, _plan_text(model, memory), memory.due)
+
+
+def _plan_text(model: WorldModel, memory: Any) -> str:
+    """The plan in plain words ("meet at the cafe"), without the memory's own framing."""
+    agreement = next((a for a in model.agreements.items if a.id == memory.agreement_id), None)
+    return str(agreement.activity if agreement is not None else memory.text).strip().rstrip(".")
 
 
 def _prune(model: WorldModel) -> None:

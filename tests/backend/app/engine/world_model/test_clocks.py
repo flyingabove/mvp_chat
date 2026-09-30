@@ -76,10 +76,10 @@ def test_invalid_clocks_fail_loudly(bad):
         clocks_for({"clocks": bad})
 
 
-def test_terrace_declares_the_director_clock_and_all_three_endings():
+def test_terrace_declares_the_director_clock_and_its_two_endings():
     assert [(c.warn_at, c.trigger_at, c.counter) for c in clocks_for(TERRACE)] == [(2, 3, "couples_left")]
     assert [(e.id, e.kind) for e in endings_for(TERRACE)] == [
-        ("left_together", "win"), ("left_alone", "neutral"), ("cut_by_director", "loss")]
+        ("left_together", "win"), ("cut_by_director", "loss")]
 
 
 def test_stories_without_clocks_get_no_beats():

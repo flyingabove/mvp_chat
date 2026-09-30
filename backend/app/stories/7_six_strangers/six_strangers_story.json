@@ -412,6 +412,13 @@
   "goal": {
     "win_text_rule": "Build a mutual romantic relationship with a housemate of the opposite gender, then both choose to leave the house together. The other residents of your gender may seek the same person's affection and make competing plans. A date or friendly agreement alone is not a win."
   },
+  "briefing": {
+    "goal": "Get into a romantic relationship with one housemate of the opposite gender, then ask them to leave the house with you, just the two of you. Other residents may want the same person. If three other couples leave before you do, the director cuts you from the show.",
+    "controls": [
+      {"title": "Leaving together", "text": "When someone says yes to leaving the house together, a card lets you leave now and play the judges' ending, or keep talking. Type [play ending] whenever you are ready."},
+      {"title": "Plans", "text": "When you agree a plan for later, such as a date on Saturday, a card can skip time straight to it. Anything in between happens without you."}
+    ]
+  },
   "protagonist": {
     "role": "One of six housemates, with three men and three women including you",
     "profile": "Your name, background, work, ambitions, and romantic interests are yours to define. You arrive in Tokyo looking for a new everyday life among people with lives of their own.",
@@ -2260,9 +2267,6 @@
     {"id": "left_together", "kind": "win", "title": "You left together",
      "summary": "You and {partner} both chose to leave the house together.",
      "when": {"kind": "world_outcome", "equals": "mutual_departure"}},
-    {"id": "left_alone", "kind": "neutral", "title": "You left alone",
-     "summary": "You chose to leave the house on your own.",
-     "when": {"kind": "world_outcome", "equals": "solo_departure"}},
     {"id": "cut_by_director", "kind": "loss", "title": "Cut by the director",
      "summary": "Three other couples left happy before you. The director decided your story was over.",
      "when": {"kind": "counter_at_least", "counter": "couples_left", "value": 3}}
@@ -2290,7 +2294,6 @@
     {"kind": "confess", "track": "romance", "requires_tier": "interested", "cooldown_days": 1},
     {"kind": "ask_leave_together", "track": "romance", "requires_tier": "dating", "min_standing": 70,
      "requires_relationship": true, "cooldown_days": 1},
-    {"kind": "leave_alone"},
     {"kind": "withdraw"}
   ],
   "player_fact_keys": [

@@ -868,6 +868,58 @@
       margin-top: 14px; padding: 10px 20px; border: 0; border-radius: 20px;
       background: var(--red); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
     }
+    .choice-card {
+      margin: 14px auto; max-width: 420px; padding: 16px 18px; border-radius: 16px;
+      border: 1px solid #f5c542; background: var(--card); text-align: center;
+    }
+    .choice-card .choice-prompt { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 12px; }
+    .choice-card .choice-options { display: flex; flex-direction: column; gap: 8px; }
+    .choice-card button, .choice-chip {
+      padding: 11px 16px; border-radius: 20px; font: inherit; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: transparent; color: var(--text);
+    }
+    .choice-card button.primary, .choice-chip { background: var(--red); border-color: var(--red); color: #fff; }
+    #modal-briefing {
+      position: fixed; inset: 0; z-index: 310; display: none; align-items: center; justify-content: center;
+      background: rgba(5,5,5,0.96);
+      padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    }
+    #modal-briefing.open { display: flex; }
+    .briefing-card {
+      background: #181818; border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 22px;
+      width: 100%; max-width: 640px; max-height: calc(100dvh - 24px); display: flex; flex-direction: column;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+    }
+    .briefing-kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-sub); text-align: center; }
+    .briefing-title { text-align: center; font-size: 24px; font-weight: 800; margin: 4px 0 12px; color: var(--text); }
+    .briefing-tabs { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; }
+    .briefing-tab {
+      padding: 8px 16px; border-radius: 18px; border: 1px solid var(--border); background: transparent;
+      color: var(--text-sub); font: inherit; font-size: 14px; cursor: pointer;
+    }
+    .briefing-tab.active { background: var(--red); border-color: var(--red); color: #fff; }
+    .briefing-panels { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
+    .briefing-panel[hidden] { display: none; }
+    .briefing-goal { font-size: 16px; line-height: 1.5; color: var(--text); }
+    .briefing-endings { margin: 12px 0 0; padding-left: 18px; color: var(--text-sub); font-size: 13px; }
+    .briefing-control { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .briefing-control-title { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .briefing-control-text { font-size: 14px; line-height: 1.45; color: var(--text-sub); }
+    .briefing-map img { width: 100%; border-radius: 12px; display: block; }
+    .briefing-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 14px; }
+    .briefing-actions .primary {
+      width: 100%; padding: 13px; border: 0; border-radius: 22px; background: var(--red); color: #fff;
+      font: inherit; font-weight: 700; font-size: 16px; cursor: pointer;
+    }
+    .briefing-actions .link { background: none; border: 0; color: var(--text-sub); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; }
+    .briefing-actions .link[hidden] { display: none; }
+    .howto-card { margin: 10px auto; max-width: 520px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--card); }
+    .howto-title { font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .howto-goal { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 8px; }
+    .howto-list { margin: 0 0 8px; padding-left: 18px; font-size: 13px; line-height: 1.45; color: var(--text-sub); }
+    .howto-more { background: none; border: 0; padding: 0; color: var(--text-sub); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+    .choice-chip-row { margin: 8px auto 4px; text-align: center; }
+    .choice-chip { padding: 8px 16px; font-size: 13px; }
     #chat-ai-disclaimer {
       flex-shrink: 0;
       text-align: center;
@@ -1410,6 +1462,7 @@
     <!-- Dropdown menu -->
     <div id="chat-dropdown">
       <div class="dropdown-item" id="dd-map"><span class="di-icon">🗺</span> World Map</div>
+      <div class="dropdown-item" id="dd-howto"><span class="di-icon">❓</span> How to play</div>
       <div class="dropdown-item" id="dd-cast"><span class="di-icon">👥</span> <span id="dd-cast-label">Cast</span></div>
       <div class="dropdown-item" id="dd-journal"><span class="di-icon">📓</span> Journal</div>
       <div class="dropdown-item" id="dd-skip"><span class="di-icon">⏭</span> Skip Ahead</div>
@@ -1598,6 +1651,31 @@
       <div class="modal-genre" id="modal-genre"></div>
       <div class="modal-desc" id="modal-desc"></div>
       <button class="btn-play-large" id="modal-play-btn">▶ Play Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- Briefing (BL-49): map, controls and goal before the first scene -->
+<div id="modal-briefing">
+  <div class="briefing-card" role="dialog" aria-modal="true" aria-labelledby="briefing-title">
+    <div class="briefing-kicker" id="briefing-story"></div>
+    <div class="briefing-title" id="briefing-title">How to play</div>
+    <div class="briefing-tabs" role="tablist">
+      <button type="button" class="briefing-tab active" data-tab="goal" role="tab">Goal</button>
+      <button type="button" class="briefing-tab" data-tab="controls" role="tab">Controls</button>
+      <button type="button" class="briefing-tab" data-tab="map" role="tab">Map</button>
+    </div>
+    <div class="briefing-panels">
+      <div class="briefing-panel" data-panel="goal">
+        <div class="briefing-goal" id="briefing-goal"></div>
+        <ul class="briefing-endings" id="briefing-endings"></ul>
+      </div>
+      <div class="briefing-panel" data-panel="controls" hidden id="briefing-controls"></div>
+      <div class="briefing-panel briefing-map" data-panel="map" hidden id="briefing-map"></div>
+    </div>
+    <div class="briefing-actions">
+      <button type="button" class="primary" id="briefing-start-btn">Start game</button>
+      <button type="button" class="link" id="briefing-skip-btn">Skip</button>
     </div>
   </div>
 </div>
@@ -2594,8 +2672,130 @@ $("onboard-continue-btn").addEventListener("click", function(){
     appState.personaOther = "";
   }
   closeModal("modal-onboard");
-  launchChat(appState.pendingStory, appState.onboardName, appState.onboardGender, appState.guestMode);
+  var story = appState.pendingStory, name = appState.onboardName, gender = appState.onboardGender, guest = appState.guestMode;
+  // BL-49: every new game shows the briefing (map, controls, goal) before the first scene is written.
+  fetchStoryMeta(story).then(function(meta){
+    appState.pendingMeta = meta;
+    openBriefing(meta, "start", function(){ launchChat(story, name, gender, guest); });
+  });
 });
+
+/* ─── BRIEFING (BL-49) ──────────────────────────── */
+var BRIEFING_SEEN_KEY = "storieschat_briefing_seen";
+
+function briefingSeen(sessionId){
+  try { return (JSON.parse(localStorage.getItem(BRIEFING_SEEN_KEY) || "[]") || []).indexOf(sessionId) >= 0; } catch(e){ return false; }
+}
+
+function markBriefingSeen(sessionId){
+  try {
+    var seen = JSON.parse(localStorage.getItem(BRIEFING_SEEN_KEY) || "[]") || [];
+    if (seen.indexOf(sessionId) < 0) seen.push(sessionId);
+    localStorage.setItem(BRIEFING_SEEN_KEY, JSON.stringify(seen.slice(-200)));
+  } catch(e){}
+}
+
+function fetchStoryMeta(story){
+  return fetch(STORY_URL + "/" + encodeURIComponent(story.id))
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .catch(function(){ return null; });
+}
+
+function setBriefingTab(name){
+  document.querySelectorAll("#modal-briefing .briefing-tab").forEach(function(t){
+    t.classList.toggle("active", t.dataset.tab === name);
+  });
+  document.querySelectorAll("#modal-briefing .briefing-panel").forEach(function(p){
+    p.hidden = p.dataset.panel !== name;
+  });
+}
+
+document.querySelectorAll("#modal-briefing .briefing-tab").forEach(function(t){
+  t.addEventListener("click", function(){ setBriefingTab(this.dataset.tab); });
+});
+
+// mode "start": Start game / Skip both begin the game; mode "view": one Back button. A story with no
+// briefing (or a failed fetch) never blocks play: the start callback just runs.
+function openBriefing(meta, mode, onStart){
+  var b = meta && meta.briefing;
+  if (!b || !b.goal){ if (onStart) onStart(); return; }
+  appState.briefingStart = onStart || null;
+  $("briefing-story").textContent = meta.title || "";
+  $("briefing-goal").textContent = b.goal;
+  var ends = $("briefing-endings");
+  ends.innerHTML = "";
+  (b.endings || []).forEach(function(e){
+    var li = document.createElement("li");
+    li.textContent = e.title + (e.kind === "win" ? " (win)" : e.kind === "loss" ? " (loss)" : "");
+    ends.appendChild(li);
+  });
+  var list = $("briefing-controls");
+  list.innerHTML = "";
+  (b.controls || []).forEach(function(c){
+    var row = document.createElement("div");
+    row.className = "briefing-control";
+    var h = document.createElement("div");
+    h.className = "briefing-control-title";
+    h.textContent = c.title;
+    var t = document.createElement("div");
+    t.className = "briefing-control-text";
+    t.textContent = c.text;
+    row.appendChild(h);
+    row.appendChild(t);
+    list.appendChild(row);
+  });
+  var map = $("briefing-map");
+  map.innerHTML = "";
+  if (meta.world_map_image){
+    var img = document.createElement("img");
+    img.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
+    img.alt = "World map";
+    map.appendChild(img);
+  } else if ((meta.known_locations || []).length){
+    var ul = document.createElement("ul");
+    meta.known_locations.slice(0, 16).forEach(function(l){
+      var li = document.createElement("li");
+      li.textContent = l.name || l.id;
+      ul.appendChild(li);
+    });
+    map.appendChild(ul);
+  } else {
+    map.textContent = "This story has no map.";
+  }
+  setBriefingTab("goal");
+  $("briefing-start-btn").textContent = mode === "start" ? "Start game" : "Back to game";
+  $("briefing-skip-btn").hidden = mode !== "start";
+  openModal("modal-briefing");
+}
+
+function finishBriefing(){
+  closeModal("modal-briefing");
+  var go = appState.briefingStart;
+  appState.briefingStart = null;
+  if (go) go();
+}
+
+$("briefing-start-btn").addEventListener("click", finishBriefing);
+$("briefing-skip-btn").addEventListener("click", finishBriefing);
+
+// The basics stay on the chat page even when the briefing was skipped: the goal and the two controls people miss.
+function addHowToPlayCard(meta){
+  var b = meta && meta.briefing;
+  if (!b || !b.goal) return;
+  var card = document.createElement("div");
+  card.className = "howto-card";
+  card.innerHTML = '<div class="howto-title">How to play</div><div class="howto-goal"></div><ul class="howto-list"></ul>' +
+    '<button type="button" class="howto-more">Full guide</button>';
+  card.querySelector(".howto-goal").textContent = "Goal: " + b.goal;
+  var ul = card.querySelector(".howto-list");
+  (b.controls || []).slice(1, 3).forEach(function(c){
+    var li = document.createElement("li");
+    li.textContent = c.title + ": " + c.text;
+    ul.appendChild(li);
+  });
+  card.querySelector(".howto-more").addEventListener("click", function(){ openBriefing(meta, "view"); });
+  $("chat-messages").appendChild(card);
+}
 
 /* ─── CHAT SCREEN ───────────────────────────────── */
 // A06 fix: launchChat and resumeGameFromSession each used to (1) write
@@ -2655,6 +2855,7 @@ function launchChat(story, playerName, gender, guestMode){
 
   appState.session = session;
   appState.chatHistory = [];
+  appState.choiceKept = "";
   appState.debugMode = false;
   appState.truthMode = false;
   appState.chineseMode = false;
@@ -2680,6 +2881,8 @@ function launchChat(story, playerName, gender, guestMode){
   if (guestMode) {
     addSystemMessage("Guest mode: your progress will be deleted after 24 hours unless you sign in with Google.");
   }
+  markBriefingSeen(session.session_id);
+  if (appState.pendingMeta && appState.pendingMeta.id === story.id) addHowToPlayCard(appState.pendingMeta);
 
   showScreen("chat");
   preloadCharacterPortraits(story);
@@ -2747,6 +2950,7 @@ function resumeGameFromSession(sess){
 
   appState.session = sess;
   appState.chatHistory = [];
+  appState.choiceKept = "";
   appState.currentStory = story;
   appState.currentMeta = null;
   appState.debugMode = false;
@@ -2767,6 +2971,12 @@ function resumeGameFromSession(sess){
   setChatEnded(false);
 
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
+
+  // BL-49: a game started before the briefing existed shows it once, then never again for that game.
+  if (sess.session_id && !briefingSeen(sess.session_id)){
+    markBriefingSeen(sess.session_id);
+    fetchStoryMeta(story).then(function(meta){ appState.pendingMeta = meta; addHowToPlayCard(meta); openBriefing(meta, "view"); });
+  }
 
   showScreen("chat");
   preloadCharacterPortraits(story);
@@ -2797,6 +3007,7 @@ function resumeGameFromSession(sess){
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
         if (!entries.length) addSystemMessage("(Continue where you left off)");
         renderEnding(data.ending || sess.ending);
+        if (!(data.ending || sess.ending)) renderChoiceCard(data.pending_choice);
       })
       .catch(function(){
         addSystemMessage("(History unavailable — continue where you left off)");
@@ -3018,8 +3229,63 @@ function setChatEnded(ended){
   if (sendBtn && appState.gameEnded) sendBtn.disabled = true;
 }
 
+/* ─── CHOICE CARD (BL-46): an accepted "leave together" waits for the player's say-so ─── */
+// The card lives in the saved session on the server, so a reload or resume shows it again. It is answered with
+// a normal chat message, so nothing here holds state that matters beyond "the player already said keep talking".
+function clearChoiceCard(){
+  document.querySelectorAll("#chat-messages .choice-card, #chat-messages .choice-chip-row").forEach(function(el){ el.remove(); });
+}
+
+function answerChoiceCard(choice, optionId){
+  clearChoiceCard();
+  sendMessage("__choice__:" + choice.id + ":" + optionId, false, { suppressUserMessage: true });
+}
+
+function renderChoiceCard(choice){
+  clearChoiceCard();
+  if (!choice || !choice.options || appState.gameEnded) return;
+  var msgs = $("chat-messages");
+  if (appState.choiceKept === choice.id){          // they already said "keep talking": just a chip
+    var row = document.createElement("div");
+    row.className = "choice-chip-row";
+    row.innerHTML = '<button type="button" class="choice-chip"></button>';
+    row.querySelector("button").textContent = choice.chip || choice.options[0].label;
+    row.querySelector("button").addEventListener("click", function(){ answerChoiceCard(choice, choice.options[0].id); });
+    msgs.appendChild(row);
+    scrollChatToBottom();
+    return;
+  }
+  var card = document.createElement("div");
+  card.className = "choice-card";
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", "Choose what happens next");
+  card.innerHTML = '<div class="choice-prompt"></div><div class="choice-options"></div>';
+  card.querySelector(".choice-prompt").textContent = choice.prompt || "";
+  choice.options.forEach(function(opt, i){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = opt.label;
+    if (i === 0) btn.className = "primary";
+    btn.addEventListener("click", function(){
+      if (i > 0){                                 // the second option is always "not now"
+        appState.choiceKept = choice.id;
+        renderChoiceCard(choice);
+        addSystemMessage(choice.kind === "leave_together"
+          ? "(Their yes stands. Type [play ending] or tap “Play ending” whenever you are ready.)"
+          : "(Fine, carry on. The plan stays open until its time.)");
+      } else {
+        answerChoiceCard(choice, opt.id);
+      }
+    });
+    card.querySelector(".choice-options").appendChild(btn);
+  });
+  msgs.appendChild(card);
+  scrollChatToBottom();
+}
+
 function renderEnding(ending){
   if (!ending) return;
+  clearChoiceCard();
   var msgs = $("chat-messages");
   if (!msgs.querySelector(".ending-card")){
     var card = document.createElement("div");
@@ -3049,7 +3315,7 @@ $("chat-goal-pill").addEventListener("click", function(){
 function sendMessage(text, isInit, options){
   options = options || {};
   if (appState.gameEnded && !isInit) return;
-  if (/^\s*(?:\[(?:m|map)\]|\((?:m|map)\))\s*$/i.test(text)) { showMapModal(true); return; }
+  if (/^\s*(?:\[(?:m|map)\]|\((?:m|map)\)|\/map)\s*$/i.test(text)) { showMapModal(true); return; }
   if (appState.awaitingResponse && !isInit) return;
   appState.awaitingResponse = true;
 
@@ -3103,6 +3369,7 @@ function sendMessage(text, isInit, options){
         if (session){ session.goal = data.goal; }
       }
       if (data && data.ending) renderEnding(data.ending);
+      else renderChoiceCard(data && data.pending_choice);
 
       // Update session
       if (session){
@@ -3182,6 +3449,13 @@ document.addEventListener("click", function(){
 $("dd-map").addEventListener("click", function(){
   $("chat-dropdown").classList.remove("open");
   showMapModal(true);
+});
+
+$("dd-howto").addEventListener("click", function(){
+  $("chat-dropdown").classList.remove("open");
+  var story = appState.currentStory;
+  if (appState.currentMeta && appState.currentMeta.briefing) { openBriefing(appState.currentMeta, "view"); }
+  else if (story) { fetchStoryMeta(story).then(function(meta){ openBriefing(meta, "view"); }); }
 });
 
 $("dd-cast").addEventListener("click", function(){

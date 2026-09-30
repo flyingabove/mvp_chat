@@ -1,10 +1,14 @@
-"""Typed social acts with explicit consent: confess, ask to leave together, leave alone, withdraw.
+"""Typed social acts with explicit consent: confess, ask to leave together, withdraw.
 
 The existing extraction call proposes which act the player's message makes.
 The target decides from their own standing and standards (a documented local
 policy; standing qualifies an ask, it never forces a yes). The verdict is
 held for the turn, voiced by the storyteller from a directive, checked
 against the generated reply before display, and committed with the reply.
+
+A yes to `ask_leave_together` does not end the game: it opens an in-chat choice (`choices.py`) that the
+player answers, and only that confirmation commits the ending (BL-46). The player cannot end the run alone;
+the only losing exit is the director's clock.
 """
 from __future__ import annotations
 
@@ -12,12 +16,12 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from backend.app.engine.world_model import choices
 from backend.app.engine.world_model.model import PLAYER, WorldModel
-from backend.app.engine.world_model.romance import (
-    commit_mutual_departure, commit_relationship, commit_solo_departure, end_relationship,
-)
+from backend.app.engine.world_model.romance import commit_mutual_departure, commit_relationship, end_relationship
 
-KINDS = ("confess", "ask_leave_together", "leave_alone", "withdraw")
+KINDS = ("confess", "ask_leave_together", "withdraw")
+CONFIRMED = "confirmed"        # Verdict.hint on the turn the player confirmed leaving together
 NEEDS_TARGET = frozenset({"confess", "ask_leave_together"})
 LABELS = {"confess": "confession", "ask_leave_together": "asking to leave the house together"}
 _ACCEPTANCE = re.compile(r"\b(yes|of course|absolutely|i'?d love (to|that)|let'?s (do it|go|leave)|"
@@ -76,8 +80,6 @@ class Assessment:
 
 def assess(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str]) -> Optional[Assessment]:
     """The target's rules-based assessment, or None when the act cannot apply here (wrong/absent target)."""
-    if act.kind == "leave_alone":
-        return Assessment(Verdict(act, "accept"), hard=True, can_accept=True)
     if act.kind == "withdraw":
         return Assessment(Verdict(act, "accept"), True, True) if model.romance_relationship_partner else None
     if act.target not in eligible:
@@ -105,20 +107,22 @@ def decide(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str])
     return assessment.verdict if assessment is not None else None
 
 
-def directive(verdict: Verdict, names: dict[str, str]) -> str:
+def directive(verdict: Verdict, names: dict[str, str], place: str = "") -> str:
     act = verdict.act
-    if act.kind == "leave_alone":
-        return ("The player has chosen to leave the house alone. Write their exit: goodbyes from whoever is "
-                "here; nobody forces them to stay.")
     if act.kind == "withdraw":
         return "The player has ended their romantic relationship. Show the other person's reaction honestly."
     name = names.get(act.target, act.target)
     label = LABELS[act.kind]
+    if verdict.answer == "accept" and verdict.hint == CONFIRMED:
+        return (f"The player and {name} now leave the house together for good, as a couple. Write their exit "
+                "scene: goodbyes from the other residents, then the two of them walking out.")
     if verdict.answer == "accept":
-        return f"{name} says yes to the player's {label}. Show a clear yes in their own voice."
+        return (f"{name} says yes to the player's {label}. Show a clear yes in their own voice. Nobody leaves "
+                "yet: the player decides when, and the story continues in this scene.")
     tone = "turns it down" if verdict.answer == "reject" else "does not say yes yet"
+    stays = f" The scene stays at {place}; nobody leaves unless the player says so." if place else ""
     return (f"{name} {tone} after the player's {label} ({verdict.hint}). They must not say yes. Voice it in "
-            "character and do not state any hidden rule or score.")
+            f"character and do not state any hidden rule or score.{stays}")
 
 
 def validate(verdict: Verdict, segments: list[dict], names: dict[str, str]) -> int:
@@ -141,9 +145,6 @@ def commit(state: Any, spec: ActSpec, verdict: Verdict, witnesses: tuple[str, ..
     model: WorldModel = state.world_model
     act = verdict.act
     day = model.world.day_index(model.world.minute)
-    if act.kind == "leave_alone":
-        commit_solo_departure(model)
-        return
     if act.kind == "withdraw":
         partner = model.romance_relationship_partner
         end_relationship(model)
@@ -164,4 +165,8 @@ def commit(state: Any, spec: ActSpec, verdict: Verdict, witnesses: tuple[str, ..
     if act.kind == "confess":
         commit_relationship(model, act.target, (event.id,))
     elif act.kind == "ask_leave_together":
-        commit_mutual_departure(state, act.target)
+        if verdict.hint == CONFIRMED:
+            model.pending_choice = {}
+            commit_mutual_departure(state, act.target)
+        else:
+            choices.offer_leave_together(model, act.target)
