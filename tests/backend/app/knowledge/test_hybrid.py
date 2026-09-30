@@ -16,9 +16,7 @@ from backend.app.integration_playback.scenarios.scenario_hybrid_retrieval_thresh
 # -- Pytest entry point --
 import pytest  # noqa: E402
 
-pytest.importorskip("faiss")
-pytest.importorskip("rank_bm25")
-
+# Real embedder (11 s, model load): kept out of the deploy gate. No importorskip - a missing dependency must fail.
 @pytest.mark.integration
 def test_character_hybrid_retrieval_recall_threshold():
     HybridRetrievalScenario.run_as_test()

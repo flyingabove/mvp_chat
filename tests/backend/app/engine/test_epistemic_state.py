@@ -95,7 +95,6 @@ def test_state_has_epistemic_slots_and_belief_getter():
 from backend.app.integration_playback.runner import run_scenario
 
 
-@pytest.mark.integration
 def test_epistemic_state_tracks_iu_case_without_api():
     result = run_scenario("epistemic_iu_flow")
     log = result["log"]

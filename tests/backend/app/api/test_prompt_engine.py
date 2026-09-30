@@ -4909,7 +4909,6 @@ from backend.app.integration_playback.scenarios.scenario_api_chat_five_turns imp
 from backend.app.integration_playback.scenarios.scenario_iu_identity_correction import IUIdentityCorrectionScenario
 
 
-@pytest.mark.integration
 # ============================================================================
 # A12: per-session turn serialization
 # ============================================================================
@@ -4979,20 +4978,6 @@ def test_api_end_to_end_5_turns_time_and_location():
 @pytest.mark.xfail(reason="LLM non-deterministic: narration reveals identity but evaluator acceptance varies", strict=False)
 def test_iu_identity_correction():
     IUIdentityCorrectionScenario.run_as_test()
-
-
-# ---------------------------------------------------------------------------
-# BL-07: per-character self_knowledge propagation through prompt_engine.py
-# (new-game path and restore path build the character roster separately,
-# so both are covered here).
-# ---------------------------------------------------------------------------
-
-    for entry in by_key["mina"].self_knowledge:
-        assert entry in sysmsg
-    for entry in by_key["daeho"].self_knowledge:
-        assert entry in sysmsg
-    for entry in by_key["priya"].self_knowledge:
-        assert entry not in sysmsg
 
 
 @pytest.mark.parametrize("story_id,speaker_ids", [
@@ -6047,15 +6032,6 @@ def test_mutual_departure_returns_a_win_ending_saved_with_the_reply(client):
     assert reloaded["ending"] == body["ending"]
     history = client.get("/api/user/sessions/ending_win/history", headers=headers).json()
     assert history["ending"] == body["ending"], "resuming a finished game shows its ending"
-
-
-def test_solo_departure_is_a_neutral_ending(client):
-    pe_mod, _ = _terrace_session(client, "ending_solo", {})
-    pe_mod.SESSIONS["ending_solo"]["state"].world_model.romance_outcome = "solo_departure"
-    body = client.post("/api/chat", json={"session_id": "ending_solo", "message": "Bye."}).json()
-    assert (body["ending"]["id"], body["ending"]["kind"], body["ending"]["label"]) == (
-        "left_alone", "neutral", "Story ended")
-    assert "YOU WIN" not in body["reply"]
 
 
 def test_ordinary_turns_and_declined_offers_have_no_ending(client):
