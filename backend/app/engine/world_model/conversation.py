@@ -15,10 +15,11 @@ LAPSED = "lapsed"
 # An unresolved question this old no longer belongs in the scene.
 LAPSE_AFTER_TURNS = 12
 MAX_OPEN = 6
-# The extractor's verdict can lag or miss (live beta 2026-09-29: Riko re-answered one
-# question for ~8 turns). After the addressee has replied this many turns while it
-# stayed open, the engine closes it itself so the directive stops forcing a repeat.
-MAX_DIRECTED_REPLIES = 2
+# The extractor's verdict can lag or miss, and a question left open is re-demanded every turn (live beta
+# 2026-09-29: Riko re-answered one question for ~8 turns; a second beta run had Minori and Hikaru each answer a
+# question twice). Repeating an answer is the visible failure, forgetting one is not (owner rule), so the engine
+# closes a question on the addressee's first reply after it was asked. If they dodged it, it is let go.
+MAX_DIRECTED_REPLIES = 1
 KEEP_CLOSED = 20
 
 

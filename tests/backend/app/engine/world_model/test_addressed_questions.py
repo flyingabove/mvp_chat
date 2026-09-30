@@ -113,24 +113,51 @@ def test_open_questions_survive_a_save_round_trip():
     assert [(q.addressee, q.text) for q in restored.conversation.open_questions()] == [("ann", "Where were you?")]
 
 
-def test_a_question_the_addressee_keeps_answering_is_closed_by_the_engine():
-    """Live beta 2026-09-29: the extractor never marked it answered and Riko re-answered it ~8 turns."""
-    from backend.app.engine.world_model.conversation import MAX_DIRECTED_REPLIES
+def test_the_addressees_first_reply_closes_the_question_so_it_is_never_answered_twice():
+    """Live beta 2026-09-29 (twice): a question the extractor never marked answered was demanded again next turn."""
     from backend.app.engine.world_model.turn import end_turn
 
     model = make_model({"ann": "kitchen", "ben": "kitchen"})
     state = _state(model)
     record_questions(state, [QuestionAsked("ann", "How are you finding this place?")], [],
                      message="How are you finding this place?")
-    reply = [{"kind": "dialogue", "speaker_id": "ann", "text": "Strange."},
-             {"kind": "dialogue", "speaker_id": "ann", "text": "But it has potential."}]
-    for _ in range(MAX_DIRECTED_REPLIES):
-        assert model.conversation.open_questions(), "still owed until she has replied enough"
-        begin_turn(state, "Hmm.", 0)
-        end_turn(state, "Hmm.", reply)      # two lines in one turn count as one reply
+    begin_turn(state, "How are you finding this place?", 0)
+    assert len(_question_lines(model)) == 1 and model.conversation.open_questions()
+    end_turn(state, "How are you finding this place?", [{"kind": "dialogue", "speaker_id": "ann", "text": "Strange."},
+                                                         {"kind": "dialogue", "speaker_id": "ann",
+                                                          "text": "But it has potential."}])   # two lines, one reply
     assert model.conversation.open_questions() == []
     begin_turn(state, "Anyway.", 0)
-    assert _question_lines(model) == []
+    assert _question_lines(model) == [], "no second answer is demanded"
+
+
+def test_one_reply_closes_every_question_the_addressee_was_asked_that_turn():
+    from backend.app.engine.world_model.turn import end_turn
+
+    model = make_model({"ann": "kitchen"})
+    state = _state(model)
+    record_questions(state, [QuestionAsked("ann", "Where were you at 8?"), QuestionAsked("ann", "Who told you?")], [],
+                     message="Where were you at 8? Who told you?")
+    begin_turn(state, "Where were you at 8? Who told you?", 0)
+    end_turn(state, "Where were you at 8? Who told you?",
+             [{"kind": "dialogue", "speaker_id": "ann", "text": "At work."}])
+    assert model.conversation.open_questions() == []
+
+
+def test_a_question_to_someone_away_stays_owed_until_they_are_back_and_reply():
+    from backend.app.engine.world_model.turn import end_turn
+
+    model = make_model({"ann": "kitchen", "cat": "garden"})
+    state = _state(model)
+    record_questions(state, [QuestionAsked("cat", "Did you lock the door?")], [], message="Cat, did you lock the door?")
+    begin_turn(state, "Cat, did you lock the door?", 0)
+    end_turn(state, "Cat, did you lock the door?", [{"kind": "dialogue", "speaker_id": "ann", "text": "Not me."}])
+    assert [q.addressee for q in model.conversation.open_questions()] == ["cat"]
+    model.world.move("cat", "kitchen")
+    begin_turn(state, "Oh, you're back.", 0)
+    assert any("Cat must respond" in line for line in _question_lines(model))
+    end_turn(state, "Oh, you're back.", [{"kind": "dialogue", "speaker_id": "cat", "text": "Yes, I locked it."}])
+    assert model.conversation.open_questions() == []
 
 
 def test_other_peoples_chatter_does_not_count_as_the_addressees_reply():
