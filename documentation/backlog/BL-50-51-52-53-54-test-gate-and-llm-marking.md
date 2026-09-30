@@ -1,0 +1,31 @@
+# Test gate and LLM marking (audit A, 2026-09-30)
+
+Audit of `tests/` on 2026-09-30: 1,531 unit tests pass in about 100 s; 13 are deselected as `integration`. The deploy gate itself is sound (Dockerfile runs `-m "not integration"` with blank keys and `TESTS_BLOCK_LLM_NETWORK=1`; `tests/conftest.py` `_block_llm_hosts` fails any test that resolves an LLM host). The problems are labelling and what sits outside the gate.
+
+## BL-50 — `integration` marker is wrong in both directions
+- **Open:** Only 3 of the 13 `integration` tests need an LLM: `tests/backend/integration/test_promise_judge_accuracy.py` (live Jev), `test_location_extractor.py::test_location_extractor_playback` (OpenAI) and `test_prompt_engine.py::test_iu_identity_correction` (OpenAI, xfail). The rest are mislabelled:
+  - `test_prompt_engine.py:4912` `@pytest.mark.integration` sits above the "A12" comment banner and lands on `test_chat_handler_serializes_overlapping_calls_for_same_session`, a fully mocked concurrency test. The deploy gate never runs it.
+  - `tests/backend/app/config/test_epistemic_flags.py:22` (6 parametrized cases) and `tests/backend/app/engine/test_epistemic_state.py:98` use `EpistemicLayerScenario` / `epistemic_iu_flow`, which have no LLM and no network. The second is named `..._without_api`.
+  - `tests/backend/app/knowledge/test_hybrid.py:22` and `test_retrieve.py:74` need the local SentenceTransformer (`embed_query`), not an LLM.
+- **Next:** Remove the marker from the A12 test and move the banner above the decorator. Remove it from the two epistemic files so they run in the default suite. Register a new `slow` (or `embedder`) marker use for the two knowledge tests and keep them out of the deploy gate on cost/time grounds, not "requires API keys". Update the `integration` marker text in `pytest.ini` and `tests/conftest.py` to "calls a real LLM". Add a conftest check that every `integration` test references a key (or is in an allowlist) so mislabels fail at collection.
+- **Touches:** `tests/backend/app/api/test_prompt_engine.py`, `tests/backend/app/config/test_epistemic_flags.py`, `tests/backend/app/engine/test_epistemic_state.py`, `tests/backend/app/knowledge/test_hybrid.py`, `test_retrieve.py`, `pytest.ini`, `tests/conftest.py`.
+
+## BL-51 — The promotion-gate scoring is not a pytest integration test
+- **Open:** The beta-to-prod and local-to-beta scoring (arena: `precheck`, `gate` profile, Jev/OpenAI/Ollama judges) lives in `.claude/skills/promote-to-prod/` and runs only through `arena_cli.py` behind `ARENA_LLM_ENABLED=1`. It returns exit codes and writes `precheck.json` / `gate.json`, but nothing under `pytest -m integration` runs or asserts it. Only the promise-judge eval (`scripts/eval/promise_judge_eval.py`) is already an integration test.
+- **Next:** Add `tests/backend/integration/test_arena_gate.py`, marked `integration` (plus an opt-in `arena_live` marker for the Ollama and paid parts). It bootstraps `sys.path` to the skill directory, requires `ARENA_LLM_ENABLED=1`, `OPENAI_API_KEY`, `TYPESAFE_API_KEY` and a reachable Ollama (missing prerequisites FAIL with a clear message; skips are banned), calls `arena.cli.precheck` / `tiered` with a tmp root and pinned `--baseline-ref`, and asserts `precheck.json["passed"]` and `gate.json["passed"]`. Keep it OUT of the CI integration job (CI cannot supply Ollama or git refs). Precheck takes about 15 min and the hosted gate spends real money, so it must never run in deploys. Owner decision needed: this touches the 2026-09-25 "arena LLM runs disabled" rule, so the wrapper keeps the flag requirement. Update `promote-to-prod/SKILL.md` and `AI_LEARNINGS_RUNNING_TESTS.md` to say the gate is "one of the integ tests".
+- **Touches:** new `tests/backend/integration/test_arena_gate.py`, `pytest.ini` (marker), `.claude/skills/promote-to-prod/SKILL.md`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`.
+
+## BL-52 — The arena's own 138 tests run nowhere automatically
+- **Open:** `.claude/skills/promote-to-prod/tests/` (10 files, about 1,470 lines, all offline fakes via `arena/fakes.py`) is outside `pytest.ini` `testpaths = tests`, so neither CI (`pytest tests/`) nor the Docker gate runs it. A regression in the gate logic (`arena/service.py`, `arena/aggregate.py`, `arena/release.py`) ships unnoticed.
+- **Next:** Add the path to the CI unit job (one line: `pytest tests/ .claude/skills/promote-to-prod/tests -m "not integration"`), keeping it out of the Docker image (`COPY tests/` only) so deploys stay fast. Or move the files under `tests/scripts/arena/`. Confirm its `conftest.py` does not collide with the root conftest.
+- **Touches:** `.github/workflows/tests.yml`, optionally `pytest.ini`.
+
+## BL-53 — The Node frontend tests are never run automatically
+- **Open:** `tests/frontend/{app_update,debug_operator,dialogue_renderer,service_worker,world_map}.test.cjs` run in no gate. No CI step, not in the Dockerfile, not in `scripts/run_tests.sh`, no pytest wrapper, no `package.json`. The only mention is a manual PowerShell `node --test` line in `.claude/skills/ship-and-verify/SKILL.md:33-35`. A Phase-6 design doc proposed a `frontend-node-tests` job that was never added.
+- **Next:** Add a CI job (`actions/setup-node`, `node --test tests/frontend/*.test.cjs`) and a matching line in `scripts/run_tests.sh`. Do not add Node to the Docker build unless wanted; the CI job is enough.
+- **Touches:** `.github/workflows/tests.yml`, `scripts/run_tests.sh`, `.claude/skills/ship-and-verify/SKILL.md`.
+
+## BL-54 — Integration tests that can pass or vanish silently
+- **Open:** `test_hybrid.py` and `test_retrieve.py` call `pytest.importorskip("faiss")` / `("rank_bm25")` at import time, which contradicts the repo's no-skip rule (a missing dependency silently removes the tests). `test_iu_identity_correction` is `xfail(strict=False)`, so it can never fail, and it masks the orphaned code in BL-61.
+- **Next:** Replace `importorskip` with a plain import (a missing dependency then fails collection). Make the IU xfail strict or replace it with a repeated-trial pass-rate assertion; drop it from `_ALLOWED_XFAIL_NODEIDS` in `tests/conftest.py` if removed.
+- **Touches:** `tests/backend/app/knowledge/test_hybrid.py`, `test_retrieve.py`, `tests/backend/app/api/test_prompt_engine.py`, `tests/conftest.py`.

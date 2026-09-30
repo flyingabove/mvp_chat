@@ -8,6 +8,7 @@ __pycache__/
 backend/.DS_Store/*
 .DS_Store
 keys.txt
+.playwright-mcp/
 
 
 # C extensions

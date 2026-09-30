@@ -15,6 +15,15 @@ ships, then the as-built rules move to `design/SOCIAL_ENGINE.md` and this sectio
   accepted `ask_leave_together` commits the ending immediately (`commit_mutual_departure`); the player never chooses
   when to end.
 
+- **Status 2026-09-30: nothing built yet; the movement itself is unconfirmed.** A probe on beta `eed2fd0`/`654db09`
+  (fresh guest game, an early "let's leave this house together, right now" on turn 2) did **not** reproduce it: the
+  narration stayed in the living room. So the outdoor scene from the 35-turn play could be storyteller flavour rather than
+  a saved location change; only design point 10 (`location_id` in the chat response) can tell them apart. Do that
+  first, then replay the original path (kitchen, back to the living room, then the ask at turn 12) before trusting
+  any movement fix. Point 4 (the decline directive names the room) covers the "narration drifts even when state does
+  not" case either way. The companion rule already ignores future or conditional invitations, but `companions.py`
+  `INVITE` still matches "let's leave"; design point 7 keeps that on purpose.
+
 ### Agreed design (owner decisions)
 
 1. **Parentheses talk to the game master.** `(...)` and `[...]` are interchangeable. They go to the game master (the

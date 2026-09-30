@@ -8,7 +8,7 @@
 - **Found:** 2026-09-27; consolidated by owner direction on 2026-09-28.
 - **Severity:** high: unreliable outcomes, attribution and character agency undermine gameplay.
 - **Status:** proposed, not implemented or calibrated by this documentation change.
-- **Authority:** the single target architecture and roadmap. Replaces competing architectural portions of BL-38 and original BL-39. [BL-38](../backlog/social-engine-atomic-transactions.md) remains an open correctness tracker, not a second design.
+- **Authority:** the single target architecture and roadmap. Replaces competing architectural portions of BL-38 and original BL-39. [BL-38](../backlog/BL-38-social-engine-atomic-transactions.md) remains an open correctness tracker, not a second design.
 - **Navigation:** sections 1–3 ownership; 4–9 contracts; 10 release units; 11 acceptance; 12 owner answers.
 
 ### 1. Product goal
@@ -460,7 +460,7 @@ Engagement evaluation uses blinded equal-length comparisons plus human review: m
 
 ### 10. Backlog mapping
 
-Existing [BL-30](../backlog/narrative-clock-vs-game-clock.md), [BL-31](../backlog/iu-mystery.md), [BL-33](../backlog/terrace-goal-ending-and-rivals.md), [BL-34](../backlog/terrace-goal-ending-and-rivals.md), [BL-35](../backlog/terrace-plans-and-promises.md), [BL-36](../backlog/iu-mystery.md), and [BL-37](../backlog/terrace-repetition-and-stock-lines.md) retain their scopes. The cross-cutting transaction and epistemic work is tracked in BL-38. Implement slices with regression evidence; this design does not close those items.
+Existing [BL-30](../backlog/BL-30-narrative-clock-vs-game-clock.md), [BL-31](../backlog/BL-31-36-41-iu-mystery.md), [BL-33](../backlog/BL-33-34-terrace-goal-ending-and-rivals.md), [BL-34](../backlog/BL-33-34-terrace-goal-ending-and-rivals.md), [BL-35](../backlog/BL-35-45-terrace-plans-and-promises.md), [BL-36](../backlog/BL-31-36-41-iu-mystery.md), and [BL-37](../backlog/BL-37-47-terrace-repetition-and-stock-lines.md) retain their scopes. The cross-cutting transaction and epistemic work is tracked in BL-38. Implement slices with regression evidence; this design does not close those items.
 
 ### 11. Implementation sequence and shared release contract
 

@@ -14,7 +14,7 @@ git history plus the fixing commit are the record.
 
 ## File and section convention
 
-- File name: a short topic slug, `kebab-case.md` (for example `terrace-plans-and-promises.md`). First line
+- File name: `BL-<ids>-<topic-slug>.md`, the ids of every section in it joined by dashes, ascending (for example `BL-35-45-terrace-plans-and-promises.md`); rename the file when a section is added or deleted. First line
   `# <topic title>`. Group bugs that share a subsystem or a fix; split a file that grows past about 3 KB.
 - Section heading: `## BL-<number> — <one-line title>`.
 - Number: the next unused integer, never reused, including numbers of deleted items:

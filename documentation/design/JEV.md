@@ -1885,7 +1885,7 @@ Only the two targeted acts. NPC couples forming and leaving off-screen (BL-39 ph
 
 ## Promise completion judged by Jev (2026-09-29)
 
-**Status:** built and **on by default** (`PROMISE_JUDGE_ENABLED`, inert wherever `TYPESAFE_ENABLED` is off, e.g. prod). The owner first set a 99% bar (it measured 98.8%, so it shipped dark), then relaxed the bar to a **2% miss rate** on 2026-09-29; it measures 0.6-1.2%, so it is on. The accuracy gate is an automated integration test that deploys never run. The remaining misses are tracked in [BL-45](../backlog/terrace-plans-and-promises.md).
+**Status:** built and **on by default** (`PROMISE_JUDGE_ENABLED`, inert wherever `TYPESAFE_ENABLED` is off, e.g. prod). The owner first set a 99% bar (it measured 98.8%, so it shipped dark), then relaxed the bar to a **2% miss rate** on 2026-09-29; it measures 0.6-1.2%, so it is on. The accuracy gate is an automated integration test that deploys never run. The remaining misses are tracked in [BL-45](../backlog/BL-35-45-terrace-plans-and-promises.md).
 
 ### Problem
 Live beta (`f088640`): the player promised Riko tea, made it ("Here you go, Riko. How do you take your tea?"), and Riko kept asking about the tea and kettle for turns. The old `commitments._performed` only counted a message that started with "I", named the counterpart and shared two words with the promise, and `due_commitments` re-injected an open promise every turn for 12 in-game hours.
@@ -1918,5 +1918,5 @@ Later the same day, through the automated gate below: **1/171 = 0.6%** (95% inte
 `PROMISE_JUDGE_ENABLED=0`. Reminders stay once-only and lapses stay silent either way.
 
 ### Out of scope / follow-up
-- Name and nickname matching (e.g. "Uchi" vs "Tatsuya") moves to Jev under the same rule: [BL-43](../backlog/name-and-nickname-matching.md).
-- The remaining ~1% of missed kept promises: [BL-45](../backlog/terrace-plans-and-promises.md).
+- Name and nickname matching (e.g. "Uchi" vs "Tatsuya") moves to Jev under the same rule: [BL-43](../backlog/BL-43-name-and-nickname-matching.md).
+- The remaining ~1% of missed kept promises: [BL-45](../backlog/BL-35-45-terrace-plans-and-promises.md).
