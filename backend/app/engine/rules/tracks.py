@@ -78,6 +78,7 @@ class CouplePolicy:
     dating_tier: str
     committed_tier: str
     days_together: int = 2
+    rival_aim: float = 0.0     # BL-34: priority (0-1) of the own romantic aim each rival starts with; 0 = off
 
 
 @dataclass(frozen=True)
@@ -153,6 +154,16 @@ def social_rules(story_cfg: dict[str, Any]) -> Optional[SocialRules]:
     return SocialRules(tracks, requirements, appraisal, _couples(raw.get("couples"), tracks, appraisal))
 
 
+def _fraction(value: Any, name: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a number between 0 and 1") from None
+    if not 0.0 <= number <= 1.0:
+        raise ValueError(f"{name} must be between 0 and 1")
+    return number
+
+
 def _couples(raw: Optional[dict[str, Any]], tracks: dict[str, TrackSpec],
              appraisal: Optional[AppraisalPolicy]) -> Optional[CouplePolicy]:
     if not raw:
@@ -160,7 +171,7 @@ def _couples(raw: Optional[dict[str, Any]], tracks: dict[str, TrackSpec],
     if appraisal is None:
         raise ValueError("couples need an appraisal track")
     policy = CouplePolicy(_text(raw, "interested_tier"), _text(raw, "dating_tier"), _text(raw, "committed_tier"),
-                          int(raw.get("days_together", 2)))
+                          int(raw.get("days_together", 2)), _fraction(raw.get("rival_aim", 0), "rival_aim"))
     tiers = {t.id for t in tracks[appraisal.track].tiers}
     for tier in (policy.interested_tier, policy.dating_tier, policy.committed_tier):
         if tier not in tiers:

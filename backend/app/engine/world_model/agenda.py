@@ -16,6 +16,7 @@ from backend.app.engine.world_model.model import PLAYER, WorldModel
 
 MAX_INTENTIONS = 4
 INTENTION_DAYS = 3
+AIM_DAYS = 9999          # a rival's own aim lasts until they couple or the target does (BL-34)
 OFFSCREEN_GAIN = {"affection": 1.0, "activity": 0.5, "chat": 0.3, "conflict": -1.0}
 
 
@@ -62,8 +63,21 @@ def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligibl
             drawn.setdefault(target, []).append((standing.value, owner))
             add_intention(model, owner, Intention("pursue", target, standing.value / 100,
                                                   "drawn to them", day + INTENTION_DAYS))
+    # Someone holding a live aim on a person (a rival's own aim, BL-34) is drawn to them as well.
+    for owner, items in sorted(model.agendas.items()):
+        for aim in items:
+            if aim.kind == "pursue" and aim.target != PLAYER and aim.expires_day >= day \
+                    and owner in model.characters and not any(o == owner for _, o in drawn.get(aim.target, [])):
+                drawn.setdefault(aim.target, []).append((aim.priority * 100, owner))
+    # The player counts as an admirer of anyone who has warmed to them and is free: a rival then competes.
+    courted = set()
+    for (owner, target, t), standing in sorted(model.standing.standings.items()):
+        if (t == track and target == PLAYER and owner in model.characters and owner not in partner
+                and not standing.closed_by and eligible(owner, PLAYER)
+                and model.standing.tier_reached(owner, PLAYER, track, interested_tier) is True):
+            courted.add(owner)
     for target, admirers in drawn.items():
-        if len(admirers) < 2:
+        if len(admirers) + (1 if target in courted else 0) < 2:
             continue
         for value, owner in admirers:
             add_intention(model, owner, Intention("compete_for", target, value / 100 + 0.1,
@@ -114,15 +128,17 @@ def couples_leaving(model: WorldModel, track: str, committed_tier: str, days_tog
 
 
 def next_beat(model: WorldModel, present: set[str], day: int) -> Optional[tuple[str, Intention]]:
-    """At most one unsolicited beat: the present character with an intention toward the player
-    who has waited longest for initiative (ties by priority, then id)."""
+    """At most one unsolicited beat: the present character with an intention toward the player, or a rival
+    competing for someone who is in the scene, who has waited longest for initiative (ties by priority, then id)."""
     options = []
     for cid in sorted(present):
         for intention in intentions(model, cid, day):
-            if intention.target == PLAYER and intention.kind in ("test_loyalty", "pursue"):
+            visible = (intention.target == PLAYER and intention.kind in ("test_loyalty", "pursue")) or (
+                intention.kind == "compete_for" and intention.target in present - {cid})   # BL-34: a visible rival
+            if visible:
                 options.append((model.initiative_last_day.get(f"beat:{cid}", -1), -intention.priority, cid,
                                 intention))
     if not options:
         return None
-    _, _, cid, intention = sorted(options)[0]
+    _, _, cid, intention = min(options, key=lambda option: option[:3])
     return cid, intention

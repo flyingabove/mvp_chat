@@ -67,6 +67,8 @@ def dialogue_prompt(state) -> str:
         "narrate a housemate's thoughts as the player's, and never give a cast member "
         "the player's words, name, plans, possessions, or history (if the player says "
         "'call me Sam', nobody else says 'call me' with their own name). "
+        "Open each narration beat with what changes in the world or what other people do: never restate the "
+        "player's own action, and never give the player feelings, sensations or a gaze they did not write. "
         "Never repeat the player's own message as anyone's "
         "dialogue; the player already sees what they wrote. Use speaker_id unknown for an unidentified "
         "or unlisted voice. A listed housemate introducing themselves is NOT an "
@@ -515,14 +517,66 @@ def _echo_coverage(words: list[str], said: list[str]) -> float:
     return sum(block.size for block in blocks) / len(words)
 
 
-def drop_narrated_player_echo(segments: list[dict], player_message: str) -> list[dict]:
-    """Remove a narrated copy of the player's action, retaining its consequence.
+_FIRST_TO_SECOND = {"i": "you", "me": "you", "my": "your", "myself": "yourself"}
+_LEAD_IN = re.compile(r"^(?:as|while|when|once)\s+", re.I)
 
-    Only a leading clause with strong two-way lexical overlap is trimmed.
-    The storyteller may still describe the world's response after that clause.
+
+def _stem(word: str) -> str:
+    """A light stem so 'inviting'/'invite'/'invites' and 'lead'/'leads' compare equal (BL-29)."""
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(word) > len(suffix) + 2 and word.endswith(suffix):
+            word = word[:-len(suffix)]
+            break
+    return word[:-1] if len(word) > 3 and word.endswith("e") else word
+
+
+def _squash(text: str, first_person: bool = False) -> list[str]:
+    words = normalized_words(text).split()
+    if first_person:
+        words = [_FIRST_TO_SECOND.get(word, word) for word in words]
+    return [_stem(word) for word in words]
+
+
+def _restates(text: str, said: list[str], min_words: int = 4) -> bool:
+    """True when `text` (narration) is a restatement of the player's message: nearly all of its words, in order."""
+    words = _squash(text)
+    return len(words) >= min_words and _echo_coverage(words, said) >= 0.8
+
+
+def _trim_restating_opener(body: str, said: list[str]) -> str:
+    """Peel restating sentences (and a restating lead-in clause) off the start of a narration beat.
+
+    Sentences that only restate the player ("Inviting her to join you in the Living Room.") go; a restating
+    lead-in clause ("As you lead the way, the hallway light flickers.") is cut and the consequence kept.
     """
-    pronouns = {"i": "you", "me": "you", "my": "your", "myself": "yourself"}
-    said = [pronouns.get(word, word) for word in normalized_words(player_message).split()]
+    kept = body.strip()
+    for _ in range(3):
+        match = SENTENCE.match(kept)
+        if not match:
+            break
+        sentence, rest = match.group().strip(), kept[match.end():].strip()
+        if _restates(sentence, said):
+            kept = rest
+            if not kept:
+                return ""
+            continue
+        clause, comma, tail = sentence.partition(",")
+        if comma and tail.strip() and _restates(_LEAD_IN.sub("", clause.strip()), said):
+            kept = tail.strip()[0].upper() + tail.strip()[1:] + (" " + rest if rest else "")
+            continue
+        break
+    return kept
+
+
+def drop_narrated_player_echo(segments: list[dict], player_message: str) -> list[dict]:
+    """Remove a narrated copy of the player's action, retaining its consequence (BL-29).
+
+    Works on the opening of each narration beat, sentence by sentence, on lightly stemmed words with first person
+    mapped to second, so gerund and paraphrased forms ("Inviting her to join you...") are caught, not only a
+    leading clause that starts with "you". Whatever the narration adds after the restatement is kept, and the
+    reply is never emptied: if nothing else would remain, the original is returned.
+    """
+    said = _squash(player_message, first_person=True)
     if len(said) < 4:
         return segments
     out = []
@@ -530,19 +584,69 @@ def drop_narrated_player_echo(segments: list[dict], player_message: str) -> list
         if seg.get("kind") != "narration":
             out.append(seg)
             continue
-        body = str(seg.get("text") or "").strip()
-        first, separator, rest = body.partition(",")
-        if not separator:
-            first, rest = body, ""
-        words = normalized_words(first).split()
-        if (len(words) >= 4 and words[0] == "you"
-                and _echo_coverage(words, said) >= .8
-                and _echo_coverage(said, words) >= .65):
-            remaining = rest.strip() if separator else ""
-            if remaining:
-                out.append({**seg, "text": remaining[0].upper() + remaining[1:]})
+        trimmed = _trim_restating_opener(str(seg.get("text") or ""), said)
+        if trimmed:
+            out.append({**seg, "text": trimmed} if trimmed != str(seg.get("text") or "").strip() else seg)
+    return out if any(s.get("kind") in ("narration", "dialogue") for s in out) else segments
+
+
+# Sensations and feelings narration must not invent for the player (BL-29). Bounded on purpose: only phrasing that
+# states the player's inner state or body; a body word or feeling the player wrote themself is left alone.
+_FEELING_SENTENCE = re.compile(
+    r"^(?:you\s+(?:feel|felt|sense|sensed|find\s+yourself|can(?:'|’)?t\s+help\s+but)\b"
+    r"|your\s+(?:stomach|heart|pulse|palms?|chest|throat|cheeks|knees|breath|mind|thoughts)\b)", re.I)
+_FEELING_TAIL = re.compile(
+    r",\s*(?:(?:making|causing|leaving|letting|sending)\s+your\s+"
+    r"(?:stomach|heart|pulse|palms?|chest|throat|cheeks|knees|breath|eyes?|mind)\b"
+    r"|your\s+(?:eyes?|gaze|fingers|hands?)\s+\w+ing\b)[^.!?…]*", re.I)
+_FEELING_LEAD = re.compile(r"^your\s+(?:eyes?|gaze|fingers|hands?)\s+\w+ing\b[^,.!?…]*,\s*", re.I)
+_FEELING_FILLER = frozenset({"you", "your", "feel", "felt", "sense", "sens", "find", "yourself", "can", "help", "but",
+                             "the", "and", "a", "an", "of", "in", "as", "to", "it", "is", "that", "with", "for"})
+
+
+def _player_wrote(text: str, said: set[str]) -> bool:
+    """The player's own message already contains the substance of this feeling or body state."""
+    substance = {word for word in _squash(text) if word not in _FEELING_FILLER and len(word) > 2}
+    return bool(substance & said)
+
+
+def drop_invented_player_feelings(segments: list[dict], player_message: str) -> list[dict]:
+    """Trim narration that gives the player sensations or feelings they never stated (BL-29).
+
+    Removes "You feel ..." / "Your stomach ..." sentences and ", making your stomach grumble" /
+    ", your eyes scanning ..." tails. Dialogue is never touched, an emptied narration beat is dropped (not
+    replaced), and turns with no player words (time skips) are skipped.
+    """
+    if not (player_message or "").strip():
+        return segments
+    said = set(_squash(player_message, first_person=True))
+    out = []
+    for seg in segments:
+        if seg.get("kind") != "narration":
+            out.append(seg)
             continue
-        out.append(seg)
+        kept = []
+        for match in SENTENCE.finditer(str(seg.get("text") or "")):
+            sentence = match.group().strip()
+            if not sentence:
+                continue
+            if _FEELING_SENTENCE.match(sentence) and not _player_wrote(sentence, said):
+                continue
+            opener = _FEELING_LEAD.match(sentence)
+            if opener and sentence[opener.end():].strip() and not _player_wrote(opener.group(), said):
+                sentence = sentence[opener.end():].strip()
+                sentence = sentence[0].upper() + sentence[1:]
+            tail = _FEELING_TAIL.search(sentence)
+            if tail and not _player_wrote(tail.group(), said):
+                sentence = _FEELING_TAIL.sub("", sentence, count=1).strip()
+                if sentence and sentence[0] == "," or not sentence:
+                    sentence = sentence.lstrip(", ").strip()
+                if sentence and sentence[0].islower():
+                    sentence = sentence[0].upper() + sentence[1:]
+            if sentence:
+                kept.append(sentence)
+        if kept:
+            out.append({**seg, "text": " ".join(kept)})
     return out
 
 

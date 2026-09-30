@@ -918,6 +918,11 @@
     .howto-goal { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 8px; }
     .howto-list { margin: 0 0 8px; padding-left: 18px; font-size: 13px; line-height: 1.45; color: var(--text-sub); }
     .howto-more { background: none; border: 0; padding: 0; color: var(--text-sub); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+    .gone-card { margin: 16px auto; max-width: 420px; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--border); background: var(--card); text-align: center; }
+    .gone-text { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 12px; }
+    .gone-actions { display: flex; flex-direction: column; gap: 8px; }
+    .gone-actions button { padding: 11px 16px; border-radius: 20px; font: inherit; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text); }
+    .gone-actions button.primary { background: var(--red); border-color: var(--red); color: #fff; }
     .choice-chip-row { margin: 8px auto 4px; text-align: center; }
     .choice-chip { padding: 8px 16px; font-size: 13px; }
     #chat-ai-disclaimer {
@@ -2943,6 +2948,59 @@ function _renderLoadEarlierBtn(sessionId, oldestTurn){
   else msgs.appendChild(btn);
 }
 
+// BL-44: the server no longer has this saved game (guest progress is deleted after 24 hours, it was deleted
+// elsewhere, or the local record came from a failed launch). Say so, forget only that record, and offer a way
+// forward. Network and server errors take the soft "History unavailable" path and delete nothing.
+function handleSessionGone(sess, story){
+  var id = sess.session_id;
+  saveSessionsList(loadSessions().filter(function(s){ return s.session_id !== id; }));
+  try {
+    var seen = (JSON.parse(localStorage.getItem(BRIEFING_SEEN_KEY) || "[]") || []).filter(function(x){ return x !== id; });
+    localStorage.setItem(BRIEFING_SEEN_KEY, JSON.stringify(seen));
+  } catch(e){}
+  appState.session = null;
+  renderChatCharacterHeader(story);
+  renderGoal(null);
+  var card = document.createElement("div");
+  card.className = "gone-card";
+  card.setAttribute("role", "status");
+  var text = document.createElement("div");
+  text.className = "gone-text";
+  text.textContent = "This saved game is gone (guest games are deleted after 24 hours). Start a new game?";
+  var row = document.createElement("div");
+  row.className = "gone-actions";
+  var fresh = document.createElement("button");
+  fresh.type = "button";
+  fresh.className = "primary";
+  fresh.textContent = "Start new game";
+  fresh.addEventListener("click", function(){ showScreen("home"); startGame(story); });
+  var home = document.createElement("button");
+  home.type = "button";
+  home.textContent = "Back to home";
+  home.addEventListener("click", function(){ showScreen("home"); });
+  row.appendChild(fresh);
+  row.appendChild(home);
+  card.appendChild(text);
+  card.appendChild(row);
+  $("chat-messages").appendChild(card);
+  setChatEnded(true);
+  $("chat-text-input").placeholder = "This saved game is gone.";
+  refreshSessionCacheFromServer();
+}
+
+// BL-49: a game started before the briefing existed shows it once, then never again for that game. Called only
+// after the saved game is known to exist (BL-44: never over a "saved game is gone" message).
+function showLegacyBriefingOnce(sess, story){
+  if (!sess.session_id || briefingSeen(sess.session_id)) return;
+  markBriefingSeen(sess.session_id);
+  fetchStoryMeta(story).then(function(meta){
+    if (appState.session !== sess) return;
+    appState.pendingMeta = meta;
+    addHowToPlayCard(meta);
+    openBriefing(meta, "view");
+  });
+}
+
 function resumeGameFromSession(sess){
   // Find story
   var story = appState.stories.find(function(s){ return s.id === sess.story_id; })
@@ -2972,12 +3030,6 @@ function resumeGameFromSession(sess){
 
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
 
-  // BL-49: a game started before the briefing existed shows it once, then never again for that game.
-  if (sess.session_id && !briefingSeen(sess.session_id)){
-    markBriefingSeen(sess.session_id);
-    fetchStoryMeta(story).then(function(meta){ appState.pendingMeta = meta; addHowToPlayCard(meta); openBriefing(meta, "view"); });
-  }
-
   showScreen("chat");
   preloadCharacterPortraits(story);
 
@@ -2985,6 +3037,7 @@ function resumeGameFromSession(sess){
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
+      if (appState.session !== sess) return;      // BL-44: the game turned out to be gone
       appState.currentMeta = meta;
       renderInlineWorldMap(meta);
     })
@@ -2996,6 +3049,7 @@ function resumeGameFromSession(sess){
     fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/history?limit=20", { headers: apiHeaders() })
       .then(function(r){
         if (r.status === 401){ handleUnauthorized(); return null; }
+        if (r.status === 404){ handleSessionGone(sess, story); return null; }   // BL-44
         return r.json();
       })
       .then(function(data){
@@ -3008,12 +3062,14 @@ function resumeGameFromSession(sess){
         if (!entries.length) addSystemMessage("(Continue where you left off)");
         renderEnding(data.ending || sess.ending);
         if (!(data.ending || sess.ending)) renderChoiceCard(data.pending_choice);
+        showLegacyBriefingOnce(sess, story);
       })
       .catch(function(){
         addSystemMessage("(History unavailable — continue where you left off)");
       });
   } else {
     addSystemMessage("(Continue where you left off)");
+    showLegacyBriefingOnce(sess, story);
   }
 }
 

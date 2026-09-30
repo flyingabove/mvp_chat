@@ -11,7 +11,7 @@ import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 REF = re.compile(r"@([A-Za-z0-9_]+)")
 TOKEN = re.compile(r"[\w']+")
@@ -142,9 +142,16 @@ class MemoryStore:
                 and (owner is None or m.owner == owner)]
 
     def search(self, owner: str, query: str, mentions: Iterable[str] = (), k: int = 3,
-               kinds: Optional[Iterable[str]] = None) -> list[Memory]:
-        """Rank ONLY `owner`'s memories: BM25-style overlap + @id mention boost + recency tiebreak."""
-        pool = [m for m in self.of(owner) if kinds is None or m.kind in set(kinds)]
+               kinds: Optional[Iterable[str]] = None,
+               exclude: Optional[Callable[["Memory"], bool]] = None) -> list[Memory]:
+        """Rank ONLY `owner`'s memories: BM25-style overlap + @id mention boost + recency tiebreak.
+
+        `exclude(memory)` drops memories before ranking (the scene view leaves out other people's spoken
+        lines, BL-47).
+        """
+        wanted_kinds = set(kinds) if kinds is not None else None
+        pool = [m for m in self.of(owner)
+                if (wanted_kinds is None or m.kind in wanted_kinds) and not (exclude is not None and exclude(m))]
         if not pool or k <= 0:
             return []
         query_terms = Counter(_tokens(query))

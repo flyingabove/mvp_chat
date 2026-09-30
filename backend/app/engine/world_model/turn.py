@@ -340,7 +340,8 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     beat = None if owes_answer else next_beat(model, present_set, day)   # direct questions come first
     if beat is not None:
         cid, intention = beat
-        view.must_address.append(BEAT_TEXT[intention.kind].format(name=names.get(cid, cid)))
+        view.must_address.append(BEAT_TEXT[intention.kind].format(
+            name=names.get(cid, cid), target=names.get(intention.target, intention.target)))
         model.initiative_last_day[f"beat:{cid}"] = day
         if intention.kind == "test_loyalty":
             model.agendas[cid] = [i for i in model.agendas.get(cid, []) if i != intention]
@@ -353,7 +354,12 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     # front of them as an absent third party (O11).
     memory_names = {**names, PLAYER: f"the player ({names[PLAYER]})"}
     for cid in view.plan.speakers:
-        found = [m for m in model.memories.search(cid, message, mentions=mentioned, k=MAX_PERSPECTIVE + 1)
+        # Residents' spoken lines are excluded (BL-47): the "@id" mention boost put a speaker's own latest refusal,
+        # and lines their listeners heard, back on top whenever the player named them, and the storyteller then
+        # repeated it. What the PLAYER told them is still recalled; the recent chat already carries what was said,
+        # and the replay guard reads dialogue memories separately.
+        found = [m for m in model.memories.search(cid, message, mentions=mentioned, k=MAX_PERSPECTIVE + 1,
+                                                  exclude=_is_resident_speech)
                  if not (m.minute == now and m.source == f"told_by:{PLAYER}")][:MAX_PERSPECTIVE]
         rendered = [render(m.text, memory_names)
                     + (f" (heard from {memory_names.get(m.source[8:], 'someone')})"
@@ -440,6 +446,7 @@ def record_behaviors(state: Any, behaviors: Iterable[Any]) -> list:
 def advance_npc_life(state: Any, model: WorldModel, ctx: SocialContext, now: int) -> None:
     """Agendas from each character's own standing; couples form and leave only by mutual qualification."""
     policy, track = ctx.rules.couples, ctx.rules.appraisal.track
+    model.standing.bind(ctx.rules.tracks)
     day = model.world.day_index(now)
     refresh_agendas(model, track, policy.interested_tier, ctx.eligible, day)
     place = model.player_place()
@@ -475,6 +482,9 @@ BEAT_TEXT = {
     "test_loyalty": "{name} saw the player being flirtatious with someone else and wants to find out where "
                     "they stand; they may bring it up.",
     "pursue": "{name} is drawn to the player and may look for a moment with them.",
+    "compete_for": "{name} is drawn to {target} and can see the player is too. {name} may make ONE small, visible "
+                   "move toward {target} (an invitation, an interruption, a pointed compliment) but does not confess "
+                   "or say what they privately feel.",
 }
 
 
@@ -546,6 +556,10 @@ def _tell_directives(model: WorldModel, state: Any, view: TurnView, message: str
         if cue:
             view.must_address.append(f"{names.get(cid, cid)} shows a small tell: {cue}. Show it only as "
                                      "behavior the player can notice; it proves nothing on its own.")
+
+
+def _is_resident_speech(memory: Any) -> bool:
+    return memory.kind == "dialogue" and memory.source != f"told_by:{PLAYER}"
 
 
 def _requirement_hints(model: WorldModel, state: Any, view: TurnView, present: set[str],
@@ -781,6 +795,11 @@ def end_turn(state: Any, message: str, segments: list[dict]) -> None:
         witnesses = tuple(c for c in present if c != verdict.act.target)
         commit_act(state, specs[verdict.act.kind], verdict, witnesses)
     model.pending_verdicts = []
+    # A yes that this turn's events invalidated (relationship ended, partner gone) leaves the response now, and the
+    # storyteller hears about it next turn.
+    lapsed = choices.refresh(model)
+    if lapsed:
+        model.pending_notes.append(lapsed)
     prior_relationship_partner = model.romance_relationship_partner
     record_relationship_decisions(state, message, segments)
     record_departure_decisions(state, message, segments, prior_relationship_partner)

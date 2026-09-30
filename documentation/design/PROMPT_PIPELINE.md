@@ -808,3 +808,19 @@ Map IU scenario segments to epistemic layers and identify which tests verify eac
 ### Maintenance Rules
 - Update this mapping when scenario step order or toggle semantics change.
 - Keep paths aligned with canonical source-mirrored test naming.
+
+## Narration guards: restated actions and invented feelings (BL-29, as built)
+
+The storyteller is told (`dialogue.py` point-of-view rule, `prompt_builder.py` scene brief) to open each narration beat with
+what changes in the world or what others do, never with the player's own action, feelings, sensations or gaze. Two
+deterministic backstops run after generation in `prompt_engine.py`, beside the dialogue echo filters:
+
+- `dialogue.drop_narrated_player_echo`: peels leading sentences (and a restating lead-in clause such as "As you lead the
+  way,") that restate the player's message, on lightly stemmed words with first person mapped to second, so gerund and
+  paraphrased forms are caught. What the narration adds after the restatement is kept; the reply is never emptied.
+- `dialogue.drop_invented_player_feelings`: drops "You feel ..." and "Your stomach/heart/pulse ..." sentences and trims
+  ", making your stomach grumble" / ", your eyes scanning ..." clauses. Skipped when the player's own message contains the body
+  word or feeling, never touches dialogue, skipped on turns with no player words (time skips), and an emptied beat is
+  removed, not replaced. Each trim logs `player_feelings_trimmed`.
+
+The backstops are lexical and bounded. A prompt change still needs its own arena gate before promotion.

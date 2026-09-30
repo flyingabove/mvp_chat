@@ -89,6 +89,7 @@ from backend.app.engine.dialogue import (
     drop_own_repeated_lines, own_repeat_indexes,
     dialogue_response_format, decode_dialogue_response, finale_turn,
     has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene, drop_narrated_player_echo,
+    drop_invented_player_feelings,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
@@ -3734,6 +3735,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # to an NPC (arena-found beta regression, 2026-09-23).
     segments = drop_player_echo(segments, msg)
     segments = drop_narrated_player_echo(segments, _wm_player_words)
+    # BL-29: nor feelings/sensations the player never wrote (counted so the slip rate can be measured).
+    _before_feelings = sum(len(str(x.get("text") or "")) for x in segments if x.get("kind") == "narration")
+    segments = drop_invented_player_feelings(segments, _wm_player_words)
+    if _before_feelings != sum(len(str(x.get("text") or "")) for x in segments if x.get("kind") == "narration"):
+        _log({"kind": "player_feelings_trimmed", "req_id": req_id, "session_id": session_id})
     # Nor re-send recent beats: copied opening lines snowballed on live prod
     # because each copy re-entered the history (2026-09-24).
     segments = drop_repeated_lines(

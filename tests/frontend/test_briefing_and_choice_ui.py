@@ -45,9 +45,15 @@ def test_skipped_or_not_the_chat_still_prints_the_goal_and_the_two_basic_control
 
 
 def test_games_started_before_the_briefing_show_it_once_on_resume():
-    resume = _function(_html(), "resumeGameFromSession")
-    assert "briefingSeen(sess.session_id)" in resume and "markBriefingSeen(sess.session_id)" in resume
-    assert 'openBriefing(meta, "view")' in resume
+    html = _html()
+    helper = _function(html, "showLegacyBriefingOnce")
+    assert "briefingSeen(sess.session_id)" in helper and "markBriefingSeen(sess.session_id)" in helper
+    assert 'openBriefing(meta, "view")' in helper
+    assert "appState.session !== sess" in helper, "never after the player has left or the game turned out to be gone"
+    resume = _function(html, "resumeGameFromSession")
+    assert resume.count("showLegacyBriefingOnce(sess, story)") == 2, "after history loads, and on the offline path"
+    fetch_block = resume[resume.index("/history?limit=20"):]
+    assert fetch_block.index("r.status === 404") < fetch_block.index("showLegacyBriefingOnce"),         "a gone game never pops the briefing over its own message"
 
 
 def test_the_menu_has_how_to_play_and_map_has_a_slash_alias():

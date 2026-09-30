@@ -211,6 +211,9 @@ the story registry loads and enforced for every active story by `tests/backend/a
 }
 ```
 
+Social stories may also set `social_tracks.couples.rival_aim` (a number from 0 to 1, default 0 = off): the priority of the
+own romantic aim each resident of the player's gender starts with (`world_model/rivals.py`).
+
 `briefing.resolved(story_cfg)` adds the controls shared by every game (plain text, `(...)`/`[...]` to the game master,
 `[map]` and `/map`, the menu) and the story's declared `endings` (title, kind). `/api/story/{id}` returns it as `briefing`.
 The frontend shows it as a Goal/Controls/Map screen after character selection and before the first scene (Start game or

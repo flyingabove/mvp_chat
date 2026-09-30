@@ -1538,7 +1538,8 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         f"{arrival_intro_line}"
         f"{opening_scene_brief(state)}"
         "Narrate only what the player's message actually states or implies. "
-        "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote.\n\n"
+        "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote, and do not "
+        "open by restating what the player just did: start with what changes or what others do.\n\n"
         f"{user_line_text}\n"
     )
 

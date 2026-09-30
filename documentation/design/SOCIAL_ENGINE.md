@@ -329,6 +329,27 @@ Owner design 2026-09-29. Code: `world_model/choices.py`, `world_model/leave_mean
   regex path) is removed. Only the director clock (`cut_by_director`) ends a losing run.
 - **Chat responses carry `location_id`**, so tests and browser checks need not infer the place from narration.
 
+### Scene recall and visible rivals (BL-47 part 2, BL-34, as built)
+
+- **What a speaker "personally remembers" (BL-47).** `_build_view` (`world_model/turn.py`) ranks a speaker's memories for the
+  scene with `MemoryStore.search(..., exclude=_is_resident_speech)`: other residents' spoken lines (dialogue memories not
+  told by the player) are left out. The `@id` mention boost used to put a speaker's own latest refusal, and lines their
+  listeners heard, back on top whenever the player named them, and the storyteller repeated it (25 of 25 turns in a
+  scripted replay; 0 of 25 now). What the player told them, facts, promises and witnessed events still surface; the recent
+  chat carries what was said, and `own_spoken_lines` (the replay guard) still reads dialogue memories.
+- **Rivals compete with the player (BL-34).** `agenda.refresh_agendas` counts the player as an admirer of anyone whose own
+  standing toward the player reached the interested tier, is eligible, is not closed to the player and is not in an NPC
+  couple; every other resident drawn to that person gets `compete_for`. "Drawn to" now also includes a live `pursue` aim.
+  `agenda.next_beat` offers a `compete_for` beat when the target is in the scene (`BEAT_TEXT["compete_for"]`: one small,
+  visible move, no confession, no private thoughts), and the existing in-scene invitation (`intentions.propose_agenda_invitations`)
+  makes it a state event with a trace.
+- **Independent aims (opt-in).** `social_tracks.couples.rival_aim` (0-1; Terrace 0.3; 0 or absent = off) makes
+  `world_model/rivals.py` `seed_rival_aims` give each resident of the player's gender, at world build, one long-lived
+  (`AIM_DAYS`) `pursue` intention on an opposite-gender resident, chosen deterministically from the house seed. Aims may
+  overlap and usually do. It is an intention, not a feeling: no standing is invented. Residents who arrive later (cast
+  rotation) get no seeded aim (documented limit). Pace check: the passive-player director cut across six seeded houses
+  moved from days 95-135 to 93-156 with aims (allowance 180).
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |

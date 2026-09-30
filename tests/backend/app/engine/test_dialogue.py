@@ -461,3 +461,73 @@ def test_unknown_voice_self_introduction_uses_matching_active_portrait():
     assert blocks[0]["portrait_url"].endswith("Yuto_Handa.png")
     _, concealed = present_dialogue("[SPEAKER:unknown]Someone knocks at the door.[/SPEAKER]", s)
     assert concealed[0]["speaker_id"] is None
+
+
+# --- BL-29: restated player actions and invented feelings -------------------------------------------------------
+
+def _narration(text):
+    return [{"kind": "narration", "speaker_id": None, "text": text}]
+
+
+def test_a_gerund_restatement_of_the_players_action_is_trimmed_and_the_consequence_kept():
+    """Live 2026-09-29: 'Inviting her to join you in the Living Room. As you lead the way ...'"""
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+    player = "I invite her to join me in the living room and lead the way."
+    out = drop_narrated_player_echo(
+        _narration("Inviting her to join you in the Living Room. As you lead the way, the hallway light flickers."),
+        player)
+    assert [s["text"] for s in out] == ["The hallway light flickers."]
+
+
+def test_a_restating_opener_that_adds_nothing_new_is_dropped_but_never_leaves_an_empty_reply():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+    player = "I walk over to the kitchen and put the kettle on."
+    only = _narration("You walk over to the kitchen and put the kettle on.")
+    assert drop_narrated_player_echo(only, player) == only, "nothing else to show: keep the reply"
+    mixed = only + [{"kind": "dialogue", "speaker_id": "ann", "text": "Tea, lovely."}]
+    assert [s["kind"] for s in drop_narrated_player_echo(mixed, player)] == ["dialogue"]
+
+
+def test_narration_that_reuses_a_few_words_but_adds_new_information_is_kept():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+    player = "I open the front door and step outside."
+    segments = _narration("You open the front door and cold rain rushes into the hall, soaking the mat.")
+    assert drop_narrated_player_echo(segments, player) == segments
+
+
+def test_invented_body_sensations_are_trimmed_but_world_detail_stays():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    player = "I pour myself some tea."
+    cases = {
+        "The kettle clicks off, making your stomach grumble.": "The kettle clicks off.",
+        "Your eyes scanning its surface, you notice a chip on the rim.": "You notice a chip on the rim.",
+    }
+    for before, after in cases.items():
+        assert [s["text"] for s in drop_invented_player_feelings(_narration(before), player)] == [after], before
+    kept = ["Your phone buzzes on the table.", "The kitchen smells of miso.", "Steam curls up from the cup."]
+    for text in kept:
+        assert [s["text"] for s in drop_invented_player_feelings(_narration(text), player)] == [text]
+
+
+def test_invented_feeling_sentences_are_dropped_and_an_emptied_segment_disappears():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    player = "I greet everyone."
+    segments = _narration("You feel a surge of nerves. Natsumi waves from the sofa.")
+    assert [s["text"] for s in drop_invented_player_feelings(segments, player)] == ["Natsumi waves from the sofa."]
+    assert drop_invented_player_feelings(_narration("Your heart pounds in your chest."), player) == []
+
+
+def test_feelings_the_player_wrote_themself_are_kept():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    segments = _narration("You feel nervous as the door opens.")
+    assert drop_invented_player_feelings(segments, "I feel nervous about meeting them.") == segments
+    body = _narration("Your stomach growls, loud in the quiet room.")
+    assert drop_invented_player_feelings(body, "My stomach growls, I should eat.") == body
+
+
+def test_feelings_trim_never_touches_dialogue_and_skips_turns_with_no_player_words():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    talk = [{"kind": "dialogue", "speaker_id": "ann", "text": "You feel that too, right? Your heart must be racing."}]
+    assert drop_invented_player_feelings(talk, "Hi") == talk
+    slip = _narration("You feel the hours pass.")
+    assert drop_invented_player_feelings(slip, "") == slip, "time-skip turns carry no player words"

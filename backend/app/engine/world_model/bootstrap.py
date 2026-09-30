@@ -13,10 +13,12 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
+from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.character import CharacterState
 from backend.app.engine.world_model.entities import Entity
 from backend.app.engine.world_model.memory import MemoryStore
 from backend.app.engine.world_model.model import PLAYER, WorldModel
+from backend.app.engine.world_model.rivals import seed_rival_aims
 from backend.app.engine.world_model.routine import Routine, block_key, build_routine
 from backend.app.engine.world_model.threads import Thread
 from backend.app.engine.world_model.world import World
@@ -133,6 +135,17 @@ def _entities(section: dict[str, Any]) -> list[tuple[Entity, str]]:
     return found
 
 
+def _seed_rival_aims(state: Any, model: WorldModel, cfg: Any) -> None:
+    """BL-34: give same-gender residents an aim of their own, when the story opts in (`couples.rival_aim`)."""
+    rules = social_rules(cfg) if isinstance(cfg, dict) else None
+    gender = str(getattr(state, "gender", "") or "").upper()
+    if rules is None or gender not in ("M", "F"):
+        return
+    genders = {str(c.get("key")): str(c.get("gender") or "").upper()
+               for c in cfg.get("characters") or [] if isinstance(c, dict)}
+    seed_rival_aims(model, rules, genders, gender)
+
+
 def build_world_model(state: Any, lore: Optional[Iterable[dict]] = None) -> WorldModel:
     section = story_section(state)
     cfg = getattr(state, "story_cfg", None) or {}
@@ -162,4 +175,5 @@ def build_world_model(state: Any, lore: Optional[Iterable[dict]] = None) -> Worl
     player_group = getattr(getattr(state, "cast_lifecycle", None), "player_slot_group", "") or ""
     bedrooms = ((cfg.get("cast_lifecycle") or {}).get("player_bedrooms") or {}) if isinstance(cfg, dict) else {}
     model.home_of_player = str(section.get("player_home") or bedrooms.get(player_group) or "")
+    _seed_rival_aims(state, model, cfg)
     return model
