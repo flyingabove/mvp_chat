@@ -84,6 +84,7 @@ service variable and is never baked into the image.
 | `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret | `GOCSPX-...` |
 | `JWT_SECRET` | HS256 signing key for JWTs (365-day expiry) | 32+ char random hex |
 | `DEBUG_TOOLS_ENABLED` + `OPERATOR_TOKEN` | Unlock operator-only debug/authoring routes; fail closed when unset. Not needed for the game arena (local-only). | (unset on beta and prod) |
+| Operator token in the debug UI | `frontend/debug.html` sends `X-Operator-Token` (REST) and `?operator_token=` (WebSocket) from `localStorage.storieschat_operator_token`; a 401/403 or malformed `/status` shows a banner with a token field and Retry instead of crashing. Helpers are unit-tested in `tests/frontend/debug_operator.test.cjs`. | (entered in the page) |
 
 #### Storage path detection (in code)
 ```python

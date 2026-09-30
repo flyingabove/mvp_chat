@@ -3571,12 +3571,24 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         async with httpx.AsyncClient(timeout=30.0) as client:
             # One bounded retry on 429/5xx (arena gates saturate the shared
             # rate limit; OpenAI says "try again in 322ms").
-            r = await post_with_retry(
-                client,
-                f"{STORY_MASTER_BASE_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
-                json={**payload, "model": STORY_MASTER_MODEL},
-            )
+            try:
+                r = await post_with_retry(
+                    client,
+                    f"{STORY_MASTER_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                    json={**payload, "model": STORY_MASTER_MODEL},
+                )
+            except httpx.TransportError as exc:
+                # BL-28: a read/connect timeout or dropped connection used to escape as an ASGI 500 with an empty
+                # reply. Same public, retryable message as a non-2xx response; the exception type goes to the log only.
+                _log({
+                    "kind": "chat_upstream_error",
+                    "req_id": req_id,
+                    "status": None,
+                    "error": type(exc).__name__,
+                    "body": "",
+                })
+                return {"error": _PUBLIC_UPSTREAM_ERROR, "character": "default"}
 
     if r.status_code < 200 or r.status_code >= 300:
         _log({
@@ -3616,15 +3628,21 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             ) + " Write a new beat that responds to the player's latest message; "
                 "do not repeat earlier lines or the player's own words."},
         ]
+        retry = None
         with stage_timer.stage("storyteller"):
             async with httpx.AsyncClient(timeout=30.0) as client:
-                retry = await post_with_retry(
-                    client,
-                    f"{STORY_MASTER_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
-                    json={**payload, "messages": retry_messages, "model": STORY_MASTER_MODEL},
-                )
-        if 200 <= retry.status_code < 300:
+                try:
+                    retry = await post_with_retry(
+                        client,
+                        f"{STORY_MASTER_BASE_URL}/chat/completions",
+                        headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                        json={**payload, "messages": retry_messages, "model": STORY_MASTER_MODEL},
+                    )
+                except httpx.TransportError as exc:
+                    # BL-28: the regeneration is optional polish; keep the first draft instead of failing the turn.
+                    _log({"kind": "storyteller_repeat_regeneration_failed", "req_id": req_id,
+                          "error": type(exc).__name__})
+        if retry is not None and 200 <= retry.status_code < 300:
             try:
                 reply = decode_dialogue_response(str(retry.json()["choices"][0]["message"]["content"]), state)
                 data = retry.json()

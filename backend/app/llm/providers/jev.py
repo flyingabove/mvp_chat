@@ -68,6 +68,12 @@ def _build_criteria(decision) -> dict | list:
     JSON serialization safety (frozen dataclasses may hold a MappingProxyType)."""
     if isinstance(decision.criteria, Mapping):
         return dict(decision.criteria)
+    if decision.kind == "noul":
+        # BL-18: the live API rejects a list here (HTTP 422 "Input should be a valid dictionary"), which failed every
+        # batch holding a noul question and pushed those abilities onto the legacy path. Verified live 2026-09-29:
+        # the documented {"true", "false"} map is accepted. Most noul decisions are built with a one-line list.
+        condition = "; or ".join(str(c).strip() for c in decision.criteria if str(c).strip()) or decision.instructions
+        return {"true": condition, "false": "not: " + condition}
     return list(decision.criteria)
 
 

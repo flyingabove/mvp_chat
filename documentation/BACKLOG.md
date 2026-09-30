@@ -8,9 +8,9 @@
 - **Terrace / social engine gameplay:** BL-33, 34, 35, 37, 43, 45, 46, 47, 25, 22
 - **Correctness and architecture trackers:** BL-38, 40, 30, 31, 29
 - **IU / mystery:** BL-36, 41
-- **Tech debt and bugs:** BL-18, 27, 28, 32, 44, 48
+- **Tech debt and bugs:** BL-27, 44, 48
 - **Arena / eval / owner actions:** BL-19, 20, 23, 15, 14, 05
-- **Mobile, content, engine gaps:** BL-13, 12, 11, 06, 08, 24, 04
+- **Mobile, content, engine gaps:** BL-13, 12, 11, 06, 08, 24
 
 ---
 
@@ -37,7 +37,7 @@
 
 ### BL-43 — Name and nickname matching should be Jev's judgment under the 99% rule
 - **Open:** string rules decide "same person or thing": `world_model/speakers.py` `addressed_ids`/`_name_terms`, `commitments.py` `_words`/`DUPLICATE_OVERLAP` in `record_commitment`, `memory.py` mention matching. Nicknames ("Ri-chan", "Uchi") and transliterations defeat them.
-- **Next:** one bounded Jev question per ambiguous match through `npc_decision.build_resolver` (criteria as a **map**, see BL-18), uncertainty resolving toward "same" where a false match only forgets, a labeled dev set plus an untouched held-out set (pattern: `scripts/eval/promise_judge_eval.py`, cases in `tests/eval_cases/`), integration test never run on deploy, string rule deleted if the miss rate stays above the gate. Start with `addressed_ids` and the duplicate-promise check.
+- **Next:** one bounded Jev question per ambiguous match through `npc_decision.build_resolver` (`noul` criteria may be a list: `jev.py` `_build_criteria` converts it to the `{"true","false"}` map the API requires), uncertainty resolving toward "same" where a false match only forgets, a labeled dev set plus an untouched held-out set (pattern: `scripts/eval/promise_judge_eval.py`, cases in `tests/eval_cases/`), integration test never run on deploy, string rule deleted if the miss rate stays above the gate. Start with `addressed_ids` and the duplicate-promise check.
 
 ### BL-45 — Promise judge misses about 1% of kept promises
 - **Open:** `world_model/promise_judge.py` registers a kept promise when either of two Jev questions says done. Measured 0.6-1.2% missed (gate 2%: `pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py -s`), 0 wrongly kept. Remaining misses are first-person-plural completions Jev reads as pending: "We finish the whole basket together and fold everything" (case `s4-done4`, choice `pending` at 0.95), "We walk out together and I point out the pool" (`s1-done4`, flips around the 0.30 line), and an ambiguous "How's the braid?" (`h2-done5`).
@@ -99,10 +99,6 @@
 
 ## Tech debt and bugs
 
-### BL-18 — Jev `noul` criteria are sent as a list; Jev rejects them (HTTP 422)
-- **Open:** confirmed again 2026-09-29: a `noul` Decision with list criteria comes back from the resolver as `http_error`; the same decision with a map (`{"carried_out": "..."}`) returned a probability. `engine/extractors/decision_registry.py` (lines 182, 326, 386) and `dynamic_context.py` build noul decisions with lists and `llm/providers/jev.py` `_build_criteria` passes them through, so those abilities never get a real Jev answer on beta and the failures feed the circuit breaker.
-- **Next:** convert list criteria for `noul` to a map in one place (`_build_criteria`, e.g. `{"true": c[0], "false": "not: " + c[0]}`), add a request-shape test, re-verify live that the knowledge, speaker and relationship-history batches answer.
-
 ### BL-27 — Memory and knowledge mechanisms: small problems
 Fix one row at a time; delete a row when fixed; delete the entry when empty. Rows 2, 4, 10, 11, 12 and 15 change what the model sees (need the hosted arena gate); 3, 5, 6, 7, 8 are refactors touching the save format (keep old saves loading). No house or event log.
 1. Static index (`retrieve.py` to `RETRIEVED_MEMORY`): chunks carry no `known_by`; one bundle per story (main character only).
@@ -121,14 +117,6 @@ Fix one row at a time; delete a row when fixed; delete the entry when empty. Row
 14. `recent_behavior_log`: part of its output is never read (see 13).
 15. `Character.tells`: loaded from the story, never put into the prompt (render it or remove the field; Terrace uses `world_model/deception.py` instead).
 - **Touches:** `state.py`, `prompt_builder.py`, `character_graph.py`, `prompt_engine.py`, `knowledge/runtime/{retrieve,dynamic_context,session_chunk_store}.py`.
-
-### BL-28 — A storyteller timeout crashes the turn with HTTP 500
-- **Open:** `_chat_handler_impl` (`prompt_engine.py`, the `client.post(f"{STORY_MASTER_BASE_URL}/chat/completions", ...)` inside `httpx.AsyncClient(timeout=30.0)`, through `post_with_retry`) does not catch `httpx.ReadTimeout` or other `httpx.TransportError`; only non-2xx responses return `_PUBLIC_UPSTREAM_ERROR`. The repeat-regeneration call (`storyteller_repeat_regenerated`) has the same exposure.
-- **Next:** on `TransportError` log `chat_upstream_error` with `req_id` and return `{"error": _PUBLIC_UPSTREAM_ERROR}` with no state mutation (idempotent retry); keep the first draft if only the regeneration fails. Test: a fake `AsyncClient.post` raising `ReadTimeout` gives HTTP 200 with an `error` field and an unchanged session log.
-
-### BL-32 — Hosted simulator stays "Connecting" after an initialization TypeError
-- **Open:** `frontend/debug.html` `init` reads `data.stories.length` (lines ~1244 and ~1281) without checking the response status or shape; with an unauthorized or failed response the console shows `TypeError ... reading 'length'` and models stay "Loading". Also: manual `sendManual` drops returned debug payloads and `exportLog` exports the conversation only. BL-04 (operator token) is the likely cause.
-- **Next:** validate status and payload before use; show an actionable authorization or unavailable error with retry; never weaken operator auth. Cover success, unauthorized and failure.
 
 ### BL-44 — Resuming a session the server no longer has leaves a blank chat
 - **Open:** `frontend/index.html` `resumeGameFromSession` fetches `GET /api/user/sessions/<id>/history?limit=20`; a 404 (guest progress is deleted after 24 hours, or a local record from a failed launch) leaves "Resuming game as ..." with no messages and no error.
@@ -187,6 +175,3 @@ Fix one row at a time; delete a row when fixed; delete the entry when empty. Row
 ### BL-24 — NPC moves that only appear in narration are not tracked
 - **Open:** routines move residents by authored blocks and `state.character_locations` mirrors the world index (`turn.py` `mirror_locations`), with residents in the scene protected from vanishing. Missing: an extractor field for narration-driven NPC moves (`npc_movements` has no hits), and per-NPC last-seen place and time so "where is Yuriko?" answers from what each character knows. No live check with an NPC leaving the room has been run.
 
-### BL-04 — `frontend/debug.html` does not send the operator token
-- **Open:** debug, playback and authoring routes require `X-Operator-Token`; the hosted debug UI never sends it, so it 401s with `DEBUG_TOOLS_ENABLED=1`.
-- **Next:** an operator-token input, stored locally, sent as `X-Operator-Token` (REST) and `operator_token` (WebSocket). Likely the cause of BL-32.

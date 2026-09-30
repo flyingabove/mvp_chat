@@ -1187,6 +1187,45 @@
   const _wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const _debugBase = `${location.protocol}//${_backendHost}/beta/debug`;
 
+  // BEGIN OPERATOR HELPERS (pure; unit-tested by tests/frontend/debug_operator.test.cjs)
+  // BL-04: the debug/playback routes require X-Operator-Token (query param operator_token on the WebSocket).
+  // BL-32: never assume the shape of /status; an error body has no `stories`.
+  const OPERATOR_TOKEN_KEY = 'storieschat_operator_token';
+  function getOperatorToken(storage) {
+    try { return String((storage || localStorage).getItem(OPERATOR_TOKEN_KEY) || '').trim(); } catch (e) { return ''; }
+  }
+  function setOperatorToken(value, storage) {
+    try {
+      const store = storage || localStorage;
+      const token = String(value || '').trim();
+      if (token) store.setItem(OPERATOR_TOKEN_KEY, token); else store.removeItem(OPERATOR_TOKEN_KEY);
+    } catch (e) { /* storage blocked: the token just is not remembered */ }
+  }
+  function operatorHeaders(token, extra) {
+    const headers = Object.assign({}, extra || {});
+    if (token) headers['X-Operator-Token'] = token;
+    return headers;
+  }
+  function withOperatorToken(url, token) {
+    if (!token) return url;
+    return url + (url.includes('?') ? '&' : '?') + 'operator_token=' + encodeURIComponent(token);
+  }
+  function parseStatus(httpStatus, body) {
+    if (httpStatus === 401 || httpStatus === 403) {
+      return {ok: false, kind: 'unauthorized', message: 'Operator token required. Enter it to use the simulator.'};
+    }
+    if (httpStatus < 200 || httpStatus >= 300) {
+      return {ok: false, kind: 'unavailable', message: 'Simulator status unavailable (HTTP ' + httpStatus + ').'};
+    }
+    if (!body || typeof body !== 'object' || !Array.isArray(body.stories)) {
+      return {ok: false, kind: 'malformed', message: 'The simulator status response was not understood.'};
+    }
+    const ollama = body.ollama && typeof body.ollama === 'object' ? body.ollama : {};
+    return {ok: true, stories: body.stories, apiBase: body.api_base || '',
+            ollama: {available: !!ollama.available, models: Array.isArray(ollama.models) ? ollama.models : []}};
+  }
+  // END OPERATOR HELPERS
+
   // ---- Mode chip ----
   const chip = document.getElementById('modeChip');
   if (chip) {
@@ -1228,15 +1267,74 @@
   }
 
   // ---- Init ----
+  function clearStatusProblem() {
+    const banner = document.getElementById('statusBanner');
+    if (banner) banner.remove();
+  }
+
+  function showStatusProblem(status) {
+    const txt = document.getElementById('statusText');
+    txt.textContent = 'Not connected';
+    document.getElementById('storySelect').innerHTML = '<option value="">Unavailable</option>';
+    document.getElementById('playerModelSelect').innerHTML = '<option value="">Unavailable</option>';
+    document.getElementById('graderModelSelect').innerHTML = '<option value="">Unavailable</option>';
+    clearStatusProblem();
+    // A full-width, wrapping banner: the header is too narrow on a phone for an input and a button.
+    const banner = document.createElement('div');
+    banner.id = 'statusBanner';
+    banner.setAttribute('role', 'alert');
+    banner.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;' +
+      'background:#3b1f24;color:#ffd7dc;border-bottom:1px solid #6b2f38;font:14px/1.4 system-ui,sans-serif;';
+    const message = document.createElement('span');
+    message.id = 'statusMessage';
+    message.textContent = status.message;
+    message.style.flex = '1 1 240px';
+    banner.appendChild(message);
+    if (status.kind === 'unauthorized') {
+      const input = document.createElement('input');
+      input.id = 'operatorTokenInput';
+      input.type = 'password';
+      input.placeholder = 'Operator token';
+      input.autocomplete = 'off';
+      input.value = getOperatorToken();
+      input.style.cssText = 'flex:1 1 200px;min-width:0;padding:8px;border-radius:6px;border:1px solid #6b2f38;font:inherit;';
+      banner.appendChild(input);
+    }
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.id = 'statusRetry';
+    retry.textContent = status.kind === 'unauthorized' ? 'Save & retry' : 'Retry';
+    retry.style.cssText = 'padding:8px 14px;border-radius:6px;border:0;font:inherit;cursor:pointer;';
+    retry.onclick = () => {
+      const input = document.getElementById('operatorTokenInput');
+      if (input) setOperatorToken(input.value);
+      txt.textContent = 'Connecting...';
+      clearStatusProblem();
+      init();
+    };
+    banner.appendChild(retry);
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+
   async function init() {
-    const r = await fetch(`${_debugBase}/status`);
-    const data = await r.json();
+    let status;
+    try {
+      const r = await fetch(`${_debugBase}/status`, {headers: operatorHeaders(getOperatorToken())});
+      let body = null;
+      try { body = await r.json(); } catch (e) { body = null; }
+      status = parseStatus(r.status, body);
+    } catch (e) {
+      status = {ok: false, kind: 'unavailable', message: 'Could not reach the simulator (' + ((e && e.message) || 'network error') + ').'};
+    }
+    if (!status.ok) { showStatusProblem(status); return; }
+    const data = {stories: status.stories, api_base: status.apiBase, ollama: status.ollama};
 
     // Store api_base for story API calls
     apiBase = data.api_base || `${location.protocol}//${_backendHost}`;
 
     const dot = document.getElementById('statusDot');
     const txt = document.getElementById('statusText');
+    clearStatusProblem();
 
     // Populate stories
     const sel = document.getElementById('storySelect');
@@ -1349,7 +1447,7 @@
     }
 
     const wsUrl = `${_wsProto}//${_backendHost}/beta/debug/ws`;
-    ws = new WebSocket(wsUrl);
+    ws = new WebSocket(withOperatorToken(wsUrl, getOperatorToken()));
     ws.onopen = () => {
       ws.send(JSON.stringify(wsConfig));
     };
@@ -1595,12 +1693,12 @@
       addSystemMsg('Starting manual session for ' + storyId + '...');
       await fetch(storyApiBase + '/api/chat', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: operatorHeaders(getOperatorToken(), {'Content-Type': 'application/json'}),
         body: JSON.stringify({ session_id: manualSession, message: '__cmd_reset__' }),
       });
       const r = await fetch(storyApiBase + '/api/chat', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: operatorHeaders(getOperatorToken(), {'Content-Type': 'application/json'}),
         body: JSON.stringify({ session_id: manualSession, message: '__cmd_newgame__:' + storyId + '|M|Player' }),
       });
       const data = await r.json();
@@ -1615,7 +1713,7 @@
     try {
       const r = await fetch(storyApiBase + '/api/chat', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: operatorHeaders(getOperatorToken(), {'Content-Type': 'application/json'}),
         body: JSON.stringify({ session_id: manualSession, message: msg }),
       });
       const data = await r.json();
@@ -1676,8 +1774,13 @@
   async function loadLeaderboard() {
     const container = document.getElementById('leaderboardContent');
     try {
-      const r = await fetch(`${_debugBase}/scores`);
+      const r = await fetch(`${_debugBase}/scores`, {headers: operatorHeaders(getOperatorToken())});
       const rows = await r.json();
+      if (!Array.isArray(rows)) {
+        container.innerHTML = '<div class="eval-placeholder">' + (r.status === 401 || r.status === 403
+          ? 'Operator token required to load scores.' : 'Could not load scores (HTTP ' + r.status + ').') + '</div>';
+        return;
+      }
       if (!rows.length) {
         container.innerHTML = '<div class="eval-placeholder">No scores recorded yet. Run a test with Auto-evaluate enabled.</div>';
         return;
@@ -1735,8 +1838,9 @@
   // ---- Test Cases ----
   async function loadTestCases() {
     try {
-      const r = await fetch(`${_debugBase}/test-cases`);
-      testCases = await r.json();
+      const r = await fetch(`${_debugBase}/test-cases`, {headers: operatorHeaders(getOperatorToken())});
+      const loaded = await r.json();
+      testCases = Array.isArray(loaded) ? loaded : [];
     } catch (e) {
       testCases = [];
     }
@@ -1885,7 +1989,7 @@
 
       const resp = await fetch(`${_debugBase}/test-cases`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: operatorHeaders(getOperatorToken(), {'Content-Type': 'application/json'}),
         body: JSON.stringify({ test_cases: testCases }),
       });
       if (resp.ok && !silent) {
