@@ -1,6 +1,6 @@
 # Social engine: master design, v2 design, social mode, cast lifecycle
 
-> This file merges several design documents (each keeps its own section, with its original status notes). Open work is in [../BACKLOG.md](../BACKLOG.md).
+> This file merges several design documents (each keeps its own section, with its original status notes). Open work is in [../backlog/](../backlog/).
 
 ## BL-39 — Canonical proposal: reusable character-centered simulation engine
 
@@ -8,7 +8,7 @@
 - **Found:** 2026-09-27; consolidated by owner direction on 2026-09-28.
 - **Severity:** high: unreliable outcomes, attribution and character agency undermine gameplay.
 - **Status:** proposed, not implemented or calibrated by this documentation change.
-- **Authority:** the single target architecture and roadmap. Replaces competing architectural portions of BL-38 and original BL-39. [BL-38](../BACKLOG.md) remains an open correctness tracker, not a second design.
+- **Authority:** the single target architecture and roadmap. Replaces competing architectural portions of BL-38 and original BL-39. [BL-38](../backlog/social-engine-atomic-transactions.md) remains an open correctness tracker, not a second design.
 - **Navigation:** sections 1–3 ownership; 4–9 contracts; 10 release units; 11 acceptance; 12 owner answers.
 
 ### 1. Product goal
@@ -459,7 +459,7 @@ Engagement evaluation uses blinded equal-length comparisons plus human review: m
 
 ### 10. Backlog mapping
 
-Existing [BL-30](../BACKLOG.md), [BL-31](../BACKLOG.md), [BL-33](../BACKLOG.md), [BL-34](../BACKLOG.md), [BL-35](../BACKLOG.md), [BL-36](../BACKLOG.md), and [BL-37](../BACKLOG.md) retain their scopes. The cross-cutting transaction and epistemic work is tracked in BL-38. Implement slices with regression evidence; this design does not close those items.
+Existing [BL-30](../backlog/narrative-clock-vs-game-clock.md), [BL-31](../backlog/iu-mystery.md), [BL-33](../backlog/terrace-goal-ending-and-rivals.md), [BL-34](../backlog/terrace-goal-ending-and-rivals.md), [BL-35](../backlog/terrace-plans-and-promises.md), [BL-36](../backlog/iu-mystery.md), and [BL-37](../backlog/terrace-repetition-and-stock-lines.md) retain their scopes. The cross-cutting transaction and epistemic work is tracked in BL-38. Implement slices with regression evidence; this design does not close those items.
 
 ### 11. Implementation sequence and shared release contract
 
@@ -753,8 +753,8 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 
 ### 8. Explicit limitations (read before assuming more exists)
 
-- **No quest/schedule/resource engine.** Chore wheels, jobs, daily routines, etc. are narrative content NPCs can reference in conversation — they are not mechanically simulated (no calendar, no NPC schedules, no resource meters). See `design/ROADMAP_NOT_BUILT.md (game design systems)` and `documentation/BACKLOG.md`.
-- **Relationship drift is asymmetric.** Only player→NPC relationship edges are updated by structured turn extraction today; NPC→player and NPC↔NPC edges are seeded at game start but not mechanically driven during play (only the main NPC has a narrative-tag-driven affection path). Tracked in `documentation/BACKLOG.md`.
+- **No quest/schedule/resource engine.** Chore wheels, jobs, daily routines, etc. are narrative content NPCs can reference in conversation — they are not mechanically simulated (no calendar, no NPC schedules, no resource meters). See `design/ROADMAP_NOT_BUILT.md (game design systems)` and `documentation/backlog/`.
+- **Relationship drift is asymmetric.** Only player→NPC relationship edges are updated by structured turn extraction today; NPC→player and NPC↔NPC edges are seeded at game start but not mechanically driven during play (only the main NPC has a narrative-tag-driven affection path). Tracked in `documentation/backlog/`.
 - **`character_self_knowledge` per-character injection is scene-presence-gated for non-main characters** (§5, BL-07) — a housemate's own identity block only appears when they're present in the current scene; the main character's block is unconditional. This bounds prompt length but means an absent housemate's self_knowledge contributes nothing to that turn's prompt (their `motive` + canonical facts/belief seeds/relationship edges still shape their characterization when they're the one being discussed but not present).
 
 ### 9. Six Strangers: Tokyo cast adaptation (2026-09-18)

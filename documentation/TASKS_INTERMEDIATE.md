@@ -77,5 +77,5 @@ Corrective beta `4ed8361`: full suite 1,256 passed/one expected failure; local a
 ## Cleanup Rules (Quick Reference)
 
 1. Keep only open items in `Active`.
-2. Delete completed checklists at task completion (no history section; git and `documentation/BACKLOG.md` are the record).
-3. Deferred work becomes a `documentation/BACKLOG.md` entry, not a lingering checkbox.
+2. Delete completed checklists at task completion (no history section; git and `documentation/backlog/` are the record).
+3. Deferred work becomes a `documentation/backlog/` entry, not a lingering checkbox.

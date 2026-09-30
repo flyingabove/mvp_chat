@@ -4,7 +4,7 @@
 
 ## Layout
 
-- **Top level:** this index, [BACKLOG.md](BACKLOG.md) (the only backlog: open work only, delete an entry when it is fixed, see `/add-and-remove-from-backlog`), [TASKS_INTERMEDIATE.md](TASKS_INTERMEDIATE.md) (the shared active task log; finished items are deleted), [user_corrections.md](user_corrections.md).
+- **Top level:** this index, [backlog/](backlog/) (the backlog: one small file per bug or per few related bugs, each holding `## BL-<n>` sections of open work only; delete a section when it is fixed and the file when it empties; list the folder, open only the file you need; see `/add-and-remove-from-backlog`), [TASKS_INTERMEDIATE.md](TASKS_INTERMEDIATE.md) (the shared active task log; finished items are deleted), [user_corrections.md](user_corrections.md).
 - **`design/`** — the engineering design docs (as-built plus designed-not-built), one file per subsystem. Each merged file keeps one section per original document with its own status notes. If a section disagrees with the running code, fix the doc (or file a backlog entry if the code is what's wrong). When a piece ships, update its section and delete finished narrative rather than adding "done" logs.
 - **`ai_learnings_mistakes/`** — process rules and postmortems, not gameplay or architecture design.
 - **`human_north_star_docs/`** — vision only, human-owned. Read `NorthStar.md` before design questions; edit only when asked.
@@ -30,7 +30,7 @@
 | [ai_learnings_mistakes/AI_UI_WORKFLOW.md](ai_learnings_mistakes/AI_UI_WORKFLOW.md) | ...frontend architecture or UI development patterns change. Its body is a stale March snapshot; use `.claude/skills/ship-and-verify/BROWSER_QA.md` for current browser QA. |
 | [ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md](ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md) | ...adding a bracket command or game-mode flag to the chat system. Built around the removed `COMMAND_PATTERNS`; rewrite before next use. |
 | [user_corrections.md](user_corrections.md) | ...the user corrects a mistake that should be remembered across sessions. |
-| [BACKLOG.md](BACKLOG.md) | ...work is knowingly deferred or an item is fixed (add or delete its `### BL-<n>` entry). |
+| [backlog/](backlog/) | ...work is knowingly deferred or an item is fixed (add a `## BL-<n>` section to the topic file, or delete it; delete the file if it empties). One file per bug or per few related bugs, kept small. |
 | [TASKS_INTERMEDIATE.md](TASKS_INTERMEDIATE.md) | ...an active multi-step task starts, progresses or finishes. |
 
 ## Design docs — `design/`

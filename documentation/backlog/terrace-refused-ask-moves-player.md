@@ -1,0 +1,5 @@
+# Terrace: a refused ask walks the player outdoors
+
+## BL-46 — A refused "leave this house together" ask walks the player outdoors
+- **Open:** hosted beta 2026-09-29 turn 12: Minori declined in dialogue and the banner stayed unchanged, but the narration moved the scene to the street for several turns ("glancing down the street", later "as you walk back to the house"). The ask reads as a movement to the extractor/heuristic (`prompt_engine.py` `_match_world_destination`, `_resolved_movement_destination`, `MOVE` intent), and `companions.py` `INVITE` also matches "let's leave", so the target travelled along. The chat response has no location field, so this was inferred from narration.
+- **Next:** failing-first test through `/api/chat` with a scripted `SocialActUpdate("ask_leave_together", target)` asserting `location_id` and the target's place unchanged after a `not_yet`/`reject`; skip destination extraction on turns carrying a typed social act; drop `leave` from `INVITE`; expose `location` in the chat response for browser checks.

@@ -1,6 +1,6 @@
 # World model: character world model, implementation plan, living world, atlas
 
-> This file merges several design documents (each keeps its own section, with its original status notes). Open work is in [../BACKLOG.md](../BACKLOG.md).
+> This file merges several design documents (each keeps its own section, with its original status notes). Open work is in [../backlog/](../backlog/).
 
 ## Character & World Model Redesign
 

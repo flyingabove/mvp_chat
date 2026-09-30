@@ -3,7 +3,7 @@
 > **What this doc is for:** the single design doc for the Terrace House game mode (story `7_six_strangers`, "Terrace in the City"): its proposal (win, loss, courtship, judges panel), the generic engine mechanics it drives, and background on the real show (Appendix A). Edit it if anything about this game mode's design changes. Once parts ship, move the as-built description of the generic mechanics into `reference/` docs and mark them built here.
 
 - **Status:** proposal, not built. Game-mode doc, moved here from `proposals/`. Created 2026-09-26, rewritten the same day after the owner Q&A (decisions in §2).
-- **Closes when shipped:** [BL-33](../BACKLOG.md); most of [BL-34](../BACKLOG.md).
+- **Closes when shipped:** [BL-33](../backlog/terrace-goal-ending-and-rivals.md); most of [BL-34](../backlog/terrace-goal-ending-and-rivals.md).
 - **Engineering authority:** [consolidated BL-39](SOCIAL_ENGINE.md), updated 2026-09-28: character-centric model and phases A–J, incorporating BL-38's correctness contracts. This file specifies Terrace content, not a competing engine architecture. The original claim-lock and multi-call panel design has been corrected to match the latest owner decisions.
 - **Background:** Appendix A (the real show and how it maps to the game).
 - **Related:** [design/SOCIAL_ENGINE.md (social engine v2)](SOCIAL_ENGINE.md), [design/SOCIAL_ENGINE.md (cast lifecycle)](SOCIAL_ENGINE.md), [design/JEV.md (dynamic context)](JEV.md), [design/ROADMAP_NOT_BUILT.md (game design systems)](ROADMAP_NOT_BUILT.md).

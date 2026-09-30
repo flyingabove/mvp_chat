@@ -5,7 +5,7 @@ PROD api when the page is loaded from storieschat.ai/beta/.
 There is no JS test harness in this repo (confirmed during the A06 fix), so
 this is a structural/string-level guard on frontend/index.html rather than a
 real browser test. It exists to stop this specific bug from being
-reintroduced, not to fully exercise the JS. See documentation/BACKLOG.md
+reintroduced, not to fully exercise the JS. See documentation/backlog/
 BL-03 and documentation/design/PLATFORM.md for the routing
 context this depends on (Cloudflare only routes /beta/* PAGE requests to the
 beta origin, not a same-origin /api call issued by that page).

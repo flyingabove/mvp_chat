@@ -1,6 +1,6 @@
 # Roadmap: designed but not built
 
-> This file merges several design documents (each keeps its own section, with its original status notes). Open work is in [../BACKLOG.md](../BACKLOG.md).
+> This file merges several design documents (each keeps its own section, with its original status notes). Open work is in [../backlog/](../backlog/).
 
 ## Phase 2 — reusable backend: implementation design
 
@@ -1805,7 +1805,7 @@ Per the plan's own list, each doc gets a specific addition, not a rewrite:
 | `design/CHARACTER_MEMORY.md (data models)` | `extracted_chunks` table (Phase 1.2) and the `Snapshot`/`SnapshotCodec` versioned envelope (Phase 2, if implemented) |
 | `design/PROMPT_PIPELINE.md (message flow)` | `TurnService`/command dispatch (Phase 2, if implemented) — and the stable-prefix layer reordering (Phase 3 row 10, if shipped), since that doc is the authority on layer order |
 | `design/PLATFORM.md (auth and persistence)` | Phase 1.5's exact-eviction fix and the per-session lock coordination |
-| `BACKLOG.md` | close BL-01c (already done, 2026-09-22); reconcile BL-13 per its own re-audit instruction; add BL-16 (already done) |
+| `documentation/backlog/` | close BL-01c (already done, 2026-09-22); reconcile BL-13 per its own re-audit instruction; add BL-16 (already done) |
 
 **This row ships alongside whichever phase actually lands the corresponding
 code** — not as a batch at the end. A doc update for work that hasn't shipped

@@ -5,7 +5,7 @@ as history. **Nothing here runs.** Do not re-enable either without re-reading th
 file and re-running the verification below.
 
 Quarantined 2026-09-21 as Phase 0A of
-`documentation/ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md`.
+`ENGINEERING_PLAN_REUSE_PERFORMANCE_JEV_2026_09_21.md` (removed; see git history).
 
 ## Why these are dead
 
@@ -59,7 +59,7 @@ process did.
 ## Still outstanding — owner action required
 
 Quarantining the file does **not** rotate the credential. Tracked as **BL-14** in
-`documentation/BACKLOG.md`.
+`documentation/backlog/`.
 
 If the GitHub webhook still exists for this repository, its secret must be
 rotated or the webhook deleted, because the old value is recoverable from git

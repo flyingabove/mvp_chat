@@ -1759,7 +1759,7 @@ var IS_BETA = host.startsWith("beta.") || path.includes("/beta/") || path.endsWi
 // router at storieschat.ai/beta/ — Cloudflare only routes /beta/* page
 // requests to the beta origin, not a same-origin /api call made from that
 // page, so same-origin would silently hit the PROD api (confirmed live bug,
-// see documentation/BACKLOG.md BL-03). Mirrors the BACKEND_ORIGIN detection
+// see documentation/backlog/ BL-03). Mirrors the BACKEND_ORIGIN detection
 // already used for OAuth below (LOGIN_AUTH_BASE) and in frontend/debug.html.
 var BACKEND_ORIGIN = window.location.origin;
 if (IS_BETA && (host === "storieschat.ai" || host === "www.storieschat.ai")) {

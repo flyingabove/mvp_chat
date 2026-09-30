@@ -139,7 +139,7 @@ fails or smoke fails: tell the user immediately with the output; never
 
 - Put the candidate sha, merge sha, precheck + gate experiment ids and verdicts in the promotion commit message
   and the report (not in `documentation/TASKS_INTERMEDIATE.md`, which holds only open items).
-- Anything knowingly deferred -> an entry in `documentation/BACKLOG.md` (`/add-and-remove-from-backlog`).
+- Anything knowingly deferred -> an entry in `documentation/backlog/` (`/add-and-remove-from-backlog`).
 - Commit + push the docs to beta (normal flow).
 - Tell the user: what shipped, the gate table, prod verification output,
   and the report link/path.

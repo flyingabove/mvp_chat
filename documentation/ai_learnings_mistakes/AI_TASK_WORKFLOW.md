@@ -39,9 +39,9 @@ When to clean up:
 How to clean up:
 
 1. Delete completed checklists and checked items from `TASKS_INTERMEDIATE.md`. There is no history section: git
-   history, the commit message and `documentation/BACKLOG.md` are the record.
+   history, the commit message and `documentation/backlog/` are the record.
 2. Keep only open/in-progress items, each under its dated request heading.
-3. Anything deferred instead of finished becomes an entry in `documentation/BACKLOG.md`, not a lingering checkbox.
+3. Anything deferred instead of finished becomes a section in a small topic file in `documentation/backlog/`, not a lingering checkbox.
 
 Non-goals
 ---------

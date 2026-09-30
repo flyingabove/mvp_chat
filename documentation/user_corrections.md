@@ -38,7 +38,7 @@ The user clarified the reusable simulation proposal after review:
 - Intentional lying is allowed and should generally have observable hints, varying with character skill and circumstances. Skilled liars can be harder to read; nervousness is not proof.
 - Tentative plans and misunderstandings are valid gameplay. Preserve actual speech/decisions separately from each character's interpretation; never manufacture player consent or mutual agreement.
 
-Engineering contracts, tuning and acceptance scenarios are in [BL-38](BACKLOG.md), especially the confirmed owner decisions and scenarios O19–O23. These are design requirements, not claims that the runtime already implements them.
+Engineering contracts, tuning and acceptance scenarios are in [BL-38](backlog/social-engine-atomic-transactions.md), especially the confirmed owner decisions and scenarios O19–O23. These are design requirements, not claims that the runtime already implements them.
 
 ## 2026-09-24: Documentation-only changes do not need a beta push
 
