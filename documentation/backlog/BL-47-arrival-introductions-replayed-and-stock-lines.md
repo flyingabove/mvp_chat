@@ -11,7 +11,7 @@
 ## Fix direction
 1. Mark an arrival introduction as delivered in world-model state (per character) so a later greeting gets an ordinary reply; test through `begin_turn` with a greeting after the arrival turn.
 2. Find what keeps the confession outcome in front of the storyteller (`view.must_address`, `ending_hint`, relationship-decision memories in `romance.py` / `social_acts.py` `commit`), and pass it as context only on the turn of the ask and when the player raises it again, not every turn. Add a test that a plain non-romantic message two turns after a `not_yet` verdict carries no refusal directive.
-Measure by replaying the 27-turn script in the beta play notes (see `tasks/todo.md` D-section, 2026-09-29) and counting repeated sentences.
+Measure by replaying a 25-turn Terrace session (greet the first resident, ask a question, promise and keep tea, invite a move, confess, sleep, meet the rest) and counting repeated sentences.
 
 ## Touches
 `backend/app/engine/world_model/turn.py` (`_build_view`, scene directives), `romance.py`, `social_acts.py`, `bootstrap.py` (opening cast), Terrace story JSON arrival lines, tests under `tests/backend/app/engine/world_model/`.
