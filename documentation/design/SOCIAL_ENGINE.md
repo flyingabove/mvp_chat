@@ -417,6 +417,21 @@ through existing gossip. `social_acts.assess` also words a soft "not yet" as "th
 someone else, and they will not say who" when the target holds a live aim on another person they rate higher than the
 player. Tests: `test_act_fallout.py`.
 
+### Decision golden record: the refactor safety net (P-03, as built 2026-10-01)
+
+`tests/backend/app/engine/world_model/test_decision_golden.py` replays the seeded Terrace houses (seeds 0-11, both
+player genders, a passive player skipping whole days, one scripted public confession on day 3, and one longer run of the
+house that forms an NPC couple) through the real turn pipeline with no model calls, and compares to
+`tests/backend/app/engine/world_model/golden/terrace_decisions.json`. Per story day it records each character's live
+intentions, the beat offered, invitations queued, off-screen outcomes (kind, pair, place), fallout (including the
+standing loss it proposed, which the book can clamp to zero), every non-zero standing, agreements, couples formed and
+departed, the cast and the director's counters. Nothing is stubbed except the model: the recorders wrap the real
+functions (`resolve_offscreen`, `next_beat`, `queue_contacts`, `apply_fallout`) and delegate. About 25 seconds.
+
+A deliberate behaviour change regenerates the record in the same commit, with the reason in the message:
+`UPDATE_DECISION_GOLDEN=1 python -m pytest tests/backend/app/engine/world_model/test_decision_golden.py`. Any other diff
+means a refactor changed behaviour. Stances (P-08) must keep this record unchanged apart from intended, tested changes.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |
