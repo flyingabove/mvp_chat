@@ -20,7 +20,12 @@ is not a skip. Any test that needs a real provider MUST be marked
 "LLM network call to ... during the deploy test gate". Live tests at build time
 are opt-in only: Docker build arg `RUN_LIVE_LLM_TESTS=1` (+ `OPENAI_API_KEY`).
 Reproduce the gate locally (no `.env.test` in a clean worktree):
-`OPENAI_API_KEY= TESTS_BLOCK_LLM_NETWORK=1 python -m pytest tests -m "not integration"`.
+`OPENAI_API_KEY= TYPESAFE_API_KEY= TESTS_BLOCK_LLM_NETWORK=1 python -m pytest tests -m "not integration"`.
+
+**A populated `.env.test` no longer breaks unit tests (BL-79, 2026-10-01).** `tests/conftest.py` has an autouse fixture that pins
+`settings.TYPESAFE_ENABLED=False` and `TYPESAFE_API_KEY=""` for every test that is not marked `integration` (a Jev call used to
+add a second HTTP post per turn and broke call-count tests only on machines with Jev configured). A unit test that wants Jev
+on sets it itself with `monkeypatch`; `integration` tests keep the real settings. Guard: `tests/test_jev_pin.py`.
 The conftest.py hook converts any skip attempt into a hard FAILURE.
 If a test needs an API key, the key MUST be available — never gate on it.
 

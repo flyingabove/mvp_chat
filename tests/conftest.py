@@ -199,6 +199,22 @@ def require_openai_api_key(openai_api_key):
     return openai_api_key
 
 
+@pytest.fixture(autouse=True)
+def _jev_off_in_unit_tests(request, monkeypatch):
+    """BL-79: unit tests never reach Jev, whatever this machine's `.env.test` says.
+
+    A populated `.env.test` (TYPESAFE_API_KEY + TYPESAFE_ENABLED) made every turn in a unit test make a second,
+    Jev, HTTP post, breaking call-count tests that pass on CI and Railway (blank keys). Jev routing reads
+    `settings.TYPESAFE_ENABLED` / `TYPESAFE_API_KEY` at call time, so pin both for every test that is not marked
+    `integration`. A unit test that wants Jev on sets it itself (its monkeypatch runs after this one).
+    """
+    if request.node.get_closest_marker("integration"):
+        return
+    from backend.app.config import settings
+    monkeypatch.setattr(settings, "TYPESAFE_ENABLED", False)
+    monkeypatch.setattr(settings, "TYPESAFE_API_KEY", "")
+
+
 # ---------------------------------------------------------------------------
 # PYTEST HOOKS
 # ---------------------------------------------------------------------------
