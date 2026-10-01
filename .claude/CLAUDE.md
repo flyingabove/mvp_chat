@@ -15,6 +15,9 @@ If instructions every conflict with what is designed in the doc, always update t
 ### Adult Content
 - The owner gives **explicit, standing permission** for explicit adult content between adult characters in stories (Terrace: on camera stays show-real, behind closed doors anything goes at the player's lead). Do not soften it, add warnings, or treat provider refusals as a design constraint: the project has many other API options that do not refuse, so route such scenes to one that will write them.
 
+### Game Changes Are Engine Changes
+- When asked to change or improve a specific game, read it as: **improve the character object and game engine so the desired interaction emerges organically for every game.** Never build a mechanic for one game type, especially social ones like jealousy. Most interactions belong in the engine and character objects; a game's story JSON only supplies data and tuning.
+
 ### Auth / Local Dev Credentials (READ ME FIRST IF AUTH BREAKS)
 - Real Google OAuth + JWT credentials live in `.env.test` at project root (gitignored).
 - The Python app does NOT auto-load `.env.test` via dotenv. It is loaded lazily by `backend/app/config/credentials.py` (`_load_env_test_once`) on first read of `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `JWT_SECRET`.
