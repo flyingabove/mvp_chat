@@ -36,6 +36,9 @@ COPY frontend/ /srv/frontend/
 COPY tests/ /srv/tests/
 COPY scripts/ /srv/scripts/
 COPY pytest.ini /srv/pytest.ini
+# tests/backend/app/llm/test_ollama_switch.py imports the promote-to-prod
+# skill's arena CLI straight off disk (sys.path, not a package import).
+COPY .claude/skills/promote-to-prod/arena/ /srv/.claude/skills/promote-to-prod/arena/
 
 # scripts/work.py's tests shell out to a real `git` binary (bare repo
 # fixtures); python:3.10-slim does not ship one.
