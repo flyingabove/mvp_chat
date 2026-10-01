@@ -406,6 +406,17 @@ them up or leave things out, never admit to it, and never state what the person 
 Strongest stakes first, at most two notes a turn. The engine's truth and the player-visible state are untouched. Tests:
 `test_stakes.py`.
 
+### Fallout of a declined act and "drawn to someone else" (BL-82 part 1, as built 2026-10-01)
+
+Generic, any story with `social_acts`. `world_model/act_fallout.py`, called from `social_acts.commit` when a
+target-needing act is not accepted: every witness covered by the appraisal policy loses standing toward the player
+(`failed_confession`, 2.0 x (0.6 + 0.8 x skepticism) points, so skeptics judge harder); on a clear no the person who
+refused cools too (2.5); witnesses who share the player's gender and are free get a `pursue` aim on the person who
+refused ("saw an opening", scaled by strategy). A yes and an act with no witnesses have none; absent people hear only
+through existing gossip. `social_acts.assess` also words a soft "not yet" as "they like you but are also drawn to
+someone else, and they will not say who" when the target holds a live aim on another person they rate higher than the
+player. Tests: `test_act_fallout.py`.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |

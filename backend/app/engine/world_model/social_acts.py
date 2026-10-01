@@ -98,7 +98,21 @@ def assess(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str])
     value = standing.value if standing is not None else 0.0
     if reached is True and value >= spec.min_standing:
         return Assessment(Verdict(act, "accept"), hard=False, can_accept=True)
-    return Assessment(Verdict(act, "not_yet", "they want to know you better first"), hard=False, can_accept=False)
+    hint = "they want to know you better first"
+    if _drawn_elsewhere(model, act.target, spec.track, value, day):
+        hint = "they like you but are also drawn to someone else, and they will not say who"
+    return Assessment(Verdict(act, "not_yet", hint), hard=False, can_accept=False)
+
+
+def _drawn_elsewhere(model: WorldModel, target: str, track: str, value_toward_player: float, day: int) -> bool:
+    """True when the target holds a live aim on someone else toward whom their standing is higher than toward the player."""
+    from backend.app.engine.world_model.agenda import intentions
+    for item in intentions(model, target, day):
+        if item.kind in ("pursue", "compete_for") and item.target not in (PLAYER, target):
+            other = model.standing.get(target, item.target, track)
+            if other is not None and other.value > value_toward_player:
+                return True
+    return False
 
 
 def decide(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str]) -> Optional[Verdict]:
@@ -161,6 +175,9 @@ def commit(state: Any, spec: ActSpec, verdict: Verdict, witnesses: tuple[str, ..
     if verdict.answer != "accept":
         if spec.cooldown_days:
             model.act_cooldowns[f"{act.kind}:{act.target}"] = day + spec.cooldown_days - 1
+        if act.kind in NEEDS_TARGET:
+            from backend.app.engine.world_model.act_fallout import apply_fallout
+            apply_fallout(state, spec.track, act.kind, act.target, verdict.answer, witnesses, event.id)
         return
     if act.kind == "confess":
         commit_relationship(model, act.target, (event.id,))

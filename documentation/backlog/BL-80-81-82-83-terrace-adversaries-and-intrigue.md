@@ -14,15 +14,10 @@ From the owner interview of 2026-09-30, written up in [design/TERRACE_HOUSE.md �
 - **Next:** after a turn's bounded decision step, start a background job when a trigger fires (a confession, a betrayal opening, a rival noticing the player's interest). The job writes a plan with concrete, physically executable steps (talk to X, call Y, go to a room, plant a rumor). A finished plan executes unless the player acts first. No telepathy: every step uses a conversation, a call or a location. Needs job persistence across saves and deploys, a cost cap, and determinism in tests.
 - **Touches:** `world_model/` (agendas, off-screen resolver), a new job runner, `prompt_engine.py`, `design/WORLD_MODEL.md`.
 
-## BL-82 — Outcomes of high-stakes social acts and their fallout (generic; confession is the first)
-- **Open:** `social_acts` `confess` requires the `interested` tier and only gates yes or no. "Still thinking", "I like someone else more", keeping both on the line, rival safe-pick confessions, rare NPC-initiated confessions and failure fallout (gossip, lower value with other residents who heard, rivals emboldened) are not modeled.
-- **Next:**
-  1. Detect the situation with Jev.
-  2. Decide the outcome from personality, standing and competing standings, using rules plus Jev.
-  3. Nudge the storyteller context.
-  4. Spread the fallout as real events and gossip, following who actually heard.
-  5. Tune the pace so a run takes about 60-400 turns from edge growth, not thresholds, and check it with the simulator.
-- **Touches:** `social_acts` handling, `world_model/standing.py`, gossip, `scripts/terrace_ollama_sim.py`.
+## BL-82 — High-stakes act outcomes: what is left after fallout (generic)
+- **Open:** built 2026-10-01: fallout of a declined act (witnesses think less of the asker, the refuser cools on a clear no, rivals see an opening) and the "drawn to someone else" hint (SOCIAL_ENGINE.md "Fallout of a declined act"). Still missing: (a) "still thinking": a delayed answer that comes back after days, during which a rival can ask first and a safe-pick personality may choose the safer person; (b) rare NPC-initiated confessions when someone is far ahead of every rival; (c) Jev detecting the situation and choosing from personality (the verdict options are still accept / not yet / reject); (d) the same fallout for `ask_leave_together`, and the panel's use of these events for the finale roasts (check `commentary.FOOTAGE_KINDS`); (e) fallout size is untuned (2.0 / 2.5 points) and unmeasured in a long simulation.
+- **Next:** a `pending_answer` record (act, target, due day) resolved by the target's own standings, aims and `strategy` (`safe_pick` prefers the highest standing toward them, not the player); NPC confession gated on a large standing lead and personality; run the offline sim over several seeds to tune the loss sizes against run length (target 60-400 turns).
+- **Touches:** `world_model/social_acts.py`, `world_model/act_fallout.py`, `world_model/npc_decision.py`, `world_model/agenda.py`, `world_model/commentary.py`, `scripts/terrace_ollama_sim.py`.
 
 ## BL-83 — Characters lie, stage and spy for their own ends: what is left (generic epistemics and movement)
 - **Open:** built 2026-10-01: motivated testimony (`world_model/stakes.py`, see SOCIAL_ENGINE.md): people with a stake in someone speak about them in their own interest. Still missing: (a) claims passed on between characters do not carry the speaker's belief and intent (sincere, exaggerated, false, staged), so a lie never persists as a lie in memory or gossip provenance; (b) nobody stages a conversation to be overheard; (c) suspicion of the player never makes a character physically follow or eavesdrop, and the player cannot catch them by walking in.
