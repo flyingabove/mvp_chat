@@ -27,31 +27,33 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
   - **The player slot.** It is held by an AI resident with goals, under the same `Person` rules. The panel speaks
     only at the end of that resident's run (win or cut).
 - **Design:**
-  1. **`SeasonRunner(story, seed, provider, days, budget)`**, pure orchestration over existing services:
-     - the world stepper advances time;
-     - each person's plan picks where to go;
-     - co-located awake people form an encounter;
-     - `Scene` (BL-85) builds the prompt;
-     - one writing call;
-     - extraction plus Jev;
-     - the commit goes through the existing single writers.
-
-     The same turn transaction as player turns: one code path, not a second engine. **The extractor therefore must
-     accept NPC-to-NPC updates** (absorbs BL-06 and BL-24):
-     - relationship and behaviour changes between NPCs, not only player-to-NPC;
-     - NPC movements described in the prose (a new `npc_movements` field; it does not exist yet).
-
-     Both apply through the same validated writers. The older social-sim story `6_common_room` gets this path too. A per-day cap on scenes, and a
-     hard cost cap per run.
-  2. **The camera.** Not every encounter is equally interesting. Rank encounters by scene tension (BL-85 dynamics)
+  1. **Built (P-04): `SeasonRunner(story, seed, writer, days, scenes_per_day, budget)`** in `backend/app/sim/runner.py`,
+     pure orchestration over existing services: the world stepper (`world_model/stepper.py`) advances time and drives
+     every character's routine, including the player slot (an AI resident is just another routine-follower, no code
+     assumes a human); co-located awake pairs form an encounter with `offscreen.find_encounters()`'s pairing rule; a
+     `Writer` (`backend/app/sim/writer.py`, protocol `write_scene`/`extract`) is asked for the scene; the extracted
+     `SceneUpdate` (summary, relationship deltas, movements) commits through the model's own primitives
+     (`world.add_event`, `epistemics.observe_event`, `memories.add`, relationship `adjust()`) -- one code path, not a
+     second engine. A delta or movement naming someone who was not in the scene is rejected, not applied (grounding
+     check). Hard caps: `scenes_per_day` per day, `budget` on total writer calls, checked before each scene so a run
+     never stops mid-write. Three pure invariants (`backend/app/sim/invariants.py`) run after every simulated day:
+     exact cast size via the cast lifecycle, no memory without a matching epistemic observation, no
+     `<act>_accepted` event without a logged consent verdict. Proven on a deterministic `FakeWriter` (unit tests,
+     `tests/backend/app/sim/`); the real writer, the camera, the social-act proposal path from a scene, group (3+)
+     encounters, and `npc_movements` parsed from LLM prose are later work (P-06 onward) -- this slice only proves the
+     day-loop, commit and invariant plumbing offline.
+  2. **Still open:** extraction must accept richer NPC-to-NPC updates once a real writer lands (absorbs BL-06 and
+     BL-24): relationship and behaviour changes between NPCs beyond a simple delta, and NPC movements described in
+     prose rather than returned structurally. The older social-sim story `6_common_room` gets this path too.
+  3. **The camera.** Not every encounter is equally interesting. Rank encounters by scene tension (BL-85 dynamics)
      and write the top N per day in full. The rest are summarized in one line by the same writing call, so the
      story still advances everywhere. N is a knob (BL-87).
-  3. **Season artifacts:** per-day scenes, state diffs, plans, mind changes, and the rubric scores (BL-87), written
+  4. **Season artifacts:** per-day scenes, state diffs, plans, mind changes, and the rubric scores (BL-87), written
      as JSONL plus a readable HTML episode view.
-  4. **Admin watch mode.** An admin-only screen, behind the existing operator auth, to start or stop a season and
+  5. **Admin watch mode.** An admin-only screen, behind the existing operator auth, to start or stop a season and
      to read it as episodes (day by day, scene by scene). It can also show any character's mind (what they know and
      what they think others know) and stance graph. It is never shown to players.
-  5. **Integration test.** `pytest -m integration` runs a short Terrace season (for example 5 days, capped). It
+  6. **Integration test.** `pytest -m integration` runs a short Terrace season (for example 5 days, capped). It
     asserts:
      - structural invariants: always 6 residents, no telepathy, consent rules, no story names in engine code;
      - a minimum rubric score (BL-87).
@@ -61,8 +63,8 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
      absence is reported as absence. It is never run on deploy. Separately, the unit gate runs a scripted fake writer, so the runner's plumbing is
      tested offline.
 - **Next:**
-  - `SeasonRunner` on the fake writer (unit tests), then on Gemini + Jev for a 2-day pilot season, then the camera,
-    the artifacts and the watch mode.
+  - The fake-writer `SeasonRunner` plumbing is built (P-04, above); next is the real writer on Gemini + Jev for a
+    2-day pilot season, then the camera, the artifacts and the watch mode.
   - Depends on BL-85 P1–P4 for rich prompts. A first version can run on today's prompt builder.
 - **Touches:** new `backend/app/sim/{runner,camera,artifacts}.py`, the operator routes (`api/debug_engine.py`
   pattern), `frontend/debug.html` (watch view), `world_model/offscreen.py` (replaced by written scenes),
