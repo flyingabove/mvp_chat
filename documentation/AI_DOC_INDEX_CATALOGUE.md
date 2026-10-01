@@ -26,7 +26,7 @@
 | [ai_learnings_mistakes/AI_TASK_WORKFLOW.md](ai_learnings_mistakes/AI_TASK_WORKFLOW.md) | ...the reasons or rules behind the work board change (what replaced `TASKS_INTERMEDIATE.md`, lease and lock rules). |
 | [ai_learnings_mistakes/AI_LOGICAL_BUGS.md](ai_learnings_mistakes/AI_LOGICAL_BUGS.md) | ...a new logic bug is discovered and resolved during an audit. |
 | [ai_learnings_mistakes/AI_GAME_STRUCTURE.md](ai_learnings_mistakes/AI_GAME_STRUCTURE.md) | ...the story data model changes or a new file type is added to story directories. |
-| [ai_learnings_mistakes/AI_SCORER_SYSTEM.md](ai_learnings_mistakes/AI_SCORER_SYSTEM.md) | ...the debug system, scoring, player-agent loop or grader changes. |
+| [ai_learnings_mistakes/AI_SCORER_SYSTEM.md](ai_learnings_mistakes/AI_SCORER_SYSTEM.md) | ...the debug system, scoring, player-agent loop or grader changes, or a debug surface (`debug_box`, `prompt_debug`, operator endpoints) is added or changed (it holds the "Debug surfaces for agents" table). |
 | [ai_learnings_mistakes/AI_UI_WORKFLOW.md](ai_learnings_mistakes/AI_UI_WORKFLOW.md) | ...frontend architecture or UI development patterns change. Its body is a stale March snapshot; use `.claude/skills/ship-and-verify/BROWSER_QA.md` for current browser QA. |
 | [ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md](ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md) | ...adding a bracket command or game-mode flag to the chat system. Built around the removed `COMMAND_PATTERNS`; rewrite before next use. |
 | [user_corrections.md](user_corrections.md) | ...the user corrects a mistake that should be remembered across sessions. |

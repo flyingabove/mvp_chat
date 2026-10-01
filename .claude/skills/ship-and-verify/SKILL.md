@@ -29,6 +29,12 @@ duplicating), and find the right doc to update for whatever you change.
    fails, then fix, then confirm it passes. For a new feature: write tests
    that verify the new behavior. No exceptions — this is a hard project rule,
    not a suggestion (`AGENTS.md` section 3).
+3a. **A significant new feature ships with its own debug hook, so you can see it work.** If it adds state, a decision,
+   a prompt layer or a timing that a reply alone does not reveal, expose it in the debug API in the same change:
+   player-safe values in `debug_box` (`prompt_engine.py`, visible after `[D]`), anything that would spoil the story or
+   shows prompt text in the operator-only `prompt_debug` (`is_operator_request`). Never put spoilers in `debug_box`.
+   Add a test that the field is present for the right audience and absent for the other, and update the surface table
+   in `documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md`. Skip this for small fixes the transcript already proves.
 4. Frontend tests exist: use Node's built-in test runner for
    `tests/frontend/*.test.cjs` and structural pytest checks under
    `tests/frontend/`. For PowerShell, run
@@ -121,6 +127,22 @@ don't silently skip this phase because polling is slower than you'd like.
     be installed, state the exact gap; never claim iOS/visual QA from curl or
     screenshots taken in desktop Chromium. Simulated standalone is not a
     physical iPhone installation.
+12a. **Use the debug surfaces to prove the change, not just the transcript** (the full table is in
+    `documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md`, "Debug surfaces for agents"). Pick what fits:
+    - **Live beta, no token needed:** start a guest game (`X-Guest-Id`), send `[D]`, then read `debug_box` on each
+      `/api/chat` reply: clock, location, speakers, people present, transient entries, `npc_decisions`. Compare the field
+      you changed against the expected value.
+    - **Prompt or retrieval change:** `prompt_debug` needs the operator token, which agents do not have for beta. Prove it
+      locally: set `DEBUG_TOOLS_ENABLED=1` and `OPERATOR_TOKEN`, call `/api/chat` through `TestClient` with
+      `X-Operator-Token`, and assert on `prompt_debug["prompt_layers"]` / the system prompt text. Say in the report that
+      this part was verified locally, not on beta.
+    - **Deploy and Jev state:** `/api/health` (commit, environment, `jev` breaker) and `/api/eval/capabilities`.
+    - **Timings and extractor behaviour:** the local `jlog` output (`turn_stage_ledger`, `turn_extraction_complete`).
+    - **NPC verdicts:** the operator `X-NPC-Decision-Mode` header (`rules`/`jev`/`compare`), locally.
+    - **Many turns:** the `/beta/debug` engine or `scripts/integration_playback`, locally; hosted runs need the operator
+      token and a spend cap (`AGENTS.md` section 4).
+    If the thing you need to see has no surface, that is a gap: add the hook (step 3a) or file it in
+    `documentation/backlog/BL-90-91-92-debug-api-gaps.md`; never claim a field you could not observe.
 13. If live verification finds a bug that local tests didn't catch: that's a
     real bug in production-adjacent (beta) infrastructure. Go back to Phase
     1 — write a test that would have caught it if at all feasible (matching

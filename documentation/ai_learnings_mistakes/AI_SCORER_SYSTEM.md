@@ -208,6 +208,26 @@ What `prompt_debug` contains:
   - prompt_layers: dict of named system prompt sections
   - system_prompt_preview, header, chunks, retrieval_debug
 
+Debug surfaces for agents
+-------------------------
+Every way an agent can see inside a running game, cheapest first. Use them to prove a change worked
+(`/ship-and-verify`), not just the transcript.
+
+| Surface | Access | Shows | Use it to |
+|---------|--------|-------|-----------|
+| `[D]` in chat, then `debug_box` on each `/api/chat` reply | any session, guest included, no token | clock, location, speakers, people present, transient entries, last 3 `npc_decisions`, `knowledge_resolution_updates` | check world/scene state on the live beta site |
+| `prompt_debug` on the `/api/chat` reply | `DEBUG_TOOLS_ENABLED=1` plus `X-Operator-Token` (`is_operator_request`); local or the debug engine only | full assembled system prompt, `prompt_layers`, retrieved chunks, `retrieval_debug` | prove a prompt or injection change (locally with `TestClient`, since agents lack beta's token) |
+| `X-NPC-Decision-Mode` header | operator only | forces `rules`/`jev`/`compare` for one request | compare NPC verdicts |
+| `/beta/debug` WebSocket + REST (`debug_engine.py`) | operator token | player-agent/grader runs, `/runs`, `/scores`, `/test-cases`, `/status` | automated multi-turn evaluation |
+| `/api/health` | public | commit SHA, environment, Jev breaker state | confirm the deploy landed |
+| `/api/eval/capabilities` | public | which observation features this build supports | know what can be observed |
+| Server log JSONL (`jlog`) | local file or Railway logs | `turn_stage_ledger` (stage ms, tokens), `turn_extraction_complete`, `chat_request` (with `prompt_debug`) | timings and extractor behaviour, locally |
+| `scripts/integration_playback` / `/integration_playback/*` | operator token | scripted scenario replay with `debug_box` lines | regression playback |
+
+Known gaps (no session-state inspector, no turn trace, thin `debug_box`, hardening) are
+`documentation/backlog/BL-90-91-92-debug-api-gaps.md`. Rule for new features: a significant feature ships with its own
+debug hook (see `ship-and-verify`, step 3a).
+
 Leaderboard
 -----------
 - Reads data/debug_scores.csv (or /data/debug_scores.csv on Railway)
