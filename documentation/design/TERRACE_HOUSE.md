@@ -220,6 +220,46 @@ Use consolidated BL-39 section 10's A–J roadmap and independent correctness re
 - **Cost and latency:** at most two LLM attempts per gameplay turn, extraction assisted by Jev plus response. Exit/departure/panel prose shares that response call; no finale exemption. Current speed is accepted; measure ordinary and finale latency separately.
 - **Arena:** the arena rubric will need Terrace ending checks later. LLM arena runs stay disabled unless the owner asks.
 
+## 10. Gameplay loop: what offline simulation showed (2026-09-30)
+
+**Method.** `scripts/terrace_ollama_sim.py` plays the real game in-process with every model call routed to a local
+Ollama model (`llama3.1-8b-ctx16k`, Jev off, so NPC verdicts use the rules; no cloud calls, no cost). A scripted warm
+player (the hosted driver's message pool) talks to one resident of the other gender, and the harness reads the world
+model directly: standing, tier, tags, journaled effects, day, rival aims, beats, latency, repeated sentences. House seed
+0, male player, one run per setting, 24-36 turns. Small samples on a small model: they locate problems, they do not
+price them.
+
+| Run | Setting | Result |
+|---|---|---|
+| E1 | story pacing, 36 natural turns | still game day 0 (8 game minutes per turn, about 68 turns per day); standing 3.0 -> 6.0; 80% of talk turns gained nothing |
+| E2 | E1 plus telemetry, 24 turns | only 11 of 24 turns produced an extractor tag; the most common (`complimentary`) is worth exactly 0 to Arisa by authoring; `helpful` gained 3.0, then 1.5, then 0.75 as the same tag repeated |
+| E3 | cues on, 24 turns | 11 turns got a reaction cue; on the 8 "flat" turns the reply used polite/flat wording 75% of the time, against 0% in E2 on the same kind of turn (2 warm turns: 100% against 67%; too few to read) |
+| E4 | 20 game minutes per turn, 24 turns | the clock moves but it is still day 0 after 24 turns, standing 3.0 -> 5.6, 83% zero-gain turns: pace alone does not help |
+| E5 | one-day skip after every 4 talk turns, 28 turns | 6 game days, standing 9.0; gain per day 4.5 / 0 / 3.0 / 0 / 0 / 0; the target was in the scene on only 36% of turns |
+
+**What it means.**
+- Gain is event-limited, not clock-limited. A day's progress is bounded by liked, varied behaviour (taste weight times 3,
+  halved on every repeat of a tag that day, capped at 8 a day), so a kind player who happens to use tags the resident does
+  not value moves nothing and is told nothing. The 8-per-day cap never bound in these runs.
+- The authored tastes are the game's skill (find what each person values), but the player had no feedback loop to learn
+  them. Fixed: `turn.reaction_cues` (below).
+- After a day skip the resident is usually in another room, so days pass with no scene together (E5). Finding people costs
+  turns and the game gives no help (BL-72).
+- A natural session never leaves day 0, so per-day decay never resets; progress needs an end-of-day rhythm, not faster
+  clocks (BL-73).
+- Extractor tag coverage is low on the local model (46% of warm turns) and over-uses `complimentary`; the hosted
+  extractor's rate is unmeasured (BL-74).
+
+**Shipped: reaction cues.** `turn.reaction_cues` (called from `record_behaviors`, consumed in `begin_turn` through
+`pending_notes`) tells the storyteller how the target took the player's behaviour this turn: *warm* (taste above 0),
+*cool* (below 0), *flat* (exactly 0) or *stale* (liked, but this turn's gain was under half of what it should have been
+because the same tag already landed today). At most one cue per person and two per turn, strongest first; grounded in the
+authored tastes and the standing book; never a number or a reason. Tests: `test_reaction_cues.py`.
+
+**How to re-run.** `python scripts/terrace_ollama_sim.py --gender M --turns 24 --out sim_runs/x.jsonl` (needs Ollama
+running; `--base-mins`, `--mins-per-word` and `--skip-every` change pacing; output is gitignored). About 20 seconds per
+turn on a 12 GB GPU.
+
 ## Appendix A: The real show (researched 2026-09-26)
 
 ### A.1. The show in one paragraph

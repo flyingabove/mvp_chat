@@ -439,9 +439,56 @@ def record_behaviors(state: Any, behaviors: Iterable[Any]) -> list:
     if ctx is None:
         return []
     witnesses = set(model.present_with_player()) if model.player_place() else set()
-    return appraise_behaviors(model, ctx.rules, personalities(state.story_cfg), behaviors, witnesses,
-                              getattr(state, "character_graph", None), turn_key=str(model.turn + 1),
-                              genders=ctx.genders)
+    applied = appraise_behaviors(model, ctx.rules, personalities(state.story_cfg), behaviors, witnesses,
+                                 getattr(state, "character_graph", None), turn_key=str(model.turn + 1),
+                                 genders=ctx.genders)
+    model.pending_notes.extend(reaction_cues(model, state, behaviors, applied))
+    return applied
+
+
+MAX_REACTION_CUES = 2
+CUE_TEXT = {
+    "warm": "{name} responds warmly to what the player just did ({tag}): show it in their expression, tone or how "
+            "they hold themself; do not explain why.",
+    "cool": "{name} reacts coolly to what the player just did ({tag}): a small sign of discomfort or distance, "
+            "shown, not explained.",
+    "flat": "{name} is polite but unmoved by what the player just did ({tag}): a courteous, ordinary reaction "
+            "with no warmth added.",
+    "stale": "{name} liked that, but it has stopped landing today (the player has done much the same already): "
+             "a friendly, ordinary reaction; do not say why.",
+}
+
+
+def reaction_cues(model: WorldModel, state: Any, behaviors: Iterable[Any], applied: Iterable[Any]) -> list[str]:
+    """How each present resident took what the player just did, as storyteller cues (cause -> effect feedback).
+
+    Grounded in the authored tastes and the standing book, never a number: warm (they like it), cool (they dislike
+    it), flat (it does not move them) or stale (they like it, but the same gesture already landed today and the
+    day's gain has shrunk). At most one cue per person and two per turn, strongest first. Without this the player
+    saw nothing on most turns and could not learn what each resident values.
+    """
+    present = set(model.present_with_player())
+    people = personalities(getattr(state, "story_cfg", {}) or {})
+    names = model.names()
+    effects = list(applied or [])
+    best: dict[str, tuple[float, str, str]] = {}
+    for item in behaviors or []:
+        cid, tag = str(getattr(item, "to_id", "")), str(getattr(item, "tag", ""))
+        if str(getattr(item, "from_id", "")) != PLAYER or cid not in present or not tag:
+            continue
+        weight = people[cid].taste(tag) if cid in people else 0.0
+        mine = [e for e in effects if e.owner == cid and e.target == PLAYER and e.tag == tag]
+        proposed, got = sum(e.proposed for e in mine), sum(e.applied for e in mine)
+        if weight > 0 and proposed > 0 and got < 0.5 * proposed:
+            kind = "stale"
+        else:
+            kind = "warm" if weight > 0 else "cool" if weight < 0 else "flat"
+        strength = abs(weight) + (0.01 if kind == "stale" else 0.0)
+        if cid not in best or strength > best[cid][0]:
+            best[cid] = (strength, tag, kind)
+    ordered = sorted(best.items(), key=lambda row: (-row[1][0], row[0]))[:MAX_REACTION_CUES]
+    return [CUE_TEXT[kind].format(name=names.get(cid, cid), tag=tag.replace("_", " "))
+            for cid, (_, tag, kind) in ordered]
 
 
 def advance_npc_life(state: Any, model: WorldModel, ctx: SocialContext, now: int) -> None:

@@ -225,3 +225,6 @@ data/
 
 # Legacy transient task folder (use documentation/plans_scratch/TASKS_INTERMEDIATE.md instead)
 tasks/
+
+# Offline Ollama simulation output (scripts/terrace_ollama_sim.py)
+sim_runs/
