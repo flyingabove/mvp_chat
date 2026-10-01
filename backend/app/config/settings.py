@@ -20,17 +20,26 @@ from backend.app.config.credentials import (
 # production values; the arena's offline local mode points them at Ollama
 # (http://127.0.0.1:11434/v1, e.g. llama3.1:8b) so a locally started game
 # makes no cloud calls.
+#
+# The provider is chosen by LLM_PROVIDER (gemini [default] | openai | ollama),
+# resolved in backend/app/llm/chat.py. The OPENAI_* names below are legacy:
+# they now hold whichever provider is active (Gemini by default). Explicit
+# OPENAI_BASE_URL / OPENAI_MODEL / STORY_MASTER_* env vars still win, which is
+# how the arena's offline local mode points at Ollama.
 import os as _os
-OPENAI_API_KEY: str = get_openai_api_key()
-OPENAI_BASE_URL: str = _os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-OPENAI_MODEL: str = _os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+from backend.app.llm.chat import resolve_chat_config as _resolve_chat_config
+_CHAT = _resolve_chat_config()
+LLM_PROVIDER: str = _CHAT.provider
+OPENAI_API_KEY: str = _CHAT.api_key
+OPENAI_BASE_URL: str = (_os.getenv("OPENAI_BASE_URL") or _CHAT.base_url).rstrip("/")
+OPENAI_MODEL: str = _os.getenv("OPENAI_MODEL") or _CHAT.model
 
 # --- Story master config ---
 # "Story master" = the AI that generates NPC/narrator responses.
-# Defaults to the OpenAI endpoint/key/model above. Override via env vars to
-# point at a local Ollama instance (http://localhost:11434/v1) or any other
-# OpenAI-compatible backend.
-STORY_MASTER_BASE_URL: str = _os.getenv("STORY_MASTER_BASE_URL", "https://api.openai.com/v1")
+# Defaults to the active provider's endpoint/key/model above. Override via env
+# vars to point at a local Ollama instance (http://localhost:11434/v1) or any
+# other OpenAI-compatible backend.
+STORY_MASTER_BASE_URL: str = _os.getenv("STORY_MASTER_BASE_URL", OPENAI_BASE_URL)
 STORY_MASTER_API_KEY: str  = _os.getenv("STORY_MASTER_API_KEY",  OPENAI_API_KEY)
 STORY_MASTER_MODEL: str    = _os.getenv("STORY_MASTER_MODEL",    OPENAI_MODEL)
 

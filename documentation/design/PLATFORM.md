@@ -67,12 +67,16 @@ service variable and is never baked into the image.
 #### Environment variables (Railway dashboard)
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `OPENAI_API_KEY` | Cloud LLM API key | `sk-...` |
-| `OPENAI_MODEL` | Model for extractors/translation (honored since 2026-09-24; previously hardcoded) | (unset = `gpt-4o-mini`) |
+| `LLM_PROVIDER` | Which LLM the whole game uses: `gemini` \| `openai` \| `ollama` (`backend/app/llm/chat.py`, single `get_chat()` / `resolve_chat_config()`; default switched from GPT to Gemini free tier 2026-09-30) | (unset = `gemini`) |
+| `LLM_MODEL` | Override the provider's default model | (unset = `gemini-3.8-flash` / `gpt-4o-mini` / `llama3.1:8b`) |
+| `GEMINI_API_KEY` | Google AI Studio key (Gemini via its OpenAI-compatible endpoint). If missing while provider=gemini, falls back to openai with a warning | `AQ...` |
+| `OLLAMA_BASE_URL` | Ollama endpoint when `LLM_PROVIDER=ollama` | (unset = `http://127.0.0.1:11434/v1`) |
+| `OPENAI_API_KEY` | OpenAI key (used when provider=openai or as the Gemini fallback). Legacy: `settings.OPENAI_API_KEY/BASE_URL/MODEL` now hold the ACTIVE provider's values | `sk-...` |
+| `OPENAI_MODEL` | Explicit override of the extractor/translation model (wins over the provider default) | (unset = provider default) |
 | `OPENAI_BASE_URL` | Base URL for extractor/translation calls; arena offline mode points it at Ollama | (unset = `https://api.openai.com/v1`) |
-| `STORY_MASTER_BASE_URL` | Override story master API base | (unset = OpenAI) |
+| `STORY_MASTER_BASE_URL` | Override story master API base | (unset = active provider) |
 | `STORY_MASTER_MODEL` | Override story master model | (unset = OPENAI_MODEL) |
-| `STORY_MASTER_API_KEY` | Override story master key | (unset = OPENAI_API_KEY) |
+| `STORY_MASTER_API_KEY` | Override story master key | (unset = active provider key) |
 | `PLAYER_API_MODEL` | Cloud model for debug player agent | (unset = OPENAI_MODEL) |
 | `GRADER_API_MODEL` | Cloud model for debug grader | (unset = OPENAI_MODEL) |
 | `KNOWLEDGE_CACHE_DIR` | Where indexes are cached | `/data/knowledge_cache` |

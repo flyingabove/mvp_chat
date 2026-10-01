@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, Request, WebSocket
 from fastapi.responses import JSONResponse
 
 from backend.app.auth.dependencies import require_operator, require_operator_ws, _operator_token_configured
-from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
+from backend.app.config.settings import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
 from backend.app.db.database import DATA_DIR
 from backend.app.engine.briefing import brief_lines
 from backend.app.engine.story_loader import load_story
@@ -46,7 +46,7 @@ PLAYER_NAME = "Alex"
 PLAYER_GENDER = "M"
 
 # Online cloud API — reuses story master credentials by default
-_ONLINE_API_BASE = os.getenv("STORY_MASTER_BASE_URL", "https://api.openai.com/v1")
+_ONLINE_API_BASE = os.getenv("STORY_MASTER_BASE_URL", OPENAI_BASE_URL)
 _ONLINE_API_KEY = os.getenv("STORY_MASTER_API_KEY", OPENAI_API_KEY)
 
 # ---------------------------------------------------------------------------

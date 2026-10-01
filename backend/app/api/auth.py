@@ -216,6 +216,7 @@ async def debug_config(request: Request):
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
     ]
     app_env_presence = {
         key: {

@@ -15,12 +15,20 @@ GAME_CALL_SITES = [
 ]
 
 
-def test_defaults_are_production_values(monkeypatch):
-    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
-    monkeypatch.delenv("OPENAI_MODEL", raising=False)
-    s = importlib.reload(settings)
-    assert s.OPENAI_BASE_URL == "https://api.openai.com/v1"
-    assert s.OPENAI_MODEL == "gpt-4o-mini"
+def test_defaults_are_gemini_values(monkeypatch):
+    for name in ("OPENAI_BASE_URL", "OPENAI_MODEL", "LLM_PROVIDER", "LLM_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "g-key")
+    try:
+        s = importlib.reload(settings)
+        assert s.LLM_PROVIDER == "gemini"
+        assert s.OPENAI_BASE_URL == "https://generativelanguage.googleapis.com/v1beta/openai"
+        assert s.OPENAI_MODEL == "gemini-3.8-flash"
+        assert s.OPENAI_API_KEY == "g-key"
+        assert s.STORY_MASTER_BASE_URL == s.OPENAI_BASE_URL
+    finally:
+        monkeypatch.undo()
+        importlib.reload(settings)
 
 
 def test_env_overrides_point_calls_at_ollama(monkeypatch):

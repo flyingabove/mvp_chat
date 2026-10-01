@@ -263,19 +263,18 @@ class IntegrationScenario(ABC):
             )
         """
         import httpx
-        from backend.app.config.credentials import get_openai_api_key
-        from backend.app.config.settings import OPENAI_MODEL
+        from backend.app.config.settings import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
 
-        api_key = get_openai_api_key()
+        api_key = OPENAI_API_KEY  # active provider's key (Gemini by default)
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             r = await http_client.post(
-                "https://api.openai.com/v1/chat/completions",
+                f"{OPENAI_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "model": OPENAI_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.0,
-                    "max_tokens": 10,
+                    "max_tokens": 256,  # thinking models spend part of the budget on reasoning
                 },
             )
         assert r.status_code == 200, f"Evaluator LLM returned {r.status_code}: {r.text}"
