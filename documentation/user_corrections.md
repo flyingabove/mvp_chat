@@ -133,3 +133,19 @@ guidance for Codex; beta remains the deployment target.
 **Rule:** Express new social mechanics as parts of `Person` (personality, goals, stances, mind) and let scenes be composed from those objects. Rule tables (weighted considerations) are an internal tool for deriving a character's stances and wants, never the headline architecture or a separate per-mechanic module.
 
 **Added to:** `documentation/backlog/BL-85-character-social-mind.md`.
+
+## 2026-10-01 — Owner preferences: autonomous seasons, LLM-written scenes, dramatized realism
+
+Recorded from the owner's answers (full detail in backlog BL-85, BL-86, BL-87):
+- **Everything is written by the LLM.** Character objects, stances, minds and scene dynamics only shape the prompt; state changes come back through extraction (Jev-assisted). Judge prose by the rubric, never by golden text.
+- **Headless seasons** (no human player) are an integration test AND an admin-only watch mode. Never a player-facing house log.
+- **Providers:** Gemini + Jev by default, OpenAI + Jev as the alternative. Ollama is switched off for now.
+- **Tone, every mode:** real life, dramatized: plausible but very dramatic, like a shot drama (Terrace House, Friends, K-drama). The engine nudges and never scripts; every nudge is a tunable knob. "Good" = engaging enough for a Netflix script, judged by Jev with a coverage-style rubric.
+- **Fog of war:** each character keeps a DB-backed record of what they know and what they think others know; nobody knows where others are without perceiving or being told.
+- **Plans:** short-term and long-term; how far ahead depends on personality (low planfulness / P types plan less long-term).
+- **Goals change and need not be love** ("watch the world burn" is fine); mode rules (Terrace: a mutually committed couple leaves) are data on top.
+- **Terrace cast:** exactly 6 residents at all times; replacements arrive when a couple leaves or someone storms out. Other games may have more and rotate cast.
+- **Terrace panel speaks only at the end** (player win or loss); no mid-game asides or departure segments.
+- **Interruptions:** when someone walks in, the LLM writes the interruption realistically.
+
+**Added to:** backlog BL-85/86/87, `design/TERRACE_HOUSE.md` (panel modes), `design/SOCIAL_ENGINE.md` §7.

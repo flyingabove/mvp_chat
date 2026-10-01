@@ -137,13 +137,11 @@ These content labels compile to BL-39's closed typed Condition vocabulary. Evalu
 
 `ends_run: false` supports NorthStar's "the world continues" for other stories.
 
-**The commentary panel** is a story-declared cast of **commentators** outside the world (Terrace uses real panelists from the show; other stories may use their own). They can't be heard by residents and never reveal private thoughts that the footage wouldn't show. Three modes:
+**The commentary panel** is a story-declared cast of **commentators** outside the world (Terrace uses real panelists from the show; other stories may use their own). They can't be heard by residents and never reveal private thoughts that the footage wouldn't show. **Owner rule (2026-10-01): the panel speaks only at the end, when the player wins or loses.** No mid-game asides and no departure segments; NPC departures play in-scene.
 
 | Mode | When | Length |
 |---|---|---|
-| `aside` | between scene beats (existing narrator asides, now voiced by the named panelists) | 1–3 lines |
-| `departure_segment` | an NPC or NPC couple leaves | ~300 words |
-| `finale` | the player leaves (win, cut or alone) | ~2,000 words, no skip |
+| `finale` | the player's run ends (win or cut) | ~2,000 words, no skip |
 
 **Finale pipeline:**
 1. **Run dossier (local):** only camera/public events and panelists' own appraisals. Include observable conduct and evidence IDs, never subjects' private impressions, hidden tier values, undisclosed conditions or confessionals. Separate opinion from observable fact.

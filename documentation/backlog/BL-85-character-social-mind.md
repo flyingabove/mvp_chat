@@ -150,12 +150,41 @@ class Person:
 - **The result** is tension the player can read and push on. If Arisa does let it slip, Momoka's mind gains `Arisa
   saw` and a `resents(Arisa)` stance. The next scene changes because of it.
 
-### 6. Contracts (unchanged from SOCIAL_ENGINE.md)
+### 6. Owner decisions (2026-10-01)
+- **The LLM writes everything; the objects shape the prompt.** Every scene (player or NPC-only) is written by the
+  LLM. Personality, goals, stances, mind and scene dynamics only build the prompt. Changes to state come back
+  through the existing extraction pass (extractor plus Jev), the same way player turns work today.
+  - The engine is deterministic up to the prompt. Prose is not, so the simulation is judged by the rubric (BL-87),
+    not by golden prose.
+- **Realism with tunable nudges, not enforced detail.** How a scene plays follows from personality. The engine
+  only nudges, and every nudge has a tuning knob (BL-87).
+- **The mind is a per-character store with fog of war.** Each character keeps what they know and what they think
+  others know in the database, like a real video game.
+  - Nobody knows where others are or what they did without perceiving it or being told.
+  - NPCs search, miss each other, and act on stale or wrong beliefs.
+- **Plans have two horizons.** There is a short-term plan (this scene or day) and a long-term plan (days). How far
+  ahead someone plans comes from personality: `planfulness`, where J is high and P is low, so an INTP rarely plans
+  long-term. Multi-step execution is BL-81.
+- **Goals change, and need not be love.** Goals shift with events, and anyone may have a goal like "watch the world
+  burn". Game-mode rules sit on top and are configured as data. For example, in Terrace a mutually committed couple
+  leaves the house.
+- **Interruptions are written realistically.** When someone walks into a scene in progress, the LLM writes the
+  interruption realistically from the scene state.
+- **The player is one more `Person`** under the same rules, with choices from input. In a headless run, an AI
+  resident fills the player's slot.
+- **Free will over routine.** A strong enough goal can pull someone off their routine (skip work for a date), and
+  that costs something.
+- **Locations** carry `privacy`, `filmed` and `earshot` (adjacent rooms that can overhear).
+  - **Objects** carry generic affordances (`use, give, read, hide, break, move`) with social, goal and evidence
+    effects.
+  - Needs (hunger, fatigue) stay off unless a story turns them on.
+
+### 7. Contracts (from SOCIAL_ENGINE.md, still binding)
 - Everything is judged from the holder's view. Engine truth is used only to choose scenes, never in prompts.
 - Stances, wants and dynamics never create consent or override refusals, cooldowns or closed tracks. Verdicts stay
   in `social_acts` / `npc_decision`.
-- Still at most two LLM calls per turn, with Jev optional through the existing resolver. All of this is local and
-  deterministic per seed.
+- LLM budget: at most two LLM calls per player turn (response plus extraction, Jev-assisted). A headless NPC scene
+  uses the same shape: one writing call plus extraction.
 - Single writers stay as they are: feelings go through the graph, standing through `StandingBook`, intentions
   through `agenda.add_intention`.
 - No story ids, names or genders in engine code. Eligibility is data (`appraisal.eligible`).
@@ -214,6 +243,8 @@ class Person:
   - BL-35: attendance.
   - The prose and pacing items.
 
+- **Related:** BL-86 is the headless season simulation and admin watch mode that proves this. BL-87 is the drama
+  direction knobs and the Jev script rubric that tune and judge it.
 - **Next:** P0, then P1. Do not start P4 before P2 shows zero golden diffs and P3 passes its no-telepathy tests.
 - **Touches:**
   - Changed: `world_model/person.py`, `rules/personality.py`, `rules/conditions.py`, `world_model/epistemics.py`,
