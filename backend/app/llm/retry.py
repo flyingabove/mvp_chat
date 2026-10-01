@@ -50,3 +50,18 @@ async def post_with_retry(client: Any, url: str, *, headers: dict, json: dict,
         return response
     await sleep(delay)
     return await client.post(url, headers=headers, json=json)
+
+
+async def post_with_model_fallback(client: Any, url: str, *, headers: dict, json: dict,
+                                   fallback_model: str = "",
+                                   sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+                                   cap_s: float = MAX_WAIT_S) -> Any:
+    """post_with_retry, then ONE more attempt on `fallback_model` when the
+    primary model is still overloaded (429/5xx). Gemini's newest flash model
+    returns 503 "high demand" for longer than a 0.5s retry covers; a smaller
+    sibling model keeps the turn alive instead of failing it."""
+    response = await post_with_retry(client, url, headers=headers, json=json, sleep=sleep, cap_s=cap_s)
+    if (fallback_model and response.status_code in RETRYABLE
+            and fallback_model != json.get("model")):
+        return await client.post(url, headers=headers, json={**json, "model": fallback_model})
+    return response

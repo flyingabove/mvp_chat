@@ -38,6 +38,9 @@ DEFAULT_PROVIDER = "gemini"
 # max_tokens for Gemini calls; set LLM_MODEL=gemini-3.5-flash-lite for a
 # cheaper non-reasoning-heavy alternative.
 GEMINI_DEFAULT_MODEL = "gemini-3.8-flash"
+# Used only when the default model is overloaded (503/429) - see
+# retry.post_with_model_fallback.
+GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
@@ -51,6 +54,7 @@ class ChatConfig:
     base_url: str
     api_key: str
     model: str
+    fallback_model: str = ""
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,7 @@ def resolve_chat_config(
         base_url=base_url.rstrip("/"),
         api_key=api_key,
         model=(model or env_model or spec.model).strip(),
+        fallback_model=GEMINI_FALLBACK_MODEL if name == "gemini" else "",
     )
 
 

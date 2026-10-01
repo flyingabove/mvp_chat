@@ -55,7 +55,7 @@ from backend.app.utils.logging_utils import jlog as _log, truncate as _truncate
 from backend.app.config.settings import (
 
     OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL,
-    STORY_MASTER_BASE_URL, STORY_MASTER_API_KEY, STORY_MASTER_MODEL,
+    STORY_MASTER_BASE_URL, STORY_MASTER_API_KEY, STORY_MASTER_MODEL, STORY_MASTER_FALLBACK_MODEL,
 
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
     DEFAULT_USER_ID, DEFAULT_INSTANCE,
@@ -67,7 +67,7 @@ from backend.app.config.epistemic_flags import set_master
 
 
 from backend.app.engine.world_model.model import WorldModel
-from backend.app.llm.retry import post_with_retry
+from backend.app.llm.retry import post_with_retry, post_with_model_fallback
 from backend.app.engine.world_model import turn as world_turn
 from backend.app.engine.state import (
 
@@ -3625,11 +3625,12 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             # One bounded retry on 429/5xx (arena gates saturate the shared
             # rate limit; OpenAI says "try again in 322ms").
             try:
-                r = await post_with_retry(
+                r = await post_with_model_fallback(
                     client,
                     f"{STORY_MASTER_BASE_URL}/chat/completions",
                     headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
                     json={**payload, "model": STORY_MASTER_MODEL},
+                    fallback_model=STORY_MASTER_FALLBACK_MODEL,
                 )
             except httpx.TransportError as exc:
                 # BL-28: a read/connect timeout or dropped connection used to escape as an ASGI 500 with an empty

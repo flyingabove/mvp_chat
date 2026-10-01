@@ -42,6 +42,8 @@ OPENAI_MODEL: str = _os.getenv("OPENAI_MODEL") or _CHAT.model
 STORY_MASTER_BASE_URL: str = _os.getenv("STORY_MASTER_BASE_URL", OPENAI_BASE_URL)
 STORY_MASTER_API_KEY: str  = _os.getenv("STORY_MASTER_API_KEY",  OPENAI_API_KEY)
 STORY_MASTER_MODEL: str    = _os.getenv("STORY_MASTER_MODEL",    OPENAI_MODEL)
+# Tried once if the story master model is overloaded (503/429). Empty = none.
+STORY_MASTER_FALLBACK_MODEL: str = _os.getenv("STORY_MASTER_FALLBACK_MODEL", _CHAT.fallback_model)
 
 MAX_TOKENS: int = 512
 TEMPERATURE: float = 0.8

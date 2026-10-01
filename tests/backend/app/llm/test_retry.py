@@ -69,3 +69,40 @@ def test_non_retryable_and_long_waits_are_returned_immediately():
         client = FakeClient(first, resp(200))
         assert run(post_with_retry(client, "u", headers={}, json={}, sleep=sleep)) is first
         assert client.calls == 1
+
+
+class _Client:
+    def __init__(self, statuses):
+        self.statuses, self.models = list(statuses), []
+
+    async def post(self, url, headers, json):
+        self.models.append(json["model"])
+        return resp(self.statuses.pop(0))
+
+
+async def _no_sleep(_):
+    pass
+
+
+def _fallback(client, fallback="small"):
+    from backend.app.llm.retry import post_with_model_fallback
+    return asyncio.run(post_with_model_fallback(
+        client, "u", headers={}, json={"model": "big"}, fallback_model=fallback, sleep=_no_sleep))
+
+
+def test_fallback_model_used_when_primary_stays_overloaded():
+    client = _Client([503, 503, 200])
+    assert _fallback(client).status_code == 200
+    assert client.models == ["big", "big", "small"]
+
+
+def test_fallback_not_used_when_primary_recovers_or_none_configured():
+    ok = _Client([503, 200])
+    assert _fallback(ok).status_code == 200 and ok.models == ["big", "big"]
+    none = _Client([503, 503])
+    assert _fallback(none, fallback="").status_code == 503 and none.models == ["big", "big"]
+
+
+def test_fallback_not_used_for_client_errors():
+    client = _Client([400])
+    assert _fallback(client).status_code == 400 and client.models == ["big"]

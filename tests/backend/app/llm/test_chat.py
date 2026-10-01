@@ -77,3 +77,8 @@ def test_get_chat_posts_to_selected_provider(monkeypatch):
     assert seen["body"]["model"] == "gemini-3.8-flash"
     assert seen["body"]["messages"][0] == {"role": "system", "content": "Be a pirate."}
     factory.reset_shared_state_for_tests()
+
+
+def test_only_gemini_has_a_fallback_model():
+    assert chat.resolve_chat_config().fallback_model == "gemini-3.5-flash-lite"
+    assert chat.resolve_chat_config("openai").fallback_model == ""
