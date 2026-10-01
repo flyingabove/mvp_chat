@@ -74,6 +74,20 @@ def test_the_outline_keeps_acts_and_time_order():
     assert "Reina Triendl" in directive and "never their worth" in directive and "score" in directive
 
 
+def test_finale_directive_states_each_panelists_mbti_and_gloss():
+    assert {p.id: p.mbti for p in PANEL.panelists} == {"reina": "ISFJ", "yamasato": "ENTP", "yukiko": "ESFJ"}
+    directive = finale_directive(PANEL, dossier(_footage_model(), PANEL))
+    assert "ISFJ" in directive and "ENTP" in directive and "ESFJ" in directive
+
+
+def test_panelist_mbti_defaults_to_empty_and_omits_the_line_when_unauthored():
+    panel = commentary_for({"commentary": {"panelists": [
+        {"id": "x", "name": "X", "role": "r", "tastes": {}}]}})
+    assert panel.panelists[0].mbti == ""
+    directive = finale_directive(panel, [])
+    assert "X (r)" in directive
+
+
 def test_the_finale_turn_lets_panelists_speak_and_ordinary_turns_do_not():
     model = make_model({"ann": "kitchen"})
     state = _state(model)

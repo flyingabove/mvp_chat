@@ -328,6 +328,32 @@ def test_character_voice_round_trips_from_dict_to_dict():
     assert round_tripped.voice == ["Answers questions with a question."]
 
 
+def test_character_from_dict_parses_mbti_via_direct_key():
+    ch = Character.from_dict({"key": "npc", "name": "NPC", "mbti": "entp"})
+    assert ch.mbti == "ENTP"
+
+
+def test_character_from_dict_parses_mbti_via_embedded_personality_type():
+    ch = Character.from_dict({"key": "npc", "name": "NPC", "personality": {"type": "isfj"}})
+    assert ch.mbti == "ISFJ"
+
+
+def test_character_from_dict_mbti_absent_defaults_to_empty_string():
+    ch = Character.from_dict({"key": "npc", "name": "NPC"})
+    assert ch.mbti == ""
+
+
+def test_character_from_dict_rejects_invalid_mbti_silently():
+    ch = Character.from_dict({"key": "npc", "name": "NPC", "mbti": "not-a-type"})
+    assert ch.mbti == ""
+
+
+def test_character_mbti_round_trips_from_dict_to_dict():
+    ch = Character.from_dict({"key": "yuto", "name": "Yuto", "mbti": "INTJ"})
+    round_tripped = Character.from_dict(ch.to_dict())
+    assert round_tripped.mbti == "INTJ"
+
+
 # ============================================================================
 # Phase 3 "Social life": Character.goal seeded from authored motive/goal,
 # and Character.tells preserved. This is the regression test proving the

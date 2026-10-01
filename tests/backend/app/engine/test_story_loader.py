@@ -27,6 +27,46 @@ def test_load_story_returns_none_for_missing_story():
     assert load_story("does_not_exist") is None
 
 
+def test_story_definition_bridges_top_level_personalities_type_into_character_mbti():
+    """Both current stories author MBTI in the top-level `personalities` map
+    (shared with rules/personality.py's temperament defaults), not per-character.
+    StoryDefinition.from_dict must backfill Character.mbti from it."""
+    story = StoryDefinition.from_dict({
+        "id": "t",
+        "characters": [{"key": "a", "name": "A", "is_main": True}, {"key": "b", "name": "B"}],
+        "personalities": {"a": {"type": "entp"}, "b": {"deception": {"skill": 0.5}}},
+    })
+    by_key = {c.key: c for c in story.characters}
+    assert by_key["a"].mbti == "ENTP"
+    assert by_key["b"].mbti == ""  # no type authored for b - stays empty, not invented
+
+
+def test_story_definition_direct_character_mbti_wins_over_personalities_map():
+    story = StoryDefinition.from_dict({
+        "id": "t",
+        "characters": [{"key": "a", "name": "A", "is_main": True, "mbti": "ISFJ"}],
+        "personalities": {"a": {"type": "entp"}},
+    })
+    assert story.characters[0].mbti == "ISFJ"
+
+
+def test_six_strangers_every_resident_and_wired_panelist_has_mbti():
+    story = load_story("six_strangers")
+    assert story is not None
+    residents = {c.key: c.mbti for c in story.characters}
+    assert all(residents.values()), f"residents missing mbti: {[k for k, v in residents.items() if not v]}"
+    raw = story.as_dict()
+    panelists = {p["id"]: p.get("type", "") for p in raw["commentary"]["panelists"]}
+    assert all(panelists.values()), f"panelists missing type: {[k for k, v in panelists.items() if not v]}"
+
+
+def test_iu_murder_mystery_every_character_has_mbti():
+    story = load_story("iu_murder_mystery")
+    assert story is not None
+    by_key = {c.key: c.mbti for c in story.characters}
+    assert all(by_key.values()), f"characters missing mbti: {[k for k, v in by_key.items() if not v]}"
+
+
 def test_story_loader_parses_relationships():
     """Stories with a relationships section get a CharacterGraph."""
     story = load_story(STORY_ID)

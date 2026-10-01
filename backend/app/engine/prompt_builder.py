@@ -7,6 +7,7 @@ from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_partie
 from backend.app.engine.cast_lifecycle import CastStatus
 from backend.app.engine.scene_context import SceneContext
 from backend.app.engine.opening_scene import has_arrived, opening_scene_brief
+from backend.app.engine.rules.mbti import gloss as mbti_gloss_text
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -1130,7 +1131,8 @@ def _mode_context_section(state) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _identity_block(char_name: str, entries: list, goal: str = "", voice: list | None = None) -> str:
+def _identity_block(char_name: str, entries: list, goal: str = "", voice: list | None = None,
+                     mbti: str = "") -> str:
     """Render one '### CHARACTER IDENTITY — <name>' block for the given entries.
 
     `goal` (Phase 3 "Social life"): the character's current persistent
@@ -1143,6 +1145,11 @@ def _identity_block(char_name: str, entries: list, goal: str = "", voice: list |
     believes) so that two characters with similar knowledge still read as
     distinct people in dialogue. Empty/absent renders no extra section -
     byte-identical output to before this parameter was added.
+
+    `mbti`: optional four-letter personality type (research-backed or
+    designer-estimated, see `rules/mbti.py`). Rendered with its behavior
+    gloss so the model has something actionable, not just four letters.
+    Empty/unrecognized renders no extra line.
     """
     lines = [
         "\n────────────────────────────────────────",
@@ -1155,6 +1162,9 @@ def _identity_block(char_name: str, entries: list, goal: str = "", voice: list |
         f"{char_name} may be emotional, reluctant, or haunted in HOW they say it, "
         "but their spoken words must carry the correction.\n",
     ]
+    mbti_gloss = mbti_gloss_text(mbti)
+    if mbti_gloss:
+        lines.append(f"- [{char_name}'s personality type] {mbti} — {mbti_gloss}")
     for entry in entries:
         lines.append(f"- {entry}")
     if goal:
@@ -1225,11 +1235,12 @@ def _character_identity_section(state) -> str:
     if main_goal_obj is not None:
         main_goal = (getattr(main_goal_obj, "current", "") or "").strip()
     main_voice = list(getattr(main_char, "voice", None) or [])
+    main_mbti = (getattr(main_char, "mbti", "") or "").strip()
     entries = _without_absent_cast_names(state, entries)
 
     blocks: list[str] = []
-    if entries and _main_character_scene_eligible(state):
-        blocks.append(_identity_block(char_name, entries, goal=main_goal, voice=main_voice))
+    if (entries or main_mbti) and _main_character_scene_eligible(state):
+        blocks.append(_identity_block(char_name, entries, goal=main_goal, voice=main_voice, mbti=main_mbti))
 
     # Additional present, non-main characters with their own self_knowledge.
     people_present_keys = _get_people_present_keys(state)
@@ -1241,7 +1252,8 @@ def _character_identity_section(state) -> str:
         if ch is None:
             continue
         other_entries = _without_absent_cast_names(state, list(getattr(ch, "self_knowledge", None) or []))
-        if not other_entries:
+        other_mbti = (getattr(ch, "mbti", "") or "").strip()
+        if not other_entries and not other_mbti:
             continue
         other_name = (getattr(ch, "name", "") or key).strip() or key
         other_goal = ""
@@ -1249,7 +1261,8 @@ def _character_identity_section(state) -> str:
         if other_goal_obj is not None:
             other_goal = (getattr(other_goal_obj, "current", "") or "").strip()
         other_voice = list(getattr(ch, "voice", None) or [])
-        blocks.append(_identity_block(other_name, other_entries, goal=other_goal, voice=other_voice))
+        blocks.append(_identity_block(other_name, other_entries, goal=other_goal, voice=other_voice,
+                                       mbti=other_mbti))
 
     if not blocks:
         return ""

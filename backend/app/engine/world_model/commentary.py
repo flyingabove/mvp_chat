@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from backend.app.engine.character_assets import DEFAULT_PERSONA_AVATAR
+from backend.app.engine.rules.mbti import gloss as mbti_gloss, normalize as mbti_normalize
 from backend.app.engine.world_model.model import PLAYER, WorldModel
 
 FOOTAGE_KINDS = frozenset({"behavior", "self_claim", "confess_accepted", "confess_declined",
@@ -29,6 +30,7 @@ class Panelist:
     name: str
     role: str
     tastes: dict[str, float]
+    mbti: str = ""
 
 
 @dataclass(frozen=True)
@@ -52,7 +54,8 @@ def commentary_for(story_cfg: dict[str, Any]) -> Optional[Commentary]:
     if not raw:
         return None
     panelists = tuple(Panelist(str(p.get("id") or ""), str(p.get("name") or ""), str(p.get("role") or ""),
-                               {str(k): float(v) for k, v in (p.get("tastes") or {}).items()})
+                               {str(k): float(v) for k, v in (p.get("tastes") or {}).items()},
+                               mbti_normalize(p.get("type")))
                       for p in raw.get("panelists") or [])
     if not panelists or any(not p.id or not p.name for p in panelists):
         raise ValueError("commentary needs panelists with id and name")
@@ -116,7 +119,9 @@ def finale_directive(commentary: Commentary, footage: list[FootageItem]) -> str:
         leaning, liked, disliked = leanings[panelist.id]
         detail = "; ".join(x for x in (f"liked: {liked}" if liked else "", f"disliked: {disliked}" if disliked else "")
                            if x)
-        lines.append(f"{panelist.name} ({panelist.role}) leans {leaning}" + (f" ({detail})" if detail else "") + ".")
+        type_note = f"; {panelist.mbti} — {mbti_gloss(panelist.mbti)}" if panelist.mbti else ""
+        lines.append(f"{panelist.name} ({panelist.role}{type_note}) leans {leaning}"
+                     + (f" ({detail})" if detail else "") + ".")
     lines.append("Judge the player's behavior, never their worth; no mocking appearance or identity, no piling on.")
     return "\n".join(lines)
 

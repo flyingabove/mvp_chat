@@ -354,8 +354,10 @@ These answers override earlier sections where they conflict. **Principle:** near
 ## 13. Cast personality types and strategies (BL-80, 2026-10-01)
 
 Types come from public fan-voted estimates on Personality Database (the "Terrace House" group, read in a browser on
-2026-10-01; vote counts are small and these are not clinical). Where no public estimate exists the type is
-**designer-assigned** from the authored voice. Strategies are designer-assigned from each person's role in the house.
+2026-10-01; vote counts are small and these are not clinical). Where no public PDB estimate exists the type is an
+**informed estimate** from the person's documented on-show behavior, interviews or profession (re-checked
+2026-10-01; see "No PDB vote" column) rather than an unexamined guess. Strategies are designer-assigned from each
+person's role in the house.
 
 | Resident | Type | Source | Strategy |
 |---|---|---|---|
@@ -370,15 +372,54 @@ Types come from public fan-voted estimates on Personality Database (the "Terrace
 | Hikaru | ISTP | pdb, 13 | open |
 | Natsumi | ESTJ | pdb, 9 | open |
 | Misaki | ENFP | pdb, 8 | open |
-| Yuto | INTJ | designer-assigned | patient |
+| Yuto | INTJ | no pdb vote; interviews describe a disciplined, Harvard-bound architect nicknamed "Mr. Perfect" by the studio panel — strategic, unsentimental, methodical | patient |
 | Riko | INFP | pdb, 14 | patient |
-| Momoka | ISTJ | designer-assigned | career_first |
+| Momoka | ISTJ | no pdb vote; professional ballerina who left the house specifically for ballet — reads as duty- and craft-driven over spontaneous | career_first |
 | Hayato | ESTP | pdb, 9 | fast_mover |
 | Yuuki Byrnes | ENFP | pdb, 4 (weak) | fast_mover |
-| Masako | ESFJ | designer-assigned | patient |
+| Masako | ESFJ | no pdb vote; model who paired off quickly and warmly (left as a couple with Arman) — sociable, relationship-first | patient |
 
 No resident is `scheming` yet: that behaviour (lying, betrayal, spying) arrives with BL-81..83, and who schemes will
 be chosen from on-show behaviour then.
+
+### 13a. Studio panel MBTI (researched 2026-10-01)
+
+Same Personality Database source. Only the first three are wired into the game (`commentary.panelists` in
+`six_strangers_story.json`, each with a `"type"` field); the other four names from Appendix A.4 are the real show's
+full panel roster, documented here for completeness but not characters in this story.
+
+| Panelist | Type | Source | In game |
+|---|---|---|---|
+| Reina Triendl | ISFJ | pdb (Actors & Actresses (Asia) category) | yes — `reina` |
+| Ryota Yamasato | ENTP | pdb (Comedians category) | yes — `yamasato` |
+| Yukiko Ehara | ESFJ | no pdb entry found; informed estimate from her "relaxed big sister who defends sincerity" studio role | yes — `yukiko` |
+| Yoshimi Tokui | ENTP | pdb (also a panelist on Netflix's *The Boyfriend*) | no |
+| Azusa Babazono | INFJ | no pdb entry found; informed estimate from the "quiet observer" studio role | no |
+| Ayumu Mochizuki | ISTJ | no pdb entry found; informed estimate (panel anchor/host role) | no |
+| Kentaro | ISTP | no pdb entry found; informed estimate — joined later, gives little commentary at first, a quiet foil to the talkative Yamasato | no |
+
+### 13b. The MBTI mechanic (generic engine, 2026-10-01)
+
+MBTI is a real `Character.mbti` field (`engine/state.py`), not just story-JSON config:
+- **Authoring:** a story's top-level `personalities[key].type` map (shared with `rules/personality.py`'s temperament
+  defaults) is bridged into `Character.mbti` by `story_loader.StoryDefinition.from_dict`. An explicit `"mbti"` or
+  embedded `"personality": {"type": ...}"` directly on a character entry wins over the map.
+- **Behavior:** `rules/personality.py` already used the four letters as DEFAULTS for three temperament dials
+  (sociability/candor/planfulness) before this change. `rules/mbti.py` adds the second, independent use: a
+  one-line behavior gloss for all 16 types.
+- **Injection — every LLM call that reasons about an NPC's personality gets the type and its gloss:**
+  1. `prompt_builder._identity_block` — the CHARACTER IDENTITY section of every dialogue-generation turn, for the
+     main character and any other present character with an `mbti` set.
+  2. `world_model.npc_decision.target_view` — the Jev accept/reject/confession judgment's "Your personality type
+     is X: you are ..." line, directly serving the design intent ("decide what this person would do from their
+     personality").
+  3. `world_model.commentary.finale_directive` — each finale panelist's line now carries their type and gloss.
+  - Deliberately *not* touched: `turn_extractor`, `leave_meaning.classify` and other fact-extraction/classification
+    LLM calls. Those parse the player's text, not an NPC's behavior, so MBTI is a no-op there.
+- Generic and reusable: any story can set `personalities[key].type`; the IU murder-mystery story now does too (see
+  `1_iu_murder_mystery/iu_murder_mystery_story.json` `personalities`) — IU herself uses her real, publicly
+  self-reported type (INTJ, most recently; she described cycling through INFJ before settling on INTJ in interviews),
+  the four fictional suspects use plausible estimates from their authored motives/tells (ISTJ, ENTJ, INFP, ESFP).
 
 ## Appendix A: The real show (researched 2026-09-26)
 

@@ -788,6 +788,50 @@ def test_character_identity_section_no_goal_line_when_absent():
     assert "current goal" not in sysmsg
 
 
+# ─── MBTI mechanic: every character carries an optional type + gloss, ───────
+# ─── surfaced in the identity block of every dialogue-generation request. ───
+
+def test_character_identity_section_renders_mbti_type_and_gloss():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    ghost = Character(key="ghost", name="Ghost", role="ghost", mbti="ENTP")
+    st.characters["ghost"] = ghost
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "[Ghost's personality type] ENTP" in sysmsg
+    assert "argumentative and quick-witted" in sysmsg  # the ENTP gloss
+
+
+def test_character_identity_section_no_mbti_line_when_absent():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "personality type" not in sysmsg
+
+
+def test_character_identity_section_appears_for_mbti_alone_with_no_self_knowledge():
+    """A character with no authored self_knowledge but a researched MBTI type
+    still gets an identity block - the type is why the block exists here."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost", mbti="ISFJ")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### CHARACTER IDENTITY" in sysmsg
+    assert "[Ghost's personality type] ISFJ" in sysmsg
+
+
 # ─── BL-07: per-character self_knowledge for present non-main characters ─────
 
 def test_character_identity_section_includes_present_non_main_character():
@@ -870,6 +914,21 @@ def test_identity_block_renders_voice_cues_when_present():
     assert "sounds distinct from every other character" in block
     assert "- Short, clipped sentences." in block
     assert "- Never uses contractions." in block
+
+
+def test_identity_block_renders_mbti_line_first_when_present():
+    from backend.app.engine.prompt_builder import _identity_block
+
+    block = _identity_block("Mina", ["You are the first to notice when someone's upset."], mbti="ISFJ")
+    assert "[Mina's personality type] ISFJ — " in block
+    assert block.index("personality type") < block.index("the first to notice")
+
+
+def test_identity_block_unrecognized_mbti_renders_no_line():
+    from backend.app.engine.prompt_builder import _identity_block
+
+    block = _identity_block("Mina", ["entry"], mbti="not-a-type")
+    assert "personality type" not in block
 
 
 def test_identity_block_omits_voice_section_when_absent():

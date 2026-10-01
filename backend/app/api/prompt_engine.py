@@ -413,6 +413,7 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
             "motive": ch.get("motive") or "",
             "tells": list(ch.get("tells") or []),
             "personality": ch.get("personality") or {},
+            "mbti": ch.get("mbti") or "",
         })
 
     return {

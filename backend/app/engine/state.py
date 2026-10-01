@@ -15,6 +15,7 @@ from backend.app.config.settings import (
 )
 
 from backend.app.engine.character_graph import CharacterGraph, CharacterType
+from backend.app.engine.rules.mbti import normalize as _normalize_mbti
 from backend.app.engine.cast_lifecycle import CastLifecycleState
 from backend.app.engine.world_calendar import PendingEvent
 from backend.app.engine.social_traits import EvolvingTrait
@@ -101,6 +102,12 @@ class Character:
       catchphrases) injected alongside self_knowledge so each character's
       dialogue is distinguishable from every other character's, independent
       of what they know or believe
+    - mbti: optional four-letter type (e.g. "ENFP"); "" = none. Research-backed
+      or designer-estimated per character. Surfaced to every LLM call that
+      reasons about this character's behavior (dialogue generation, Jev
+      accept/reject verdicts) via `rules/mbti.gloss()` - see
+      `rules/personality.py` for the other consumer (temperament dial
+      defaults).
 
     Runtime state (set at game init / updated during play):
     - emotion: current emotional descriptor ("wary", "cold", "soft")
@@ -130,6 +137,7 @@ class Character:
     # `disposition` shift on the relevant relationship edge, using the same
     # EvolvingTrait primitive an ensemble drama uses for romance arcs.
     tells: List[str] = field(default_factory=list)
+    mbti: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Character":
@@ -145,6 +153,7 @@ class Character:
         self_knowledge = [str(x) for x in (data.get("self_knowledge") or []) if str(x).strip()]
         voice = [str(x) for x in (data.get("voice") or []) if str(x).strip()]
         tells = [str(x) for x in (data.get("tells") or []) if str(x).strip()]
+        mbti = _normalize_mbti(data.get("mbti") or (data.get("personality") or {}).get("type"))
         # Determine character_type: is_main → MAIN; else parse from JSON or default CANONICAL
         if is_main:
             character_type = CharacterType.MAIN
@@ -157,7 +166,7 @@ class Character:
         known_keys = {
             "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
             "knowledge_character_id", "uuid", "tags", "character_type", "self_knowledge",
-            "motive", "goal", "tells", "voice",
+            "motive", "goal", "tells", "voice", "mbti", "personality",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
 
@@ -203,6 +212,7 @@ class Character:
             voice=voice,
             goal=goal_trait,
             tells=tells,
+            mbti=mbti,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -219,6 +229,7 @@ class Character:
             "self_knowledge": self.self_knowledge,
             "voice": self.voice,
             "tells": self.tells,
+            "mbti": self.mbti,
             "goal": self.goal.to_dict() if self.goal is not None else None,
             **(self.meta or {}),
         }

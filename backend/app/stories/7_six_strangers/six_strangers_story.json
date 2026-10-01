@@ -2322,12 +2322,15 @@
     "unfilmed_places": ["shared_bathroom", "toilet", "washroom"],
     "panelists": [
       {"id": "reina", "name": "Reina Triendl", "role": "sweet, romantic read; decodes body language",
+       "type": "ISFJ",
        "tastes": {"flirtatious": 1.5, "complimentary": 1.0, "warm": 1.0, "attentive": 1.0, "dismissive": -1.0,
                   "rude": -1.5}},
       {"id": "yamasato", "name": "Ryota Yamasato", "role": "sharp, cynical comedian who hunts for flaws",
+       "type": "ENTP",
        "tastes": {"boastful": -2.5, "flirtatious": -0.5, "pushy": -2.0, "evasive": -1.5, "funny": 1.0,
                   "honest": 0.5}},
       {"id": "yukiko", "name": "Yukiko Ehara", "role": "relaxed big sister who defends sincerity and calls out games",
+       "type": "ESFJ",
        "tastes": {"honest": 2.0, "supportive_of_goals": 1.5, "evasive": -2.0, "pushy": -1.5, "warm": 1.0}}
     ]
   },

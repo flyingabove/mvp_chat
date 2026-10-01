@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 from backend.app.engine.character_graph import describe_relationship_state
 from backend.app.engine.rules.personality import DIALS, personalities
+from backend.app.engine.rules.mbti import gloss as mbti_gloss
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.model import PLAYER, WorldModel
 from backend.app.engine.world_model.social_acts import Assessment, SocialAct, ActSpec, Verdict
@@ -172,6 +173,9 @@ def target_view(model: WorldModel, spec: ActSpec, act: SocialAct, story_cfg: dic
         traits = _dial_words(person)
         liked = sorted((w, t) for t, w in person.tastes.items() if w >= 1.0)[::-1][:3]
         disliked = sorted((w, t) for t, w in person.tastes.items() if w <= -1.0)[:3]
+        type_gloss = mbti_gloss(person.type)
+        if type_gloss:
+            lines.append(f"Your personality type is {person.type}: you are {type_gloss}.")
         if traits:
             lines.append("Your nature: " + ", ".join(traits) + ".")
         if liked:

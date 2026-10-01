@@ -149,6 +149,17 @@ def test_target_view_reports_recent_behavior_toward_the_target_only():
     assert "helpful" in text and "rude" in text and "warm" not in text.split("What you noticed")[1]
 
 
+def test_target_view_states_mbti_type_and_gloss_when_authored():
+    cfg = {**CFG, "personalities": {"ann": {"type": "entp"}}}
+    text = target_view(_model(40), SPECS["confess"], SocialAct("confess", "ann"), cfg, {"ann": "Ann"}, graph=None)
+    assert "Your personality type is ENTP: you are" in text
+
+
+def test_target_view_omits_mbti_line_when_not_authored():
+    text = target_view(_model(40), SPECS["confess"], SocialAct("confess", "ann"), CFG, {"ann": "Ann"}, graph=None)
+    assert "personality type" not in text
+
+
 def test_the_jev_question_is_a_bounded_degradable_choice():
     decision = jev_decision("ann", SocialAct("confess", "ann"))
     assert decision.kind == "choice" and decision.allowed == frozenset({"accept", "not_yet", "reject"})

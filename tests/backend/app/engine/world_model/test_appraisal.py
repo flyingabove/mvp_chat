@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from backend.app.engine.character_graph import CharacterGraph
-from backend.app.engine.rules.personality import Personality, Temperament, personalities, personality_for
+from backend.app.engine.rules.personality import DIALS, Personality, Temperament, personalities, personality_for
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.story_loader import build_story_registry
 from backend.app.engine.world_model.appraisal import appraise_behaviors
@@ -160,4 +160,16 @@ def test_terrace_content_is_complete_and_valid():
 def test_the_mystery_uses_neutral_tastes_and_no_tracks():
     cfg = build_story_registry()["iu_murder_mystery"]["raw"]
     assert social_rules(cfg) is None
-    assert all(p.temperament == Temperament() and p.tastes == {} for p in personalities(cfg).values())
+    # Characters carry a researched/estimated MBTI type (the generic MBTI mechanic),
+    # which only ever sets the three type-derived dials (sociability/candor/
+    # planfulness, see rules/personality.py's `_with_type`). Everything else,
+    # including all tastes, stays neutral/empty: this story has no social-sim
+    # tracks for dials to drive.
+    neutral = Temperament()
+    type_derived = {"sociability", "candor", "planfulness"}
+    for p in personalities(cfg).values():
+        assert p.tastes == {}
+        for dial in DIALS:
+            if dial in type_derived:
+                continue
+            assert getattr(p.temperament, dial) == getattr(neutral, dial)

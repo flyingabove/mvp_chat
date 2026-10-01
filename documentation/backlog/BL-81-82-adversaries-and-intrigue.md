@@ -5,10 +5,6 @@ configures them. Goals, strategies (scheming, safe_pick), planfulness/candor con
 fallout as stance rules, claim intent, staged talk and watching all moved into
 [BL-85](BL-85-character-social-mind.md) (2026-10-01). Design background: [design/TERRACE_HOUSE.md §12](../design/TERRACE_HOUSE.md).
 
-## BL-80 — Three personality types rest on weak sources (content)
-- **Open:** three types are designer-assigned (Yuto, Momoka, Masako) and two sourced types rest on 3-4 votes (Arisa, Yuuki Byrnes) in `six_strangers_story.json` `personalities`.
-- **Next:** re-check if better sources appear (Personality Database group page, needs the Playwright browser).
-
 ## BL-81 — Asynchronous off-screen thinking for any character (generic)
 - **Open:** NPC reasoning happens only inside a turn, so a character cannot carry out a plan deeper than one turn allows. BL-85 gives each character short- and long-term plans (horizon from `planfulness`) and wants such as `stage_talk`/`watch`; this item is how multi-step plans are *executed*.
 - **Next:** after a turn's bounded decision step, start a background job when a trigger fires (a confession, a betrayal opening, a rival noticing interest). The job writes a plan of concrete, physically executable steps (talk to X, call Y, go to a room, plant a rumor) that executes unless the player acts first. No telepathy: every step uses a conversation, a call or a location. Needs job persistence across saves and deploys, a cost cap, and determinism in tests.
