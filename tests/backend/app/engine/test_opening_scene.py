@@ -224,7 +224,8 @@ def test_the_ritual_hints_come_from_each_residents_own_authored_tastes_and_stay_
     brief = group_ritual_brief(_ritual_state())
     assert "someone who makes them laugh" in brief and "someone who pushes" in brief
     assert "F2" in brief and "someone who really listens" in brief
-    assert "never as a list" in brief and "turn to the player last" in brief.lower()
+    assert "never a list" in brief and "Only two or three" in brief
+    assert "never repeat the hint wording" in brief and "leave the reply open for the player" in brief
 
 
 def test_a_story_without_a_ritual_never_fires_one():

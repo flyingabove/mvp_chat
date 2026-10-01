@@ -254,11 +254,12 @@ def group_ritual_brief(state: "GameState") -> str:
     if not rows:
         return ""
     return (
-        f"Group moment, once: {cfg.get('prompt', 'The producers ask everyone what their type is.')} Each resident present "
-        "answers briefly, in their own voice and still as a near-stranger: vague, shy, joking or deflecting, never "
-        "describing anyone in the room and never as a list. Each may let slip at most ONE hint from their real leaning "
-        "(hints, not lines to recite): " + " | ".join(rows) + ". Show it, do not announce it. "
-        "Turn to the player last and leave their answer to the player.\n\n"
+        f"Group moment, once: {cfg.get('prompt', 'The producers ask everyone what their type is.')} Only two or three "
+        "residents answer in this reply, in their own voice and still as near-strangers; the rest pass, deflect or say "
+        "they will go later. An answer is vague, shy, joking or sideways, never a list and never about anyone in the "
+        "room. Put the leaning in your own words and never repeat the hint wording; one resident may dodge entirely. "
+        "Each answerer lets slip at most ONE hint from their real leaning: " + " | ".join(rows) + ". Show it, do not "
+        "announce it. The player is not asked yet; leave the reply open for the player.\n\n"
     )
 
 

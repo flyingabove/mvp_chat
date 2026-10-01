@@ -134,6 +134,7 @@ class WorldModel:
     last_with_player: dict[str, int] = field(default_factory=dict)   # character -> last turn together
     first_met_day: dict[str, int] = field(default_factory=dict)      # character -> day they met the player
     turns_together: dict[str, int] = field(default_factory=dict)     # character -> turns spent in the player's company
+    last_signal_turn: dict[str, int] = field(default_factory=dict)   # character -> turn of their last affinity signal
     standing: StandingBook = field(default_factory=StandingBook)     # sole writer of track standings
     appraised_events: list[str] = field(default_factory=list)        # behavior events already judged
     persona: PersonaBook = field(default_factory=PersonaBook)        # self-claims with their audiences
@@ -214,6 +215,7 @@ class WorldModel:
                 "last_with_player": dict(self.last_with_player),
                 "first_met_day": dict(self.first_met_day),
                 "turns_together": dict(self.turns_together),
+                "last_signal_turn": dict(self.last_signal_turn),
                 "standing": self.standing.to_dict(),
                 "appraised_events": list(self.appraised_events),
                 "persona": self.persona.to_dict(),
@@ -256,6 +258,7 @@ class WorldModel:
                    last_with_player={str(k): int(v) for k, v in (data.get("last_with_player") or {}).items()},
                    first_met_day={str(k): int(v) for k, v in (data.get("first_met_day") or {}).items()},
                    turns_together={str(k): int(v) for k, v in (data.get("turns_together") or {}).items()},
+                   last_signal_turn={str(k): int(v) for k, v in (data.get("last_signal_turn") or {}).items()},
                    standing=StandingBook.from_dict(data.get("standing") or {}),
                    appraised_events=list(data.get("appraised_events") or []),
                    persona=PersonaBook.from_dict(data.get("persona") or {}),

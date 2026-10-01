@@ -25,6 +25,7 @@ from backend.app.engine.world_model.offscreen import resolve_offscreen
 from backend.app.engine.world_model.person import Cast
 from backend.app.engine.world_model.appraisal import appraise_behaviors
 from backend.app.engine.rules.acquaintance import acquaintance_levels, level_for
+from backend.app.engine.world_model.signals import Candidate, choose_signal, interest_of, signal_catalogue
 from backend.app.engine.rules.personality import personalities
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
@@ -359,6 +360,7 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         if intention.kind == "test_loyalty":
             model.agendas[cid] = [i for i in model.agendas.get(cid, []) if i != intention]
     _tell_directives(model, state, view, message, present_set, owes_answer | addressed_now, names)
+    _signal_directives(model, state, view, present_set, names)
     _requirement_hints(model, state, view, present_set, names)
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
     view.plan = select_speakers(model, candidates, message, warmth_fn(state), owes_answer=owes_answer)
@@ -631,6 +633,31 @@ def _tell_directives(model: WorldModel, state: Any, view: TurnView, message: str
         if cue:
             view.must_address.append(f"{names.get(cid, cid)} shows a small tell: {cue}. Show it only as "
                                      "behavior the player can notice; it proves nothing on its own.")
+
+
+def _signal_directives(model: WorldModel, state: Any, view: TurnView, present: set[str], names: dict[str, str]) -> None:
+    """At most one ambiguous affinity signal this turn (world_model/signals.py): behaviour only, never a feeling."""
+    ctx = social_context(state)
+    if ctx is None:
+        return
+    cfg = getattr(state, "story_cfg", {}) or {}
+    spec = ctx.rules.tracks.get(ctx.rules.appraisal.track)
+    people = personalities(cfg)
+    candidates = []
+    for cid in sorted(present):
+        if not ctx.eligible(cid, PLAYER):
+            continue
+        standing = model.standing.get(cid, PLAYER, ctx.rules.appraisal.track)
+        temperament = people[cid].temperament if cid in people else None
+        candidates.append(Candidate(cid, interest_of(standing.value if standing else 0.0, spec),
+                                    temperament.openness if temperament else 0.5,
+                                    temperament.pride if temperament else 0.5))
+    pick = choose_signal(candidates, model.turn, model.seed, model.last_signal_turn, signal_catalogue(cfg))
+    if pick:
+        cid, behaviour = pick
+        model.last_signal_turn[cid] = model.turn
+        view.must_address.append(f"{names.get(cid, cid)} {behaviour}. Show it only as behaviour, never explain or label "
+                                 "it: it could be politeness or interest.")
 
 
 def _is_resident_speech(memory: Any) -> bool:

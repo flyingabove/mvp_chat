@@ -44,7 +44,7 @@ def test_the_type_round_is_briefed_once_after_everyone_has_arrived(campaign, mon
     prompts = [p["messages"][0]["content"] for p in sent if isinstance(p, dict) and "messages" in p]
     assert sum(MARK in text for text in prompts) == 1, "the storyteller saw the ritual once"
     brief = next(text for text in prompts if MARK in text)
-    assert "What is your type?" in brief and "Turn to the player last" in brief
+    assert "What is your type?" in brief and "leave the reply open for the player" in brief
 
 
 def _round_trip(campaign, sid, mutate):

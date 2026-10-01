@@ -992,7 +992,7 @@
       {"kind": "narration", "text": "Three o'clock in Higashi-Gotanda. The glass front of the house shows your bag, your own face, and a camera already aimed at the door. In the entryway a row of slippers waits and nobody has said which pair is yours. Inside, the living room is far too tidy for six people. One resident has arrived before you. Four empty places wait around the low table; nobody has begun to eat."},
       {"kind": "narration", "text": "{{GREETER_CUE}} You are the second person in the house. One man and one woman, alone, in a house built for a romance show: you both know it, and neither of you will say it first."},
       {"kind": "dialogue", "speaker_id": "@greeter", "text": "{{GREETER_LINE}}"},
-      {"kind": "narration", "text": "Neither of you knows how long a bow should last. The camera does not mind. Beyond the hall is your shared {{PLAYER_BEDROOM}}. The next arrival is still minutes away; the first words are yours."}
+      {"kind": "narration", "text": "Neither of you knows how long a bow should last. The camera does not mind. Beyond the hall is the {{PLAYER_BEDROOM}} you will share. The next arrival is still minutes away; the first words are yours."}
     ]
   },
   "world_context": [

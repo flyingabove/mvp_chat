@@ -366,6 +366,20 @@ never reach a level that needs a later day. Validation: first level at 0/0, stri
 level has conduct. Stories without `acquaintance` are unchanged. Terrace declares four levels: strangers, acquaintances,
 familiar (1 day, 30 turns), close (3 days, 80 turns). Tests: `test_acquaintance.py`.
 
+### Affinity signals: liking shows as ambiguous behaviour (BL-84, as built 2026-10-01)
+
+Generic, any story with a standing track. `world_model/signals.py` decides, deterministically per (seed, turn, person),
+whether one present person shows an affinity signal this turn: a small behaviour ("asks one more question than they
+ask anyone else", "teases in a way that could be fondness or mockery", "ends up a little nearer"), passed to the
+storyteller through must-address as "show it only as behaviour, never explain or label it: it could be politeness or
+interest". Interest is the person's standing toward the player as a fraction of the track below its last tier. The
+person who likes the player most signals about 4x as often as others, but others sometimes do too (polite decoys), so
+the player never gets a reliable read. Intensity (levels 1-3) grows with interest and is capped by temperament
+(`openness` of at most 0.3 never passes level 2, at least 0.7 shows a notch more); `pride` lowers the rate; a person
+does not signal twice within 3 turns (`WorldModel.last_signal_turn`, persisted). Eligibility follows the appraisal
+policy (`eligible`), so romance signals never come from same-gender residents. A story may replace the wording with
+`signals.catalogue` (levels 1-3); Terrace uses the engine default. Tests: `test_signals.py`.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |
