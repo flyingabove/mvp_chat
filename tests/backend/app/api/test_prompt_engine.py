@@ -6282,3 +6282,96 @@ def test_extracted_commitment_becomes_a_promise_that_comes_due(client, monkeypat
     assert len(own) == 1 and own[0].counterpart == PLAYER and "save you a plate of curry" in own[0].text
     assert own[0].due == model.world.absolute_minute(0, "20:00")
     assert [m for m in model.memories.of(PLAYER) if m.kind == "promise"]
+
+
+# ============================================================================
+# BL-90/BL-91: operator turn_trace, session inspector, richer debug_box
+# ============================================================================
+
+def _start_and_turn(client, sid, headers=None, debug=False):
+    headers = headers or {}
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"},
+                headers=headers)
+    if debug:
+        client.post("/api/chat", json={"session_id": sid, "message": "[D]"}, headers=headers)
+    return client.post("/api/chat", json={"session_id": sid, "message": "hello"}, headers=headers).json()
+
+
+def test_turn_trace_only_for_operator(client, monkeypatch):
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+    player = _start_and_turn(client, "trace_player", debug=True)
+    assert "turn_trace" not in player and "prompt_debug" not in player
+
+    op = _start_and_turn(client, "trace_op", headers={"X-Operator-Token": "tok"})
+    trace = op["turn_trace"]
+    assert {"retrieval", "storyteller"} <= set(trace["stage_ms"])
+    assert trace["npc_decision_mode"] in {"rules", "jev", "compare"}
+    assert trace["usage"] == {"total_tokens": 1}
+    assert trace["retrieved_chunk_ids"] == []
+    assert "extraction" in trace
+
+
+def test_turn_trace_carries_the_extractor_result(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+
+    async def _extract(*args, **kwargs):
+        return TurnExtraction(movement_intent="TRAVEL", destination_id="kitchen", confidence=0.9)
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", _extract, raising=False)
+    body = _start_and_turn(client, "trace_extract", headers={"X-Operator-Token": "tok"})
+    extraction = body["turn_trace"]["extraction"]
+    assert extraction["movement_intent"] == "TRAVEL" and extraction["destination_id"] == "kitchen"
+
+
+def test_debug_box_has_turn_flags_counters_and_mechanics(client):
+    box = _start_and_turn(client, "box_fields", debug=True)["debug_box"]
+    assert box["turn"] >= 1
+    assert box["flags"] == {"truth_mode": False, "epistemic_state": True, "chinese_mode": False}
+    assert "counters" in box and "mechanics" in box
+
+
+def test_debug_box_survives_a_failing_provider(client):
+    from backend.app.engine import debug_hooks
+
+    def boom(state):
+        raise RuntimeError("provider broke")
+    debug_hooks.register_debug_provider("boom", boom)
+    try:
+        box = _start_and_turn(client, "box_boom", debug=True)["debug_box"]
+    finally:
+        debug_hooks._PROVIDERS.pop("boom", None)
+    assert box["mechanics"]["boom"] == {"error": "RuntimeError: provider broke"}
+
+
+def test_session_inspector_requires_operator_and_is_read_only(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+    _start_and_turn(client, "inspect_me", debug=True)
+
+    assert client.get("/api/debug/session/inspect_me").status_code == 401
+    assert client.get("/api/debug/session/inspect_me", headers={"X-Operator-Token": "bad"}).status_code == 401
+
+    before = pe_mod.SESSIONS["inspect_me"]["state"].turns
+    r = client.get("/api/debug/session/inspect_me", headers={"X-Operator-Token": "tok"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] == "memory" and body["flags"]["debug_mode"] is True
+    assert body["state"]["turns"] == before and "log" not in body["state"]
+    assert "world_model" in body["state"]
+    assert pe_mod.SESSIONS["inspect_me"]["state"].turns == before
+
+
+def test_session_inspector_404_for_unknown_session_and_never_creates_one(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+    r = client.get("/api/debug/session/nope?user_id=guest:abc", headers={"X-Operator-Token": "tok"})
+    assert r.status_code == 404
+    assert "nope" not in pe_mod.SESSIONS

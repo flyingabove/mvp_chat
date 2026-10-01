@@ -215,8 +215,10 @@ Every way an agent can see inside a running game, cheapest first. Use them to pr
 
 | Surface | Access | Shows | Use it to |
 |---------|--------|-------|-----------|
-| `[D]` in chat, then `debug_box` on each `/api/chat` reply | any session, guest included, no token | clock, location, speakers, people present, transient entries, last 3 `npc_decisions`, `knowledge_resolution_updates` | check world/scene state on the live beta site |
-| `prompt_debug` on the `/api/chat` reply | `DEBUG_TOOLS_ENABLED=1` plus `X-Operator-Token` (`is_operator_request`); local or the debug engine only | full assembled system prompt, `prompt_layers`, retrieved chunks, `retrieval_debug` | prove a prompt or injection change (locally with `TestClient`, since agents lack beta's token) |
+| `[D]` in chat, then `debug_box` on each `/api/chat` reply | any session, guest included, no token | clock, location, speakers, people present, transient entries, last 3 `npc_decisions`, `turn`, `flags`, `counters`, `mechanics` (player-safe providers from `engine/debug_hooks.py`), `knowledge_resolution_updates` | check world/scene state on the live beta site |
+| `prompt_debug` and `turn_trace` on the `/api/chat` reply | `DEBUG_TOOLS_ENABLED=1` plus `X-Operator-Token` header (`is_operator_request`); local or the debug engine only | `prompt_debug`: full system prompt, `prompt_layers`, chunks, `retrieval_debug`. `turn_trace`: `stage_ms`, extractor result, `retrieved_chunk_ids`, `npc_decision_mode`, `usage` | prove a prompt, extractor or timing change (locally with `TestClient`, since agents lack beta's token) |
+| `GET /api/debug/ping` | public, never raises | `debug_tools_enabled`, `operator_configured`, `operator_token_ok` | learn in one call which surfaces a host lets you use |
+| `GET /api/debug/session/{id}?user_id=` | operator header | state and full `world_model` of a live or persisted session (`guest:<uuid>` for guests); read-only, never creates a session | inspect counters, standing, agendas, endings without replaying |
 | `X-NPC-Decision-Mode` header | operator only | forces `rules`/`jev`/`compare` for one request | compare NPC verdicts |
 | `/beta/debug` WebSocket + REST (`debug_engine.py`) | operator token | player-agent/grader runs, `/runs`, `/scores`, `/test-cases`, `/status` | automated multi-turn evaluation |
 | `/api/health` | public | commit SHA, environment, Jev breaker state | confirm the deploy landed |
@@ -224,9 +226,11 @@ Every way an agent can see inside a running game, cheapest first. Use them to pr
 | Server log JSONL (`jlog`) | local file or Railway logs | `turn_stage_ledger` (stage ms, tokens), `turn_extraction_complete`, `chat_request` (with `prompt_debug`) | timings and extractor behaviour, locally |
 | `scripts/integration_playback` / `/integration_playback/*` | operator token | scripted scenario replay with `debug_box` lines | regression playback |
 
-Known gaps (no session-state inspector, no turn trace, thin `debug_box`, hardening) are
-`documentation/backlog/BL-90-91-92-debug-api-gaps.md`. Rule for new features: a significant feature ships with its own
-debug hook (see `ship-and-verify`, step 3a).
+The operator token is accepted from the `X-Operator-Token` header only on REST routes (compared in constant time);
+the WebSocket also takes `?operator_token=`. `GET /api/auth/debug-config` is operator-only. Rule for new features: a
+significant feature ships with its own debug hook (see `ship-and-verify`, step 3a): register a player-safe provider with
+`register_debug_provider(name, fn)` in `backend/app/engine/debug_hooks.py`, or add spoiler-bearing values to
+`_build_turn_trace` in `prompt_engine.py`.
 
 Leaderboard
 -----------

@@ -1,4 +1,5 @@
 """FastAPI auth dependencies: get_current_user (required) and get_optional_user."""
+import hmac
 import os
 import re
 from fastapi import Request, WebSocket, HTTPException
@@ -75,14 +76,21 @@ async def get_current_user_or_guest(request: Request) -> dict:
 #      a prod-like deployment that forgets to configure OPERATOR_TOKEN is
 #      still safe by default.
 #   2. A matching OPERATOR_TOKEN must be supplied via the X-Operator-Token
-#      header (REST) or the operator_token query parameter (WebSocket,
-#      since browsers cannot set custom headers on a WS handshake).
+#      header (REST). Only the WebSocket also accepts the operator_token query
+#      parameter (browsers cannot set custom headers on a WS handshake); REST
+#      refuses it because URLs end up in access logs.
 def _debug_tools_enabled() -> bool:
     return os.getenv("DEBUG_TOOLS_ENABLED", "").strip().lower() in {"1", "true", "yes"}
 
 
 def _operator_token_configured() -> str:
     return os.getenv("OPERATOR_TOKEN", "").strip()
+
+
+def _token_matches(supplied: str | None, expected: str) -> bool:
+    """Constant-time comparison so response timing cannot leak the operator token."""
+    return bool(supplied) and bool(expected) and hmac.compare_digest(
+        supplied.encode("utf-8"), expected.encode("utf-8"))
 
 
 def _check_operator_token(supplied: str | None) -> None:
@@ -92,13 +100,13 @@ def _check_operator_token(supplied: str | None) -> None:
     if not expected:
         # Tools enabled but no token configured: fail closed, not open.
         raise HTTPException(status_code=403, detail="Operator access is not configured")
-    if not supplied or supplied != expected:
+    if not _token_matches(supplied, expected):
         raise HTTPException(status_code=401, detail="Invalid or missing operator credentials")
 
 
 async def require_operator(request: Request) -> dict:
     """FastAPI dependency for HTTP routes: require a valid operator token."""
-    supplied = request.headers.get("X-Operator-Token") or request.query_params.get("operator_token")
+    supplied = request.headers.get("X-Operator-Token")
     _check_operator_token(supplied)
     return {"sub": "operator"}
 
@@ -111,11 +119,10 @@ def is_operator_request(request: Request) -> bool:
     use this to conditionally include/omit a response field, not to reject
     the request. A caller with no/invalid token simply gets False, same as
     an ordinary player."""
-    supplied = request.headers.get("X-Operator-Token") or request.query_params.get("operator_token")
+    supplied = request.headers.get("X-Operator-Token")
     if not supplied or not _debug_tools_enabled():
         return False
-    expected = _operator_token_configured()
-    return bool(expected) and supplied == expected
+    return _token_matches(supplied, _operator_token_configured())
 
 
 async def require_operator_ws(websocket: WebSocket) -> dict:

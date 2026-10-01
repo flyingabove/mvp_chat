@@ -23,7 +23,9 @@ def eval_capabilities() -> dict:
         "features": {
             "public_chat": True,                 # /api/chat, same path as the browser
             "request_id_idempotency": True,      # BL-02 replay of a retried turn
-            "debug_box_observation": True,       # player-facing [D]: clock, location, speakers
+            "debug_box_observation": True,       # player-facing [D]: clock, location, speakers, turn, flags, counters, mechanics
+            "operator_turn_trace": True,         # operator /api/chat: stage_ms, extractor result, chunk ids, usage
+            "operator_session_inspector": True,  # operator GET /api/debug/session/{id}; probe GET /api/debug/ping
             "build_identity": True,              # commit + deployment_id in /api/health
             "turn_receipts": False,              # server-side per-turn receipts (planned)
             "controlled_initialization": False,  # seeded roster/RNG fixtures (planned)

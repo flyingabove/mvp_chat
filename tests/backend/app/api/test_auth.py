@@ -224,7 +224,15 @@ def test_debug_config_reports_runtime_metadata(client, monkeypatch):
     monkeypatch.setenv("RAILWAY_GIT_BRANCH", "beta")
     monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "abc123")
 
-    resp = client.get("/api/auth/debug-config", headers={"host": "beta-api.storieschat.ai"})
+    # BL-92: debug-config is operator-only; an anonymous caller is refused before any secret metadata is built.
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "op-token")
+    anon = client.get("/api/auth/debug-config", headers={"host": "beta-api.storieschat.ai"})
+    assert anon.status_code in (401, 403)
+    assert "client_id_set" not in anon.text
+
+    resp = client.get("/api/auth/debug-config",
+                      headers={"host": "beta-api.storieschat.ai", "X-Operator-Token": "op-token"})
     assert resp.status_code == 200
 
     data = resp.json()

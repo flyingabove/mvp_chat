@@ -597,7 +597,7 @@ Each line is a single JSON object:
 - `backend/app/config/credentials.py` exposes `get_google_client_id()`, `get_google_client_secret()`, `get_jwt_secret()` (alongside `get_openai_api_key()`).
 - Each helper triggers `_load_env_test_once()` only if the live env var is missing — so Railway/CI env vars always take priority.
 - `settings.py` consumes those helpers at import time; `google_oauth.py` and `jwt_utils.py` see fully resolved values.
-- If `GOOGLE_CLIENT_ID` is empty on boot, the OAuth URL Google receives is missing `client_id`, and login silently fails with a 400 from Google. Always confirm via `GET /api/auth/debug-config`.
+- If `GOOGLE_CLIENT_ID` is empty on boot, the OAuth URL Google receives is missing `client_id`, and login silently fails with a 400 from Google. Always confirm via `GET /api/auth/debug-config` (operator-only since BL-92: send `X-Operator-Token`).
 
 #### Guest bypass UI ("Play as Guest" pill)
 

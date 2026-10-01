@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 from backend.app.auth.google_oauth import build_auth_url, exchange_code, get_userinfo
 from backend.app.auth.jwt_utils import create_token
-from backend.app.auth.dependencies import get_current_user, _GUEST_ID_RE
+from backend.app.auth.dependencies import get_current_user, require_operator, _GUEST_ID_RE
 from backend.app.db.repos import UserRepo, SessionRepo
 
 router = APIRouter()
@@ -199,7 +199,7 @@ async def logout():
 
 
 @router.get("/api/auth/debug-config")
-async def debug_config(request: Request):
+async def debug_config(request: Request, _operator: dict = Depends(require_operator)):
     """Diagnostic: show resolved OAuth config (no secrets)."""
     import os
     from backend.app.auth.google_oauth import _resolved_google_client_id, _resolved_google_client_secret

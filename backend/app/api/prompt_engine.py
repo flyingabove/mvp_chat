@@ -120,6 +120,7 @@ from backend.app.engine.prompt_builder import (
 )
 from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace_key
 from backend.app.utils.stage_timer import StageTimer
+from backend.app.engine.debug_hooks import collect_debug_mechanics
 
 
 router = APIRouter()
@@ -1280,6 +1281,28 @@ def _debug_people_present(state: GameState) -> list[str]:
         if name:
             names.append(name)
     return names
+
+
+def _build_turn_trace(stage_timer, extraction, retrieved, request: Request, usage) -> dict:
+    """Operator-only internals of this turn: stage timings, extractor result, retrieved chunk ids, NPC decision
+    mode, token usage. Never player-facing (the extractor result and chunks can spoil the story)."""
+    extracted = None
+    if extraction is not None:
+        try:
+            extracted = json.loads(json.dumps(dataclasses.asdict(extraction), default=str))
+        except Exception as exc:  # a trace must never fail the turn
+            extracted = {"error": f"{type(exc).__name__}: {exc}"}
+    ledger = stage_timer.as_ledger()
+    return {
+        "stage_ms": ledger["stage_ms"],
+        "stage_calls": ledger["stage_calls"],
+        "total_ms_so_far": ledger["total_ms"],
+        "stage_errors": ledger.get("stage_errors"),
+        "extraction": extracted,
+        "retrieved_chunk_ids": [c.get("chunk_id") for c in (retrieved or [])],
+        "npc_decision_mode": _npc_decision_mode_for(request),
+        "usage": usage,
+    }
 
 
 def _box(title: str, lines: list[str]) -> str:
@@ -3881,6 +3904,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             ],
             "npc_decisions": list((getattr(getattr(state, "world_model", None), "decision_log", None) or [])[-3:])
             or None,
+            "turn": int(getattr(state, "turns", 0) or 0),
+            "flags": {k: bool(sess.get(k, d)) for k, d in
+                      (("truth_mode", False), ("epistemic_state", True), ("chinese_mode", False))},
+            "counters": dict(getattr(getattr(state, "world_model", None), "counters", None) or {}) or None,
+            "mechanics": collect_debug_mechanics(state) or None,
         }
 
     # Apply Chinese translation if chinese_mode is enabled
@@ -3908,6 +3936,8 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # so typing "[D]" alone cannot unlock it.
     if is_operator_request(request):
         result["prompt_debug"] = prompt_debug
+        result["turn_trace"] = _build_turn_trace(
+            stage_timer, extraction, retrieved, request, data.get("usage"))
     if knowledge_resolution_updates:
         result["knowledge_resolution_updates"] = knowledge_resolution_updates
     if debug_box is not None:
