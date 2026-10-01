@@ -141,6 +141,7 @@ def sync_membership(model: WorldModel, state: Any) -> None:
     for cid in sorted(set(model.characters) - eligible):
         model.characters.pop(cid)
         model.world.remove(cid)
+    bootstrap.seed_rival_aims_for_state(state, model)     # BL-34: newcomers and orphaned rivals get an aim
 
 
 def mirror_locations(model: WorldModel, state: Any) -> None:

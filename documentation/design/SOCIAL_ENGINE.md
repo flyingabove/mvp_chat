@@ -340,15 +340,17 @@ Owner design 2026-09-29. Code: `world_model/choices.py`, `world_model/leave_mean
 - **Rivals compete with the player (BL-34).** `agenda.refresh_agendas` counts the player as an admirer of anyone whose own
   standing toward the player reached the interested tier, is eligible, is not closed to the player and is not in an NPC
   couple; every other resident drawn to that person gets `compete_for`. "Drawn to" now also includes a live `pursue` aim.
-  `agenda.next_beat` offers a `compete_for` beat when the target is in the scene (`BEAT_TEXT["compete_for"]`: one small,
-  visible move, no confession, no private thoughts), and the existing in-scene invitation (`intentions.propose_agenda_invitations`)
+  `agenda.next_beat` offers a `compete_for` beat when the target is in the scene, at most once per character per in-game
+  day (`BEAT_TEXT["compete_for"]`: one small, visible move, no confession, no private thoughts; without the daily limit a
+  scripted afternoon produced 24 beats in 25 turns), and the existing in-scene invitation (`intentions.propose_agenda_invitations`)
   makes it a state event with a trace.
 - **Independent aims (opt-in).** `social_tracks.couples.rival_aim` (0-1; Terrace 0.3; 0 or absent = off) makes
   `world_model/rivals.py` `seed_rival_aims` give each resident of the player's gender, at world build, one long-lived
   (`AIM_DAYS`) `pursue` intention on an opposite-gender resident, chosen deterministically from the house seed. Aims may
-  overlap and usually do. It is an intention, not a feeling: no standing is invented. Residents who arrive later (cast
-  rotation) get no seeded aim (documented limit). Pace check: the passive-player director cut across six seeded houses
-  moved from days 95-135 to 93-156 with aims (allowance 180).
+  overlap and usually do. It is an intention, not a feeling: no standing is invented. `bootstrap.seed_rival_aims_for_state`
+  is called at world build and again from `turn.sync_membership`, so a resident who moves in later, or a rival whose target
+  moved out or coupled up, gets an aim too; it is idempotent and only rivals without a live aim (target still in the house
+  and free) receive one. Pace check (12 seeded houses, passive player, one `DAY` skip per turn): the director cut came on days 95-136 without aims and on days 95-173 with aims at 0.3, inside the 180-day allowance but with only 7 days of margin in the slowest house.
 
 ### 12. Decision log and review answers
 

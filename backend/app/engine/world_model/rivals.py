@@ -7,6 +7,9 @@ long-lived `pursue` aim on a resident they could be drawn to, chosen by the hous
 gives the same aims). Aims may overlap on purpose: when the player wins the same person, `agenda.refresh_agendas`
 turns the overlap into `compete_for` and the rival becomes visible.
 
+Run again whenever the house changes (a newcomer, a target who moved out or coupled up): only rivals without a live
+aim get one, so it is idempotent and never disturbs an aim that still stands.
+
 No feelings are invented: an aim is an intention to seek someone out, not a standing. Whether it becomes anything
 still depends on what the two people do and on the target's own preferences.
 """
@@ -36,8 +39,9 @@ def seed_rival_aims(model: WorldModel, rules: Any, genders: dict[str, str], play
     for rival in ids:
         if genders.get(rival) != player_gender or _in_couple(model, rival):
             continue
-        if any(i.kind == "pursue" for i in intentions(model, rival, day)):
-            continue
+        if any(i.kind == "pursue" and i.target in model.characters and not _in_couple(model, i.target)
+               for i in intentions(model, rival, day)):
+            continue                      # a live aim: its target is still in the house and still free
         options = [t for t in ids if t != rival and not _in_couple(model, t)
                    and appraisal.covers(genders.get(rival, ""), genders.get(t, ""))]
         if not options:

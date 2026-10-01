@@ -186,3 +186,97 @@ def test_rival_aim_is_validated_in_the_story_rules():
     for bad in (-0.1, 1.5, "lots"):
         with pytest.raises(ValueError):
             social_rules(_seed_cfg(bad))
+
+
+# --- second pass: residents who arrive later, and aims whose target is gone ---------------------------------------
+
+def _terrace_genders(player_gender="M"):
+    genders = {c["key"]: c["gender"] for c in TERRACE["characters"]}
+    genders["player"] = player_gender
+    return genders
+
+
+def _arrival_state(keys, gender="M"):
+    return SimpleNamespace(story_cfg=TERRACE, gender=gender, cast_lifecycle=None, character_locations={},
+                           characters={k: SimpleNamespace(name=k.title(), role="Housemate", tells=[]) for k in keys})
+
+
+def test_a_resident_who_arrives_later_gets_an_aim_through_sync_membership():
+    from backend.app.engine.world_model.bootstrap import seed_rival_aims_for_state
+    from backend.app.engine.world_model.turn import sync_membership
+    model = _model({"makoto": "kitchen", "minori": "kitchen", "mizuki": "kitchen"})
+    state = _arrival_state(["makoto", "minori", "mizuki", "uchi"])         # Uchi (M) moves in after the start
+    seed_rival_aims_for_state(_arrival_state(["makoto", "minori", "mizuki"]), model)
+    before = {cid: _kinds(model, cid) for cid in model.characters}
+    sync_membership(model, state)
+    assert "uchi" in model.characters
+    assert any(kind == "pursue" for kind, _ in _kinds(model, "uchi")), "the newcomer has an aim of their own"
+    assert all(_kinds(model, cid) == before[cid] for cid in before), "existing aims are untouched"
+    sync_membership(model, state)
+    assert len([i for i in model.agendas["uchi"] if i.kind == "pursue"]) == 1, "idempotent"
+
+
+def test_an_arrival_of_the_other_gender_gets_no_aim():
+    from backend.app.engine.world_model.turn import sync_membership
+    model = _model({"makoto": "kitchen", "minori": "kitchen"})
+    sync_membership(model, _arrival_state(["makoto", "minori", "mizuki"]))
+    assert "mizuki" in model.characters and "mizuki" not in model.agendas, "she is not a rival for a male player"
+
+
+def test_a_rival_whose_target_left_or_coupled_is_given_a_new_aim():
+    model = _model({"makoto": "kitchen", "minori": "kitchen", "mizuki": "kitchen", "yuriko": "kitchen"})
+    genders = _terrace_genders()
+    rules = social_rules(_seed_cfg(0.3))
+    (first_rival, first_target), = seed_rival_aims(model, rules, genders, "M")
+    assert first_rival == "makoto"
+    model.npc_couples[f"{first_target}|yuriko" if first_target != "yuriko" else "yuriko|minori"] = 0   # target taken
+    again = dict(seed_rival_aims(model, rules, genders, "M"))
+    assert again.get("makoto") and again["makoto"] != first_target, "re-aimed at someone still free"
+    gone = _model({"makoto": "kitchen", "minori": "kitchen", "mizuki": "kitchen"})
+    (r, t), = seed_rival_aims(gone, rules, genders, "M")
+    gone.characters.pop(t)                                                    # the target moved out
+    assert dict(seed_rival_aims(gone, rules, genders, "M")).get(r) not in (None, t)
+
+
+# --- beat safety ----------------------------------------------------------------------------------------------------
+
+def _terrace_state(model, gender="M"):
+    return SimpleNamespace(world_model=model, minute=0, location_id="kitchen", player_name="Paul", story_cfg=TERRACE,
+                           characters={c: SimpleNamespace(name=c.title(), tells=[]) for c in model.characters},
+                           cast_lifecycle=None, character_graph=None, gender=gender, turns=5, outcome=None)
+
+
+def _compete_lines(view):
+    return [line for line in view.must_address if "ONE small" in line]
+
+
+def test_the_rival_beat_claims_no_feelings_and_invents_no_thoughts():
+    text = BEAT_TEXT["compete_for"].format(name="Makoto", target="Minori")
+    for claim in ("in love", "loves", "secretly", "jealous", "hates", "wants her", "wants him"):
+        assert claim not in text.lower(), claim
+    assert "does not confess" in text and "privately feel" in text, "the prohibition is spelled out"
+
+
+def test_a_rival_makes_at_most_one_visible_move_per_day_and_the_replay_rate_is_bounded():
+    model = _model({"makoto": "kitchen", "uchi": "kitchen", "minori": "kitchen"})
+    _set(model, "minori", "player", 50)
+    _set(model, "makoto", "minori", 48)
+    _set(model, "uchi", "minori", 47)
+    state = _terrace_state(model)
+    beats = 0
+    for turn in range(25):                       # one long afternoon: the same in-game day throughout
+        view = begin_turn(state, f"Chat number {turn}.", 0)
+        beats += len(_compete_lines(view))
+    assert 1 <= beats <= 2, f"{beats} compete beats in one day for two rivals (one each at most)"
+
+
+def test_a_new_day_lets_the_rival_try_again():
+    model = _model({"makoto": "kitchen", "minori": "kitchen"})
+    _set(model, "minori", "player", 50)
+    _set(model, "makoto", "minori", 48)
+    state = _terrace_state(model)
+    assert _compete_lines(begin_turn(state, "Morning.", 0))
+    assert not _compete_lines(begin_turn(state, "Still the same day.", 0))
+    model.world.minute += 24 * 60
+    state.minute = model.world.minute
+    assert _compete_lines(begin_turn(state, "The next morning.", model.world.minute - 5))

@@ -134,7 +134,8 @@ def next_beat(model: WorldModel, present: set[str], day: int) -> Optional[tuple[
     for cid in sorted(present):
         for intention in intentions(model, cid, day):
             visible = (intention.target == PLAYER and intention.kind in ("test_loyalty", "pursue")) or (
-                intention.kind == "compete_for" and intention.target in present - {cid})   # BL-34: a visible rival
+                intention.kind == "compete_for" and intention.target in present - {cid}
+                and model.initiative_last_day.get(f"beat:{cid}") != day)   # BL-34: a visible rival, once a day
             if visible:
                 options.append((model.initiative_last_day.get(f"beat:{cid}", -1), -intention.priority, cid,
                                 intention))

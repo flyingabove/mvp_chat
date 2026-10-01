@@ -15,13 +15,13 @@ code for the gaps and real play for the evidence. Plan and checklist below were 
 4. **Hosted multi-day evidence.** The campaign driver below logs, per story day, any narration that shows a rival's move (an invitation trace such as "invited ... to spend time together", or a same-gender resident seeking the courted person out). Record what was seen; absence is reported as absence.
 
 ### Checklist (BL-34, second pass)
-- [ ] Failing-first arrival-aim tests seen failing
-- [ ] `seed_rival_aims_for_state` implemented and called from `sync_membership`
-- [ ] Live-aim rule (target present and not coupled) implemented and tested
-- [ ] 12-house pass: cut window measured with and without aims and recorded (max <= 180)
-- [ ] Beat-safety tests (no private thoughts, one per day, replay rate)
-- [ ] Hosted run logs rival evidence per story day; result recorded
-- [ ] Design doc updated; this section rewritten or deleted
+- [x] Failing-first arrival-aim tests seen failing
+- [x] `seed_rival_aims_for_state` implemented and called from `sync_membership`
+- [x] Live-aim rule (target present and not coupled) implemented and tested
+- [x] 12-house pass: cut window measured with and without aims. Without aims days 95-136; with aims days 95-173. Every house is inside the 180-day allowance, but seed 0 moved from 135 to 173 (7 days of margin), so the allowance is tight: see the open note below
+- [x] Beat-safety tests (no private thoughts, one per day, replay rate). The test found 24 compete beats in 25 turns; fixed with a once-per-day limit
+- [ ] Hosted run logs rival evidence per story day; result recorded (driver written, run not done)
+- [x] Design doc updated
 - **Touches:** `world_model/rivals.py`, `world_model/bootstrap.py`, `world_model/turn.py` (`sync_membership`), tests, `scripts/`.
 
 ## BL-33 — Terrace win path on hosted beta
@@ -34,8 +34,8 @@ code for the gaps and real play for the evidence. Plan and checklist below were 
 4. **Record the evidence honestly:** a win on both genders closes this section; a single win or a stall leaves a smaller section naming exactly what was and was not seen (including whether the real extractor recognised the confession and the ask, which is the "natural-language decision coverage" gap).
 
 ### Checklist (BL-33, second pass)
-- [ ] Driver script written (guest-only, capped, logs commit and per-day progress)
-- [ ] Offline driver tests pass (target choice, status parsing, caps, fake-server win)
+- [x] Driver script written (guest-only, capped, logs commit and per-day progress)
+- [x] Offline driver tests pass (target choice, status parsing, caps, fake-server win; they found a driver that never searched for a target)
 - [ ] Hosted run, male player: result recorded
 - [ ] Hosted run, female player: result recorded
 - [ ] Extractor recognition of the confession and the ask noted from the real runs

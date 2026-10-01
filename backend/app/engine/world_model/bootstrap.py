@@ -135,15 +135,19 @@ def _entities(section: dict[str, Any]) -> list[tuple[Entity, str]]:
     return found
 
 
-def _seed_rival_aims(state: Any, model: WorldModel, cfg: Any) -> None:
-    """BL-34: give same-gender residents an aim of their own, when the story opts in (`couples.rival_aim`)."""
+def seed_rival_aims_for_state(state: Any, model: WorldModel) -> list[tuple[str, str]]:
+    """BL-34: give same-gender residents without a live aim one of their own, when the story opts in
+    (`couples.rival_aim`). Safe to call again: at world build, and whenever the house changes."""
+    cfg = getattr(state, "story_cfg", None) or {}
+    if hasattr(cfg, "as_dict"):
+        cfg = cfg.as_dict()
     rules = social_rules(cfg) if isinstance(cfg, dict) else None
     gender = str(getattr(state, "gender", "") or "").upper()
     if rules is None or gender not in ("M", "F"):
-        return
+        return []
     genders = {str(c.get("key")): str(c.get("gender") or "").upper()
                for c in cfg.get("characters") or [] if isinstance(c, dict)}
-    seed_rival_aims(model, rules, genders, gender)
+    return seed_rival_aims(model, rules, genders, gender)
 
 
 def build_world_model(state: Any, lore: Optional[Iterable[dict]] = None) -> WorldModel:
@@ -175,5 +179,5 @@ def build_world_model(state: Any, lore: Optional[Iterable[dict]] = None) -> Worl
     player_group = getattr(getattr(state, "cast_lifecycle", None), "player_slot_group", "") or ""
     bedrooms = ((cfg.get("cast_lifecycle") or {}).get("player_bedrooms") or {}) if isinstance(cfg, dict) else {}
     model.home_of_player = str(section.get("player_home") or bedrooms.get(player_group) or "")
-    _seed_rival_aims(state, model, cfg)
+    seed_rival_aims_for_state(state, model)
     return model
