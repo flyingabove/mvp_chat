@@ -35,6 +35,13 @@ COPY backend/ /srv/backend/
 COPY frontend/ /srv/frontend/
 COPY tests/ /srv/tests/
 COPY scripts/ /srv/scripts/
+COPY pytest.ini /srv/pytest.ini
+
+# scripts/work.py's tests shell out to a real `git` binary (bare repo
+# fixtures); python:3.10-slim does not ship one.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------
 # Install dependencies
