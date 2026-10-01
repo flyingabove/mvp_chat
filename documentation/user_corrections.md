@@ -117,3 +117,11 @@ guidance for Codex; beta remains the deployment target.
 **Correction:** A word-overlap check failed to notice the player had made Riko's promised tea ("Here you go, Riko"), so she kept nagging about it. Owner: an NPC forgetting is fine; the game not registering something that happened is not. A mechanic that can't reach ~99% on that error direction should be removed in favour of plain conversation context. Semantic judgments (completion, name/nickname dedup) belong to Jev, not regex.
 
 **Rule:** For any "did X happen / is X still open" tracker, uncertainty resolves toward "done / stop reminding". Before shipping, measure the "happened but not registered" rate on a labeled eval; below 99%, delete the mechanic.
+
+## 2026-09-30 — Terrace is a dating show; first meetings are strangers on camera
+
+**Correction:** I proposed planting career wishes ("I came to launch my shop") in the opening. Owner: "this is a damn dating game." The opening should feel like a real reality show: you're alone in a room with an opposite-gender Japanese stranger, on camera, with funny, awkward energy. They don't know your name and must not act friendly as if you were already friends. The engine doesn't do this well enough and the opening doesn't capture it.
+
+**Rule:** Terrace content serves the romance and the reality-show frame first. First meetings are strangers: polite, a bit stiff, curious, awkward, no use of the player's name until they hear it, no shared history, no blushing or intimacy. Warmth has to be earned through the standing tiers. Career or dream details are background flavor, never the hook. Falling in love takes days (owner: "we can't have people falling in love 5 turns in"); what the storyteller portrays must never run ahead of the standing tier.
+
+**Added to:** `documentation/design/TERRACE_HOUSE.md` §11 (opening redesign); backlog BL-76/77/78.

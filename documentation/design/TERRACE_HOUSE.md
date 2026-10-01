@@ -260,6 +260,58 @@ authored tastes and the standing book; never a number or a reason. Tests: `test_
 running; `--base-mins`, `--mins-per-word` and `--skip-every` change pacing; output is gitignored). About 20 seconds per
 turn on a 12 GB GPU.
 
+## 11. Opening redesign: strangers on camera (proposal, 2026-09-30)
+
+**Status:** planned as [BL-76/77/78](../backlog/BL-76-77-78-terrace-slow-romance-and-opening.md). Owner choices: light Japanese markers (-san, bows, "hajimemashite"); include the "what's your type?" round; build all four parts. Principle: falling in love takes days, never a handful of turns.
+
+**Owner direction.** This is a dating show. The opening should feel like a real reality show: you are alone in a room
+with an opposite-gender Japanese stranger, on camera, and the energy is funny and awkward. Nobody knows your name.
+Nobody acts like a friend. Warmth has to be earned. (Logged in `user_corrections.md`.)
+
+**What goes wrong today (sim E5, seed 0, Arisa).** By turn 3 she uses the player's name, by turn 4 she "smiles warmly,
+holding your gaze", and by turn 5 she blushes and invents shared history ("one of the first people who really made an
+effort to get to know me"). Root cause: the romance track already puts every resident in the `strangers` tier, but the
+storyteller is never told what that tier means, so it plays the default warm companion. The harness's message pool
+("I really enjoyed talking with you earlier") also assumes a friendship, which pushes the model the same way.
+
+**A. Tier conduct (generic engine).** A social-track tier may author `conduct`: how someone in that tier behaves toward
+the player. Each turn the scene contract carries one line per present resident: their tier's conduct, plus the existing
+name and encounter notes. Stories that author no conduct get nothing new. Terrace authors:
+- `strangers`: just met on camera. Polite, a little stiff, curious. Surname plus "-san", or no name at all, until they
+  are invited to use first names; never the player's name before hearing it. Safe first-meeting questions (where are you
+  from, what do you do, how old are you, why did you join). No shared history, no "we", no touching, no blushing, no
+  stated feelings. Interest shows only in small things: a second question, a glance, sitting a little closer. Silences
+  and double-bows are funny, not tragic.
+- `friends`: first names, teasing, easy silences; still no romance unless the player starts it.
+- Higher tiers: brief notes only; the existing systems carry them.
+
+**B. Opening scene text (story JSON only).** Rewrite the four opening beats and all 17 greeter cues and lines for the
+show's real first-meeting ritual: shoes off in the entryway, a camera in the corner, both people bowing at the same
+time, a stiff "hajimemashite", introducing themselves by surname, not knowing whether to sit. The subtext is said once,
+plainly: one man and one woman alone in a house built for romance, and you both know it. Each greeter line is
+stranger-polite and awkward in that person's own way, and none is affectionate.
+
+**C. Arrivals as a ritual, not a list (story JSON plus a small engine change).**
+- Space arrivals so each pair of strangers gets two or three exchanges first (offsets about 8 / 14 / 20 / 26 minutes
+  instead of 7 / 9 / 12 / 15).
+- When someone arrives, the storyteller is told and writes the room's reaction itself: everyone stands, the bows, the
+  round of name, age and job, and the reply to what the player just said. The authored entrance cue stays as the
+  anchor line. The authored "I'm X." line becomes guidance instead of pasted text, so the intros stop sharing one
+  template.
+- The show's classic awkward question, "what's your type?", comes up once the group forms. Each resident has an
+  authored, vague answer drawn from their real tastes. This is the dating-show way to teach the core skill.
+
+**D. Measure before and after (offline Ollama sim).** Add a first-meeting message pool to the harness ("Hi, I'm Sam,
+nice to meet you", "Is it okay if I sit here?", "Have you done anything like this before?"). Over the first 8 turns,
+count: the name used before it was given, invented shared history, intimacy markers (blush, warm gaze, touching, stated
+feelings), and how many lines were scripted versus generated. Run once before the change and once after, then read
+both transcripts.
+
+**Tests.** Tier conduct appears for a present resident in a tier that has `conduct`, and is absent otherwise. The name
+rule holds before and after the player introduces themselves. Arrival beats reach the storyteller instead of being
+pasted in, and the cue still shows exactly once. Story JSON validation covers every greeter, the new offsets and every
+`type_answer`.
+
 ## Appendix A: The real show (researched 2026-09-26)
 
 ### A.1. The show in one paragraph
