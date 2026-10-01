@@ -42,6 +42,17 @@ CUE_MARKERS = (("warm", "responds warmly"), ("cool", "reacts coolly"), ("flat", 
                ("stale", "stopped landing"))
 
 
+def require_switch() -> None:
+    """Ollama is off by default (owner decision 2026-10-01): exit with one clear message unless OLLAMA_ENABLED=1.
+    Checked before any backend settings import (`ollama_switch` is stdlib-only)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from backend.app.llm.ollama_switch import OllamaDisabledError, require_ollama
+    try:
+        require_ollama("scripts/terrace_ollama_sim.py")
+    except OllamaDisabledError as error:
+        raise SystemExit(str(error)) from None
+
+
 def assert_local_only(settings) -> None:
     """Refuse to run unless the provider and every base URL are the local Ollama server (no cloud calls, no cost)."""
     urls = {"OPENAI_BASE_URL": settings.OPENAI_BASE_URL, "STORY_MASTER_BASE_URL": settings.STORY_MASTER_BASE_URL}
@@ -192,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="play the first N turns as a first meeting with the greeter (the OPENING pool)")
     args = parser.parse_args(argv)
 
+    require_switch()
     os.environ.update(ollama_env(args.model))                    # BEFORE any backend import: settings read env once
     repo = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(repo))

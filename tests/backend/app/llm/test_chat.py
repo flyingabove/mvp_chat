@@ -32,6 +32,7 @@ def test_env_switches_provider_and_model(monkeypatch):
 
 
 def test_ollama_needs_no_key_and_base_url_is_overridable(monkeypatch):
+    monkeypatch.setenv("OLLAMA_ENABLED", "1")          # off by default (tests/backend/app/llm/test_ollama_switch.py)
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://box:11434/v1/")
     cfg = chat.resolve_chat_config()

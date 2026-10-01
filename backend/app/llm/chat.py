@@ -6,7 +6,7 @@ Three interchangeable sources, all speaking the OpenAI chat/completions shape
 
     gemini  - Google Gemini, free tier (the default)
     openai  - OpenAI GPT
-    ollama  - local Ollama, no key, no cloud calls
+    ollama  - local Ollama, no key, no cloud calls (OFF unless OLLAMA_ENABLED=1)
 
 Selection is one env var, ``LLM_PROVIDER`` (default ``gemini``); ``LLM_MODEL``
 overrides the provider's default model. ``settings.py`` resolves this once at
@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import Callable, Mapping
 
 from backend.app.config.credentials import get_gemini_api_key, get_openai_api_key
+from backend.app.llm.ollama_switch import require_ollama
 from backend.app.llm.protocols import TextResult
 
 logger = logging.getLogger(__name__)
@@ -92,6 +93,8 @@ def resolve_chat_config(
     name = (provider or env.get("LLM_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
     if name not in _PROVIDERS:
         raise ValueError(f"Unknown LLM provider {name!r}; choose one of {provider_names()}")
+    if name == "ollama":
+        require_ollama("LLM_PROVIDER=ollama", env)        # off by default (owner decision 2026-10-01)
 
     spec = _PROVIDERS[name]
     api_key = spec.key()

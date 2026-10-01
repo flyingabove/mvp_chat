@@ -42,8 +42,18 @@ def git(*args: str, cwd: Path) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
 
 
+def require_switch(what: str) -> None:
+    """Ollama is off by default (owner decision 2026-10-01); the arena only uses it with OLLAMA_ENABLED=1."""
+    from backend.app.llm.ollama_switch import OllamaDisabledError, require_ollama
+    try:
+        require_ollama(what)
+    except OllamaDisabledError as error:
+        raise SystemExit(str(error)) from None
+
+
 def ollama_env(model: str, base_url: str = OLLAMA_V1) -> dict[str, str]:
     return {
+        "OLLAMA_ENABLED": "1",           # the child server runs settings.py; the switch is already on or we would not be here
         "OPENAI_BASE_URL": base_url, "OPENAI_MODEL": model, "OPENAI_API_KEY": "ollama",
         "STORY_MASTER_BASE_URL": base_url, "STORY_MASTER_MODEL": model, "STORY_MASTER_API_KEY": "ollama",
         "TYPESAFE_ENABLED": "false", "TYPESAFE_API_KEY": "", "JEV_ENABLED_TASKS": "", "JEV_SHADOW_TASKS": "",

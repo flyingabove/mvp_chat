@@ -37,7 +37,7 @@ from pathlib import Path
 
 
 from arena.contracts import BETA, PROD
-from arena.local_release import OLLAMA_V1, LocalRelease, ensure_context_model, ollama_models
+from arena.local_release import OLLAMA_V1, LocalRelease, ensure_context_model, ollama_models, require_switch
 from arena.players import PERSONAS
 from arena.report import precheck_verdict
 from arena.service import (
@@ -76,11 +76,13 @@ def hosted_config(args, ollama_model: str | None = None) -> ArenaConfig:
 async def run_hosted(args, stages) -> dict | None:
     ollama_model = None
     if "ollama" in args.judges:
+        require_switch("the Ollama judge")
         ollama_model = await ensure_context_model(args.ollama_model, args.ollama_url)
     return await run_experiment(hosted_config(args, ollama_model), say, stages=stages, force_judge=args.force)
 
 
 async def run_local(args) -> dict | None:
+    require_switch("the offline arena")
     models = await ollama_models(args.ollama_url)
     if args.ollama_model not in models:
         raise SystemExit(f"Ollama model {args.ollama_model!r} not available at {args.ollama_url} "

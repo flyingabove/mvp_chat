@@ -4,7 +4,7 @@ Owner vision, 2026-10-01. Run a whole game with no human player: character objec
 locations, pursue their goals and meet each other. The LLM writes every scene, and the result is judged as drama
 (BL-87). Terrace House is the first season. The runner is generic and works for any story.
 
-## BL-86 — Headless season runner, admin watch mode, provider switch
+## BL-86 — Headless season runner and admin watch mode
 - **Open:**
   - Nothing can run a story without a player. `scripts/terrace_ollama_sim.py` drives a scripted player against
     local Ollama only.
@@ -15,7 +15,7 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
   - **Purpose.** Two uses: an integration test, and a watch mode for admins. It is never a player-facing house or
     event log; a developer or admin season report is allowed.
   - **Providers.** Gemini + Jev is the default and OpenAI + Jev the alternative, through the existing
-    `LLM_PROVIDER`. A switch turns the Ollama path off, and it is off for now.
+    `LLM_PROVIDER`. The Ollama path is off by default behind `OLLAMA_ENABLED` (built: `backend/app/llm/ollama_switch.py`, `design/PLATFORM.md`).
   - **Every scene is written.** Each encounter of two or more characters in a location becomes one LLM-written
     scene, prompted from the people's parts and the scene dynamics. Extraction (Jev-assisted) writes the
     consequences back to state. Interruptions (someone walks in) are written realistically.
@@ -61,7 +61,6 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
      absence is reported as absence. It is never run on deploy. Separately, the unit gate runs a scripted fake writer, so the runner's plumbing is
      tested offline.
 - **Next:**
-  - The provider switch (`SIM_OLLAMA_ENABLED=false`, with the arena's local Ollama path respecting it), with a test.
   - `SeasonRunner` on the fake writer (unit tests), then on Gemini + Jev for a 2-day pilot season, then the camera,
     the artifacts and the watch mode.
   - Depends on BL-85 P1–P4 for rich prompts. A first version can run on today's prompt builder.

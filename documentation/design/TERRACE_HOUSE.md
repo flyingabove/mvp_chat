@@ -255,7 +255,7 @@ because the same tag already landed today). At most one cue per person and two p
 authored tastes and the standing book; never a number or a reason. Tests: `test_reaction_cues.py`.
 
 **How to re-run.** `python scripts/terrace_ollama_sim.py --gender M --turns 24 --out sim_runs/x.jsonl` (needs Ollama
-running; `--base-mins`, `--mins-per-word` and `--skip-every` change pacing; output is gitignored). About 20 seconds per
+running and `OLLAMA_ENABLED=1`; `--base-mins`, `--mins-per-word` and `--skip-every` change pacing; output is gitignored). About 20 seconds per
 turn on a 12 GB GPU.
 
 ## 11. Opening redesign: strangers on camera (proposal, 2026-09-30)

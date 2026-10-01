@@ -34,6 +34,7 @@ from backend.app.engine.briefing import brief_lines
 from backend.app.engine.story_loader import load_story
 from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
+from backend.app.llm.ollama_switch import ollama_enabled, require_ollama
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -153,6 +154,7 @@ Output exactly one of those two tokens. Nothing else."""
 # Ollama helpers (local mode)
 # ---------------------------------------------------------------------------
 async def ollama_generate(model: str, system: str, user: str) -> str:
+    require_ollama("the debug evaluator's local mode")
     async with httpx.AsyncClient(base_url="http://127.0.0.1:11434", timeout=120.0) as c:
         r = await c.post("/api/chat", json={
             "model": model,
@@ -167,6 +169,8 @@ async def ollama_generate(model: str, system: str, user: str) -> str:
 
 
 async def check_ollama() -> dict:
+    if not ollama_enabled():           # off by default: do not even try to connect
+        return {"available": False, "models": [], "disabled": True}
     try:
         async with httpx.AsyncClient(base_url="http://127.0.0.1:11434", timeout=5.0) as c:
             r = await c.get("/api/tags")

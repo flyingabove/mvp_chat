@@ -58,8 +58,11 @@ Steps 1-2 below cannot run. A promotion then needs the user's explicit decision 
 ## Step 1 - Free offline precheck (Ollama, no cloud calls, ~15 min)
 
 ```bash
-$ARENA precheck --experiment-id promote_${SHA:0:7}_precheck --baseline-ref origin/prod
+OLLAMA_ENABLED=1 $ARENA precheck --experiment-id promote_${SHA:0:7}_precheck --baseline-ref origin/prod
 ```
+
+Ollama is **off by default** (owner decision 2026-10-01, `backend/app/llm/ollama_switch.py`): the offline arena refuses to
+start without `OLLAMA_ENABLED=1`, so set it for this step (and for any `ollama` judge in step 2). Nothing else needs it.
 
 - Serves the checkout and the baseline ref as two local uvicorn servers
   (ports 8811/8812), everything on Ollama (`llama3.1-8b-ctx16k`, created

@@ -70,7 +70,8 @@ service variable and is never baked into the image.
 | `LLM_PROVIDER` | Which LLM the whole game uses: `gemini` \| `openai` \| `ollama` (`backend/app/llm/chat.py`, single `get_chat()` / `resolve_chat_config()`; default switched from GPT to Gemini free tier 2026-09-30) | (unset = `gemini`) |
 | `LLM_MODEL` | Override the provider's default model | (unset = `gemini-3.8-flash` / `gpt-4o-mini` / `llama3.1:8b`) |
 | `GEMINI_API_KEY` | Google AI Studio key (Gemini via its OpenAI-compatible endpoint). If missing while provider=gemini, falls back to openai with a warning | `AQ...` |
-| `OLLAMA_BASE_URL` | Ollama endpoint when `LLM_PROVIDER=ollama` | (unset = `http://127.0.0.1:11434/v1`) |
+| `OLLAMA_ENABLED` | Master switch for every Ollama path (`LLM_PROVIDER=ollama`, the debug evaluator's local mode, `scripts/terrace_ollama_sim.py`, the offline arena and the arena's Ollama judge). **Off by default** (owner decision 2026-10-01: simulations use Gemini + Jev or OpenAI + Jev); while off they refuse with one message. `backend/app/llm/ollama_switch.py` | (unset = off) |
+| `OLLAMA_BASE_URL` | Ollama endpoint when `LLM_PROVIDER=ollama` (needs `OLLAMA_ENABLED=1`) | (unset = `http://127.0.0.1:11434/v1`) |
 | `OPENAI_API_KEY` | OpenAI key (used when provider=openai or as the Gemini fallback). Legacy: `settings.OPENAI_API_KEY/BASE_URL/MODEL` now hold the ACTIVE provider's values | `sk-...` |
 | `OPENAI_MODEL` | Explicit override of the extractor/translation model (wins over the provider default) | (unset = provider default) |
 | `OPENAI_BASE_URL` | Base URL for extractor/translation calls; arena offline mode points it at Ollama | (unset = `https://api.openai.com/v1`) |
@@ -280,7 +281,7 @@ even UI components should live in the backend when feasible.
 ### Local Development
 
 The thin launcher (`scripts/scorer/story_agent_ui.py`) starts the full backend on port
-8899 with Ollama as the story master:
+8899 with Ollama as the story master (it refuses unless `OLLAMA_ENABLED=1`; the hosted `/beta/debug` page needs no Ollama):
 ```
 python scripts/scorer/story_agent_ui.py
 # → http://localhost:8899/beta/debug

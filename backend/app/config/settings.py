@@ -21,14 +21,17 @@ from backend.app.config.credentials import (
 # (http://127.0.0.1:11434/v1, e.g. llama3.1:8b) so a locally started game
 # makes no cloud calls.
 #
-# The provider is chosen by LLM_PROVIDER (gemini [default] | openai | ollama),
+# The provider is chosen by LLM_PROVIDER (gemini [default] | openai | ollama; ollama needs OLLAMA_ENABLED=1),
 # resolved in backend/app/llm/chat.py. The OPENAI_* names below are legacy:
 # they now hold whichever provider is active (Gemini by default). Explicit
 # OPENAI_BASE_URL / OPENAI_MODEL / STORY_MASTER_* env vars still win, which is
 # how the arena's offline local mode points at Ollama.
 import os as _os
 from backend.app.llm.chat import resolve_chat_config as _resolve_chat_config
+from backend.app.llm.ollama_switch import ollama_enabled as _ollama_enabled
 _CHAT = _resolve_chat_config()
+# Ollama is off unless OLLAMA_ENABLED=1 (owner decision 2026-10-01); simulations use Gemini + Jev or OpenAI + Jev.
+OLLAMA_ENABLED: bool = _ollama_enabled()
 LLM_PROVIDER: str = _CHAT.provider
 OPENAI_API_KEY: str = _CHAT.api_key
 OPENAI_BASE_URL: str = (_os.getenv("OPENAI_BASE_URL") or _CHAT.base_url).rstrip("/")
