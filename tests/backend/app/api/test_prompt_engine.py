@@ -1559,35 +1559,43 @@ def test_extraction_outbox_row_enqueued_for_guest_session(client, monkeypatch):
 
     guest_headers = {"X-Guest-Id": "44444444-5555-6666-7777-888888888888"}
     sid = "outbox_enqueue_check"
-    r0 = client.post(
-        "/api/chat",
-        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
-        headers=guest_headers,
-    )
-    assert r0.status_code == 200
+    # Keep the ASGI event loop alive while the fire-and-forget extraction
+    # task runs to completion (see the sibling "marked_done" test below): a
+    # context-free TestClient closes its per-request portal right after the
+    # response, which raced the background task under slower CI/container
+    # I/O and left the row observed mid-flight as "pending" instead of the
+    # "failed" state this test actually asserts on.
+    monkeypatch.setenv("DISABLE_INDEX_WARMUP", "1")
+    with client:
+        r0 = client.post(
+            "/api/chat",
+            json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+            headers=guest_headers,
+        )
+        assert r0.status_code == 200
 
-    r1 = client.post(
-        "/api/chat",
-        json={"session_id": sid, "message": "hello there"},
-        headers=guest_headers,
-    )
-    assert r1.status_code == 200
+        r1 = client.post(
+            "/api/chat",
+            json={"session_id": sid, "message": "hello there"},
+            headers=guest_headers,
+        )
+        assert r1.status_code == 200
 
-    async def _check_outbox():
-        for _ in range(20):
-            await asyncio.sleep(0.05)
-            conn = get_connection()
-            try:
-                rows = conn.execute(
-                    "SELECT * FROM fact_extraction_outbox WHERE session_id = ?", (sid,)
-                ).fetchall()
-            finally:
-                conn.close()
-            if rows:
-                return dict(rows[0])
-        return None
+        async def _check_outbox():
+            for _ in range(60):
+                await asyncio.sleep(0.05)
+                conn = get_connection()
+                try:
+                    rows = conn.execute(
+                        "SELECT * FROM fact_extraction_outbox WHERE session_id = ?", (sid,)
+                    ).fetchall()
+                finally:
+                    conn.close()
+                if rows and rows[0]["status"] != "pending":
+                    return dict(rows[0])
+            return dict(rows[0]) if rows else None
 
-    row = asyncio.run(_check_outbox())
+        row = asyncio.run(_check_outbox())
     assert row is not None, "no fact_extraction_outbox row was enqueued for this guest turn"
     assert row["user_msg"] == "hello there"
     assert row["status"] == "failed"
