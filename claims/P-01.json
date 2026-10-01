@@ -1,7 +1,0 @@
-{
-  "agent": "smoke-test",
-  "claimed_at": "2026-10-01T20:17:11.189603+00:00",
-  "id": "P-01",
-  "lease_until": "2026-10-01T20:23:11.189603+00:00",
-  "note": "smoke test, releasing immediately"
-}
