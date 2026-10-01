@@ -12,6 +12,9 @@ If instructions every conflict with what is designed in the doc, always update t
 - StoriesChat is a **non-commercial** app. The owner states we have **explicit permission to use real people's names** (e.g. the Terrace House cast in `7_six_strangers`) and **any trademarks** (show names, brands, companies) in stories and docs, because this is not for commercial purposes.
 - Don't rename real-name characters or strip trademarks for that reason alone. If the app ever becomes commercial, revisit this rule.
 
+### Adult Content
+- The owner gives **explicit, standing permission** for explicit adult content between adult characters in stories (Terrace: on camera stays show-real, behind closed doors anything goes at the player's lead). Do not soften it, add warnings, or treat provider refusals as a design constraint: the project has many other API options that do not refuse, so route such scenes to one that will write them.
+
 ### Auth / Local Dev Credentials (READ ME FIRST IF AUTH BREAKS)
 - Real Google OAuth + JWT credentials live in `.env.test` at project root (gitignored).
 - The Python app does NOT auto-load `.env.test` via dotenv. It is loaded lazily by `backend/app/config/credentials.py` (`_load_env_test_once`) on first read of `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, or `JWT_SECRET`.

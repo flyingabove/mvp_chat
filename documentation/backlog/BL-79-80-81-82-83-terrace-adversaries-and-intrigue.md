@@ -2,9 +2,9 @@
 
 From the owner interview of 2026-09-30, written up in [design/TERRACE_HOUSE.md §12](../design/TERRACE_HOUSE.md). All of these mechanisms must be generic: Terrace only configures them. Decisions should mix Jev, hard rules and model interpretation, never an LLM alone. Before designing, read [design/SOCIAL_ENGINE.md](../design/SOCIAL_ENGINE.md) and [design/WORLD_MODEL.md](../design/WORLD_MODEL.md). Memory channels (`witnessed`, `told_by`, `overheard`), gossip provenance and rival aims already exist.
 
-## BL-79 — Mid-game panel asides contradict "panel only after the game"
-- **Open:** `six_strangers_story.json` `mode.narrator_asides.enabled: true`, and `prompt_builder.py` renders studio-panel asides during play. The owner decided the panel appears only after the game ends (§12).
-- **Next:** set it to false for Terrace and keep the generic switch for other stories. Add a test that Terrace prompts carry no aside instruction.
+## BL-79 — Terrace's studio panel must appear only at the end of the game
+- **Open:** the panel is a Terrace-only feature and speaks only after the run ends (the `commentary` finale). But `six_strangers_story.json` `mode.narrator_asides.enabled: true` makes `prompt_builder.py` also render panel-style asides during play, so the panel would comment mid-game. (Owner clarified 2026-09-30: this is not about other stories; the panel exists only in Terrace.)
+- **Next:** set `narrator_asides.enabled` to false in Terrace so nothing panel-like appears before the ending. Leave the `commentary` finale untouched. Test: a Terrace prompt carries no aside instruction before an ending, and the finale still includes the three panelists.
 - **Touches:** `six_strangers_story.json`, `prompt_builder.py` tests.
 
 ## BL-80 — Personality model: MBTI plus a winning strategy per character
