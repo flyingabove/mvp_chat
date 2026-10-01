@@ -1437,7 +1437,7 @@ backlog item specifically.
 
 ---
 
-### 7. Verification protocol (unchanged from CLAUDE.md §9, restated as this phase's own checklist)
+### 7. Verification protocol (unchanged from AGENTS.md section 3, restated as this phase's own checklist)
 
 Per each extraction step in §4.2 and each of §5/§6's additions:
 
@@ -1454,7 +1454,7 @@ Per each extraction step in §4.2 and each of §5/§6's additions:
    only exists in the deployed/browser context, not in local dev or pytest.
 
 **Exit criteria (unchanged from the plan):** desktop Chromium and iPhone-sized
-WebKit checks per CLAUDE.md §9, local then live beta; no duplicate send;
+WebKit checks per AGENTS.md section 3, local then live beta; no duplicate send;
 guest/auth resume, history, roster, map, journal, and offline upgrade all
 work; stale-cache upgrade and rollback tested on both hosts (the asset-
 manifest version bump from §5.2 is the concrete mechanism this last item
@@ -1741,7 +1741,7 @@ today's full rebuild time on every start.
 #### Current state, verified
 `tests/frontend/*.test.cjs` (Node, no browser) and
 `tests/frontend/test_*.py` (Python-driven, presumably Playwright-based per
-CLAUDE.md §9's browser-automation references) both exist as **files** but
+AGENTS.md section 3's browser-automation references) both exist as **files** but
 `.github/workflows/tests.yml` runs only `pytest tests/ -v
 --ignore=tests/backend/integration/` — which **does** collect and run the
 Python frontend tests (they're under `tests/`, not excluded), but does **not**
@@ -1779,7 +1779,7 @@ no `browser`, no network. These already run correctly under CI's existing
 none. **No CI change needed for this half of row 5** — resolved by reading the
 test file rather than guessing from its name.
 
-The real Playwright-driven browser checks CLAUDE.md §9 requires (desktop
+The real Playwright-driven browser checks AGENTS.md section 3 requires (desktop
 Chromium + iPhone-sized WebKit against a running dev server or live beta) are
 a **manual/agent-invoked verification step** in this project's workflow
 (`ship-and-verify`'s skill doc, the Playwright MCP plugin), not a `pytest`-
@@ -1844,7 +1844,7 @@ Row 6 (doc updates)          ── ongoing, alongside whichever phase ships the
   §5) and the index fingerprint (row 4b) are the two concrete mechanisms that
   make "identity" a checkable fact rather than an assumption.
 - Production release remains separately requested — unchanged; nothing in
-  this phase touches the beta→prod approval gate in CLAUDE.md §8.
+  this phase touches the beta→prod approval gate in AGENTS.md section 4.
 
 ---
 

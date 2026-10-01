@@ -6,7 +6,7 @@ user-invocable: true
 
 # /promote-to-prod - evaluate beta against prod, then release
 
-Production is sacred (CLAUDE.md §8). This skill is the only way beta reaches
+Production is sacred (`AGENTS.md` section 4). This skill is the only way beta reaches
 `prod`: the user must have **explicitly** asked for a promotion in this
 conversation. Design: `documentation/design/JEV_GAME_ARENA.md` §13-14.
 
@@ -138,7 +138,7 @@ fails or smoke fails: tell the user immediately with the output; never
 ## Step 5 - Record and report
 
 - Put the candidate sha, merge sha, precheck + gate experiment ids and verdicts in the promotion commit message
-  and the report (not in `documentation/TASKS_INTERMEDIATE.md`, which holds only open items).
+  and the report (not in a plan or task file; the plan holds only open work).
 - Anything knowingly deferred -> an entry in `documentation/backlog/` (`/add-and-remove-from-backlog`).
 - Commit + push the docs to beta (normal flow).
 - Tell the user: what shipped, the gate table, prod verification output,

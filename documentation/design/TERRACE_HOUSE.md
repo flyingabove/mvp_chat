@@ -214,7 +214,7 @@ Use consolidated BL-39 section 10's A–J roadmap and independent correctness re
 
 ## 9. Cautions and open items
 
-- **Real names:** the 17 housemates use the real season's cast names. The owner states we have **explicit permission to use real names**, because StoriesChat is a **non-commercial app** (see `.claude/CLAUDE.md`, "Real Names and Trademarks").
+- **Real names:** the 17 housemates use the real season's cast names. The owner states we have **explicit permission to use real names**, because StoriesChat is a **non-commercial app** (see `.claude/AGENTS.md`, "Real Names and Trademarks").
 - **Cost and latency:** at most two LLM attempts per gameplay turn, extraction assisted by Jev plus response. Exit/departure/panel prose shares that response call; no finale exemption. Current speed is accepted; measure ordinary and finale latency separately.
 - **Arena:** the arena rubric will need Terrace ending checks later. LLM arena runs stay disabled unless the owner asks.
 

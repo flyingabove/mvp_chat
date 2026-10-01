@@ -1,50 +1,32 @@
-AI learnings: intermediate task workflow
-=======================================
+AI learnings: task workflow
+===========================
 
-> **What this doc is for:** Canonical workflow for intermediate task tracking during AI-assisted coding sessions. Edit this doc when task logging location, consumption behavior, or cleanup policy changes.
+> **What this doc is for:** why the work board exists and the failure modes it prevents. The procedure itself is in
+> [../plan/README.md](../plan/README.md) and `/AGENTS.md` section 1. Edit this doc when the way tasks are tracked or
+> consumed changes.
 
-Canonical location
+What replaced what
 ------------------
 
-- All intermediate tasks must live in exactly one file:
-  - `documentation/TASKS_INTERMEDIATE.md`
-- Do not create or use root-level `tasks/` files for active task tracking.
+- `documentation/TASKS_INTERMEDIATE.md` (one shared narrative file) and the root `tasks/` folder are **retired** (2026-10-01).
+  They had no owner field and no dependencies, collected unchecked boxes for work that had long shipped, and conflicted on
+  every edit when several agents worked at once.
+- Active work is the **plan**: one file per task in `documentation/plan/`, claimed through `scripts/work.py`.
+- Deferred or discovered work is the **backlog** in `documentation/backlog/` (`/add-and-remove-from-backlog`).
+- Lessons from owner corrections go in `documentation/user_corrections.md`. There is no separate lessons file.
 
-Consumption rule (required)
----------------------------
+Rules that keep it working
+--------------------------
 
-Before implementation starts on any non-trivial request:
-
-1. Read `documentation/TASKS_INTERMEDIATE.md`.
-2. Confirm the active checklist is up to date for the current request.
-3. Mark tasks in progress/completed as work proceeds.
-4. At the end, write a short outcome note in the same file.
-
-Consolidation rule
-------------------
-
-- Keep one active checklist per request in `TASKS_INTERMEDIATE.md`.
-- If multiple temporary lists exist, consolidate them into that same file and remove duplicates.
-- Prefer concise checkboxes and short evidence notes (tests run, deploy IDs, etc.).
-
-Cleanup policy
---------------
-
-When to clean up:
-
-1. Immediately after task completion.
-2. Before pushing a final commit set for that request.
-3. At the start of a new request if previous active items are already complete.
-
-How to clean up:
-
-1. Delete completed checklists and checked items from `TASKS_INTERMEDIATE.md`. There is no history section: git
-   history, the commit message and `documentation/backlog/` are the record.
-2. Keep only open/in-progress items, each under its dated request heading.
-3. Anything deferred instead of finished becomes a section in a small topic file in `documentation/backlog/`, not a lingering checkbox.
+1. Claim before you work, release if you stop, renew while you work. A claim is a lease that expires (4 hours by default).
+2. A task's `touches:` list is a file lock. Do not edit files another agent's live claim covers.
+3. Finished work is **deleted**, not ticked: the fixing commit removes the task file (and the backlog section it closes) and says
+   `Closes P-<n>`. Git history is the only record; no "done" log, no history section.
+4. Anything knowingly deferred becomes a backlog item or a new plan task in the same commit. Nothing lingers as a checkbox.
+5. The plan is read from `origin/beta`, so a stale checkout still sees the live plan, but pull before editing code.
 
 Non-goals
 ---------
 
-- This workflow is for intermediate execution tracking, not product design docs.
-- Long-term architecture decisions should still be recorded in the relevant `documentation/design/` (as-built) or `documentation/design/` (designed, not built) files.
+- This workflow tracks execution. Product design lives in `documentation/design/`; the vision in
+  `documentation/human_north_star_docs/`.

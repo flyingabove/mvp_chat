@@ -21,14 +21,14 @@ duplicating), and find the right doc to update for whatever you change.
 
 ## Phase 1 — Implement offline, prove it with unit tests
 
-1. Work on `beta` only. Confirm the checkout is clean, then run
-   `git pull --no-rebase origin beta` before making changes. This shared checkout can receive another
-   agent's commits; read their intent before merging and never force-push.
+1. Work on `beta` only, in your own checkout (`AGENTS.md` section 2). Confirm the checkout is clean, then run
+   `git pull --rebase origin beta` before making changes. Other agents push to `beta` in parallel; read their
+   commit messages for intent, preserve both agents' work, and never force-push.
 2. Activate the `storieschat` conda env for anything Python.
 3. For a bug fix: write a test that reproduces the bug FIRST, confirm it
    fails, then fix, then confirm it passes. For a new feature: write tests
    that verify the new behavior. No exceptions — this is a hard project rule,
-   not a suggestion (`.claude/CLAUDE.md` §7).
+   not a suggestion (`AGENTS.md` section 3).
 4. Frontend tests exist: use Node's built-in test runner for
    `tests/frontend/*.test.cjs` and structural pytest checks under
    `tests/frontend/`. For PowerShell, run

@@ -91,7 +91,7 @@ guidance for Codex; beta remains the deployment target.
 
 **What happened:** Intermediate task tracking was spread across ad-hoc files/folders (`tasks/`), creating inconsistency and stale leftovers.
 
-**Rule:** Intermediate execution tasks must be tracked in one canonical file: `documentation/TASKS_INTERMEDIATE.md`. Agents must consume this file before non-trivial work, update it during execution, and clean up completed entries at task end.
+**Rule (superseded 2026-10-01):** this single-file rule was replaced by the shared plan in `documentation/plan/` (one file per task, claimed through `scripts/work.py`; see `AGENTS.md` section 1). `TASKS_INTERMEDIATE.md` and the root `tasks/` folder are retired. The lesson that survives: one canonical place, no ad-hoc task files, delete finished entries.
 
 **Added to:** `documentation/ai_learnings_mistakes/AI_TASK_WORKFLOW.md`, `documentation/AI_DOC_INDEX_CATALOGUE.md`, `.gitignore`.
 

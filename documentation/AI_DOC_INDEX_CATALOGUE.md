@@ -4,7 +4,7 @@
 
 ## Layout
 
-- **Top level:** this index, [backlog/](backlog/) (the backlog: one small file per bug or per few related bugs, each holding `## BL-<n>` sections of open work only; delete a section when it is fixed and the file when it empties; list the folder, open only the file you need; see `/add-and-remove-from-backlog`), [TASKS_INTERMEDIATE.md](TASKS_INTERMEDIATE.md) (the shared active task log; finished items are deleted), [user_corrections.md](user_corrections.md).
+- **Top level:** this index, [plan/](plan/) (the shared work board: one file per task, claimed through `scripts/work.py`; start at [plan/README.md](plan/README.md); finished tasks are deleted), [backlog/](backlog/) (the backlog: one small file per bug or per few related bugs, each holding `## BL-<n>` sections of open work only; delete a section when it is fixed and the file when it empties; list the folder, open only the file you need; see `/add-and-remove-from-backlog`), [user_corrections.md](user_corrections.md). Agent instructions are in `/AGENTS.md` (the only instruction file).
 - **`design/`** — the engineering design docs (as-built plus designed-not-built), one file per subsystem. Each merged file keeps one section per original document with its own status notes. If a section disagrees with the running code, fix the doc (or file a backlog entry if the code is what's wrong). When a piece ships, update its section and delete finished narrative rather than adding "done" logs.
 - **`ai_learnings_mistakes/`** — process rules and postmortems, not gameplay or architecture design.
 - **`human_north_star_docs/`** — vision only, human-owned. Read `NorthStar.md` before design questions; edit only when asked.
@@ -23,7 +23,7 @@
 | [ai_learnings_mistakes/AI_LEARNINGS_INTEGRATION_REQUIREMENTS.md](ai_learnings_mistakes/AI_LEARNINGS_INTEGRATION_REQUIREMENTS.md) | ...integration test policies or mock boundaries change. |
 | [ai_learnings_mistakes/AI_LEARNINGS_WRITING_INTEG_TESTS.md](ai_learnings_mistakes/AI_LEARNINGS_WRITING_INTEG_TESTS.md) | ...the integration test framework or patterns change. Start here for writing new integ tests. |
 | [ai_learnings_mistakes/AI_PWA_IPHONE_WEBAPP_LEARNINGS.md](ai_learnings_mistakes/AI_PWA_IPHONE_WEBAPP_LEARNINGS.md) | ...an iPhone Home Screen install, PWA cache, standalone viewport, keyboard, map, mobile chat or update-reload mismatch needs diagnosis or verification. |
-| [ai_learnings_mistakes/AI_TASK_WORKFLOW.md](ai_learnings_mistakes/AI_TASK_WORKFLOW.md) | ...task tracking location, consumption requirements or cleanup policy changes. |
+| [ai_learnings_mistakes/AI_TASK_WORKFLOW.md](ai_learnings_mistakes/AI_TASK_WORKFLOW.md) | ...the reasons or rules behind the work board change (what replaced `TASKS_INTERMEDIATE.md`, lease and lock rules). |
 | [ai_learnings_mistakes/AI_LOGICAL_BUGS.md](ai_learnings_mistakes/AI_LOGICAL_BUGS.md) | ...a new logic bug is discovered and resolved during an audit. |
 | [ai_learnings_mistakes/AI_GAME_STRUCTURE.md](ai_learnings_mistakes/AI_GAME_STRUCTURE.md) | ...the story data model changes or a new file type is added to story directories. |
 | [ai_learnings_mistakes/AI_SCORER_SYSTEM.md](ai_learnings_mistakes/AI_SCORER_SYSTEM.md) | ...the debug system, scoring, player-agent loop or grader changes. |
@@ -31,7 +31,7 @@
 | [ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md](ai_learnings_mistakes/AI_CREATE_NEW_FLAG.md) | ...adding a bracket command or game-mode flag to the chat system. Built around the removed `COMMAND_PATTERNS`; rewrite before next use. |
 | [user_corrections.md](user_corrections.md) | ...the user corrects a mistake that should be remembered across sessions. |
 | [backlog/](backlog/) | ...work is knowingly deferred or an item is fixed (add a `## BL-<n>` section to the topic file, or delete it; delete the file if it empties). One file per bug or per few related bugs, kept small. |
-| [TASKS_INTERMEDIATE.md](TASKS_INTERMEDIATE.md) | ...an active multi-step task starts, progresses or finishes. |
+| [plan/README.md](plan/README.md) | ...the work-board protocol changes (claims, leases, file locks, finishing a task). The sequence is in [plan/ORDER.md](plan/ORDER.md); each task is a `plan/P-<n>-*.md` file you add, claim and delete through `scripts/work.py`. |
 
 ## Design docs — `design/`
 

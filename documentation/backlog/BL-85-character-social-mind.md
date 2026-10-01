@@ -39,7 +39,7 @@ Each is a **view or a small store owned per character**. None is a second copy o
 
 ```python
 class Person:
-    personality: Personality   # rules/personality.py: type (MBTI), dials, strategy, tastes; + describe() for the LLM
+    personality: Personality   # rules/personality.py: type (MBTI), dials, strategy, tastes; MBTI gloss already reaches the LLM (rules/mbti.py)
     goals: Goals               # weighted goals, each with shift conditions
     stances: Stances           # typed, directed attitudes toward others, each with cause and strength
     mind: Mind                 # what I know, what I think others know, what I think others feel
@@ -52,7 +52,7 @@ class Person:
 
 | Part | Holds | Built from (reuse) | New storage |
 |---|---|---|---|
-| Personality | MBTI type, dials, strategy, tastes | `rules/personality.py` | none; add `describe()` with an engine type catalogue that stories can override |
+| Personality | MBTI type, dials, strategy, tastes | `rules/personality.py`, `rules/mbti.py` | none. **Built (`b81bab0`, 2026-10-01):** `Character.mbti`, a 16-type behaviour gloss injected into the identity block, Jev's target view and the finale panel |
 | Goals | `Goal(id, kind, target?, weight, shifts)`; kinds are a closed, extensible list: love, career, status, belonging, keep_secret, revenge, protect | the `goal` trait and story `personalities[key].goals` | goal weights on the person, with history kept in `EvolvingTrait` |
 | Stances | `Stance(kind, target, about?, strength, cause_ids, since_day)`; kinds: crush, rival, ally, resents, suspects, protective_of, owes, distrusts, ex, admires | **derived** from heart feelings, standing tiers, own agenda, witnessed events and goals, by stance rules | `StanceBook` in `WorldModel`, recomputed each turn, persisted for cause history; replaces `disposition` |
 | Mind | first order: beliefs and memories (existing); **second order**: `ThinksKnows(owner, other, proposition, basis)`, `ThinksFeels(owner, other, feeling, basis)` | memories, `EpistemicLedger`, persona beliefs, affinity signals, co-presence at events | second-order entries in the epistemic ledger |
@@ -128,8 +128,7 @@ class Person:
   - Stable ordering makes the choice deterministic.
   - Unanswered direct questions still come first (as `next_beat` does today).
 - **Rendering**, one prompt section that replaces the scattered directives:
-  - Each present person's card gets one MBTI line from `Personality.describe()` (for example, "INTJ: few words,
-    plans ahead, dislikes small talk"), their active goal, and their stances toward people **in this room**.
+  - Each present person's card keeps its MBTI line (built, `rules/mbti.py`), and gains their active goal, and their stances toward people **in this room**.
   - Their `inner_state` adds what they are hiding and what they think others know, phrased as subtext. They never
     state it outright, and hidden feelings are never asserted as fact. This is the `stake_notes` framing, made
     general.
@@ -204,10 +203,9 @@ class Person:
 ### Phases (failing-first tests in each; ship-and-verify)
 - **P0 Golden harness.** Record per-day intentions, beats, invitations, offscreen outcomes and fallout for seeded
   campaigns 0-11, both player genders. P2 is diffed against it.
-- **P1 Personality and goals on `Person`.**
-  - `Personality.describe()` with an engine MBTI catalogue (16 short behaviour lines, overridable per story) goes
-    into each present card. This changes what players see, so it goes through the arena gate.
-  - `Goals` with weights and shift conditions, read from story JSON and the existing goal trait.
+- **P1 Goals on `Person`.** (The MBTI line already reaches the storyteller, Jev and the panel: `b81bab0`.)
+  - `Goals` with weights and shift conditions, read from story JSON and the existing goal trait, and the active
+    goal on each present card. This changes what players see, so it goes through the arena gate.
 - **P2 Stances.**
   - `Stance`, `StanceBook`, the stance rules and default pack, and the new condition kinds.
   - Intentions are derived from stances. The rival seeding, fallout and gender blocks move into rules.
