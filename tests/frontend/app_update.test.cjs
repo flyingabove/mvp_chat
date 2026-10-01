@@ -5,41 +5,32 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const html = fs.readFileSync(path.join(__dirname, "../../frontend/index.html"), "utf8");
-const start = html.indexOf("var UPDATE_RETRY_MS");
-const end = html.indexOf("function showUpdateBanner");
+const start = html.indexOf("var SHELL_REVISION");
+const end = html.indexOf("function showUpdateNotice");
 const appUpdateAction = new Function(html.slice(start, end) + "\nreturn appUpdateAction;")();
-const PAGE = "https://storieschat.ai/beta/";
-const NOW = 1790712000000;
-
 test("same revision does nothing", () => {
-  assert.equal(appUpdateAction("abc", "abc", PAGE, NOW, ""), "none");
-  assert.equal(appUpdateAction(undefined, "abc", PAGE, NOW, ""), "none");
+  assert.equal(appUpdateAction("abc", "abc"), "none");
+  assert.equal(appUpdateAction(undefined, "abc"), "none");
 });
 
-test("a newer server revision reloads once", () => {
-  assert.equal(appUpdateAction("new", "old", PAGE, NOW, ""), "reload");
+test("a newer server revision prompts without reloading", () => {
+  assert.equal(appUpdateAction("new", "old"), "prompt");
+  assert.equal(appUpdateAction("newer", "old"), "prompt");
 });
 
-test("still stale right after the update reload: prompt instead of looping", () => {
-  const reloaded = PAGE + "?_hr=" + (NOW - 300);
-  assert.equal(appUpdateAction("new", "old", reloaded, NOW, ""), "prompt");
+test("service-worker controller changes never navigate automatically", () => {
+  const block = html.slice(html.indexOf("/* ─── PWA SERVICE WORKER"), html.indexOf("var SHELL_REVISION"));
+  assert.doesNotMatch(block, /(?:location\.(?:reload|replace|assign)|window\.location\s*=)/);
 });
 
-test("an attempt already made for this revision prompts even without the URL marker", () => {
-  assert.equal(appUpdateAction("new", "old", PAGE, NOW, "new"), "prompt");
+test("version polling never starts an automatic hard reload", () => {
+  const block = html.slice(html.indexOf("function checkAppUpdate"), html.indexOf("/* ─── HARD RELOAD"));
+  assert.doesNotMatch(block, /hardReloadApp|location\.(?:reload|replace|assign)/);
 });
 
-test("a later deployment gets its own automatic reload", () => {
-  assert.equal(appUpdateAction("newer", "old", PAGE, NOW, "new"), "reload");
-  assert.equal(appUpdateAction("newer", "old", PAGE + "?_hr=" + (NOW - 120000), NOW, ""), "reload");
-});
-
-test("simulated stale cache cannot loop: at most one automatic reload", () => {
-  let href = PAGE, attempted = "", reloads = 0, now = NOW;
-  for (let i = 0; i < 50; i++) {
-    const action = appUpdateAction("new", "old", href, now, attempted);   // cache always returns the old page
-    if (action !== "reload") break;
-    reloads++; attempted = "new"; href = PAGE + "?_hr=" + now; now += 300;
-  }
-  assert.equal(reloads, 1);
+test("update notice uses the existing tab without covering gameplay controls", () => {
+  const block = html.slice(html.indexOf("function showUpdateNotice"), html.indexOf("function checkAppUpdate"));
+  assert.match(block, /tab-update-app/);
+  assert.match(block, /tab\.children\[1\]\.textContent = "Update Ready"/);
+  assert.doesNotMatch(block, /createElement|position:fixed/);
 });
