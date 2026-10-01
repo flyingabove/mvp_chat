@@ -161,6 +161,7 @@ Expected behavior:
 - Path-based split at the edge:
   - `/beta/*` must route to beta origin (`beta-api.storieschat.ai`).
   - all other paths must route to prod origin (`api.storieschat.ai`).
+  - **The bare path `/beta` (no trailing slash) does NOT match `/beta/*`, so it reaches prod.** Prod's `/beta` handler therefore only redirects (301, relative `Location: /beta/`, query kept); it must never serve a shell. Serving one made prod's page poll beta's `version.json` and reload forever on iPhone (see `ai_learnings_mistakes/AI_PWA_IPHONE_WEBAPP_LEARNINGS.md`, "Bare `/beta` is served by prod"). The same applies to any future bare-path route.
 - Origin hostnames (`api.storieschat.ai`, `beta-api.storieschat.ai`) are Railway
   service domains and must continue to point at the intended Railway services.
 
