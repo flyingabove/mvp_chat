@@ -352,6 +352,20 @@ Owner design 2026-09-29. Code: `world_model/choices.py`, `world_model/leave_mean
   moved out or coupled up, gets an aim too; it is idempotent and only rivals without a live aim (target still in the house
   and free) receive one. Pace check (12 seeded houses, passive player, one `DAY` skip per turn): the director cut came on days 95-136 without aims and on days 95-173 with aims at 0.3, inside the 180-day allowance but with only 7 days of margin in the slowest house.
 
+### Acquaintance ladder: strangers act like strangers (BL-76 / BL-84, as built 2026-09-30)
+
+Generic, any story. `acquaintance.levels` in story JSON (`engine/rules/acquaintance.py`) is an ordered ladder of
+`{id, min_days, min_turns, conduct}`. A character reaches a level when BOTH thresholds hold: days since they met the
+player (`WorldModel.first_met_day`) and turns spent in the player's company (`WorldModel.turns_together`, persisted,
+counted once per turn they are present). The highest level reached wins. `turn._conduct_note` appends that level's
+conduct text to the character's line of the scene contract (`TurnView.cards`) every turn.
+
+It is independent of any romance track, so closeness is earned by time together and a model's default warmth cannot
+skip it (sim 2026-09-30: a resident used the player's name on turn 3 and blushed on turn 5). Many turns on one day
+never reach a level that needs a later day. Validation: first level at 0/0, strictly increasing, distinct ids, every
+level has conduct. Stories without `acquaintance` are unchanged. Terrace declares four levels: strangers, acquaintances,
+familiar (1 day, 30 turns), close (3 days, 80 turns). Tests: `test_acquaintance.py`.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |
@@ -1157,7 +1171,7 @@ story's reusable `opening.arrival_sequence` starts the player and one random
 opposite-gender resident in the living room at 3 pm; the four other selected
 residents remain unplaced, hidden from player-facing cast data, and unable to
 speak until their timed entrances. Ordinary conversation stops at the next
-arrival minute (7, 9, 12, 15) so the residents enter one at a time. Explicit
+arrival minute (Terrace: 8, 18, 28, 38, about two to three exchanges apart) so the residents enter one at a time. Explicit
 waits can cross several entrance times. Entrances update tracked location,
 first-meeting state and save data; the capacity and replacement queue never
 change during the reveal. The story does not author fixed

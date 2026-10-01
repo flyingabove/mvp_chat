@@ -3,7 +3,9 @@ import types
 
 import pytest
 
-from scripts.terrace_ollama_sim import assert_local_only, ollama_env, repeated_sentence_share, summarise
+from scripts.terrace_ollama_sim import (
+    assert_local_only, authored_sentences, ollama_env, opening_metrics, repeated_sentence_share, summarise,
+)
 
 
 def test_the_environment_routes_every_model_call_to_the_local_server_and_turns_jev_off():
@@ -57,3 +59,24 @@ def test_summary_reports_pacing_progress_and_feedback():
     assert out["turns_with_a_reaction_cue"] == 3 and out["cue_kinds"] == {"warm": 1, "cool": 0, "flat": 1, "stale": 1}
     assert out["turns_with_a_tag"] == 3 and out["standing_start"] == 3.0 and out["standing_end"] == 4.5
     assert summarise([]) == {}
+
+
+def test_authored_sentences_collects_every_sentence_under_the_opening_config():
+    cfg = {"segments": [{"text": "A camera waits. Nobody speaks."}], "lines": {"a": "Hello there!"}, "n": 3}
+    assert authored_sentences(cfg) == {"a camera waits", "nobody speaks", "hello there"}
+
+
+def test_opening_metrics_split_scripted_words_and_flag_unearned_closeness():
+    authored = authored_sentences({"x": "The front door opens."})
+    rows = [
+        _row(1, None, 0, label="opening", reply_text="Arisa nods once. The front door opens."),
+        _row(2, None, 0, label="opening", reply_text="Sam-san, you are so easy to talk to. She blushes and leans closer."),
+        _row(3, None, 0, label="opening", reply_text="Arisa says it feels like we've been friends forever. Sam grins."),
+        _row(4, None, 0, label="warm", reply_text="Not an opening turn; it must not be counted."),
+    ]
+    out = opening_metrics(rows, authored, "Sam")
+    assert out["opening_turns"] == 3
+    assert out["name_used_before_given"] == [2], "the player's name on turn 2 was not earned (given on turn 3)"
+    assert [m for _, m in out["intimacy_markers"]] == ["blushes", "leans closer"]
+    assert out["shared_history_markers"] == [(3, "we've been")], "an invented shared past is flagged"
+    assert 0 < out["scripted_word_share"] < 1

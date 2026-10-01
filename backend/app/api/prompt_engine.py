@@ -95,7 +95,7 @@ from backend.app.engine.character_graph import RelationshipEdge, RelationshipSta
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
 from backend.app.engine.opening_scene import (advance_opening_arrivals, has_arrived,
-                                              opening_arrival_segments, stage_opening_scene,
+                                              group_ritual_brief, mark_group_ritual, opening_arrival_segments, stage_opening_scene,
                                               strip_generated_arrival_repeats)
 from backend.app.engine.world_calendar import PendingEvent, day_number
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
@@ -372,7 +372,7 @@ def _seed_player_visibility(state: GameState) -> None:
 # Story rules read only by engine code (BL-39); kept in the runtime story
 # config and excluded from any prompt/transient seeding.
 ENGINE_ONLY_STORY_KEYS = ("endings", "social_tracks", "personalities", "default_personality", "player_fact_keys",
-                          "social_acts", "clocks", "commentary")
+                          "social_acts", "clocks", "commentary", "acquaintance")
 
 
 _BASIC_CHARACTER_KEYS = {
@@ -1679,6 +1679,7 @@ def _serialize_state(state: GameState, log: list) -> str:
         "opening_cast": list(getattr(state, "opening_cast", []) or []),
         "opening_arrival_minutes": dict(getattr(state, "opening_arrival_minutes", {}) or {}),
         "opening_arrived_ids": list(getattr(state, "opening_arrived_ids", []) or []),
+        "opening_ritual_done": bool(getattr(state, "opening_ritual_done", False)),
         "world_model": (state.world_model.to_dict() if getattr(state, "world_model", None) is not None else None),
         "cast_lifecycle": (
             state.cast_lifecycle.to_dict()
@@ -1926,6 +1927,8 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
             str(key): int(minute) for key, minute in (saved.get("opening_arrival_minutes") or {}).items()
         }
         restored.opening_arrived_ids = [str(key) for key in (saved.get("opening_arrived_ids") or [])]
+        # Saves from before the ritual existed are mid-game: never replay an opening question into them.
+        restored.opening_ritual_done = bool(saved.get("opening_ritual_done", True))
         # Character & world model: restore when saved; older saves rebuild it
         # lazily on their next turn (world_model.turn.ensure_model).
         if isinstance(saved.get("world_model"), dict):
@@ -3454,6 +3457,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         advance_time(state, movement_msg)
 
     state.opening_arrivals_this_turn = advance_opening_arrivals(state, _wm_minute_before, state.minute)
+    state.opening_ritual_brief = group_ritual_brief(state)
+    if state.opening_ritual_brief:
+        mark_group_ritual(state)
     if state.opening_arrivals_this_turn and state.character_graph is not None:
         arrival_room = str(((state.story_cfg.get("opening") or {}).get("arrival_sequence") or {}).get("gather_location_id") or "")
         already_in_room = {

@@ -211,12 +211,60 @@ def opening_arrival_segments(state: "GameState") -> list[dict[str, str | None]]:
     beats: list[dict[str, str | None]] = []
     for key in due:
         name = str(getattr(characters.get(key), "name", None) or key)
+        # The narrator never names a newcomer: the player learns who they are from their own introduction.
         beats.append({"kind": "narration", "speaker_id": None,
-                      "text": f"The front door opens. {name} is the next resident to arrive. "
-                              + str(cues.get(key) or "They step into the living room with their bag.")})
+                      "text": "The front door opens. "
+                              + str(cues.get(key) or "Someone steps into the living room with a bag.")})
         beats.append({"kind": "dialogue", "speaker_id": key,
-                      "text": str(lines.get(key) or f"Hello, I'm {name}.")})
+                      "text": str(lines.get(key) or f"Hajimemashite. {name}.")})
     return beats
+
+
+def group_ritual_brief(state: "GameState") -> str:
+    """The show's first group question, once, on the turn after the last resident has arrived.
+
+    Configured as ``opening.group_ritual`` (``prompt``, ``likes``/``dislikes`` taste-tag -> phrase). Each present
+    resident gets hints drawn from their own authored tastes, so the answer teaches the player something true
+    without listing it. Generic: any story can author its own ritual.
+    """
+    cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("group_ritual") or {}
+    scheduled = getattr(state, "opening_arrival_minutes", None) or {}
+    if not cfg or getattr(state, "opening_ritual_done", True) or not scheduled:
+        return ""
+    if not set(scheduled) <= set(getattr(state, "opening_arrived_ids", None) or []):
+        return ""
+    if getattr(state, "opening_arrivals_this_turn", None):
+        return ""
+    from backend.app.engine.rules.personality import personalities
+
+    room = str(getattr(state, "location_id", "") or "")
+    locations = getattr(state, "character_locations", None) or {}
+    characters = getattr(state, "characters", None) or {}
+    people = personalities(getattr(state, "story_cfg", None) or {})
+    likes, dislikes = cfg.get("likes") or {}, cfg.get("dislikes") or {}
+    rows = []
+    for key, where in sorted(locations.items()):
+        if key == "player" or where != room or key not in people:
+            continue
+        tastes = people[key].tastes
+        hints = [likes[tag] for tag, w in sorted(tastes.items(), key=lambda kv: -kv[1])[:2] if w > 0 and tag in likes]
+        hints += [dislikes[tag] for tag, w in sorted(tastes.items(), key=lambda kv: kv[1])[:1] if w <= -2.0 and tag in dislikes]
+        name = (getattr(characters.get(key), "name", None) or key).strip()
+        rows.append(f"{name}: " + ("; ".join(hints) if hints else "no strong type"))
+    if not rows:
+        return ""
+    return (
+        f"Group moment, once: {cfg.get('prompt', 'The producers ask everyone what their type is.')} Each resident present "
+        "answers briefly, in their own voice and still as a near-stranger: vague, shy, joking or deflecting, never "
+        "describing anyone in the room and never as a list. Each may let slip at most ONE hint from their real leaning "
+        "(hints, not lines to recite): " + " | ".join(rows) + ". Show it, do not announce it. "
+        "Turn to the player last and leave their answer to the player.\n\n"
+    )
+
+
+def mark_group_ritual(state: "GameState") -> None:
+    """Record that the ritual has been handed to the storyteller (call only when its brief was used)."""
+    state.opening_ritual_done = True
 
 
 def strip_generated_arrival_repeats(state: "GameState", segments: list[dict]) -> list[dict]:

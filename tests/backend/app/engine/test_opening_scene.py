@@ -9,6 +9,9 @@ from backend.app.engine.opening_scene import (
     choose_welcome_party,
     opening_scene_brief,
     stage_opening_scene,
+    group_ritual_brief,
+    mark_group_ritual,
+    opening_arrival_segments,
     strip_generated_arrival_repeats,
 )
 from backend.app.engine.state import Character, init_state
@@ -151,3 +154,80 @@ def test_stage_never_untracks_residents_when_fallback_is_the_start_room():
     stage_opening_scene(state, random.Random(0))
     assert set(state.character_locations) == set(GENDERS)
     assert all(loc == "front_entry" for loc in state.character_locations.values())
+
+
+def _arrival_state(due):
+    state = _state("M", {"size": 1}, {"f1": "front_entry"})
+    state.location_id = "living_room"
+    state.opening_arrivals_this_turn = due
+    state.story_cfg["opening"]["arrival_sequence"] = {
+        "gather_location_id": "living_room",
+        "entrance_cues": {"f1": "A woman in a long cardigan stops just inside the door and bows a little too slowly."},
+        "entrance_lines": {"f1": "Nakada Minori. Hajimemashite."},
+    }
+    return state
+
+
+def test_an_arrival_is_the_authored_cue_without_naming_them_before_they_introduce_themselves():
+    beats = opening_arrival_segments(_arrival_state(["f1"]))
+    assert beats[0] == {"kind": "narration", "speaker_id": None,
+                        "text": "The front door opens. A woman in a long cardigan stops just inside the door and bows a little too slowly."}
+    assert beats[1] == {"kind": "dialogue", "speaker_id": "f1", "text": "Nakada Minori. Hajimemashite."}
+    assert "F1" not in beats[0]["text"] and "next resident to arrive" not in beats[0]["text"],         "the player learns the name from the newcomer's own line, not from the narrator"
+
+
+def test_an_arrival_without_an_authored_cue_still_enters_unnamed():
+    state = _arrival_state(["f1"])
+    state.story_cfg["opening"]["arrival_sequence"]["entrance_cues"] = {}
+    beats = opening_arrival_segments(state)
+    assert beats[0]["text"].startswith("The front door opens. ") and "F1" not in beats[0]["text"]
+
+
+RITUAL = {
+    "id": "type_round",
+    "prompt": "The producers leave a card on the table: 'What is your type?'",
+    "likes": {"funny": "someone who makes them laugh", "attentive": "someone who really listens"},
+    "dislikes": {"pushy": "someone who pushes"},
+}
+
+
+def _ritual_state(arrived=("f1", "f2"), this_turn=()):
+    state = _state("M", {"size": 1}, {"f1": "living_room", "f2": "living_room", "m1": "living_room"})
+    state.location_id = "living_room"
+    state.opening_arrival_minutes = {"f1": 8, "f2": 16}
+    state.opening_arrived_ids = list(arrived)
+    state.opening_arrivals_this_turn = list(this_turn)
+    state.story_cfg["opening"]["group_ritual"] = RITUAL
+    state.story_cfg["characters"] = [{"key": key, "gender": gender} for key, gender in GENDERS.items()]
+    state.story_cfg["personalities"] = {
+        "f1": {"tastes": {"funny": 2.0, "attentive": 1.0, "pushy": -2.5}},
+        "f2": {"tastes": {"attentive": 2.0}},
+    }
+    state.opening_ritual_done = False
+    return state
+
+
+def test_the_group_ritual_fires_once_after_everyone_has_arrived():
+    state = _ritual_state()
+    brief = group_ritual_brief(state)
+    assert "What is your type?" in brief and "F1" in brief and "F2" in brief
+    mark_group_ritual(state)
+    assert state.opening_ritual_done is True and group_ritual_brief(state) == ""
+
+
+def test_the_group_ritual_waits_while_residents_are_still_to_arrive_or_arriving_this_turn():
+    assert group_ritual_brief(_ritual_state(arrived=("f1",))) == ""
+    assert group_ritual_brief(_ritual_state(this_turn=("f2",))) == "", "not on the final arrival's own turn"
+
+
+def test_the_ritual_hints_come_from_each_residents_own_authored_tastes_and_stay_indirect():
+    brief = group_ritual_brief(_ritual_state())
+    assert "someone who makes them laugh" in brief and "someone who pushes" in brief
+    assert "F2" in brief and "someone who really listens" in brief
+    assert "never as a list" in brief and "turn to the player last" in brief.lower()
+
+
+def test_a_story_without_a_ritual_never_fires_one():
+    state = _ritual_state()
+    del state.story_cfg["opening"]["group_ritual"]
+    assert group_ritual_brief(state) == ""

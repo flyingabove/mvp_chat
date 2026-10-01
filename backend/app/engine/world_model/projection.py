@@ -21,8 +21,14 @@ def render_scene_section(view: TurnView) -> str:
         lines.append(f"Time: {view.time_text}.")
     player = view.names.get("player")
     if player:
-        lines.append(f'The player is {player}. Characters talking to the player address the player directly as "you" '
-                     f"(or by name); never speak of {player} as someone who is not here.")
+        if view.not_told_name:
+            lines.append(f'The player is {player}. Characters talking to the player address the player directly as '
+                         f'"you"; never speak of {player} as someone who is not here. '
+                         f"{_names(view, view.not_told_name)} have not heard the player's name and must not use it "
+                         "until the player says it in their hearing.")
+        else:
+            lines.append(f'The player is {player}. Characters talking to the player address the player directly as "you" '
+                         f"(or by name); never speak of {player} as someone who is not here.")
     if view.cards:
         lines.append("People with the player right now (location, activity and state are facts):")
         lines.extend(f"- {card}" for card in view.cards)
@@ -70,6 +76,10 @@ def render_header(view: TurnView) -> str:
     parts = []
     if view.plan.speakers:
         parts.append(f"Speakers this beat: {_names(view, view.plan.speakers)}.")
+    if view.not_told_name:
+        parts.append(f"{_names(view, view.not_told_name)} have not heard the player's name: do not use it.")
+    if view.bearings:
+        parts.append("Bearing toward the player: " + " | ".join(view.bearings) + ".")
     if view.must_address:
         parts.append("Must address: " + " | ".join(view.must_address[:3]) + ".")
     return " ".join(parts)

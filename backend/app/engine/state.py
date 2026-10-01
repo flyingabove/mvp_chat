@@ -368,6 +368,8 @@ class GameState:
     opening_arrival_minutes: Dict[str, int] = field(default_factory=dict)
     opening_arrived_ids: List[str] = field(default_factory=list)
     opening_arrivals_this_turn: List[str] = field(default_factory=list)
+    opening_ritual_done: bool = False          # the story's one-time group question has been asked
+    opening_ritual_brief: str = ""             # this turn only: the brief for the storyteller (not persisted)
     # Character & world model (engine/world_model/model.py WorldModel): the
     # world location index, per-character state, memories, threads and
     # off-screen life. None = disabled or not built yet (built lazily).

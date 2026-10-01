@@ -66,6 +66,72 @@ def repeated_sentence_share(texts: list[str], min_words: int = 5) -> float:
     return repeats / total if total else 0.0
 
 
+# A first meeting on camera: the player says nothing that assumes a friendship and gives their name only on turn 3,
+# so a reply that uses it earlier was not earned.
+OPENING = (
+    "Oh. Hi. Um, hello.",
+    "Sorry, do I take my shoes off here? I've never done anything like this.",
+    "I'm {p}, by the way. Nice to meet you.",
+    "So... have you done anything like this before? A show, I mean.",
+    "Where are you from, originally?",
+    "Is it weird that the camera is right there?",
+    "What do you do, when you're not here?",
+    "Who do you think is coming next?",
+)
+OPENING_NAME_TURN = 3
+INTIMACY = re.compile(r"\b(blush\w*|warm(?:ly)?\s+(?:smile|gaze|look)|smil\w* warm\w*|friendly smile|holds? (?:your|his|her) gaze"
+                      r"|eyes (?:light|soften|sparkl|crinkl)\w*|gaze (?:never|lingers)"
+                      r"|takes? your hand|touch\w* your|lean\w* (?:in|closer)|butterflies|heart (?:flutter|skip|race)\w*"
+                      r"|feel\w* (?:so )?(?:close|connected))", re.I)
+SHARED_HISTORY = re.compile(r"\b(remember when|last time we|we've been|known you|got to know me|made an effort to"
+                            r"|like old friends|always (?:liked|been))", re.I)
+
+
+def authored_sentences(value) -> set[str]:
+    """Every sentence the story authors anywhere under a config value (the opening), normalised for matching."""
+    if isinstance(value, dict):
+        return set().union(*(authored_sentences(v) for v in value.values())) if value else set()
+    if isinstance(value, list):
+        return set().union(*(authored_sentences(v) for v in value)) if value else set()
+    if isinstance(value, str):
+        return {_norm(s) for s in re.split(r"(?<=[.!?])\s+", value) if _norm(s)}
+    return set()
+
+
+def _norm(sentence: str) -> str:
+    return " ".join(re.findall(r"[\w']+", sentence.lower()))
+
+
+def opening_metrics(rows: list[dict], authored: set[str], player_name: str) -> dict:
+    """How scripted and how stranger-like the first-meeting turns read (rows labelled "opening")."""
+    opening = [r for r in rows if r["label"] == "opening"]
+    scripted = generated = 0
+    name_early, intimacy, history = [], [], []
+    for r in opening:
+        own = []
+        for sentence in re.split(r"(?<=[.!?])\s+", r["reply_text"]):
+            words = len(sentence.split())
+            key = _norm(sentence)
+            if key in authored or "next resident to arrive" in key:
+                scripted += words
+            else:
+                generated += words
+                own.append(sentence)
+        text = " ".join(own)
+        if r["turn"] < OPENING_NAME_TURN and re.search(r"\b" + re.escape(player_name) + r"\b", text):
+            name_early.append(r["turn"])
+        intimacy += [(r["turn"], m) for m in INTIMACY.findall(text)]
+        history += [(r["turn"], m) for m in SHARED_HISTORY.findall(text)]
+    total = scripted + generated
+    return {
+        "opening_turns": len(opening),
+        "scripted_word_share": round(scripted / total, 2) if total else None,
+        "name_used_before_given": name_early,
+        "intimacy_markers": intimacy,
+        "shared_history_markers": history,
+    }
+
+
 def summarise(rows: list[dict]) -> dict:
     """Pacing, progress, rivals, repetition and latency from the per-turn rows."""
     if not rows:
@@ -122,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=0, help="house seed (cast draw)")
     parser.add_argument("--base-mins", type=int, default=0, help="override time.base_turn_mins (0 = the story's own)")
     parser.add_argument("--mins-per-word", type=float, default=-1, help="override time.mins_per_word (-1 = the story's own)")
+    parser.add_argument("--opening", type=int, default=0,
+                        help="play the first N turns as a first meeting with the greeter (the OPENING pool)")
     args = parser.parse_args(argv)
 
     os.environ.update(ollama_env(args.model))                    # BEFORE any backend import: settings read env once
@@ -234,7 +302,14 @@ def main(argv: list[str] | None = None) -> int:
         record(label, body, elapsed)
         return body
 
-    say("greet", "Hi everyone, I'm Sam. It's lovely to meet you all. What are your names?")
+    if args.opening:
+        live = pe.SESSIONS[sid]["state"]
+        target = (live.opening_cast or [""])[0]
+        persona = (live.player_name or "Sam").split()[0]            # the name the model sees (the persona's)
+        for i in range(min(args.opening, args.turns)):
+            say("opening", OPENING[i % len(OPENING)].format(p=persona))
+    else:
+        say("greet", "Hi everyone, I'm Sam. It's lovely to meet you all. What are your names?")
     while len(rows) < args.turns:
         if not target:
             say("greet", "Hello! I'm Sam. Could everyone tell me their names?")
@@ -262,6 +337,8 @@ def main(argv: list[str] | None = None) -> int:
                                 if k in ("turn_extraction_error", "turn_extraction_movement_applied",
                                          "storyteller_repeat_regenerated", "player_feelings_trimmed", "npc_decision",
                                          "leave_meaning", "chat_response")}
+    if args.opening:
+        summary["opening"] = opening_metrics(rows, authored_sentences(live_cfg.get("opening")), persona)
     summary["wall_minutes"] = round((time.time() - started) / 60, 1)
     summary["model"] = args.model
     summary["gender"] = args.gender

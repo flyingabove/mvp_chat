@@ -24,6 +24,7 @@ from backend.app.engine.world_model.model import PLAYER, TurnView, WorldModel
 from backend.app.engine.world_model.offscreen import resolve_offscreen
 from backend.app.engine.world_model.person import Cast
 from backend.app.engine.world_model.appraisal import appraise_behaviors
+from backend.app.engine.rules.acquaintance import acquaintance_levels, level_for
 from backend.app.engine.rules.personality import personalities
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
@@ -257,14 +258,25 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
                                  + render(conflict_focus.surface, names)
                                  + ". Let the people involved respond if the player engages; "
                                    "do not reveal an unseen cause as fact.")
+    today = model.world.day_index(model.world.minute)
+    levels = acquaintance_levels(getattr(state, "story_cfg", None) or {})
+    view.not_told_name = [cid for cid in present if cid not in model.knows_player_name]
+    ritual = str(getattr(state, "opening_ritual_brief", "") or "").strip()
+    if ritual:                                  # the story's one-time group question (opening_scene.group_ritual_brief)
+        view.must_address.append(ritual)
     for cid in present:
         c = model.characters[cid]
         activity = c.activity or "here"
         view.cards.append(f"{c.name} ({c.descriptor}): {activity}; {c.availability}"
                           + (f"; mood: {c.mood}" if c.mood else "")
-                          + f"; {_encounter_note(model, cid)}; {_name_note(model, cid)}")
-    today = model.world.day_index(model.world.minute)
+                          + f"; {_encounter_note(model, cid)}; {_name_note(model, cid)}"
+                          + _conduct_note(model, levels, cid, today))
+        level = _level_of(model, levels, cid, today)
+        if level is not None:
+            view.bearings.append(f"{c.name}: {level.reminder or level.conduct}")
     for cid in present:
+        if model.last_with_player.get(cid) != model.turn:
+            model.turns_together[cid] = model.turns_together.get(cid, 0) + 1
         model.last_with_player[cid] = model.turn
         model.first_met_day.setdefault(cid, today)
     for cid in asleep_here:
@@ -386,6 +398,21 @@ def _encounter_note(model: WorldModel, cid: str) -> str:
     if last >= model.turn - 1:
         return "has been with the player; no greeting or 'welcome back'"
     return "apart from the player since earlier; a greeting fits"
+
+
+def _level_of(model: WorldModel, levels: tuple, cid: str, today: int):
+    """The acquaintance level this person has reached with the player this turn (None without a ladder)."""
+    if not levels:
+        return None
+    days = today - model.first_met_day.get(cid, today)
+    turns = model.turns_together.get(cid, 0) + (0 if model.last_with_player.get(cid) == model.turn else 1)
+    return level_for(levels, days, turns)
+
+
+def _conduct_note(model: WorldModel, levels: tuple, cid: str, today: int) -> str:
+    """How well this person knows the player, as the story's authored conduct for that level (empty if none)."""
+    level = _level_of(model, levels, cid, today)
+    return f"; how well they know the player: {level.id}. {level.conduct}" if level else ""
 
 
 def _name_note(model: WorldModel, cid: str) -> str:

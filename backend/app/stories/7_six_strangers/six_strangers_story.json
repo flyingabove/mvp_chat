@@ -873,76 +873,126 @@
       ]
     }
   },
+  "acquaintance": {
+    "levels": [
+      {
+        "id": "strangers",
+        "min_days": 0,
+        "min_turns": 0,
+        "conduct": "They met the player minutes ago, on camera, and are not at ease. Polite, a little stiff, curious; short answers, safe questions (where from, what do you do, why join), a pause that lasts too long. Address the player by name plus -san (for example 'Paul-san') only after hearing it, never before. No shared history, no 'we', no teasing, no touching, no compliments about the player's looks, no stated feelings. Any interest is shown only as small ambiguous behaviour (an extra question, a moment of hesitation), never described as a feeling: no blushing, no held gaze, no leaning closer.", "reminder": "just met on camera: polite, stiff, curious; no warmth, no teasing, no 'we', no shared past; no blushing, held gaze or closeness; any interest only as ambiguous behaviour"
+      },
+      {
+        "id": "acquaintances",
+        "min_days": 0,
+        "min_turns": 10,
+        "conduct": "They have talked a little and are still formal. Names with -san, careful humour, first signs of ease. Opinions stay polite. Interest, if any, stays ambiguous: could be politeness, could be more. No confessions, no pet names, no touching, no talk of a shared past.", "reminder": "still formal; careful humour; no pet names, touching or shared past; any interest stays ambiguous"
+      },
+      {
+        "id": "familiar",
+        "min_days": 1,
+        "min_turns": 30,
+        "conduct": "They have spent real time together over more than a day. First names are allowed if invited, light teasing that could be affection or mockery, easier silences, small personal details. Romance only if the player has earned it; never state feelings that standing has not reached.", "reminder": "days together: first names if invited, light teasing that could mean either thing; romance only as earned"
+      },
+      {
+        "id": "close",
+        "min_days": 3,
+        "min_turns": 80,
+        "conduct": "A friendship of days. Comfortable, honest, direct about small things. Romantic warmth is allowed only if their standing toward the player supports it.", "reminder": "a friendship of days: easy and honest; romance only if their standing supports it"
+      }
+    ]
+  },
   "opening": {
     "welcome_party": {"size": 1, "gender": "opposite_player", "exclusive": true, "fallback_location_id": "front_entry"},
     "arrival_sequence": {
-      "offset_minutes": [7, 9, 12, 15],
+      "offset_minutes": [8, 18, 28, 38],
       "gather_location_id": "living_room",
       "dialogue_pace": {"base_turn_mins": 3, "mins_per_word": 0.05, "max_turn_mins": 5},
       "entrance_cues": {
-        "makoto": "He catches a baseball cap slipping off his bag, then makes a joke before anyone can offer help.",
-        "minori": "She sets down a carefully folded jacket and takes a beat to read the room before speaking.",
-        "yuki": "His shoes stop just inside the door; he looks ready to ask a dozen questions but begins with a hello.",
-        "mizuki": "She notices the empty cups before she notices the cameras, then catches herself taking charge.",
-        "uchi": "He arrives neatly dressed and glances around with a stylist's eye before greeting anyone.",
-        "yuriko": "She straightens the strap of a heavy study bag and offers a careful introduction.",
-        "arman": "He shoulders his bag in one easy motion and leaves a comfortable silence after saying hello.",
-        "arisa": "She studies the afternoon light on the wall, makes one precise observation, then introduces herself.",
-        "hikaru": "He gives the cameras a confident look that falters when all eyes turn toward him.",
-        "natsumi": "She surveys the room with dry amusement and says the obvious awkward thing aloud.",
-        "misaki": "She starts with a camera-ready smile, then laughs at herself when the room stays quiet.",
-        "yuto": "He pauses by the doorway to notice the room's layout before finding where to put his bag.",
-        "riko": "She sets down her bag, speaks politely and directly, and waits to be addressed like any other resident.",
-        "momoka": "She places her shoes with dancerly precision and chooses a short introduction.",
-        "hayato": "He notices an unused chair and quietly moves it into the circle before sitting.",
-        "yuuki_byrnes": "He enters with a quick burst of energy, then adjusts his pace to the quiet room.",
-        "masako": "She asks whether there is space for her bag and offers a gentle hello to each person."
+        "makoto": "A young man in a baseball cap comes in sideways with a sports bag, bows to the room, and bumps the bag against the doorframe.",
+        "minori": "A young woman in a long cardigan stops just inside the door, takes in everyone at once, and bows a little too slowly.",
+        "yuki": "A broad-shouldered man steps in, counts the people already seated, and bows once to each of them separately.",
+        "mizuki": "A woman carrying a paper bag from a convenience store hesitates, as if looking for someone to hand it to, then bows.",
+        "uchi": "A man with carefully styled hair slips off his shoes in the entryway, lines them up, and checks that they are straight before he looks up.",
+        "yuriko": "A woman with a heavy bag bows at the correct angle to the room, then a second time because she is not sure the first counted.",
+        "arman": "A tall, relaxed man ducks under the doorframe, nods to the room, and takes a moment to decide where to put his bag.",
+        "arisa": "A woman in a sharply cut jacket pauses in the doorway as if taking a measurement of the room, and bows exactly once.",
+        "hikaru": "A young man strikes a confident pose at the door for exactly one second, then sees everyone looking and lowers his arms.",
+        "natsumi": "A woman stops at the door, finds the camera before she finds anyone's face, and gives it a flat look.",
+        "misaki": "A woman steps in with a ready smile, lifts a hand to wave at the whole room, and turns the wave into a bow when no one waves back.",
+        "yuto": "A man stops in the doorway to study the room's layout before he looks at anyone, then bows apologetically.",
+        "riko": "A young woman in a school-style cardigan holds her bag in front of her with both hands and meets everyone's eyes in turn.",
+        "momoka": "A woman with perfect posture sets her shoes in a straight line, rises, and bows to the middle of the room.",
+        "hayato": "A man in a plain jacket looks at the chairs, then the table, then politely at no one in particular, and bows.",
+        "yuuki_byrnes": "A man with a lot of energy in his shoulders starts a handshake toward the nearest person, thinks better of it, and bows instead.",
+        "masako": "A woman asks the doorway, rather than the room, whether there is somewhere for her bag, then bows to everyone at once."
       },
       "entrance_lines": {
-        "makoto": "I'm Makoto. Sorry, I was rehearsing a less awkward entrance on the way here.",
-        "minori": "I'm Minori. I think I need a second to take this in.",
-        "yuki": "I'm Yuki. I have questions already, but I should probably learn everyone's names first.",
-        "mizuki": "I'm Mizuki. I almost asked where to put the cups before saying hello.",
-        "uchi": "I'm Uchi. I promise I don't usually inspect a room before introducing myself.",
-        "yuriko": "Hello, I'm Yuriko. It is good to finally meet the people I'll be living with.",
-        "arman": "Hey, I'm Arman. No rush; I'm still figuring out where to put this bag.",
-        "arisa": "Arisa. The light in here is beautiful. Sorry, hello first.",
-        "hikaru": "I'm Hikaru. That sounded more confident in my head.",
-        "natsumi": "Natsumi. Are we all pretending this isn't slightly strange?",
-        "misaki": "I'm Misaki. I had an opening line ready, and the cameras made me forget it.",
-        "yuto": "I'm Yuto. I spent too long working out where everyone might sit.",
-        "riko": "I'm Riko. Please just talk to me normally; we're all new here.",
-        "momoka": "Momoka. Hello. I think I counted the steps from the door instead of breathing.",
-        "hayato": "I'm Hayato. Is this chair taken? I can move it if it is.",
-        "yuuki_byrnes": "Yuuki. I came in too fast, didn't I? Let me try hello again.",
-        "masako": "I'm Masako. Is there somewhere I should put my bag? I'm sorry, hello."
+        "makoto": "Hasegawa Makoto desu. Hajimemashite. Sorry about the bag. ...It does that.",
+        "minori": "Nakada Minori. Hajimemashite. There are more people than I imagined. I mean that politely.",
+        "yuki": "Adachi Yuki. Hajimemashite. Please excuse me, I'll learn the rest of the names slowly.",
+        "mizuki": "Shida Mizuki. Hajimemashite. I brought snacks, but now it feels like a lot of pressure.",
+        "uchi": "Uchihara Tatsuya. Everyone says Uchi. Hajimemashite. I don't know whether it's polite to say that yet.",
+        "yuriko": "Hayata Yuriko desu. Hajimemashite. I am studying medicine, which I mention so no one has to ask later.",
+        "arman": "Bitaraf Arman. Hajimemashite. ...Is this everyone? Or are there more still coming?",
+        "arisa": "Ohata Arisa. Hajimemashite. The light in here is... Never mind. Hello.",
+        "hikaru": "Ota Hikaru. Hajimemashite! ...I'm good at this, usually. Meeting people.",
+        "natsumi": "Saito Natsumi. Hajimemashite. Everyone just sits here and gets filmed, then. Fine.",
+        "misaki": "Tamori Misaki desu! Hajimemashite! ...Nobody waved. That's fair. That's honestly fair.",
+        "yuto": "Handa Yuto. Hajimemashite. I'm sorry, I was checking the room. I do that.",
+        "riko": "Nagai Riko. Hajimemashite. I'm the youngest, I think. Please don't make it a thing.",
+        "momoka": "Mitsunaga Momoka. Hajimemashite. I will remember all your names. It will take me a day.",
+        "hayato": "Terashima Hayato. Hajimemashite. I cook, if that ever becomes relevant. It probably won't today.",
+        "yuuki_byrnes": "Byrnes Yuuki. Hajimemashite. Handshake or bow... I think I just did both again.",
+        "masako": "Endo Masako. Hajimemashite. Please say if I'm in the way. I'm sorry, I think I already am."
+      }
+    },
+    "group_ritual": {
+      "id": "type_round",
+      "prompt": "The producers have left a card on the low table: 'What is your type?' It is the show's classic first question and nobody wants to go first.",
+      "likes": {
+        "funny": "someone who can make them laugh",
+        "supportive_of_goals": "someone who takes their work and goals seriously",
+        "attentive": "someone who notices small things",
+        "honest": "someone who says what they mean",
+        "helpful": "someone who actually helps instead of talking about it",
+        "generous": "someone generous without making a show of it",
+        "flirtatious": "someone a little bold",
+        "complimentary": "someone who gives compliments easily",
+        "warm": "someone easy and warm to be around"
+      },
+      "dislikes": {
+        "pushy": "someone who pushes",
+        "boastful": "someone who brags",
+        "dismissive": "someone who waves things away",
+        "rude": "someone rude",
+        "evasive": "someone who never gives a straight answer"
       }
     },
     "first_resident": {
-      "makoto": {"cue": "A young man in a baseball cap is turning a ball over in his hands; he tucks it away when you enter.", "line": "Hey. Looks like we're the first two. I had a whole welcome speech, but I think I struck out."},
-      "minori": {"cue": "A young woman has taken the end of the sofa and folded her jacket beside her; she looks up, then pauses before smiling.", "line": "Hi. I'm Minori. I was trying to decide whether waiting here looked strange. Maybe it does less now."},
-      "yuki": {"cue": "A man near the window is quietly tapping a rhythm with one foot; he stops when you notice.", "line": "I'm Yuki. Sorry, first question already: what made you want to come here? We can start with your name."},
-      "mizuki": {"cue": "A woman near the counter has lined up two clean cups, then seems to realize how much that looks like hosting.", "line": "I'm Mizuki. I was going to offer coffee, but that feels a little formal. Do you want some?"},
-      "uchi": {"cue": "A neatly dressed man stands as you come in, then sits again when he realizes you are both residents.", "line": "I'm Uchi. That's a good bag. Sorry, I talk about how people look when I'm nervous."},
-      "yuriko": {"cue": "A woman with a heavy study bag shifts a notebook off the seat beside her and gives you her full attention.", "line": "Hello, I'm Yuriko. I think we are supposed to introduce ourselves, although I do not know what the right first question is."},
-      "arman": {"cue": "A relaxed man leans back from the window and gives you room to put down your bag before speaking.", "line": "Hey, I'm Arman. Pretty wild, huh? No worries, we can just sit for a second."},
-      "arisa": {"cue": "A woman in a sharply cut jacket has been studying the afternoon light on the wall; she turns toward you.", "line": "Arisa. This room looks different with someone else in it. That's a good thing, I think."},
-      "hikaru": {"cue": "A young man had been facing the camera with studied ease; meeting your eyes makes him briefly less certain.", "line": "I'm Hikaru. Honestly, I thought I'd be good at this. Saying hello, I mean."},
-      "natsumi": {"cue": "A woman by the sofa notices both your reflection and the camera behind you and raises one eyebrow.", "line": "Natsumi. This is very quiet for a reality show. Should we be worried?"},
-      "misaki": {"cue": "A woman with a bright smile lifts her hand in greeting, then laughs at how practiced the gesture looks on camera.", "line": "I'm Misaki. I promise I don't usually wave like I'm introducing a variety show."},
-      "yuto": {"cue": "A man near the window has been studying where the light falls and where six people might sit.", "line": "I'm Yuto. I was trying to work out the seating before anyone got here. That's a terrible first impression, isn't it?"},
-      "riko": {"cue": "A young woman sits upright with her bag close to her feet; she meets your eyes without looking away.", "line": "I'm Riko. We are both new, so please don't feel you have to act like the host."},
-      "momoka": {"cue": "A woman has placed her shoes in a precise line by the door; even seated, her posture is unmistakably poised.", "line": "Momoka. I have said my name to the camera twice already. It is nicer to say it to someone."},
-      "hayato": {"cue": "A man has already pulled a second chair toward the sofa, leaving space without making a ceremony of it.", "line": "I'm Hayato. Sit wherever you like. I don't know the house rules yet either."},
-      "yuuki_byrnes": {"cue": "A man with restless energy stops bouncing his foot when you come in and gives you an apologetic grin.", "line": "Yuuki. I was trying to look calm. Did it work for even one second?"},
-      "masako": {"cue": "A woman gently moves her bag so you have a clear place to sit, then seems embarrassed to have fussed over it.", "line": "I'm Masako. Is that seat all right for you? Sorry, I should have started with my name."}
+      "makoto": {"cue": "A young man in a baseball cap stands too quickly, bows, notices he is still holding a ball, and bows again.", "line": "Hasegawa Makoto. Hajimemashite. ...Do we sit now, or does someone tell us when?"},
+      "minori": {"cue": "A young woman at the end of the sofa folds her hands in her lap, glances at the camera in the corner, then at you, and bows a little late.", "line": "Nakada Minori. Hajimemashite. I practiced that in the taxi. It sounded more natural there."},
+      "yuki": {"cue": "A man by the window stops tapping his foot, nods once, and keeps his hands carefully still.", "line": "Adachi Yuki. Hajimemashite. I think this is the part where we ask each other things. How old are you, if that's all right?"},
+      "mizuki": {"cue": "A woman at the kitchen counter turns, looks at the two cups she has just set out, and quietly puts one back.", "line": "Shida Mizuki. Hajimemashite. There's coffee, if you want some. Or not. I don't know the rules yet."},
+      "uchi": {"cue": "A neatly dressed man stands as you come in, bows, sits, then stands again when he sees you are still in the doorway.", "line": "Uchihara. People call me Uchi, but that is probably too casual for a first sentence. Hajimemashite."},
+      "yuriko": {"cue": "A woman with a heavy study bag rises, bows at exactly the correct angle, and waits for you to bow back.", "line": "Hajimemashite. Hayata Yuriko desu. I am twenty-three. I do not know if giving my age first is correct, but it seemed safer."},
+      "arman": {"cue": "A relaxed man lifts his chin in a half-nod, remembers the camera, and turns it into a slightly deeper bow.", "line": "Bitaraf Arman. Hajimemashite. ...Yeah. Nobody told me what to do after that part."},
+      "arisa": {"cue": "A woman in a sharply cut jacket looks at you a moment longer than is comfortable, then bows exactly once.", "line": "Ohata Arisa. Hajimemashite. ...That is the whole introduction. I trimmed it."},
+      "hikaru": {"cue": "A young man who had been posing for the camera sees you, stops mid-pose, and bows a little too deeply.", "line": "Ota Hikaru, eighteen. Hajimemashite! It's no big deal. This. Meeting people. It's fine."},
+      "natsumi": {"cue": "A woman on the sofa glances at the camera, then at you, and lets one eyebrow rise before she bows.", "line": "Saito Natsumi. Hajimemashite. Nobody told us what to say, so I think this is the entire script."},
+      "misaki": {"cue": "A woman with a bright smile starts to wave, catches the camera's eye, and turns the wave into a bow.", "line": "Tamori Misaki! Hajimemashite! ...Sorry, that sounded like I was introducing a program. Technically I am on one."},
+      "yuto": {"cue": "A man by the window has been studying where the sofa meets the table; he sees you, bows, and says nothing for a moment.", "line": "Handa Yuto. Hajimemashite. I was counting how many people this room seats. That was a strange thing to say first."},
+      "riko": {"cue": "A young woman sits upright with her bag against her feet and meets your eyes steadily before she bows.", "line": "Nagai Riko. Hajimemashite. I'm eighteen, in case you were wondering. People usually wonder."},
+      "momoka": {"cue": "A woman has set her shoes in a perfect line by the door; she rises smoothly, bows once, and sits again.", "line": "Mitsunaga Momoka. Hajimemashite. I have said my name to the camera already. Saying it to a person is different."},
+      "hayato": {"cue": "A man has pulled a second chair a few centimetres from the sofa and now looks unsure whether that was presumptuous.", "line": "Terashima Hayato. Hajimemashite. The chair is just a chair. Sit anywhere. I don't know the house rules either."},
+      "yuuki_byrnes": {"cue": "A man with restless energy stops bouncing his foot, stands, bows, then offers a handshake and withdraws it.", "line": "Byrnes Yuuki. Hajimemashite. ...Bow, handshake, I did both. Which one is it here?"},
+      "masako": {"cue": "A woman gently moves her bag off the seat beside her, bows, and looks unsure whether that was what you wanted.", "line": "Endo Masako. Hajimemashite. Please take that seat. Or not, whichever is easier. I'm sorry, I'll stop talking."}
     },
     "text": "At three in the afternoon, you arrive second at a shared house in Higashi-Gotanda. One stranger is already inside. Four more are still on their way.",
     "segments": [
-      {"kind": "narration", "text": "Three o'clock in Higashi-Gotanda. The glass front of the house reflects your bag and, just behind it, a camera already pointed at the door. Inside, the living room is too tidy for six people and too quiet for a television show. One resident has arrived before you. Four empty places wait around the low table; nobody has begun to eat."},
-      {"kind": "narration", "text": "{{GREETER_CUE}} You are the second person in the house. For a moment there is no group to hide in, only the first stranger and the small problem of what to say before the others arrive."},
+      {"kind": "narration", "text": "Three o'clock in Higashi-Gotanda. The glass front of the house shows your bag, your own face, and a camera already aimed at the door. In the entryway a row of slippers waits and nobody has said which pair is yours. Inside, the living room is far too tidy for six people. One resident has arrived before you. Four empty places wait around the low table; nobody has begun to eat."},
+      {"kind": "narration", "text": "{{GREETER_CUE}} You are the second person in the house. One man and one woman, alone, in a house built for a romance show: you both know it, and neither of you will say it first."},
       {"kind": "dialogue", "speaker_id": "@greeter", "text": "{{GREETER_LINE}}"},
-      {"kind": "narration", "text": "The quiet after that first sentence stretches just long enough to feel like footage. Beyond the hall is your shared {{PLAYER_BEDROOM}}. The next arrival is still minutes away; the conversation is yours to begin."}
+      {"kind": "narration", "text": "Neither of you knows how long a bow should last. The camera does not mind. Beyond the hall is your shared {{PLAYER_BEDROOM}}. The next arrival is still minutes away; the first words are yours."}
     ]
   },
   "world_context": [

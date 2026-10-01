@@ -228,7 +228,7 @@ def test_six_strangers_opens_with_one_resident_and_four_scheduled_arrivals(clien
     assert state.location_id == "living_room"
     assert {state.character_locations[k] for k in party} == {"living_room"}
     assert not any(k in state.character_locations for k in active - party)
-    assert sorted(state.opening_arrival_minutes.values()) == [7, 9, 12, 15]
+    assert sorted(state.opening_arrival_minutes.values()) == [8, 18, 28, 38]
     assert get_people_present_keys(state) - {"player"} == party
     assert "Three o'clock" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
     assert "nobody has begun to eat" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
@@ -5046,7 +5046,7 @@ def test_player_resident_slot_survives_restore_and_full_automatic_rotation(clien
     assert next(item for item in roster["active"] if item["id"] == "player")["name"] == "Chris"
     assert roster["vacancies"] == []
     from backend.app.engine.opening_scene import advance_opening_arrivals
-    assert len(advance_opening_arrivals(state, 0, 15)) == 4
+    assert len(advance_opening_arrivals(state, 0, 38)) == 4
     state.minute = 15
     assert len(pe._cast_roster_payload(state)["active"]) == 6
 
@@ -5573,7 +5573,7 @@ def test_six_strangers_opening_is_one_opposite_gender_resident_in_the_room(
 
         saved = json.loads(pe_mod._serialize_state(state, []))
         assert saved["opening_cast"] == party
-        assert sorted(saved["opening_arrival_minutes"].values()) == [7, 9, 12, 15]
+        assert sorted(saved["opening_arrival_minutes"].values()) == [8, 18, 28, 38]
         assert saved["main_character_id"] == state.main_character_id
 
         # The storyteller's first real prompt describes the same room.
@@ -5637,7 +5637,7 @@ def test_terrace_opening_arrivals_are_timed_visible_and_persisted(client, gender
     assert state.minute <= 5
     assert state.opening_arrived_ids == []
 
-    arrivals = client.post("/api/chat", json={"session_id": sid, "message": "I wait for 15 minutes."})
+    arrivals = client.post("/api/chat", json={"session_id": sid, "message": "I wait for 40 minutes."})
     assert arrivals.status_code == 200
     state = pe_mod.SESSIONS[sid]["state"]
     expected = [key for key, _ in sorted(state.opening_arrival_minutes.items(), key=lambda item: item[1])]
@@ -5665,6 +5665,7 @@ def test_terrace_opening_arrivals_are_timed_visible_and_persisted(client, gender
 
 @pytest.mark.parametrize("gender", ["M", "F"])
 def test_terrace_conversation_reveals_one_arrival_per_turn(client, gender):
+    """Arrivals are encounters: never more than one per turn, and each newcomer is preceded by a few exchanges."""
     from backend.app.api import prompt_engine as pe_mod
 
     sid = f"terrace_one_at_a_time_{gender}"
@@ -5672,22 +5673,25 @@ def test_terrace_conversation_reveals_one_arrival_per_turn(client, gender):
         "session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris",
     })
     seen = []
-    minutes = []
-    for line in ("Hello. I'm Chris.", "What made you come here?", "What work do you do?",
-                 "It feels strange being filmed.", "I wonder who is next."):
+    arrival_turns = []
+    lines = ("Hello. I'm Chris.", "What made you come here?", "What work do you do?",
+             "It feels strange being filmed.", "I wonder who is next.", "Where are you from?",
+             "Have you done a show like this before?", "Is the camera always on?", "What do you cook?",
+             "Do you like the city?", "How old are you?", "Did you sleep last night?", "Is this room always so quiet?",
+             "Do you know who is last?")
+    for turn, line in enumerate(lines):
         response = client.post("/api/chat", json={"session_id": sid, "message": line})
         assert response.status_code == 200
         state = pe_mod.SESSIONS[sid]["state"]
-        minutes.append(state.minute)
         seen.extend(state.opening_arrivals_this_turn)
         assert len(state.opening_arrivals_this_turn) <= 1
         if state.opening_arrivals_this_turn:
+            arrival_turns.append(turn)
             assert any(segment.get("speaker_id") == state.opening_arrivals_this_turn[0]
                        for segment in response.json()["segments"])
-    assert minutes == [4, 7, 9, 12, 15]
     assert len(seen) == len(set(seen)) == 4
     assert set(seen) == set(state.opening_arrival_minutes)
-
+    assert all(later - earlier >= 2 for earlier, later in zip(arrival_turns, arrival_turns[1:])),         f"each pair of strangers gets at least one exchange before the next entrance: {arrival_turns}"
 
 
 # ============================================================================
