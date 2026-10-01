@@ -125,3 +125,11 @@ guidance for Codex; beta remains the deployment target.
 **Rule:** Terrace content serves the romance and the reality-show frame first. First meetings are strangers: polite, a bit stiff, curious, awkward, no use of the player's name until they hear it, no shared history, no blushing or intimacy. Warmth has to be earned through the standing tiers. Career or dream details are background flavor, never the hook. Falling in love takes days (owner: "we can't have people falling in love 5 turns in"); what the storyteller portrays must never run ahead of the standing tier.
 
 **Added to:** `documentation/design/TERRACE_HOUSE.md` §11 (opening redesign); backlog BL-76/77/78.
+
+## 2026-10-01 — Social engine designs centre on the character object
+
+**Correction:** I proposed BL-85 as a standalone "volition" rules layer. Owner: not good enough; the design must be object-oriented around the character. A character has traits (MBTI type, injected into the storyteller), goals, and stances toward people ("considers this person a rival"), and a mind with what they know and what they think others know. When characters share a room, the combination of personalities, goals, love/hate and epistemic state should organically produce drama.
+
+**Rule:** Express new social mechanics as parts of `Person` (personality, goals, stances, mind) and let scenes be composed from those objects. Rule tables (weighted considerations) are an internal tool for deriving a character's stances and wants, never the headline architecture or a separate per-mechanic module.
+
+**Added to:** `documentation/backlog/BL-85-character-social-mind.md`.
