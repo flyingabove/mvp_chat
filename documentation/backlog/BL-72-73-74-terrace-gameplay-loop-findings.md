@@ -5,7 +5,7 @@ male player, 24-36 turns per run, one run per setting). The reaction cues that c
 
 ## BL-72 — Finding a resident costs turns and the game gives no help
 - **Open:** after a one-day skip the target was in the player's scene on only 36% of turns (E5, 28 turns, 6 days); four of the six days produced no gain at all because the scripted player never found her. `[CAST]` lists who lives in the house but not where they are, and the only way to find someone is to guess a room.
-- **Next:** a player-facing way to locate a housemate, for example `(find Arisa)` or "where is Arisa" answered from `world.place_of` for residents the player would plausibly know about, optionally moving the player there with travel time; or locations in the cast list. Decide what the player is allowed to know (a shared house is small; a resident out at work should read as away, not as a room). Failing-first test through `/api/chat`; re-run E5 with a policy that uses it and compare target-present share and gain per day.
+- **Next:** a player-facing way to look for a housemate, for example `(find Arisa)` or "where is Arisa", answered under the owner's fog-of-war rule (2026-10-01): from the **player's own mind** (BL-85: last place and time seen or heard of, plus routines the player knows), never from `world.place_of`. Searching can move the player with travel time and may miss. A resident at work reads as away if the player knows their routine. Failing-first test through `/api/chat`; re-run E5 with a policy that uses it and compare target-present share and gain per day.
 - **Touches:** `prompt_engine.py` (command parsing), `world_model/` place queries, `frontend/index.html` (cast list), `design/WORLD_MODEL.md`.
 
 ## BL-73 — No daily rhythm: a natural session never leaves day 0

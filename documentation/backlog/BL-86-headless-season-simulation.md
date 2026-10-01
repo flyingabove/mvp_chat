@@ -36,7 +36,12 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
      - extraction plus Jev;
      - the commit goes through the existing single writers.
 
-     The same turn transaction as player turns: one code path, not a second engine. A per-day cap on scenes, and a
+     The same turn transaction as player turns: one code path, not a second engine. **The extractor therefore must
+     accept NPC-to-NPC updates** (absorbs BL-06 and BL-24):
+     - relationship and behaviour changes between NPCs, not only player-to-NPC;
+     - NPC movements described in the prose (a new `npc_movements` field; it does not exist yet).
+
+     Both apply through the same validated writers. The older social-sim story `6_common_room` gets this path too. A per-day cap on scenes, and a
      hard cost cap per run.
   2. **The camera.** Not every encounter is equally interesting. Rank encounters by scene tension (BL-85 dynamics)
      and write the top N per day in full. The rest are summarized in one line by the same writing call, so the
@@ -51,7 +56,9 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
      - structural invariants: always 6 residents, no telepathy, consent rules, no story names in engine code;
      - a minimum rubric score (BL-87).
 
-     It is never run on deploy. Separately, the unit gate runs a scripted fake writer, so the runner's plumbing is
+     It also checks the rival evidence absorbed from BL-34: over several story days the season report must show
+     rivals visibly competing (counter-invitations, competing plans, a rival seeking out the courted person), and
+     absence is reported as absence. It is never run on deploy. Separately, the unit gate runs a scripted fake writer, so the runner's plumbing is
      tested offline.
 - **Next:**
   - The provider switch (`SIM_OLLAMA_ENABLED=false`, with the arena's local Ollama path respecting it), with a test.

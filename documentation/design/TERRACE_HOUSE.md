@@ -3,7 +3,7 @@
 > **What this doc is for:** the single design doc for the Terrace House game mode (story `7_six_strangers`, "Terrace in the City"): its proposal (win, loss, courtship, judges panel), the generic engine mechanics it drives, and background on the real show (Appendix A). Edit it if anything about this game mode's design changes. Once parts ship, move the as-built description of the generic mechanics into `reference/` docs and mark them built here.
 
 - **Status:** proposal, not built. Game-mode doc, moved here from `proposals/`. Created 2026-09-26, rewritten the same day after the owner Q&A (decisions in §2).
-- **Closes when shipped:** [BL-33](../backlog/BL-33-34-terrace-goal-ending-and-rivals.md); most of [BL-34](../backlog/BL-33-34-terrace-goal-ending-and-rivals.md).
+- **Closes when shipped:** [BL-33](../backlog/BL-33-terrace-win-path-hosted.md); BL-34 shipped (its hosted evidence is now a BL-86 acceptance check).
 - **Engineering authority:** [consolidated BL-39](SOCIAL_ENGINE.md), updated 2026-09-28: character-centric model and phases A–J, incorporating BL-38's correctness contracts. This file specifies Terrace content, not a competing engine architecture. The original claim-lock and multi-call panel design has been corrected to match the latest owner decisions.
 - **Background:** Appendix A (the real show and how it maps to the game).
 - **Related:** [design/SOCIAL_ENGINE.md (social engine v2)](SOCIAL_ENGINE.md), [design/SOCIAL_ENGINE.md (cast lifecycle)](SOCIAL_ENGINE.md), [design/JEV.md (dynamic context)](JEV.md), [design/ROADMAP_NOT_BUILT.md (game design systems)](ROADMAP_NOT_BUILT.md).
@@ -260,7 +260,7 @@ turn on a 12 GB GPU.
 
 ## 11. Opening redesign: strangers on camera (proposal, 2026-09-30)
 
-**Status (2026-09-30):** parts A-C built (generic acquaintance ladder, stranger-style opening and arrivals, one-time "What is your type?" round) and measured offline (part D); what is left is in [BL-76 and BL-84](../backlog/BL-76-84-realistic-first-meetings-remaining.md). Owner choices: light Japanese markers (-san, bows, "hajimemashite"); include the "what's your type?" round. Principle: falling in love takes days, never a handful of turns.
+**Status (2026-09-30):** parts A-C built (generic acquaintance ladder, stranger-style opening and arrivals, one-time "What is your type?" round) and measured offline (part D); what is left is in [BL-76 and BL-84](../backlog/BL-76-84-first-meetings-remaining.md). Owner choices: light Japanese markers (-san, bows, "hajimemashite"); include the "what's your type?" round. Principle: falling in love takes days, never a handful of turns.
 
 **Owner direction.** This is a dating show. The opening should feel like a real reality show: you are alone in a room
 with an opposite-gender Japanese stranger, on camera, and the energy is funny and awkward. Nobody knows your name.

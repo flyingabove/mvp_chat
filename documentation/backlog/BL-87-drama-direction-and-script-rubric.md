@@ -82,6 +82,29 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
   - Write the rubric questions and anchors, and label 60 scenes from hosted Terrace play.
   - Add the `drama` profile with defaults that reproduce today's prompts (a no-op), then switch on knobs one at a
     time, each with an arena gate.
+- **Sources (researched 2026-10-01):**
+  - Script coverage, [Wikipedia](https://en.wikipedia.org/wiki/Script_coverage) and
+    [The Script Lab](https://thescriptlab.com/?p=38102): concept, character, structure, dialogue, plot; Pass,
+    Consider or Recommend.
+  - The Black List's 1–10 scores on premise, plot, character, dialogue and setting
+    ([guide](https://reviewmyscript.com/decoding-the-black-list-a-screenwriters-guide/)).
+  - McKee on value turns and progressive complications ([mckeestory.com](https://mckeestory.com/do-your-scenes-turn/),
+    [charges](https://www.socreate.it/en/blogs/screenwriting/how-to-use-positive-and-negative-charges-to-structure-great-scenes)).
+  - The K-drama rom-com beat sheet and cast structure
+    ([Substack](https://excitedmark.substack.com/p/how-to-write-a-kdrama-romcom-romantic-comedy)).
+  - Makjang devices ([Dramabeans](https://dramabeans.com/2017/07/changing-tastes-real-life-is-sometimes-more-bizarre-than-makjang-dramas),
+    [JoongAng Daily](https://www.koreajoongangdaily.com/korea/soap-operas-with-a-korean-twist/10977104)).
+  - KOCCA contest criteria: originality, completion, marketability
+    ([Korea Times](https://www.koreatimes.co.kr/lifestyle/trends/20210614/kocca-on-the-hunt-for-creative-stories-for-its-annual-awards)).
+  - A, B and C stories ([TV Calling](https://www.tv-calling.com/what-are-a-b-and-c-stories-in-screenwriting-tv-writing-101/),
+    [GL Coverage](https://glcoverage.com/2024/06/25/a-b-and-c-plots/)).
+  - The game of the scene and "heighten and explore"
+    ([Hoopla](https://www.hooplaimpro.com/quick-guide-game-of-scene),
+    [Funny How](https://funnyhow.substack.com/p/heighten-and-explore)).
+  - Dan Harmon's story circle ([Dabble](https://dabblewriter.com/the-story-circle)).
+  - Terrace House producers' topic direction and editing
+    ([Wikipedia](https://en.wikipedia.org/wiki/Terrace_House),
+    [Japan Today](https://japantoday.com/category/entertainment/update1-fuji-tv-had-deal-with-terrace-house-cast-on-how-scenes-played-out)).
 - **Touches:** new `engine/rules/drama.py` (profile and presets) and `backend/app/sim/rubric.py` (Jev questions),
   `prompt_builder.py` / `turn.py` (nudge rendering), story JSON (`drama`), `tests/eval_cases/`, `scripts/eval/`,
   `design/SOCIAL_ENGINE.md`.

@@ -99,6 +99,12 @@ class Person:
   - **Exposure risk:** I hid P from X, and someone present who I think knows P is about to talk to X.
   - **Misread:** I think X likes me, but the engine truth says otherwise. Truth stays engine-only and is used only to
     choose the scene, never written into a prompt.
+- **Last seen (absorbs BL-24):** each mind keeps the last place and time it saw or heard of every other person. "Where
+  is Yuriko?" is answered from that, plus routines the person knows about, never from `world.place_of`.
+- **Claims carry the teller's intent (absorbs BL-83a):** a told claim records whether the teller meant it sincerely,
+  exaggerated it, lied, or staged it. Gossip keeps the tag, so a lie persists as a lie in memories and in gossip
+  provenance, while the engine's truth stays separate. Test: a false rumor stays false in the engine however far it
+  spreads.
 - Second-order beliefs update with the same perception path as memories (`observe_event`, `transmit`, gossip). No
   new provider calls.
 
@@ -130,7 +136,13 @@ class Person:
   - Plus one line naming the scene's chosen tension.
   - Cap: a fixed line budget per scene, with the people who speak this turn first.
 - **NPC initiative** comes from the same objects. `Person.wants(scene)` ranks admissible actions for the chosen
-  dynamic: compete, needle, confide, withhold, probe, test, gossip_about, invite, confess. It uses weighted
+  dynamic: compete, needle, confide, withhold, probe, test, gossip_about, invite, confess. It also covers two moves
+  absorbed from BL-83(b, c), both using real rooms and earshot:
+  - `stage_talk(listener, within_earshot_of)`: hold a conversation meant to be overheard.
+  - `watch(target)`: move to an adjoining room for a few turns. There is a scene beat if the player walks in and
+    catches them.
+
+  Multi-step execution of these moves is BL-81. It uses weighted
   considerations, the CiF volition sum. The winner becomes the turn's beat, and an invitation remains a state event
   as today. This replaces `next_beat`, `stakes.py` and the per-module rival logic.
 
@@ -200,6 +212,14 @@ class Person:
   - `Stance`, `StanceBook`, the stance rules and default pack, and the new condition kinds.
   - Intentions are derived from stances. The rival seeding, fallout and gender blocks move into rules.
   - Parity with P0. Each intended change (late-arrival aims, beat cadence) gets its own test.
+  - **Difficulty sweep (absorbs BL-75).** Once parity holds, sweep the rival stance weight (it was
+    `couples.rival_aim`, set to 0.3) over 12 seeded houses, both player genders, with no model calls. Record:
+    - days to the win, or no win by day 60;
+    - whether a rival coupled with the player's target first;
+    - whether the player was cut, and on which day the passive player was cut.
+
+    Owner goal: the game is hard for an engaged player, without slowing the passive cut, which ran days 95–173 in
+    the last measurement against a 180-day allowance.
 - **P3 Mind.**
   - Second-order `ThinksKnows` and `ThinksFeels`, kept by the perception path.
   - No-telepathy tests: remove a witness and the belief disappears; change a hidden feeling and nobody's mind
@@ -219,30 +239,39 @@ class Person:
   - Rename-content test.
   - Move this design into `design/SOCIAL_ENGINE.md` as built, then delete this item.
 
-### What this closes or unblocks
-- **Closes:**
-  - BL-80(a, b, c): goals and shifts; scheming and safe_pick; consumers for planfulness and candor.
-  - BL-76(b): NPC initiative gated by stance and acquaintance.
-  - BL-34(2): stances are derived for anyone present, including late arrivals.
-  - BL-37: the beat cadence note.
-  - BL-27 row 13: `disposition` replaced by stances, so non-main characters' attitudes reach the prompt.
-- **Mostly closes:**
-  - BL-84(3, 5): room energy becomes part of temperament interplay; third-party reads come through gossip and
-    second-order beliefs.
-  - BL-82(b, e): NPC confession as a want; fallout as stance rules.
-  - BL-83(a): claims passed on carry the teller's intent through the mind.
-- **Unblocks or shrinks:**
-  - BL-83(b, c): stage talk and watching become wants; executing them needs BL-81.
-  - BL-82(a).
-  - BL-75: rival strength becomes one stance weight.
-  - BL-06: decides it; NPC-side drift comes from the world model.
-  - BL-36: the mind's provenance is the base for the evidence journal.
-- **Not solved:**
-  - BL-81: asynchronous planning (how to carry out a want over several steps).
-  - BL-11: authored NPC-NPC edges.
-  - BL-35: attendance.
-  - The prose and pacing items.
+### Backlog work absorbed here (2026-10-01; removed from the other files)
+- From BL-80: goals and goal shifts, `scheming` and `safe_pick`, and consumers for `planfulness` and `candor`.
+- From BL-76: NPC flirting and confession gated on acquaintance and stance.
+- From BL-82: NPC-initiated confession as a want; fallout sizes become stance rules, tuned through BL-87.
+- From BL-83: claim intent in the mind; `stage_talk` and `watch` as wants.
+- From BL-84: group energy from temperament interplay; third-party reads through gossip and second-order beliefs.
+- From BL-24: each mind keeps last-seen places and times.
+- From BL-75: the rival-strength difficulty sweep (P2).
+- From BL-27 row 13: the unread `disposition` is replaced by stances, so non-main characters' attitudes reach the
+  prompt.
+- From BL-37: the `next_beat` cadence note (P2).
 
+Still separate:
+- BL-81: carrying out multi-step plans.
+- BL-82: delayed answers and leave-together fallout.
+- BL-11: authored NPC-to-NPC edges.
+- BL-35: attendance.
+- BL-36: the evidence journal, which builds on the mind's provenance.
+- The prose and pacing items.
+
+- **Sources (prior art, researched 2026-10-01):**
+  - Comme il Faut, the Prom Week rule engine
+    ([AIIDE](https://ojs.aaai.org/index.php/AIIDE/article/view/12454)).
+  - Slice of Life, with the Ensemble schema, social record, intents and weighted considerations, and symbolic state
+    with the LLM as the voice ([FDG '25](https://kmjn.org/publications/SliceOfLife_FDG25.pdf)).
+  - Versu social practices ([Evans & Short](https://www.cs.uky.edu/~sgware/reading/papers/evans2014versu.pdf),
+    [blog](https://emshort.blog/2013/02/26/versu/)).
+  - Concordia, the Entity/Component/Game Master design, Apache 2.0
+    ([repo](https://github.com/google-deepmind/concordia)).
+  - Generative Agents: memory recency, importance and relevance, plus reflection, Apache 2.0
+    ([repo](https://github.com/joonspk-research/generative_agents)).
+  - Project Sid, many-agent societies ([paper](https://arxiv.org/pdf/2411.00114)).
+  - SOTOPIA, social-goal evaluation ([paper](https://arxiv.org/pdf/2310.11667)).
 - **Related:** BL-86 is the headless season simulation and admin watch mode that proves this. BL-87 is the drama
   direction knobs and the Jev script rubric that tune and judge it.
 - **Next:** P0, then P1. Do not start P4 before P2 shows zero golden diffs and P3 passes its no-telepathy tests.

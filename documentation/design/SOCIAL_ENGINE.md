@@ -584,7 +584,7 @@ Engagement evaluation uses blinded equal-length comparisons plus human review: m
 
 ### 10. Backlog mapping
 
-Existing [BL-30](../backlog/BL-30-narrative-clock-vs-game-clock.md), [BL-31](../backlog/BL-31-36-41-iu-mystery.md), [BL-33](../backlog/BL-33-34-terrace-goal-ending-and-rivals.md), [BL-34](../backlog/BL-33-34-terrace-goal-ending-and-rivals.md), [BL-35](../backlog/BL-35-45-terrace-plans-and-promises.md), [BL-36](../backlog/BL-31-36-41-iu-mystery.md), and [BL-37](../backlog/BL-37-47-terrace-repetition-and-stock-lines.md) retain their scopes. The cross-cutting transaction and epistemic work is tracked in BL-38. Implement slices with regression evidence; this design does not close those items.
+Existing [BL-30](../backlog/BL-30-narrative-clock-vs-game-clock.md), [BL-31](../backlog/BL-31-36-41-iu-mystery.md), [BL-33](../backlog/BL-33-terrace-win-path-hosted.md), BL-34 (now part of [BL-86](../backlog/BL-86-headless-season-simulation.md)), [BL-35](../backlog/BL-35-45-terrace-plans-and-promises.md), [BL-36](../backlog/BL-31-36-41-iu-mystery.md), and [BL-37](../backlog/BL-37-terrace-repetition-and-stock-lines.md) retain their scopes. The cross-cutting transaction and epistemic work is tracked in BL-38. Implement slices with regression evidence; this design does not close those items.
 
 ### 11. Implementation sequence and shared release contract
 
