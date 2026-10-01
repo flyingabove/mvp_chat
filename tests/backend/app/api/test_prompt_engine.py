@@ -272,6 +272,35 @@ def test_six_strangers_prompt_states_whereabouts_and_never_names_unarrived_resid
                 assert not leaked, f"unarrived {token!r} leaked near {prompt[max(0, leaked.start()-100):leaked.end()+100]!r}"
 
 
+def test_six_strangers_prompt_injects_the_present_characters_mbti(client, monkeypatch):
+    """End-to-end (BL-80/81/82 MBTI mechanic, 2026-10-01): the real /api/chat
+    pipeline must put each present character's MBTI line into the actual
+    system prompt sent to the LLM, not just the unit-level identity block."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sent = []
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Recording(fake_client):
+        async def post(self, *args, **kwargs):
+            sent.append(kwargs.get("json"))
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Recording)
+
+    sid = "six_strangers_mbti_injection"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    prompt = sent[-1]["messages"][0]["content"]
+
+    assert "personality type" in prompt
+    for key in state.opening_cast:
+        ch = state.characters[key]
+        assert ch.mbti, f"{key} has no mbti set"
+        assert f"[{ch.name}'s personality type] {ch.mbti}" in prompt
+
+
 def test_turn_drops_opening_lines_the_model_repeats(client, monkeypatch):
     """Live prod 2026-09-24: each turn re-sent the opening's greeting lines."""
     import json as _json

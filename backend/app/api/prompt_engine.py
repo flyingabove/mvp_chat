@@ -1892,6 +1892,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 relationship=restored.relationship,
                 goal=ch.goal,
                 tells=list(ch.tells),
+                mbti=ch.mbti,
             )
             restored.characters[ch.key] = game_char
             if ch.is_main:
@@ -2823,6 +2824,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 relationship=new_state.relationship,
                 goal=ch.goal,
                 tells=list(ch.tells),
+                mbti=ch.mbti,
             )
             new_state.characters[ch.key] = game_char
             if ch.is_main:
