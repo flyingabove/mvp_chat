@@ -25,6 +25,7 @@ from backend.app.engine.world_model.offscreen import resolve_offscreen
 from backend.app.engine.world_model.person import Cast
 from backend.app.engine.world_model.appraisal import appraise_behaviors
 from backend.app.engine.rules.acquaintance import acquaintance_levels, level_for
+from backend.app.engine.world_model.stakes import stake_notes
 from backend.app.engine.world_model.signals import Candidate, choose_signal, interest_of, signal_catalogue
 from backend.app.engine.rules.personality import personalities
 from backend.app.engine.rules.tracks import social_rules
@@ -362,6 +363,9 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
             model.agendas[cid] = [i for i in model.agendas.get(cid, []) if i != intention]
     _tell_directives(model, state, view, message, present_set, owes_answer | addressed_now, names)
     _signal_directives(model, state, view, present_set, names)
+    _, mentioned_now = addressed_ids(model, message, list(model.characters))
+    view.must_address.extend(stake_notes(model, present_set, mentioned_now, personalities(getattr(state, "story_cfg", {}) or {}),
+                                         names, model.world.day_index(model.world.minute)))
     _requirement_hints(model, state, view, present_set, names)
     candidates = present or [cid for cid in model.characters if not model.is_placed(cid)]
     view.plan = select_speakers(model, candidates, message, warmth_fn(state), owes_answer=owes_answer)

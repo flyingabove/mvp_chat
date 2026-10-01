@@ -24,12 +24,7 @@ From the owner interview of 2026-09-30, written up in [design/TERRACE_HOUSE.md �
   5. Tune the pace so a run takes about 60-400 turns from edge growth, not thresholds, and check it with the simulator.
 - **Touches:** `social_acts` handling, `world_model/standing.py`, gossip, `scripts/terrace_ollama_sim.py`.
 
-## BL-83 — Characters lie, stage and spy for their own ends (generic epistemics and movement)
-- **Open:** gossip carries its provenance, but speakers don't lie or exaggerate for their own goals. Nobody stages a conversation to be overheard. Suspicion never makes anyone physically follow or eavesdrop on the player.
-- **Next:**
-  - Each claim a speaker passes on carries the speaker's belief and intent (sincere, exaggerated, false, staged).
-  - Suspicion of the player can schedule a real surveillance action: the NPC moves to an adjoining room and listens.
-  - The player can find them there by walking in.
-  - Overhearing requires the right place and time.
-  - Tests: a false rumor stays false in the engine's truth; a watcher is physically present in the scene.
-- **Touches:** `world_model/` memory and movement, gossip, the scene contract.
+## BL-83 — Characters lie, stage and spy for their own ends: what is left (generic epistemics and movement)
+- **Open:** built 2026-10-01: motivated testimony (`world_model/stakes.py`, see SOCIAL_ENGINE.md): people with a stake in someone speak about them in their own interest. Still missing: (a) claims passed on between characters do not carry the speaker's belief and intent (sincere, exaggerated, false, staged), so a lie never persists as a lie in memory or gossip provenance; (b) nobody stages a conversation to be overheard; (c) suspicion of the player never makes a character physically follow or eavesdrop, and the player cannot catch them by walking in.
+- **Next:** (a) tag each told claim in `memories` with `intent`; gossip keeps the tag and the engine's truth stays separate; test that a false rumor stays false in the engine. (b) an NPC action `stage_talk(listener, within_earshot_of=player)` using real rooms. (c) a `watch` intention that moves the NPC to an adjoining room for a few turns, with a scene beat when the player enters. Needs BL-81 for planning.
+- **Touches:** `world_model/memory.py`, gossip/offscreen, `world_model/agenda.py`, `world_model/movement`, the scene contract.

@@ -396,6 +396,16 @@ temperament dials (`rules/personality.py`): sociability (E 0.8 / I 0.25), candor
 `scheming` and `safe_pick` are accepted and stored; their extra behaviour arrives with BL-81..83. Tests:
 `test_personality_model.py`.
 
+### Motivated testimony: people with a stake speak in their own interest (BL-83 part 1, as built 2026-10-01)
+
+Generic, any story with agendas. `world_model/stakes.py`: when the player's message names someone, each present person who
+holds a live `pursue`/`compete_for` intention toward that person (or a live `pursue` toward the player, who is asking
+about someone else) gets a private must-address note: they speak in their own interest, may play things down, play
+them up or leave things out, never admit to it, and never state what the person privately feels as certain fact.
+`scheming` strategy adds "steers on purpose"; high candor adds "would rather withhold than say something false".
+Strongest stakes first, at most two notes a turn. The engine's truth and the player-visible state are untouched. Tests:
+`test_stakes.py`.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |
