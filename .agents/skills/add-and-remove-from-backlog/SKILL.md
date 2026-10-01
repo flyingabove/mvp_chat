@@ -1,6 +1,6 @@
 ---
 name: add-and-remove-from-backlog
-description: StoriesChat backlog conventions. The backlog is the folder documentation/backlog/ of small topic files (one per bug, or one per few closely related bugs), each holding `## BL-<n>` sections of open work only; a fixed item's section is deleted, and an empty file is deleted. Use this whenever work is knowingly deferred (a bug found but not fixed, a partial fix, a follow-up, an owner action), whenever a backlog item gets fixed, or when the user asks to add, update, list or remove backlog items.
+description: StoriesChat backlog procedures. Use whenever work is knowingly deferred (a bug found but not fixed, a partial fix, a follow-up, an owner action), whenever a backlog item is fixed or a task finishes, when the user asks to add, update, list, groom, clean or remove backlog items, and when deciding WHERE a change belongs (A authored text, B game-only mechanic, C engine/character object). The backlog is the folder documentation/backlog/ of small topic files holding `## BL-<n>` sections of open work only.
 user-invocable: true
 ---
 

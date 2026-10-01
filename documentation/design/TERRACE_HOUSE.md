@@ -30,7 +30,7 @@ You are a cast member on a reality show. You move into a Tokyo house with **five
 | Loss | **Fixed count: cut when 3 other couples have left happy.** After the 2nd, the **director phones the player**: "one more couple leaves before you and you're cut." |
 | Cut ending | An exit scene with the director, then the full panel, then a Game Over card. |
 | Cast names | **Keep the current names** (they match the real season's cast). Explicit permission to use real names (non-commercial app). See §9. |
-| Engineering rule | **Build universal mechanics** that every story can use. Terrace only configures them in story JSON. Dating stories can weight the LLM context toward relationships (adjustable per story). |
+| Engineering rule | **Build universal mechanics** that every story can use; Terrace configures them in story JSON. A Terrace-only mechanic is a strongly discouraged last resort (not forbidden): only when the generic route cannot express the need, kept in a story-specific module, never in generic engine logic. Dating stories can weight the LLM context toward relationships (adjustable per story). |
 
 ## 3. The generic mechanics (engine, all stories)
 
@@ -312,7 +312,7 @@ pasted in, and the cue still shows exactly once. Story JSON validation covers ev
 
 ## 12. How the game should feel: owner interview (2026-09-30)
 
-These answers override earlier sections where they conflict. **Principle:** nearly everything below is generic engine work (more real, smarter characters for every story); Terrace only configures it.
+These answers override earlier sections where they conflict. **Principle:** nearly everything below is generic engine work (more real, smarter characters for every story); Terrace configures it. A Terrace-only mechanic is allowed only as a last resort when the generic route cannot express the need.
 
 **The player and the room**
 - The player is a Japanese cast member. Residents call them by whatever name the persona has, plus "-san" ("Paul-san"). Light Japanese markers only (bows, "hajimemashite").

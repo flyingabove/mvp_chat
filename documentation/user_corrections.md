@@ -149,3 +149,11 @@ Recorded from the owner's answers (full detail in backlog BL-85, BL-86, BL-87):
 - **Interruptions:** when someone walks in, the LLM writes the interruption realistically.
 
 **Added to:** backlog BL-85/86/87, `design/TERRACE_HOUSE.md` (panel modes), `design/SOCIAL_ENGINE.md` §7.
+
+## 2026-10-01 — Game-specific mechanics are a last resort, not forbidden
+
+**Correction:** I wrote that a Terrace-only mechanic is "forbidden" by the owner's rules. Owner: it is not forbidden; strongly avoid it, consider it last, but sometimes it is fine.
+
+**Rule:** Default to the generic engine/character-object route. A game-specific mechanic is allowed as a last resort when the generic route was tried or clearly cannot express the need: say why in the commit or design doc, keep it in a story-specific module or hook (never in generic engine logic such as `world_model/`), and prefer a shape another story could reuse. Never write "forbidden" or "never" for this in docs or answers.
+
+**Added to:** `AGENTS.md` section 5, `design/TERRACE_HOUSE.md` (engineering rule, section 12), `design/WORLD_MODEL.md` ground rules, backlog BL-76-84 header.

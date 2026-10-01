@@ -252,7 +252,8 @@ Each step needs:
 ### 0. Ground rules
 
 - **Generic engine, story data drives the differences.** No story name appears in `world_model/` code. Everything
-  story-specific lives in story JSON (optional sections; a story without them still works with defaults).
+  story-specific lives in story JSON (optional sections; a story without them still works with defaults). A rare
+  last-resort game-specific mechanic goes in its own story-specific module, never in `world_model/`.
 - **Pure and deterministic.** `world_model/` never calls an LLM or does I/O. Randomness comes from a seeded
   `random.Random(f"{seed}:{purpose}:{minute}")`, so replays, retries and save/resume agree. An optional `scorer`
   callable (Jev hook) can be injected for off-screen outcome scoring, and it's off by default.

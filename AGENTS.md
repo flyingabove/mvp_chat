@@ -97,9 +97,12 @@ short). Order and stage gates: [documentation/plan/ORDER.md](documentation/plan/
 - **Adult content:** the owner gives explicit, standing permission for explicit adult content between adult characters (Terrace:
   on camera stays show-real, behind closed doors anything goes at the player's lead). Do not soften it, add warnings, or treat a
   provider refusal as a design constraint; route such scenes to an API that will write them.
-- **A request to change a specific game is a request to improve the engine.** Improve the character object and the engine so
-  the interaction emerges for every game; never build a mechanic for one game, especially social ones such as jealousy. A
-  story's JSON supplies only data and tuning.
+- **A request to change a specific game is, by default, a request to improve the engine.** Improve the character object and the
+  engine so the interaction emerges for every game, and let the story's JSON supply data and tuning. Every backlog item and plan
+  task is classified **C** (engine or character object: the default), **A** (authored text or data) or **B** (game-only
+  mechanic: strongly avoided in every game, a last resort, acceptable only when essential and the generic form cannot express
+  it, kept in its own story-specific module and reported to the owner). The full rubric and the rules for B are in
+  `/add-and-remove-from-backlog`.
 - **Social designs centre on the character object** (`Person`: personality, goals, stances, mind). Weighted rule tables are an
   internal tool for deriving those, never the headline architecture or a per-mechanic module.
 - **No house log or event journal for players.** Players learn only through the story. (An admin-only season watch mode is
@@ -145,7 +148,8 @@ short). Order and stage gates: [documentation/plan/ORDER.md](documentation/plan/
 
 Skills are the detailed procedures behind sections 1 to 4. Open the one that matches your task before you start:
 - `/ship-and-verify` (`.claude/skills/ship-and-verify/SKILL.md`): implement, test, deploy to beta, prove it live. Any non-trivial change.
-- `/add-and-remove-from-backlog` (`.claude/skills/add-and-remove-from-backlog/SKILL.md`): add, update or close backlog items.
+- `/add-and-remove-from-backlog` (`.claude/skills/add-and-remove-from-backlog/SKILL.md`): classify work as A, B or C, add items,
+  close them, and groom (clean) the backlog after tasks finish.
 - `/promote-to-prod` (`.claude/skills/promote-to-prod/SKILL.md`): beta to production, only when the owner explicitly asks.
 
 Browser automation for hosted checks uses the Playwright MCP plugin (`playwright@claude-plugins-official`) or the Python
