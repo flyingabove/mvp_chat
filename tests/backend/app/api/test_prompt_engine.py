@@ -2875,7 +2875,7 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert "mutual romantic relationship" in system_prompt
     assert "Same-gender potential rivals" in system_prompt
     assert "no fixed win condition" not in system_prompt
-    assert "Narrator aside device" in system_prompt
+    assert "Narrator aside device" not in system_prompt  # Terrace's panel speaks only in the finale
     assert f"### CHARACTER IDENTITY — {state.characters[state.main_character_id].name}" in system_prompt
     for absent_key in keys - {state.main_character_id}:
         assert f"### CHARACTER IDENTITY — {state.characters[absent_key].name}" not in system_prompt

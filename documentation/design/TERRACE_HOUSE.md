@@ -192,7 +192,7 @@ These content labels compile to BL-39's closed typed Condition vocabulary. Evalu
 | `world_model/romance.py` regex adapters | Replaced by M4 acts plus M1 standing. `romance_outcome` and the lifecycle removal logic are kept. |
 | `gameplay.win_condition_detected` | Reads the endings registry (M6). Regex stays only as a legacy fallback for stories without `endings`. |
 | `prompt_engine.py` `END GAME …` string | A structured `ending` payload and panel segments. `debug.html` keeps its text marker. |
-| `mode.narrator_asides` (unnamed) | Voiced by the named panel (M6 `aside`). |
+| `mode.narrator_asides` (unnamed) | Removed from Terrace. The named panel speaks only in the finale. |
 | Relationship edges (trust/affection/…) | Kept. They are inputs to tracks, not replaced. |
 | Off-screen resolver, gossip, agreements, cast lifecycle | Reused as the substrate for NPC–NPC courtship, rule discovery and couple departures. |
 
@@ -314,7 +314,7 @@ pasted in, and the cue still shows exactly once. Story JSON validation covers ev
 
 ## 12. How the game should feel: owner interview (2026-09-30)
 
-These answers override earlier sections where they conflict.
+These answers override earlier sections where they conflict. **Principle:** nearly everything below is generic engine work (more real, smarter characters for every story); Terrace only configures it.
 
 **The player and the room**
 - The player is a Japanese cast member. Residents call them by whatever name the persona has, plus "-san" ("Paul-san"). Light Japanese markers only (bows, "hajimemashite").
@@ -331,7 +331,7 @@ These answers override earlier sections where they conflict.
 - As brutal as the adversaries can realistically be made, with no engine cheating. The game is only allowed to be as hard as its adversaries are smart. A loss must be explainable through concrete, realistic mistakes or rival outplays.
 
 **Information: the player never gets a reliable read**
-- The studio panel is a Terrace-only feature and appears only after the game ends, to judge the run. This differs from the real show. Terrace turns `mode.narrator_asides` off (BL-79).
+- The studio panel is a Terrace-only feature and appears only after the game ends, to judge the run. This differs from the real show. Terrace has no `mode.narrator_asides` block, so nothing panel-like appears in play.
 - Everything the player learns about feelings comes through other people, who may lie or exaggerate for their own ends. Overheard talk can be false, or staged to be overheard. Epistemic state plus intent decides what anyone says.
 - No telepathy. Characters coordinate only by talking or calling, in real places at real times. The player can overhear a conversation only by being in the right place at the right time, and that should be hard.
 

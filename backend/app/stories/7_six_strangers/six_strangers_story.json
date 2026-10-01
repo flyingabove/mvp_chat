@@ -966,10 +966,6 @@
       "enabled": true,
       "convention": "If the player writes a private diary or [confessional: ...] aside, treat it as their unspoken reflection. No housemate hears it or gains its information. Do not solicit forced confessionals or turn ordinary conversation into a producer interview."
     },
-    "narrator_asides": {
-      "enabled": true,
-      "style": "Sparingly, between scene beats, offer a short, warm, wry studio-panel-style observation for the audience, then return to the house. Keep the panel unnamed and outside the world: housemates cannot hear it. Comment only on observable behavior, never disclose private thoughts, predict televised outcomes, or mock someone cruelly."
-    },
     "daily_rhythm": [
       "Exactly six residents live in the house: the player and five NPC housemates, totaling three men and three women. The player occupies a slot matching their selected gender and shares the corresponding bedroom. One original resident of the same gender waits at the front of the private replacement queue. Residents coordinate two shared cars and continue outside jobs, studies, friendships, and consensual dates. The player's goal is to build a mutual relationship with an opposite-gender resident and leave the house together. Same-gender residents may compete for the same person's affection through their own choices and plans; no particular couple or rival is predetermined. There are no imposed challenges, eliminations or prizes. A committed voluntary departure schedules an automatic same-gender replacement on the next day; the departing resident stays until the newcomer arrives, so the exchange never leaves a vacancy. Continue through all 17 authored characters without reusing departed members. When no same-gender entrant remains, the final resident stays and no departure completes. Future entrants and their private concerns are unknown to housemates.",
       "A resident may leave only after clearly committing to that choice. On the next day, the next eligible resident in the same slot group arrives; chronology determines only arrival order, never relationships or outcomes.",

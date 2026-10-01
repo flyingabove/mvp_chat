@@ -808,7 +808,7 @@ Using `backend/app/stories/6_common_room/` (**The Common Room**) as the referenc
 6. **`relationships.edges`**: seed every housemate→player edge, and at least one NPC-NPC edge, so `ROOM DYNAMICS` prose reflects real ensemble relationships when multiple characters share a scene.
 7. **`opening.text`**: write real, evocative move-in-day (or equivalent) prose — this is a creative deliverable, not boilerplate.
 8. **Goal and ending**: an open-ended game omits `goal`/`win_detection`. Terrace now authors `goal.win_text_rule` and `mode.romance_goal`; it still omits regex `win_detection` because a string match cannot prove mutual departure. BL-33 tracks the remaining validated endgame transition.
-9. **`mode`**: add the block from §2 with `type: "social_sim"`. Optionally add `narrator_asides` (see §2) if your game wants the storyteller to occasionally step outside the scene in its own wry, external-observer voice — `six_strangers` uses this for a "documentary aside" device; The Common Room does not use it and is unaffected (backward-compatible, see the field's test above).
+9. **`mode`**: add the block from §2 with `type: "social_sim"`. Optionally add `narrator_asides` (see §2) if your game wants the storyteller to occasionally step outside the scene in its own wry, external-observer voice — `six_strangers` no longer uses it (its studio panel speaks only in the finale); The Common Room does not use it and is unaffected (backward-compatible, see the field's test above).
 10. **Test**: the parametrized `test_every_catalogued_story_initializes_end_to_end` in `tests/backend/app/api/test_prompt_engine.py` picks up every catalogued story. For open-ended stories, test that `win_condition_detected` remains false without `win_detection`. For Terrace, assert the authored goal and active, gender-eligible prompt context while arbitrary prose still cannot declare victory. Add per-character identity/voice checks when authoring an ensemble.
 
 ### 8. Explicit limitations (read before assuming more exists)
@@ -848,8 +848,7 @@ and dance studio locations. World edges are directed: each walkable connection
 is authored in both directions. The PNG map is a schematic of this game world,
 not an architectural reconstruction of the filming location. Public map text
 does not expose private character concerns. The existing `social_sim` mode
-provides observational pacing and occasional audience-only, unnamed panel-style
-asides. The generic cast lifecycle, persistence, scene filtering, replacement
+provides observational pacing. (Mid-game panel-style asides were removed from Terrace; the panel speaks only in the finale.) The generic cast lifecycle, persistence, scene filtering, replacement
 operation, and private Cast menu are documented in `design/SOCIAL_ENGINE.md (cast lifecycle)`.
 Automatic committed-intent detection and next-day scheduling remain the next
 integration phase.
