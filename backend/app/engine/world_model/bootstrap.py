@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
+from backend.app.engine.rules.personality import personalities
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.character import CharacterState
 from backend.app.engine.world_model.entities import Entity
@@ -147,7 +148,7 @@ def seed_rival_aims_for_state(state: Any, model: WorldModel) -> list[tuple[str, 
         return []
     genders = {str(c.get("key")): str(c.get("gender") or "").upper()
                for c in cfg.get("characters") or [] if isinstance(c, dict)}
-    return seed_rival_aims(model, rules, genders, gender)
+    return seed_rival_aims(model, rules, genders, gender, personalities(cfg))
 
 
 def build_world_model(state: Any, lore: Optional[Iterable[dict]] = None) -> WorldModel:

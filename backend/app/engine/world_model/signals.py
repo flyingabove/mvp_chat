@@ -44,6 +44,7 @@ class Candidate:
     interest: float
     openness: float
     pride: float
+    sociability: float = 0.5
 
 
 def interest_of(value: float, spec: Any) -> float:
@@ -88,7 +89,7 @@ def choose_signal(candidates: list[Candidate], turn: int, seed: str, last_turn: 
         if turn - last_turn.get(cand.cid, -99) < COOLDOWN_TURNS:
             continue
         is_leader = cand.cid == leader_id
-        rate = (LEADER_RATE if is_leader else DECOY_RATE) * max(0.1, 1.2 - 0.6 * cand.pride)
+        rate = (LEADER_RATE if is_leader else DECOY_RATE) * max(0.1, 1.2 - 0.6 * cand.pride) * (0.7 + 0.6 * cand.sociability)
         rng = random.Random(f"{seed}:signal:{turn}:{cand.cid}")
         if rng.random() < rate:
             return cand.cid, rng.choice(catalogue[_intensity(cand, is_leader)])

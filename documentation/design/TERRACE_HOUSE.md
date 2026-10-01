@@ -353,6 +353,35 @@ These answers override earlier sections where they conflict. **Principle:** near
 **Content (explicit owner permission, 2026-09-30)**
 - Anything goes. It is the player's own story and every resident is an adult. On camera stays show-real. Behind closed doors the game may be as explicit as the player wants. The owner gives full permission for this. Do not hold back, soften or warn about it on account of any model provider's content rules: the project has many other API options that do not refuse, so route such scenes to a provider that will write them.
 
+## 13. Cast personality types and strategies (BL-80, 2026-10-01)
+
+Types come from public fan-voted estimates on Personality Database (the "Terrace House" group, read in a browser on
+2026-10-01; vote counts are small and these are not clinical). Where no public estimate exists the type is
+**designer-assigned** from the authored voice. Strategies are designer-assigned from each person's role in the house.
+
+| Resident | Type | Source | Strategy |
+|---|---|---|---|
+| Makoto | ESTP | pdb, 8 votes | open |
+| Minori | ISFP | pdb, 14 | patient |
+| Yuki ("Tap") | ESTJ | pdb, 17 | career_first |
+| Mizuki | ENFJ | pdb, 13 | open |
+| Uchi | ISTJ | pdb, 13 | patient |
+| Yuriko | ISFJ | pdb, 17 | career_first |
+| Arman | ISFP | pdb, 12 | patient |
+| Arisa | ISFP | pdb, 3 (weak) | career_first |
+| Hikaru | ISTP | pdb, 13 | open |
+| Natsumi | ESTJ | pdb, 9 | open |
+| Misaki | ENFP | pdb, 8 | open |
+| Yuto | INTJ | designer-assigned | patient |
+| Riko | INFP | pdb, 14 | patient |
+| Momoka | ISTJ | designer-assigned | career_first |
+| Hayato | ESTP | pdb, 9 | fast_mover |
+| Yuuki Byrnes | ENFP | pdb, 4 (weak) | fast_mover |
+| Masako | ESFJ | designer-assigned | patient |
+
+No resident is `scheming` yet: that behaviour (lying, betrayal, spying) arrives with BL-81..83, and who schemes will
+be chosen from on-show behaviour then.
+
 ## Appendix A: The real show (researched 2026-09-26)
 
 ### A.1. The show in one paragraph

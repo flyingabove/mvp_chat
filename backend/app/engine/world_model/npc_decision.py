@@ -140,6 +140,8 @@ _TRAIT_WORDS = {  # dial -> (high, low)
     "patience": ("patient", "impatient"), "jealousy": ("jealous by nature", "not jealous by nature"),
     "forgiveness": ("forgiving", "slow to forgive"), "skepticism": ("skeptical", "trusting"),
     "openness": ("open and outgoing", "reserved"), "pride": ("proud", "humble"),
+    "sociability": ("talkative", "quiet"), "planfulness": ("organised", "spontaneous"),
+    "candor": ("blunt", "indirect"),
 }
 
 

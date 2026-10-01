@@ -90,6 +90,7 @@ class TurnView:
     must_address: list[str] = field(default_factory=list)
     bearings: list[str] = field(default_factory=list)          # "Name: short conduct" per present person (acquaintance)
     not_told_name: list[str] = field(default_factory=list)     # present people who have not heard the player's name
+    energy: str = ""                                           # "lively (...)" or "quiet (...)" by who is present
     traces: list[str] = field(default_factory=list)
     transitions: list[str] = field(default_factory=list)
     perspectives: dict[str, list[str]] = field(default_factory=dict)

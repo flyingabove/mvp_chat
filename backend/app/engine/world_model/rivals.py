@@ -18,6 +18,7 @@ from __future__ import annotations
 import random
 from typing import Any
 
+from backend.app.engine.rules.personality import strategy_mods
 from backend.app.engine.world_model.agenda import AIM_DAYS, add_intention, intentions
 from backend.app.engine.world_model.intent import Intention
 from backend.app.engine.world_model.model import WorldModel
@@ -27,8 +28,11 @@ def _in_couple(model: WorldModel, cid: str) -> bool:
     return any(cid in key.split("|") for key in model.npc_couples)
 
 
-def seed_rival_aims(model: WorldModel, rules: Any, genders: dict[str, str], player_gender: str) -> list[tuple[str, str]]:
-    """Give each rival (resident of the player's gender) one aim; returns the (rival, target) pairs added."""
+def seed_rival_aims(model: WorldModel, rules: Any, genders: dict[str, str], player_gender: str,
+                    people: Any = None) -> list[tuple[str, str]]:
+    """Give each rival (resident of the player's gender) one aim; returns the (rival, target) pairs added.
+
+    `people` (character -> Personality) scales each aim's priority by the rival's strategy (BL-80)."""
     policy = getattr(rules, "couples", None)
     appraisal = getattr(rules, "appraisal", None)
     if policy is None or appraisal is None or policy.rival_aim <= 0 or player_gender not in ("M", "F"):
@@ -47,7 +51,8 @@ def seed_rival_aims(model: WorldModel, rules: Any, genders: dict[str, str], play
         if not options:
             continue
         crush = random.Random(f"{model.seed}:rival_aim:{rival}").choice(options)
-        add_intention(model, rival, Intention("pursue", crush, policy.rival_aim, "has their eye on them",
-                                              day + AIM_DAYS))
+        scale = strategy_mods(people[rival].strategy).aim_scale if people and rival in people else 1.0
+        add_intention(model, rival, Intention("pursue", crush, min(1.0, policy.rival_aim * scale),
+                                              "has their eye on them", day + AIM_DAYS))
         added.append((rival, crush))
     return added

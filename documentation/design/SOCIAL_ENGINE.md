@@ -380,6 +380,22 @@ does not signal twice within 3 turns (`WorldModel.last_signal_turn`, persisted).
 policy (`eligible`), so romance signals never come from same-gender residents. A story may replace the wording with
 `signals.catalogue` (levels 1-3); Terrace uses the engine default. Tests: `test_signals.py`.
 
+### Personality model: type and strategy (BL-80, as built 2026-10-01)
+
+Generic, any story. A character's `personalities[key]` may add `type` (four letters, e.g. "ENFP") and `strategy`
+(`open`, `fast_mover`, `patient`, `scheming`, `safe_pick`, `career_first`). The type supplies DEFAULTS for three new
+temperament dials (`rules/personality.py`): sociability (E 0.8 / I 0.25), candor (T 0.7 / F 0.4), planfulness
+(J 0.75 / P 0.3); explicit dials in `temperament` always win. Consumers, all existing mechanisms:
+- `rivals.seed_rival_aims` scales each rival's starting aim by the strategy (`STRATEGIES` aim_scale: fast_mover 1.35,
+  open 1.0, patient 0.7, career_first 0.5);
+- affinity signals show more often for sociable people (rate x (0.7 + 0.6 sociability));
+- the room's energy (`TurnView.energy`, "lively" when most present are outgoing, "quiet" when most are reserved) goes
+  to the storyteller's scene section, so a house of introverts plays quiet and a house of extroverts plays lively;
+- the dials appear in Jev's target view of a person (`npc_decision._TRAIT_WORDS`), so type shapes how an ask or
+  confession is judged.
+`scheming` and `safe_pick` are accepted and stored; their extra behaviour arrives with BL-81..83. Tests:
+`test_personality_model.py`.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |

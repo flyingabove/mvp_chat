@@ -36,6 +36,8 @@ def render_scene_section(view: TurnView) -> str:
         lines.append("Nobody else is physically with the player right now: write narration only; no character "
                      "speaks unless they are on a call with the player. Voices from other rooms stay muffled and "
                      "unattributed.")
+    if view.energy:
+        lines.append(f"The room's energy right now: {view.energy}")
     if view.elsewhere:
         lines.append("Elsewhere (not visible to the player; answer 'where is X' from this only if the speaker "
                      "would plausibly know):")

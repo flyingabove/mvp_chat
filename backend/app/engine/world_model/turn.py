@@ -262,6 +262,7 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     today = model.world.day_index(model.world.minute)
     levels = acquaintance_levels(getattr(state, "story_cfg", None) or {})
     view.not_told_name = [cid for cid in present if cid not in model.knows_player_name]
+    view.energy = _room_energy(getattr(state, "story_cfg", None) or {}, present)
     ritual = str(getattr(state, "opening_ritual_brief", "") or "").strip()
     if ritual:                                  # the story's one-time group question (opening_scene.group_ritual_brief)
         view.must_address.append(ritual)
@@ -400,6 +401,20 @@ def _encounter_note(model: WorldModel, cid: str) -> str:
     if last >= model.turn - 1:
         return "has been with the player; no greeting or 'welcome back'"
     return "apart from the player since earlier; a greeting fits"
+
+
+def _room_energy(cfg: dict, present: list[str]) -> str:
+    """The room's mood from who is in it (their sociability): lively when most are outgoing, quiet when most are not."""
+    people = personalities(cfg)
+    dials = [people[cid].temperament.sociability for cid in present if cid in people]
+    if len(dials) < 2:
+        return ""
+    mean = sum(dials) / len(dials)
+    if mean >= 0.65:
+        return "lively: most people here are outgoing, so talk overlaps, jokes come easily and silences do not last"
+    if mean <= 0.38:
+        return "quiet: most people here are reserved, so silences are comfortable and nobody rushes to fill them"
+    return ""
 
 
 def _level_of(model: WorldModel, levels: tuple, cid: str, today: int):
@@ -651,7 +666,8 @@ def _signal_directives(model: WorldModel, state: Any, view: TurnView, present: s
         temperament = people[cid].temperament if cid in people else None
         candidates.append(Candidate(cid, interest_of(standing.value if standing else 0.0, spec),
                                     temperament.openness if temperament else 0.5,
-                                    temperament.pride if temperament else 0.5))
+                                    temperament.pride if temperament else 0.5,
+                                    temperament.sociability if temperament else 0.5))
     pick = choose_signal(candidates, model.turn, model.seed, model.last_signal_turn, signal_catalogue(cfg))
     if pick:
         cid, behaviour = pick
