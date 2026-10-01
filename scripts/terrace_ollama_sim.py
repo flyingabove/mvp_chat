@@ -31,6 +31,7 @@ DEFAULT_MODEL = "llama3.1-8b-ctx16k:latest"
 def ollama_env(model: str, base_url: str = OLLAMA_V1) -> dict[str, str]:
     """Same overrides as the offline arena's `local_release.ollama_env` (kept inline: that file lives in a skill)."""
     return {
+        "LLM_PROVIDER": "ollama", "LLM_MODEL": model,          # the single provider switch (backend/app/llm/chat.py)
         "OPENAI_BASE_URL": base_url, "OPENAI_MODEL": model, "OPENAI_API_KEY": "ollama",
         "STORY_MASTER_BASE_URL": base_url, "STORY_MASTER_MODEL": model, "STORY_MASTER_API_KEY": "ollama",
         "TYPESAFE_ENABLED": "false", "TYPESAFE_API_KEY": "", "JEV_ENABLED_TASKS": "", "JEV_SHADOW_TASKS": "",
@@ -39,6 +40,14 @@ def ollama_env(model: str, base_url: str = OLLAMA_V1) -> dict[str, str]:
 
 CUE_MARKERS = (("warm", "responds warmly"), ("cool", "reacts coolly"), ("flat", "unmoved by"),
                ("stale", "stopped landing"))
+
+
+def assert_local_only(settings) -> None:
+    """Refuse to run unless the provider and every base URL are the local Ollama server (no cloud calls, no cost)."""
+    urls = {"OPENAI_BASE_URL": settings.OPENAI_BASE_URL, "STORY_MASTER_BASE_URL": settings.STORY_MASTER_BASE_URL}
+    bad = {k: v for k, v in urls.items() if not v.startswith(("http://127.0.0.1", "http://localhost"))}
+    if settings.LLM_PROVIDER != "ollama" or bad:
+        raise SystemExit(f"refusing to run: provider={settings.LLM_PROVIDER!r}, non-local URLs={bad}")
 
 
 def repeated_sentence_share(texts: list[str], min_words: int = 5) -> float:
@@ -121,6 +130,8 @@ def main(argv: list[str] | None = None) -> int:
     import random
     from fastapi.testclient import TestClient
 
+    from backend.app.config import settings
+    assert_local_only(settings)
     from backend.app.api import prompt_engine as pe
     from backend.app.db import database, repos
     from backend.app.engine import cast_lifecycle

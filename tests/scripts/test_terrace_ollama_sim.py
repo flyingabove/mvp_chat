@@ -1,5 +1,9 @@
 """The offline Ollama simulation's pure helpers: environment routing and the gameplay metrics it reports."""
-from scripts.terrace_ollama_sim import ollama_env, repeated_sentence_share, summarise
+import types
+
+import pytest
+
+from scripts.terrace_ollama_sim import assert_local_only, ollama_env, repeated_sentence_share, summarise
 
 
 def test_the_environment_routes_every_model_call_to_the_local_server_and_turns_jev_off():
@@ -8,6 +12,19 @@ def test_the_environment_routes_every_model_call_to_the_local_server_and_turns_j
     assert env["OPENAI_MODEL"] == env["STORY_MASTER_MODEL"] == "some-model"
     assert env["TYPESAFE_ENABLED"] == "false" and env["JEV_ENABLED_TASKS"] == ""
     assert "api.openai.com" not in " ".join(env.values()), "nothing in the overrides points at the cloud"
+    assert env["LLM_PROVIDER"] == "ollama" and env["LLM_MODEL"] == "some-model", "the single provider switch is pinned"
+
+
+def _settings(provider="ollama", openai="http://127.0.0.1:11434/v1", story="http://localhost:11434/v1"):
+    return types.SimpleNamespace(LLM_PROVIDER=provider, OPENAI_BASE_URL=openai, STORY_MASTER_BASE_URL=story)
+
+
+def test_the_simulation_refuses_to_run_unless_everything_is_local():
+    assert_local_only(_settings())                                                  # all local: fine
+    for bad in (_settings(provider="gemini"), _settings(openai="https://api.openai.com/v1"),
+                _settings(story="https://generativelanguage.googleapis.com/v1beta/openai")):
+        with pytest.raises(SystemExit):
+            assert_local_only(bad)
 
 
 def test_repeated_sentence_share_counts_only_long_sentences_seen_before():
