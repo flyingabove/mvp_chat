@@ -312,6 +312,47 @@ rule holds before and after the player introduces themselves. Arrival beats reac
 pasted in, and the cue still shows exactly once. Story JSON validation covers every greeter, the new offsets and every
 `type_answer`.
 
+## 12. How the game should feel: owner interview (2026-09-30)
+
+These answers override earlier sections where they conflict.
+
+**The player and the room**
+- The player is a Japanese cast member. Residents call them by whatever name the persona has, plus "-san" ("Paul-san"). Light Japanese markers only (bows, "hajimemashite").
+- Humor is real-show deadpan: silences, double bows, someone saying the obvious thing aloud. Nobody tells jokes for the camera.
+- Group energy comes from the residents who were drawn. A house of introverts is quiet; a house of extroverts is lively. Nothing scripts it.
+
+**Show, don't tell**
+- Attraction is shown through behavior, never narrated as a feeling. "She asks you more questions than she asks anyone else" is right. "She blushes and scoots closer" is wrong.
+- Signals stay ambiguous, as in real life. Is she being polite or interested? Is she teasing because she likes you, or to make fun of you? Entertaining and dramatic, never easy to read.
+
+**Pace and difficulty**
+- Show pace: day 1 strangers, days 2-4 friendly, the first one-on-one date around days 4-7, a confession around week 2 or later.
+- A run lasts about 60-400 turns (60 is rare). The length comes from how relationship edges grow organically, not from a hard turn count or threshold.
+- As brutal as the adversaries can realistically be made, with no engine cheating. The game is only allowed to be as hard as its adversaries are smart. A loss must be explainable through concrete, realistic mistakes or rival outplays.
+
+**Information: the player never gets a reliable read**
+- No mid-game panel. The panel appears only after the game ends, to judge the run. This differs from the show and retires `mode.narrator_asides` (BL-79).
+- Everything the player learns about feelings comes through other people, who may lie or exaggerate for their own ends. Overheard talk can be false, or staged to be overheard. Epistemic state plus intent decides what anyone says.
+- No telepathy. Characters coordinate only by talking or calling, in real places at real times. The player can overhear a conversation only by being in the right place at the right time, and that should be hard.
+
+**Confessions and their fallout**
+- The player must take risks. A resident confessing to the player is extremely rare and means the player has nearly won. A player who never confesses will usually lose to a rival, who may be the "safe pick".
+- Outcomes include yes, no, "still thinking", and "I like you, but I like someone else more" (keeping both on the line). Which one comes depends on personality: detect the situation with Jev, decide what this person would realistically do from their personality, then nudge the storyteller context.
+- A failed confession spreads through real gossip. It cools the person who refused, lowers the player's value with other residents who heard, and emboldens rivals; the panel roasts it at the end. Which of these happen comes out of each NPC's self-interest.
+
+**Every NPC acts in their own interest (the core of the engine)**
+- Each character gets an MBTI, estimated from research on the real cast member, plus a strategy to win. Some rivals scheme in full; some just move faster.
+- Goals are mixed. Most come for love; a few come mainly for career, with love second. Goals can change under competition or after a good moment.
+- Same-gender friendships matter, but trust is earned and betrayal is common. Example: get the player to admit who they like, then use it to counter their strategy. Men's "which girl do you like" talks happen, and nobody has to be honest in them.
+- The player can scheme back: lie, plant gossip, fake interest. Backfire must be realistic. A suspicious resident might follow the player, or wait in the next room to overhear, and the player can physically find them there.
+
+**Hybrid decisions, and thinking time**
+- Use Jev, hard-coded mechanisms and model interpretation together; never rely only on an LLM.
+- Each turn: (A) the turn happens; (B) a bounded latency budget for extraction and decisions; (C) when needed, start a longer background job for deep scheming that runs asynchronously, off the turn. If the player doesn't act first, a rival's finished plan executes. Thinking takes time, as in real life.
+
+**Content**
+- Anything goes; it is the player's own story, and every resident is an adult. On camera stays show-real. Behind closed doors the game may be as explicit as the player wants, within what the active model provider allows.
+
 ## Appendix A: The real show (researched 2026-09-26)
 
 ### A.1. The show in one paragraph
