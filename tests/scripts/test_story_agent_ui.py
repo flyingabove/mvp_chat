@@ -237,3 +237,22 @@ def test_beta_game_ui_route_serves_html(tmp_path):
         assert "Game UI" in resp.text
     finally:
         main_module._INDEX_HTML_PATH = original
+
+
+@pytest.mark.parametrize("query", ["", "?token=abc"])
+def test_bare_beta_path_redirects_to_trailing_slash(query):
+    """GET /beta must redirect to /beta/, never serve a shell.
+
+    Cloudflare routes bare /beta to the prod service and /beta/* to beta, so a
+    shell served at /beta was prod's page fetching beta's version.json: the
+    revisions never matched and prod's update check reloaded forever (iPhone
+    Safari sends the bare path; desktop autocompleted /beta/). The Location is
+    relative so the public host is kept behind the proxy.
+    """
+    from fastapi.testclient import TestClient
+    import backend.app.main as main_module
+
+    client = TestClient(main_module.app)
+    resp = client.get("/beta" + query, follow_redirects=False)
+    assert resp.status_code == 301
+    assert resp.headers["location"] == "/beta/" + query

@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 import logging
@@ -381,9 +381,17 @@ async def game_ui_prod():
 
 
 @app.get("/beta/", response_class=HTMLResponse)
-@app.get("/beta", response_class=HTMLResponse)
 async def game_ui_beta():
     return _game_page(beta=True)
+
+
+@app.get("/beta", include_in_schema=False)
+async def game_ui_beta_redirect(request: Request):
+    # Cloudflare sends bare /beta to the prod service but /beta/* to beta, so a
+    # shell served here was prod's page polling beta's version.json and
+    # reloading forever on iPhone. Redirect (relative, query kept) instead.
+    query = request.url.query
+    return RedirectResponse("/beta/" + ("?" + query if query else ""), status_code=301)
 
 
 @app.get("/debug", response_class=HTMLResponse)
