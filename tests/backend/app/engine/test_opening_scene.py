@@ -47,6 +47,64 @@ def test_authored_arrival_suppresses_generated_duplicate_entrance():
     assert strip_generated_arrival_repeats(state, generated) == generated[2:]
 
 
+def _state_with_cue(cue):
+    state = _state("M", {"size": 1})
+    state.opening_arrivals_this_turn = ["f1"]
+    state.story_cfg["opening"]["arrival_sequence"] = {"entrance_cues": {"f1": cue}}
+    return state
+
+
+HAYATO_CUE = ("A man in a plain jacket looks at the chairs, then the table, then politely at no one in particular, "
+              "and bows.")
+
+
+def test_nameless_paraphrase_of_the_authored_entrance_is_dropped_too():
+    """BL-93: the narrator never names a newcomer, so a repeat is a paraphrase of the cue and carries no name."""
+    state = _state_with_cue(HAYATO_CUE)
+    generated = [
+        {"kind": "narration", "speaker_id": None,
+         "text": "A tall man in a plain jacket steps across the threshold, looking over the chairs and then the table."},
+        {"kind": "dialogue", "speaker_id": "m1", "text": "Welcome."},
+    ]
+    assert strip_generated_arrival_repeats(state, generated) == generated[1:]
+
+
+def test_narration_that_is_not_a_repeat_of_the_cue_is_kept():
+    state = _state_with_cue(HAYATO_CUE)
+    generated = [
+        {"kind": "narration", "speaker_id": None, "text": "M1 steps aside from the counter and checks the kettle."},
+        {"kind": "narration", "speaker_id": None, "text": "The man in the jacket sets down his bag by the shoe rack."},
+    ]
+    assert strip_generated_arrival_repeats(state, generated) == generated
+
+
+def test_every_authored_cue_of_the_real_story_is_recognised_when_paraphrased():
+    """The cues are the ground truth: lightly reworded (articles, verb, order), each must still be caught."""
+    import json
+    from pathlib import Path
+    story = next(Path(__file__).resolve().parents[4].joinpath("backend/app/stories").glob("*six_strangers/*_story.json"))
+    cues = json.loads(story.read_text(encoding="utf-8"))["opening"]["arrival_sequence"]["entrance_cues"]
+    for key, cue in cues.items():
+        state = _state_with_cue(cue)
+        state.opening_arrivals_this_turn = ["f1"]
+        state.story_cfg["opening"]["arrival_sequence"]["entrance_cues"] = {**cues, "f1": cue}   # the real roster of cues
+        words = cue.rstrip(".").split()
+        reworded = "The front door opens again. " + " ".join(words[:max(6, len(words) * 3 // 4)]) + ", glancing round."
+        generated = [{"kind": "narration", "speaker_id": None, "text": reworded}]
+        assert strip_generated_arrival_repeats(state, generated) == [], f"{key}: {reworded}"
+
+
+def test_one_residents_cue_is_never_taken_for_anothers():
+    import json
+    from pathlib import Path
+    from backend.app.engine.opening_scene import repeats_entrance_cue
+    story = next(Path(__file__).resolve().parents[4].joinpath("backend/app/stories").glob("*six_strangers/*_story.json"))
+    cues = json.loads(story.read_text(encoding="utf-8"))["opening"]["arrival_sequence"]["entrance_cues"]
+    for a, cue_a in cues.items():
+        for b, cue_b in cues.items():
+            assert repeats_entrance_cue(cue_a, cue_b, cues.values()) == (a == b), f"{a} vs {b}"
+
+
 def test_rule_parsing_defaults_and_validation():
     assert WelcomePartyRule.from_config(None) is None
     rule = WelcomePartyRule.from_config({})

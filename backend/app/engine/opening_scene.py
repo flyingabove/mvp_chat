@@ -268,21 +268,50 @@ def mark_group_ritual(state: "GameState") -> None:
     state.opening_ritual_done = True
 
 
+# A narration repeats an authored entrance when it recovers this share of the cue's DISTINCTIVE words (the words no
+# other resident's cue uses: "woman", "room" and "bows" describe every entrance), and at least MIN_SHARED_CUE_WORDS
+# of them, so a short cue is never matched by coincidence.
+CUE_REPEAT_SHARE = 0.4
+MIN_SHARED_CUE_WORDS = 2
+
+
+def _content_words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z']{4,}", text.lower()))
+
+
+def repeats_entrance_cue(body: str, cue: str, other_cues: Iterable[str] = ()) -> bool:
+    """Is `body` a retelling of the authored entrance `cue`? Authored cues never name the newcomer, so a retelling
+    does not either: compare what is described, not who."""
+    shared_with_others = set().union(*(_content_words(other) for other in other_cues if other != cue))
+    wanted = _content_words(cue) - shared_with_others
+    shared = len(wanted & _content_words(body))
+    return shared >= MIN_SHARED_CUE_WORDS and shared >= CUE_REPEAT_SHARE * len(wanted)
+
+
 def strip_generated_arrival_repeats(state: "GameState", segments: list[dict]) -> list[dict]:
-    """Keep one visible self-introduction when the storyteller also drafts one."""
+    """Keep one visible entrance and self-introduction when the storyteller also drafts them.
+
+    The server shows the authored beats first; a generated narration is dropped when it names an arriving resident
+    while describing an entrance, or retells that resident's authored cue (the narrator never names newcomers, so
+    the cue match is what catches an unnamed retelling, BL-93)."""
     due = set(getattr(state, "opening_arrivals_this_turn", None) or [])
     if not due:
         return segments
     characters = getattr(state, "characters", {}) or {}
     names = [str(getattr(characters.get(key), "name", None) or key) for key in due]
+    arrival = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+    all_cues = {key: str(cue) for key, cue in (arrival.get("entrance_cues") or {}).items()}
+    cues = [cue for key, cue in all_cues.items() if key in due]
     arrival_verb = re.compile(r"\b(?:arriv\w*|enter\w*|step\w*|walk\w*|door|come(?:s|ing)? in)\b", re.I)
     kept = []
     for segment in segments:
         if segment.get("kind") == "dialogue" and segment.get("speaker_id") in due:
             continue
         body = str(segment.get("text") or "")
-        if segment.get("kind") == "narration" and arrival_verb.search(body):
-            if any(re.search(r"\b" + re.escape(name.split()[0]) + r"\b", body, re.I) for name in names):
+        if segment.get("kind") == "narration":
+            names_an_entrance = arrival_verb.search(body) and any(
+                re.search(r"\b" + re.escape(name.split()[0]) + r"\b", body, re.I) for name in names)
+            if names_an_entrance or any(repeats_entrance_cue(body, cue, all_cues.values()) for cue in cues):
                 continue
         kept.append(segment)
     return kept
