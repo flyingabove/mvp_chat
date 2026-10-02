@@ -22,6 +22,7 @@ from backend.app.api.story import router as story_router
 from backend.app.api.stories import router as stories_router
 from backend.app.api.integration_playback import router as integration_playback_router
 from backend.app.api.debug_engine import router as debug_router, ws_debug
+from backend.app.api.season_debug import router as season_debug_router
 from backend.app.api.auth import router as auth_router
 from backend.app.api.user_sessions import router as user_sessions_router
 from backend.app.db.database import init_db
@@ -361,6 +362,7 @@ app.include_router(story_router, prefix="/api")
 app.include_router(stories_router, prefix="/api")
 app.include_router(integration_playback_router, prefix="/api")
 app.include_router(debug_router, prefix="/beta/debug")
+app.include_router(season_debug_router, prefix="/beta/debug/season")
 app.include_router(auth_router)
 app.include_router(user_sessions_router)
 

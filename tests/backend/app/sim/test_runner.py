@@ -63,6 +63,20 @@ def test_total_budget_cap_stops_the_run_cleanly() -> None:
     assert result.completed_days < DAYS or sum(d.scenes_written for d in result.days) <= budget
 
 
+def test_day_report_keeps_a_scene_record_per_written_scene() -> None:
+    """DayReport.scenes exists for observability (the season-runner debug viewer, BL-86 P-04 follow-up):
+    each written scene keeps its real encounter, the writer's update, and any rejections -- nothing invented."""
+    story = build_story()
+    runner = SeasonRunner(story, seed="season-seed", writer=FakeWriter(), days=1)
+    result = runner.run()
+    day = result.days[0]
+    assert len(day.scenes) == day.scenes_written
+    for record in day.scenes:
+        assert record.encounter.a and record.encounter.b
+        assert record.update.summary
+        assert isinstance(record.rejections, list)
+
+
 def test_no_invariant_is_ever_violated_on_the_fake_writer() -> None:
     story = build_story()
     runner = SeasonRunner(story, seed="season-seed", writer=FakeWriter(), days=DAYS)

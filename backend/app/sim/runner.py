@@ -46,10 +46,24 @@ class Story:
 
 
 @dataclass
+class SceneRecord:
+    """One written scene, kept verbatim for observability (debug viewers, admin tooling).
+
+    Not a second source of truth: everything here was already produced during `_run_day` (the encounter
+    that fired, what the writer wrote, what the runner rejected) and would otherwise be discarded once
+    committed. Keeping it lets a caller render the real day-by-day log instead of re-deriving one.
+    """
+    encounter: Encounter
+    update: SceneUpdate
+    rejections: list[str] = field(default_factory=list)
+
+
+@dataclass
 class DayReport:
     day: int
     scenes_written: int = 0
     scenes_summarized: int = 0
+    scenes: list[SceneRecord] = field(default_factory=list)
     rejections: list[str] = field(default_factory=list)
     violations: list[str] = field(default_factory=list)
 
@@ -109,7 +123,9 @@ class SeasonRunner:
             update = self._write_scene(encounter)
             result.calls_used += 1
             report.scenes_written += 1
-            report.rejections.extend(self._commit_scene(encounter, update))
+            rejections = self._commit_scene(encounter, update)
+            report.rejections.extend(rejections)
+            report.scenes.append(SceneRecord(encounter=encounter, update=update, rejections=rejections))
         report.violations.extend(check_day(self.story.model, self.story.cast_lifecycle,
                                            self.story.expected_cast_size))
         return report

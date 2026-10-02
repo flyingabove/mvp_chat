@@ -66,6 +66,15 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
   - The fake-writer `SeasonRunner` plumbing is built (P-04, above); next is the real writer on Gemini + Jev for a
     2-day pilot season, then the camera, the artifacts and the watch mode.
   - Depends on BL-85 P1–P4 for rich prompts. A first version can run on today's prompt builder.
+  - A thin, operator-only debug viewer for the `FakeWriter` season already exists at `/beta/debug` ("Season Sim"
+    tab): `backend/app/api/season_debug.py` (`POST /beta/debug/season/run`, `GET /beta/debug/season/fixtures`),
+    `backend/app/sim/fixtures.py` (the fixture, moved out of `tests/` so production code can build it), and a
+    `SceneRecord` field on `DayReport` (`backend/app/sim/runner.py`) that keeps each scene's real encounter/update
+    instead of discarding it. It only runs the fixed Terrace fixture on `FakeWriter` and renders the real
+    day-by-day log (scenes, deltas, movements, rejections, invariant results) — no real writer, no camera ranking,
+    no persisted artifacts. This is scoped narrowly on purpose and is not item 5 ("Admin watch mode") above:
+    whoever picks up the camera/artifacts/watch-mode work should treat it as a starting reference, not something to
+    extend in place without reconsidering scope.
 - **Touches:** new `backend/app/sim/{runner,camera,artifacts}.py`, the operator routes (`api/debug_engine.py`
   pattern), `frontend/debug.html` (watch view), `world_model/offscreen.py` (replaced by written scenes),
   `scripts/terrace_ollama_sim.py` (switch), `backend/app/config/settings.py`, `tests/backend/integration/`.

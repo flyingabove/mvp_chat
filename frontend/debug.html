@@ -967,6 +967,7 @@
       <button class="tab-btn active" onclick="switchTab('tester')">Tester</button>
       <button class="tab-btn" onclick="switchTab('leaderboard')">Leaderboard</button>
       <button class="tab-btn" onclick="switchTab('test-cases')">Test Cases</button>
+      <button class="tab-btn" onclick="switchTab('season-sim')">Season Sim</button>
     </div>
   </div>
 
@@ -1138,6 +1139,51 @@
     </div>
   </div>
 
+  <!-- ================= TAB: SEASON SIM ================= -->
+  <div class="tab-page" id="tab-season-sim">
+    <div style="flex:1; display: grid; grid-template-columns: 300px 1fr; min-height: 0; gap: 1px; background: var(--border);">
+      <!-- Controls -->
+      <div style="background: var(--surface); padding: 20px; overflow-y: auto; min-height: 0; display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <div class="section-label">Season Runner (offline sim)</div>
+          <div class="hint">
+            Runs <code>backend/app/sim/SeasonRunner</code> on the deterministic <code>FakeWriter</code> &mdash;
+            no real game, no LLM calls, nothing is saved. Thin debug viewer for BL-86/P-04; the full admin
+            "season camera" watch mode is a separate, later task (P-13).
+          </div>
+        </div>
+        <div class="control-group">
+          <label style="font-size:12px;color:var(--text-dim)">Fixture</label>
+          <select id="seasonFixtureSelect"><option value="">Loading...</option></select>
+        </div>
+        <div class="control-group">
+          <label style="font-size:12px;color:var(--text-dim)">Seed</label>
+          <input type="text" id="seasonSeedInput" value="season-seed" />
+        </div>
+        <div class="control-group">
+          <label style="font-size:12px;color:var(--text-dim)">Days</label>
+          <input type="number" id="seasonDaysInput" value="5" min="1" max="30" />
+        </div>
+        <div class="control-group">
+          <label style="font-size:12px;color:var(--text-dim)">Scenes per day cap</label>
+          <input type="number" id="seasonScenesPerDayInput" value="3" min="1" max="20" />
+        </div>
+        <div class="control-group">
+          <label style="font-size:12px;color:var(--text-dim)">Budget (total writer calls)</label>
+          <input type="number" id="seasonBudgetInput" value="1000" min="1" max="2000" />
+        </div>
+        <button class="btn btn-primary" id="seasonRunBtn" onclick="runSeasonSim()">&#9654; Run season</button>
+        <div class="hint" id="seasonStatus"></div>
+      </div>
+      <!-- Results -->
+      <div style="background: var(--bg); padding: 20px; overflow-y: auto; min-height: 0;">
+        <div id="seasonResults">
+          <div class="eval-placeholder">Run a season to see the day-by-day log here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Advanced Options slide-out panel -->
@@ -1264,6 +1310,7 @@
 
     if (tab === 'leaderboard') loadLeaderboard();
     if (tab === 'test-cases') loadTestCases();
+    if (tab === 'season-sim') initSeasonSim();
   }
 
   // ---- Init ----
@@ -2458,6 +2505,151 @@
 
     // Prepend so it appears above any scorer evaluation
     container.insertBefore(card, container.firstChild);
+  }
+
+  // ---- Season Sim (BL-86/P-04 debug viewer for the offline FakeWriter SeasonRunner) ----
+  let seasonLastResult = null;
+
+  async function initSeasonSim() {
+    const sel = document.getElementById('seasonFixtureSelect');
+    if (sel.dataset.loaded) return;
+    try {
+      const r = await fetch(`${_debugBase}/season/fixtures`, {headers: operatorHeaders(getOperatorToken())});
+      const body = await r.json();
+      sel.innerHTML = '';
+      (body.fixtures || []).forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = f.description || f.id;
+        sel.appendChild(opt);
+      });
+      if (body.default) sel.value = body.default;
+      sel.dataset.loaded = '1';
+    } catch (e) {
+      sel.innerHTML = '<option value="">Unavailable</option>';
+    }
+  }
+
+  async function runSeasonSim() {
+    const btn = document.getElementById('seasonRunBtn');
+    const status = document.getElementById('seasonStatus');
+    const resultsEl = document.getElementById('seasonResults');
+    btn.disabled = true;
+    status.textContent = 'Running...';
+    resultsEl.innerHTML = '<div class="eval-placeholder">Running...</div>';
+
+    const payload = {
+      fixture: document.getElementById('seasonFixtureSelect').value || 'terrace_fake_writer',
+      seed: document.getElementById('seasonSeedInput').value || 'season-seed',
+      days: parseInt(document.getElementById('seasonDaysInput').value, 10) || 5,
+      scenes_per_day: parseInt(document.getElementById('seasonScenesPerDayInput').value, 10) || 3,
+      budget: parseInt(document.getElementById('seasonBudgetInput').value, 10) || 1000,
+    };
+
+    try {
+      const r = await fetch(`${_debugBase}/season/run`, {
+        method: 'POST',
+        headers: operatorHeaders(getOperatorToken(), {'Content-Type': 'application/json'}),
+        body: JSON.stringify(payload),
+      });
+      let body = null;
+      try { body = await r.json(); } catch (e) { body = null; }
+      if (!r.ok) {
+        const msg = (body && body.detail) ? body.detail : ('HTTP ' + r.status);
+        status.textContent = 'Error: ' + msg;
+        resultsEl.innerHTML = '<div class="eval-placeholder">' + escapeHtml(msg) + '</div>';
+        return;
+      }
+      seasonLastResult = body;
+      status.textContent = 'Done: ' + body.completed_days + '/' + body.days_requested + ' day(s), ' +
+        body.calls_used + ' scene(s) written' + (body.stopped_early ? ' — stopped early (budget cap)' : '') + '.';
+      renderSeasonResults(body);
+    } catch (e) {
+      status.textContent = 'Request failed: ' + ((e && e.message) || 'network error');
+      resultsEl.innerHTML = '<div class="eval-placeholder">Request failed.</div>';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function _seasonDeltaText(d) {
+    const parts = ['trust_delta', 'affection_delta', 'suspicion_delta', 'fear_delta']
+      .filter(k => d[k])
+      .map(k => k.replace('_delta', '') + ' ' + (d[k] > 0 ? '+' : '') + d[k]);
+    return d.a + '→' + d.b + ': ' + (parts.length ? parts.join(', ') : 'no change');
+  }
+
+  function renderSeasonResults(result) {
+    const el = document.getElementById('seasonResults');
+    el.innerHTML = '';
+
+    const violationCount = (result.all_violations || []).length;
+    const summary = document.createElement('div');
+    summary.className = 'score-card';
+    summary.innerHTML =
+      '<h3>Season summary</h3>' +
+      '<div class="score-row"><span class="score-label">Fixture</span><span class="score-value">' + escapeHtml(result.fixture) + '</span></div>' +
+      '<div class="score-row"><span class="score-label">Seed</span><span class="score-value">' + escapeHtml(result.seed) + '</span></div>' +
+      '<div class="score-row"><span class="score-label">Days completed</span><span class="score-value">' + result.completed_days + '/' + result.days_requested + '</span></div>' +
+      '<div class="score-row"><span class="score-label">Writer calls used</span><span class="score-value">' + result.calls_used + '</span></div>' +
+      '<div class="score-row"><span class="score-label">Stopped early (budget)</span><span class="score-value">' + (result.stopped_early ? 'yes' : 'no') + '</span></div>' +
+      '<div class="score-row"><span class="score-label">Invariant violations</span><span class="score-value" style="color:' +
+        (violationCount ? 'var(--red)' : 'var(--green)') + '">' + violationCount + '</span></div>';
+    el.appendChild(summary);
+
+    const list = document.createElement('div');
+    list.style.marginTop = '12px';
+    (result.days || []).forEach(day => {
+      const card = document.createElement('div');
+      card.className = 'tc-card';
+      const okColor = day.invariants_ok ? 'var(--green)' : 'var(--red)';
+
+      let html = '<div class="tc-header"><span class="tc-name">Day ' + day.day + '</span>' +
+        '<span style="font-family:var(--font-mono);font-size:11px;color:' + okColor + '">' +
+        (day.invariants_ok ? '✓ invariants OK' : '✗ INVARIANT FAILED') + '</span></div>' +
+        '<div class="tc-desc">' + day.scenes_written + ' scene(s) written, ' + day.scenes_summarized + ' summarized (over cap)</div>';
+
+      if (day.violations.length) {
+        html += '<ul class="eval-list">' + day.violations.map(v => '<li class="bug">' + escapeHtml(v) + '</li>').join('') + '</ul>';
+      }
+
+      if (day.scenes.length) {
+        html += '<div class="tc-msgs" style="max-height:none;">' + day.scenes.map(s => {
+          let sceneHtml = '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">' +
+            '<div style="color:var(--text-bright)">' + escapeHtml(s.participants.join(' & ')) +
+            ' @ ' + escapeHtml(s.place) + ' (minute ' + s.minute + ')</div>' +
+            '<div style="margin:4px 0">' + escapeHtml(s.summary) + '</div>';
+          if (s.relationship_deltas.length) {
+            sceneHtml += '<div style="color:var(--text-dim)">deltas: ' +
+              s.relationship_deltas.map(d => escapeHtml(_seasonDeltaText(d))).join('; ') + '</div>';
+          }
+          if (s.movements.length) {
+            sceneHtml += '<div style="color:var(--text-dim)">moved: ' +
+              s.movements.map(m => escapeHtml(m[0] + ' → ' + m[1])).join(', ') + '</div>';
+          }
+          if (s.rejections.length) {
+            sceneHtml += '<div style="color:var(--red)">rejected: ' + s.rejections.map(escapeHtml).join('; ') + '</div>';
+          }
+          sceneHtml += '</div>';
+          return sceneHtml;
+        }).join('') + '</div>';
+      } else {
+        html += '<div class="hint">No scenes written this day (nobody co-located and awake).</div>';
+      }
+
+      card.innerHTML = html;
+      list.appendChild(card);
+    });
+    el.appendChild(list);
+
+    const rawWrap = document.createElement('div');
+    rawWrap.className = 'context-section';
+    rawWrap.style.marginTop = '12px';
+    rawWrap.innerHTML =
+      '<div class="context-section-header" onclick="this.classList.toggle(\'open\'); this.nextElementSibling.classList.toggle(\'open\')">' +
+      '<span class="arrow">&#9654;</span><span class="section-title">Raw JSON (full response)</span></div>' +
+      '<div class="context-section-body">' + escapeHtml(JSON.stringify(result, null, 2)) + '</div>';
+    el.appendChild(rawWrap);
   }
 
   init();
