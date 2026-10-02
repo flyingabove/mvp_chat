@@ -25,6 +25,7 @@ from typing import Any, Optional, Sequence
 from backend.app.llm.decisions.types import Criticality, Decision, DecisionBatch, FallbackReason, Provider
 
 TASK = "script_rubric"
+JEV_TIMEOUT_MS = 15000        # scoring is offline, not a player turn: the live 1 s budget drops items on long scenes
 LEVELS = ("scene", "day", "season")
 CHOICES = ("1", "2", "3", "4", "5")
 RECOMMEND_MEAN, CONSIDER_MEAN, RECOMMEND_FLOOR, RECOMMEND_PLAUSIBILITY = 8.0, 6.0, 5, 8
@@ -300,7 +301,7 @@ def default_resolver() -> Any:
     global _resolver
     if _resolver is None:
         from backend.app.engine.world_model.npc_decision import build_resolver
-        _resolver = build_resolver(TASK)
+        _resolver = build_resolver(TASK, timeout_ms=JEV_TIMEOUT_MS)
     return _resolver
 
 

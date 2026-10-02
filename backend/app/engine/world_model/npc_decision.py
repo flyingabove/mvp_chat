@@ -260,10 +260,11 @@ async def _no_language_model(_request: Any) -> None:
 _resolver: Any = None
 
 
-def build_resolver(task: str) -> Any:
+def build_resolver(task: str, timeout_ms: Optional[int] = None) -> Any:
     """A Jev-only resolver for one bounded task (TYPESAFE_ENABLED is the master switch).
 
-    The fallback never reaches a language model, so the per-turn LLM budget is untouched.
+    The fallback never reaches a language model, so the per-turn LLM budget is untouched. `timeout_ms` overrides
+    `settings.JEV_TIMEOUT_MS` (tuned for live turns) for callers that are not latency-bound, such as offline scoring.
     """
     from backend.app.config import settings
     from backend.app.llm.decisions.resolver import DecisionResolver, JevConfig
@@ -272,7 +273,8 @@ def build_resolver(task: str) -> Any:
     return DecisionResolver(
         jev=JevClient(get_shared_httpx_client()), legacy=_no_language_model, health=get_shared_breaker(),
         config=JevConfig(enabled=settings.TYPESAFE_ENABLED, enabled_tasks=frozenset({task}),
-                         shadow_tasks=frozenset(), shadow_sample_rate=0.0, timeout_ms=settings.JEV_TIMEOUT_MS,
+                         shadow_tasks=frozenset(), shadow_sample_rate=0.0,
+                         timeout_ms=timeout_ms if timeout_ms is not None else settings.JEV_TIMEOUT_MS,
                          max_questions_per_batch=settings.JEV_MAX_QUESTIONS_PER_BATCH))
 
 

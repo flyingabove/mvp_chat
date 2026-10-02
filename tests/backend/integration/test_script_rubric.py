@@ -31,9 +31,15 @@ def test_the_rubric_is_advisory_until_enough_scenes_are_labelled_then_meets_the_
         assert rubric.CALIBRATED is False, "calibrated without the labelled scenes that justify it"
         return
     import asyncio
+
+    async def judge_both() -> dict:
+        # One event loop for both sets: the shared httpx client is bound to the loop that first used it.
+        return {name: await ev.judge_cases(ev.labelled(ev.load(name))) for name in ("holdout", "dev")}
+
+    results = asyncio.run(judge_both())
     for name in ("holdout", "dev"):
         cases = ev.labelled(ev.load(name))
-        agreement = ev.tally(cases, asyncio.run(ev.judge_cases(cases)))
+        agreement = ev.tally(cases, results[name])
         with capsys.disabled():
             ev.report(agreement, name)
         assert agreement.unanswered == 0, "Jev left rubric items unanswered; check TYPESAFE_API_KEY and the breaker"

@@ -201,3 +201,14 @@ def test_the_advisory_flag_follows_calibration(monkeypatch):
     report = asyncio.run(rubric.score_season([["x"]], FakeJev(3)))
     assert report.advisory is True and report.render().startswith(rubric.ADVISORY_NOTE)
     assert report.to_dict()["note"] == rubric.ADVISORY_NOTE
+
+
+def test_the_rubric_resolver_has_the_offline_timeout_and_the_live_one_is_untouched(monkeypatch):
+    from backend.app.config import settings
+    from backend.app.engine.world_model import npc_decision
+    rubric.reset_resolver_for_tests()
+    try:
+        assert rubric.default_resolver()._config.timeout_ms == rubric.JEV_TIMEOUT_MS > settings.JEV_TIMEOUT_MS
+    finally:
+        rubric.reset_resolver_for_tests()
+    assert npc_decision.build_resolver("npc_verdict")._config.timeout_ms == settings.JEV_TIMEOUT_MS
