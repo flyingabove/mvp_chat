@@ -453,6 +453,34 @@ S6 at 95%). **Limit:** all 60 labelled scenes are Pass-level, so this shows Jev 
 about strong ones (BL-96). `pytest -m integration tests/backend/integration/test_script_rubric.py` enforces the bar and
 never runs on deploy.
 
+### Pilot season on a real model (P-06, as built 2026-10-01)
+
+`python -m scripts.run_season` runs the headless `SeasonRunner` (P-04) on an authored story with a language model
+writing every scene, then scores the result with the script rubric. Pieces, all generic:
+
+- `backend/app/sim/story_loader.py` `build_season(story_id, seed)`: the story's own world model through the same
+  `bootstrap.build_world_model` a real game uses (residents, routines, homes, place names), a roster chosen from the seed
+  (`CastLifecycleState.choose_initial_roster(rng=...)`, repeatable), the player's slot reserved, and no human. It also returns
+  the authored facts a writer may use (`CastNote`: name, role, motive, personality type), the place names and the clock.
+- `backend/app/sim/llm_writer.py` `LLMWriter`: two model calls per scene through the provider switch (`llm/chat.py`). One
+  writes the prose from a neutral prompt (setting, the two residents' authored facts, a format rule; no drama nudges,
+  those are the P-12 knobs), one reads it back as JSON (a summary and feeling changes). A reply that is not JSON becomes a
+  summary-only update and is counted, never guessed. Feeling changes are clamped to 0.3; the runner still rejects any that
+  name someone who was not in the scene. The runner is synchronous and the shared HTTP client belongs to one event loop,
+  so the script runs the runner on a worker thread and `bridge_chat` hands every call back to the main loop.
+- `SceneRecord.text` keeps the prose (the rubric scores prose, not the summary).
+- The script prints `HARD CAP n model calls, this run needs up to m` before anything starts and refuses a run whose need
+  (`2 x days x scenes-per-day`) exceeds `--call-cap` (default 20); the writer enforces the cap again before each call. A run
+  that resolves to OpenAI, including the silent fall-back when no Gemini key is set, is refused without `--allow-openai`.
+  A failed call is reported as a failure and scores nothing.
+- Artifacts: `data/season_runs/<stamp>/season.jsonl` (gitignored): `run`, `scene` (prose, summary, applied feeling changes,
+  rejections), `day`, `state` (relationships at the end) and `rubric` rows.
+
+Limits of this baseline writer, on the record: the prompt carries no earlier scenes and no relationship state, so a
+scene cannot build on the last; every resident pair that shares a room can meet (no camera ranking, P-13); feeling
+changes go to an in-memory table, not the character graph (P-10); a scene can invent a consequence (for example someone
+announcing they are leaving) that the engine does not act on.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |

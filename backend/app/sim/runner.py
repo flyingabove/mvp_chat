@@ -56,6 +56,7 @@ class SceneRecord:
     encounter: Encounter
     update: SceneUpdate
     rejections: list[str] = field(default_factory=list)
+    text: str = ""          # the prose the writer returned (the rubric scores this, not the summary)
 
 
 @dataclass
@@ -120,22 +121,23 @@ class SeasonRunner:
             if result.calls_used >= self.budget:
                 result.stopped_early = True
                 break
-            update = self._write_scene(encounter)
+            text, update = self._write_scene(encounter)
             result.calls_used += 1
             report.scenes_written += 1
             rejections = self._commit_scene(encounter, update)
             report.rejections.extend(rejections)
-            report.scenes.append(SceneRecord(encounter=encounter, update=update, rejections=rejections))
+            report.scenes.append(SceneRecord(encounter=encounter, update=update, rejections=rejections, text=text))
         report.violations.extend(check_day(self.story.model, self.story.cast_lifecycle,
                                            self.story.expected_cast_size))
         return report
 
-    def _write_scene(self, encounter: Encounter) -> SceneUpdate:
+    def _write_scene(self, encounter: Encounter) -> tuple[str, SceneUpdate]:
         prompt = (f"Present: {encounter.a}, {encounter.b}\n"
                   f"Place: {encounter.place}\n"
                   f"Minute: {encounter.minute}\n"
                   "Write what happens between them.")
-        return self.writer.extract(self.writer.write_scene(prompt))
+        text = self.writer.write_scene(prompt)
+        return text, self.writer.extract(text)
 
     def _commit_scene(self, encounter: Encounter, update: SceneUpdate) -> list[str]:
         """Apply `update` through the model's own primitives; reject anything not grounded in `encounter`."""

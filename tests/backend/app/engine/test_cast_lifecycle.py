@@ -292,3 +292,16 @@ def test_replacement_timing_round_trips_through_snapshot():
     )
     restored = CastLifecycleState.from_dict(state.to_dict())
     assert restored.replacement_timing == "next_day"
+
+
+def test_a_seeded_rng_makes_the_opening_roster_repeatable():
+    import random
+
+    def roster(seed):
+        state = _state()
+        state.choose_initial_roster("men", rng=random.Random(seed))
+        return tuple(state.active_ids())
+
+    assert roster(3) == roster(3)
+    assert len({roster(seed) for seed in range(12)}) > 1          # the seed really chooses
+    assert len(roster(3)) == 2                                    # men: capacity 2 less the player's seat, plus one woman

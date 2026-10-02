@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import random
 import secrets
 from typing import Any, Iterable, Mapping, Optional
 
@@ -264,18 +265,19 @@ class CastLifecycleState:
         self.player_slot_group = slot_group
         self._validate()
 
-    def choose_initial_roster(self, player_slot_group: str) -> None:
+    def choose_initial_roster(self, player_slot_group: str, rng: Optional[random.Random] = None) -> None:
         """Randomly select a capacity-valid opening roster for a resident player.
 
         This is a reusable lifecycle primitive: each configured slot group is
         filled to capacity, except the player's group which reserves one of
         those spaces for the player. All non-selected authored members remain
-        in the same-slot replacement queue.
+        in the same-slot replacement queue. Pass `rng` for a repeatable roster (headless
+        season runs); players get an unseeded `SystemRandom`.
         """
         self._require_slot(player_slot_group)
         if self.player_slot_group:
             raise ValueError("cannot choose an opening roster after reserving the player slot")
-        chooser = secrets.SystemRandom()
+        chooser = rng or secrets.SystemRandom()
         selected: set[str] = set()
         for group, capacity in self.slot_capacities.items():
             target = capacity - int(group == player_slot_group)
