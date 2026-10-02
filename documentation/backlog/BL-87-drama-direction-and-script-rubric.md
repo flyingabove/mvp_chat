@@ -79,7 +79,9 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
      The BL-20 and promise-judge eval pattern applies: write the cases first, keep a held-out set, never tune
      against it. Until then the rubric is advisory.
 - **Next:**
-  - Write the rubric questions and anchors, and label 60 scenes from hosted Terrace play.
+  - The rubric is built (`backend/app/sim/rubric.py`, `design/SOCIAL_ENGINE.md`). Owner: label the 60 candidate scenes
+    in `tests/eval_cases/script_rubric/` (README there); then run the live agreement check (costs money, ask first) and
+    set `rubric.CALIBRATED`.
   - Add the `drama` profile with defaults that reproduce today's prompts (a no-op), then switch on knobs one at a
     time, each with an arena gate.
 - **Sources (researched 2026-10-01):**

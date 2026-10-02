@@ -432,6 +432,25 @@ A deliberate behaviour change regenerates the record in the same commit, with th
 `UPDATE_DECISION_GOLDEN=1 python -m pytest tests/backend/app/engine/world_model/test_decision_golden.py`. Any other diff
 means a refactor changed behaviour. Stances (P-08) must keep this record unchanged apart from intended, tested changes.
 
+### Script rubric: is it engaging drama? (P-05, as built 2026-10-01)
+
+`backend/app/sim/rubric.py`, generic (no story knowledge). Nineteen items from BL-87, each one bounded Jev question
+with five anchored answers (1-5, reported as 2-10): scene S1-S8 (value turn, conflict, true to character, subtext,
+heightening, plausibility, hook, emotional pull), day E1-E6 (threads, progressing complications, payoff, ensemble,
+cliffhanger, tones), season R1-R5 (arc, change, earned twists, premise, bingeability). They go through the shared
+decision resolver like `promise_judge.py` (a bounded classifier, task `script_rubric`, never a language model call).
+`judge_level` scores one scene, day or season; `score_season` scores a whole run (scenes, then days, then the season) and
+returns a `SeasonReport`. A level with any unanswered item is `Unscored`, never partially scored. Verdict: Recommend
+at mean 8+, no item below 5 and plausibility 8+ (a day or season uses the lowest scene S6, and without it cannot be
+Recommended); Consider at mean 6+; else Pass.
+
+Calibration: `tests/eval_cases/script_rubric/` holds 40 dev and 20 held-out real Terrace scenes, unlabelled until the owner
+labels them (README there). `python -m scripts.eval.script_rubric_eval` prints the anchors, counts labels and (live Jev,
+costs money) reports agreement per item against a bar fixed in advance: within one point on 80% of scenes per item, 70%
+verdict agreement. Until `rubric.CALIBRATED` is set (after the bar holds on the held-out set) every report carries an
+advisory note. `pytest -m integration tests/backend/integration/test_script_rubric.py` enforces this and never runs on
+deploy.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |
