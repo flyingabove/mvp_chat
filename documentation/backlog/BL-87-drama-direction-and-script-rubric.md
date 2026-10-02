@@ -79,9 +79,8 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
      The BL-20 and promise-judge eval pattern applies: write the cases first, keep a held-out set, never tune
      against it. Until then the rubric is advisory.
 - **Next:**
-  - The rubric is built (`backend/app/sim/rubric.py`, `design/SOCIAL_ENGINE.md`). Owner: label the 60 candidate scenes
-    in `tests/eval_cases/script_rubric/` (README there); then run the live agreement check (Jev is free) and
-    set `rubric.CALIBRATED`.
+  - The rubric is built and calibrated against 60 labelled scenes (`backend/app/sim/rubric.py`,
+    `design/SOCIAL_ENGINE.md`); BL-96 below covers what that calibration does not show.
   - Add the `drama` profile with defaults that reproduce today's prompts (a no-op), then switch on knobs one at a
     time, each with an arena gate.
 - **Sources (researched 2026-10-01):**
@@ -110,3 +109,16 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
 - **Touches:** new `engine/rules/drama.py` (profile and presets) and `backend/app/sim/rubric.py` (Jev questions),
   `prompt_builder.py` / `turn.py` (nudge rendering), story JSON (`drama`), `tests/eval_cases/`, `scripts/eval/`,
   `design/SOCIAL_ENGINE.md`.
+
+## BL-96 — The rubric's labelled scenes are all weak, so it is not yet shown to recognise strong drama
+
+- **Problem:** the 60 scenes in `tests/eval_cases/script_rubric/` are real opening-dinner chat and every one is Pass-level
+  (human verdict Pass 60 of 60, S1 to S5 almost all 1 or 2). The agreement bar (within one point, verdict agreement) was
+  met, but a rubric that answers 1 or 2 for everything also meets it. Also, the labels were written by Claude at the
+  owner's instruction, not by the owner.
+- **Fix:** add 20 or more scenes that a reader would score Consider or Recommend (real scenes from the P-06 baseline
+  season and later tuned presets, plus hand-picked strong ones), label them, re-run `--run --set all`, and require
+  agreement on those too (the verdict must separate the groups). Optionally have the owner re-label a sample of 20 to
+  check the AI labeller.
+- **Done when:** the labelled set covers all three verdicts, the bar holds on a held-out part of it, and the README says who
+  labelled.

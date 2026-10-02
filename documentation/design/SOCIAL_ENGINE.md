@@ -444,12 +444,14 @@ returns a `SeasonReport`. A level with any unanswered item is `Unscored`, never 
 at mean 8+, no item below 5 and plausibility 8+ (a day or season uses the lowest scene S6, and without it cannot be
 Recommended); Consider at mean 6+; else Pass.
 
-Calibration: `tests/eval_cases/script_rubric/` holds 40 dev and 20 held-out real Terrace scenes, unlabelled until the owner
-labels them (README there). `python -m scripts.eval.script_rubric_eval` prints the anchors, counts labels and (live Jev,
+Calibration: `tests/eval_cases/script_rubric/` holds 40 dev and 20 held-out real Terrace scenes, labelled 1-5 per item by
+Claude at the owner's instruction (README there). `python -m scripts.eval.script_rubric_eval` prints the anchors, counts labels and (live Jev,
 free) reports agreement per item against a bar fixed in advance: within one point on 80% of scenes per item, 70%
-verdict agreement. Until `rubric.CALIBRATED` is set (after the bar holds on the held-out set) every report carries an
-advisory note. `pytest -m integration tests/backend/integration/test_script_rubric.py` enforces this and never runs on
-deploy.
+verdict agreement. `rubric.CALIBRATED` was set on 2026-10-01 after the bar held on the held-out set (every item within
+one point on 100% of the 20 scenes; exact agreement 25% on S7 up to 95% on S1; verdict agreement 100%; dev likewise, with
+S6 at 95%). **Limit:** all 60 labelled scenes are Pass-level, so this shows Jev agrees on weak scenes and says nothing yet
+about strong ones (BL-96). `pytest -m integration tests/backend/integration/test_script_rubric.py` enforces the bar and
+never runs on deploy.
 
 ### 12. Decision log and review answers
 

@@ -30,7 +30,11 @@ CHOICES = ("1", "2", "3", "4", "5")
 RECOMMEND_MEAN, CONSIDER_MEAN, RECOMMEND_FLOOR, RECOMMEND_PLAUSIBILITY = 8.0, 6.0, 5, 8
 PLAUSIBILITY_ITEM = "S6"
 LABELS_REQUIRED = 60          # human-labelled scenes before the rubric may gate anything
-CALIBRATED = False            # flip only when the agreement bar in script_rubric_eval.py holds on the held-out set
+# Flipped 2026-10-01: the bar in script_rubric_eval.py held on the held-out set (every item within one point on 100% of
+# scenes, verdict agreement 100%). Limits, on the record: the 60 labels were written by Claude at the owner's instruction,
+# and every labelled scene is Pass-level (flat opening-dinner chat), so this shows Jev agrees on weak scenes, not that
+# it recognises strong ones. BL-96 adds Consider/Recommend-level scenes.
+CALIBRATED = True
 ADVISORY_NOTE = ("ADVISORY: the rubric has not been calibrated against human labels yet "
                  f"(needs {LABELS_REQUIRED} labelled scenes, see tests/eval_cases/script_rubric/README.md); "
                  "use it to compare runs, not to gate anything.")

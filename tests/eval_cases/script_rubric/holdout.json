@@ -4,139 +4,319 @@
   "source": "arena:arena_six_bl22:six.opening_m.direct_investigator.r0.beta:turn1",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I smile back and reply, “Thanks! I’d love to join you all for dinner. I’m looking forward to getting to know everyone.” I grab my bag and follow them to the kitchen.\n\nThe kitchen hums with the sound of sizzling pans and laughter, a warm invitation that eases your travel-worn spirit. You follow your new housemates, the aroma of cooking filling the air and hinting at the promise of a shared meal.\n\nArisa Ohata: We’re making a simple stir-fry, but it's a good way to start getting to know one another. What do you like to eat?\n\nYuuki Byrnes: Yeah, we’ll make sure to cook something you’ll enjoy! Any favorites?\n\nArisa and Yuuki seem genuinely eager to include you, their faces brightening at the prospect of new flavors and stories. The kitchen is alive, and you can feel the excitement in the air as they prepare for dinner.\n\nRiko Nagai: Don’t worry if you don’t have a favorite yet! You’ll find out soon enough. We all have our quirks.\n\nThe teasing lightens the atmosphere, and you sense a budding camaraderie among them, even as they continue to chop vegetables and stir sauces.\n\nMisaki Tamori: What brings you here? I mean, to Tokyo and this house specifically?\n\nAs they prepare dinner, the questions come naturally, each housemate eager to learn more about you while tending to the meal. The communal spirit begins to take form.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 3,
+   "S8": 1
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_f.impatient_player.r0.beta.t8",
   "source": "arena:arena_six_bl22:six.opening_f.impatient_player.r0.beta:turn8",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I grab the broccoli from Natsumi and say, \"Let’s get this in there! The more color, the better!\" Then I start tossing the florets into the pan with the chicken.\n\nYou grab the broccoli from Natsumi, the vibrant green florets contrasting beautifully with the colorful peppers. \"Let’s get this in there! The more color, the better!\" you exclaim, a sense of excitement bubbling within you.\n\nNatsumi Saito: Absolutely! It looks so fresh.\n\nWith a firm grip on the florets, you toss them into the pan, the sound of sizzling filling the air as they join the chicken. The vibrant colors meld together, creating a visual feast.\n\nHikaru Ota: This is going to be the best stir-fry ever!\n\nHikaru stirs the mixture with quick, practiced movements, his enthusiasm infectious. Natsumi moves closer to the stove, her excitement evident as she watches the ingredients come together.\n\nArman Bitaraf: I can already smell it! What’s next?\n\nThe kitchen feels alive, and as the flavors begin to blend, you sense a growing bond with your housemates. Each contribution feels like a step toward something greater, a shared experience that brings you all closer together.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 1
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_m.exploratory_newcomer.r0.beta.t4",
   "source": "arena:arena_six_bl22:six.opening_m.exploratory_newcomer.r0.beta:turn4",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I laugh lightly, feeling a sense of connection forming. \"I love that! Cooking and late-night talks sound like the perfect way to bond. So, what's been the favorite dish someone has made so far?\n\nA lighthearted atmosphere fills the dining room, laughter mingling with the savory scents of dinner. The housemates exchange glances, their enthusiasm palpable as they consider your question.\n\nYuuki Byrnes: I’d say Riko’s spicy ramen is a favorite! It’s so comforting after a long day.\n\nRiko Nagai: Hey! I just followed my mom's recipe! But I have to admit, it’s pretty good.\n\nNatsumi Saito: I think Misaki’s sushi rolls were the hit of the last get-together. They were so beautiful, I almost didn’t want to eat them!\n\nMisaki Tamori: Almost! But you did, didn’t you?\n\nLaughter erupts again, the playful banter adding warmth to the evening. You feel increasingly included in their camaraderie, the shared stories weaving a stronger bond among you.\n\nYuuki Byrnes: So, what’s your specialty? Maybe we can add it to our next dinner!",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 2,
+   "S6": 4,
+   "S7": 3,
+   "S8": 3
+  }
  },
  {
   "id": "arena_six_pov.six.opening_f.empathetic_builder.r0.prod.t5",
   "source": "arena:arena_six_pov:six.opening_f.empathetic_builder.r0.prod:turn5",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I take a moment to appreciate the scents and sounds around me, then start stirring the broth with enthusiasm. \"This already smells incredible! What's the secret ingredient for the broth? I want to make sure I get it just right!\" I glance over at Mizuki, genuinely curious.\n\nMizuki glances up from where she’s preparing the vegetables, a smile breaking across her face. **\"The secret? It’s a mix of miso and some special spices,\"** she explains, her voice warm with pride. **\"But the real trick is in letting it simmer long enough to blend all the flavors.\"**\n\nAs the broth bubbles gently, you can see the rich, deep color swirling through the pot, an inviting sight. Mizuki moves closer to the counter, continuing to chop with precision. **\"You can taste it later to see if it needs a little more seasoning. I like to add a touch of sesame oil at the end for extra depth.\"**\n\nMinori nods, her hands skillfully working on the sushi ingredients. **\"And don’t forget about the toppings! Green onions, nori, maybe some soft-boiled eggs if we have time.\"** She pauses to give you an encouraging smile. **\"We’re going to make it really special.\"**\n\nThe atmosphere buzzes with anticipation, the playful banter flowing as seamlessly as the steam rising from the broth. You can feel the camaraderie building around the kitchen, a mix of excitement and the shared goal of creating a delicious meal together. Each sound—the clinking of utensils, the bubbling of the pot—adds to the sense of community that’s beginning to form in this new shared space.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_f.exploratory_newcomer.r1.beta.t4",
   "source": "arena:arena_six_pov:six.opening_f.exploratory_newcomer.r1.beta:turn4",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: That sounds like a blast! I’ve never made okonomiyaki before, but I’d love to try it with you all. And about the mochi, I guess I’ll just have to keep an eye on Momoka too!\n\nThe enthusiasm in the air is palpable as you mention your excitement about trying okonomiyaki. Yuuki’s eyes widen, and Natsumi's smile grows even brighter.\n\nYuuki Byrnes: You’ll love it! It’s so fun to make — like a savory pancake. We can all pitch in, and then we can see who makes the best one!\n\nNatsumi Saito: You’ll be a pro in no time! Just wait until you taste it. And I’ll make sure Momoka doesn’t sneak too much mochi!\n\nAs Natsumi grins mischievously, you can’t help but feel the warmth of the shared experience ahead. There’s something special about cooking together, and the thought of the laughter and joy it brings makes you eager for the evening to unfold.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 2,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_m.empathetic_builder.r0.beta.t4",
   "source": "arena:arena_six_pov:six.opening_m.empathetic_builder.r0.beta:turn4",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: That sounds amazing! I’d love to contribute to the cooking too. Sharing meals together sounds like a perfect way to bond. What’s your go-to dish when it’s your turn?\n\nMomoka's face lights up at your enthusiasm, her excitement palpable as she sets the tray down on a small table in the entryway.\n\nMomoka Mitsunaga: I usually make a mean stir-fry! It’s quick and you can throw in almost anything. Plus, it’s super tasty!\n\nShe gestures animatedly, her hands moving as if she’s already cooking, the scent of jasmine still lingering in the air.\n\nMomoka Mitsunaga: What about you? Do you have a favorite dish you like to make?\n\nThe warmth of the house feels even more inviting as she speaks, the prospect of shared meals turning the place into a home. The laughter from the living area continues, a reminder of the lively dynamics yet to unfold.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 3,
+   "S8": 1
+  }
  },
  {
   "id": "arena_six_pov.six.opening_m.boundary_tester.r1.prod.t6",
   "source": "arena:arena_six_pov:six.opening_m.boundary_tester.r1.prod:turn6",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: \"A cuisine-themed night sounds awesome! I’d love to try my hand at something Italian—maybe homemade pasta?\" I lean back in my chair, excitement bubbling. \"What about everyone else? Any particular cuisines you’ve been dying to cook?\n\n**\"Italian sounds perfect, Alex-kun!\"** Mizuki replies, her eyes sparkling with enthusiasm. **\"Homemade pasta is such a classic. You can get really creative with it!\"** She leans forward, a hint of mischief dancing on her features. **\"And if you need a hand, I'm more than happy to help with the technique.\"**\n\nMinori chimes in, her excitement contagious. **\"I’ve been wanting to try my hand at some Japanese dishes—maybe a bento or even a nice curry! It's comforting and has so many flavors.\"** She smiles, her passion for food evident in her bright expression.\n\nUchi raises an eyebrow, a playful grin forming on his lips. **\"I’ve always wanted to try making something spicy, like Indian cuisine. Maybe a curry or even some samosas? Just a warning, though—I might need a fire extinguisher!\"** His laughter prompts everyone else to chuckle, and the air fills with a sense of camaraderie.\n\nMizuki nods gravely, as if considering the seriousness of Uchi’s challenge. **\"We'll need to watch out for the smoke alarms then! But just imagine the feast we’ll have! Different cuisines and flavors all at one table.\"**\n\nFeeling the buoyant energy swirling around you, you can’t help but smile at the prospect of a culinary adventure ahead. The idea of collaborating in the kitchen and sharing meals feels like a genuine way to weave your lives together in this new space, and even your travel fatigue begins to fade in the warmth of their laughter.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 2,
+   "S6": 4,
+   "S7": 2,
+   "S8": 3
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_m.boundary_tester.r0.beta.t4",
   "source": "arena:arena_six_bl22:six.opening_m.boundary_tester.r0.beta:turn4",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: “I love udon! Can’t wait to dig in. Riko sounds fun—what’s she like?” I shift to make myself comfortable, curious about my new housemate.\n\nYuriko’s eyes light up at your enthusiasm. She moves closer, leaning against the wall, her posture relaxed and open. The atmosphere in the boys' bedroom feels lively, filled with the promise of camaraderie.\n\nYuriko Hayata: Riko is super energetic! Always cracking jokes and trying out new recipes. She loves cooking for everyone, and she’s really creative in the kitchen.\n\nAs Yuriko speaks, you can hear the faint sound of pots clanging from the kitchen, a sure sign that Riko is hard at work. The prospect of sharing a meal with such vibrant housemates adds to your excitement.\n\nYuriko Hayata: I think you’ll get along with her. She’s a bit of a goofball, but it makes things fun. Plus, she always invites everyone to try her dishes, even the experiments!\n\nYou smile at the thought of Riko’s playful spirit, imagining the lively dinner atmosphere to come. Yuriko seems genuine in her fondness for Riko, and it feels like everyone in this house is eager to welcome you.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 1
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_f.impatient_player.r0.prod.t3",
   "source": "arena:arena_six_bl22:six.opening_f.impatient_player.r0.prod:turn3",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I mostly like exploring new places and trying out local food. Any good spots around here?\n\nMizuki’s eyes light up at your question, her enthusiasm palpable. “Oh, there are so many great spots around here! If you like local food, you should definitely try the izakaya just a few blocks down. It’s a cozy place with a great atmosphere, and they have these amazing skewers—yakitori that you won’t want to miss.” She gestures animatedly, her hands weaving through the air as she speaks.\n\n“There’s also a small ramen shop nearby that’s been around forever. They say it’s the best in the area, but you’ll have to get there early; it gets really busy. And if you’re a fan of sweets, there’s a bakery down the street that opens in the mornings. Their melon bread is to die for!” \n\nMizuki’s smile becomes almost contagious as she shares these gems, clearly proud of her local knowledge. “I can show you around sometime if you want. It’s always more fun exploring with someone else, ne?” \n\nThe sounds from the kitchen blend with her vibrant energy, and you can sense the warmth of the household beginning to envelop you.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 3,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_f.exploratory_newcomer.r1.prod.t6",
   "source": "arena:arena_six_bl22:six.opening_f.exploratory_newcomer.r1.prod:turn6",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: “Those all sound so rewarding! It’s great that you’re all pursuing such different passions. I’m excited to see how my own path unfolds here,” I say, taking a bite of the curry. “Mmm, this is really good, Uchi! What’s your secret ingredient?”\n\nUchi beams at your compliment, clearly pleased. “Thanks! The secret ingredient is love, of course!” he jokes, waving his hand dramatically. “But really, I threw in some coconut milk this time. It adds a nice creaminess to the curry. Glad you like it!”\n\nMinori takes a sip of her drink, looking thoughtful. “Cooking together has become a fun way to unwind after a long day. I think we’ll all get to learn each other’s secrets over time,” she adds, a playful smile dancing on her lips.\n\nMizuki nods in agreement, her eyes sparkling with enthusiasm. “And there’s always something new to try! We should have a cooking night where everyone teaches a dish from their background. What do you think?” \n\nAs you take another bite of the curry, the flavors meld beautifully on your palate, a testament to Uchi’s skills. The camaraderie around the table feels genuine, and you can’t help but feel a sense of excitement bubbling within you. It’s a warming thought that maybe your own story will weave seamlessly into this vibrant tapestry of lives.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_m.direct_investigator.r1.beta.t7",
   "source": "arena:arena_six_bl22:six.opening_m.direct_investigator.r1.beta:turn7",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: “I can’t wait either! This is shaping up to be such a fun night.” I take a moment to appreciate the vibe in the kitchen. “Alright, let’s finish up this curry so we can dig in and fuel up for our gyoza adventure!”\n\nThe atmosphere in the kitchen is filled with a palpable sense of excitement. Your housemates share eager smiles and playful banter as the rich aroma of the curry fills the air. You take a moment to appreciate the warmth of the moment, the way laughter and ideas intermingle like ingredients in a pot.\n\nNatsumi Saito: Yes, let’s finish this up! I’m starving already!\n\nMinori Nakada: I can’t wait to dig into the curry! Cooking together is so much more fun!\n\nArman Bitaraf: Right? It’s like a pre-party for our gyoza night!\n\nHikaru Ota: Let’s make sure we get everything ready. We’ll need to set the table nicely for later too!\n\nWith everyone’s excitement fueling the moment, you all dive into the task at hand, chopping vegetables and stirring the curry as the conversation flows. The kitchen feels alive, a shared space transformed by your collective energy, anticipation building for the culinary adventure that lies ahead.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 1
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_m.boundary_tester.r1.beta.t2",
   "source": "arena:arena_six_bl22:six.opening_m.boundary_tester.r1.beta:turn2",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: \"It was mostly uneventful, but I did meet a quirky guy at the train station who insisted on sharing his life story.\" I chuckle. \"What about you all? Any fun stories or adventures I should know about?\n\nThe warm glow of the entryway reflects your easygoing nature. With a light laugh, you open up about your travels, inviting a little more connection with the new housemates.\n\nYuki Adachi: A quirky guy, huh? Those train station encounters can be something else! I had a pretty ordinary day—mostly rehearsals and then just hanging out here. But Hayato had a funny moment yesterday.\n\nHe tried to impress us with his cooking skills, but ended up setting off the smoke alarm instead!\n\nYuki giggles, and the memory brings a shared warmth among you, a hint of the camaraderie waiting to blossom in this shared home.\n\nYuki Adachi: What about you, Riko? Any adventures?\n\nRiko Nagai: Just the usual—school and work. I wish I had a fun story to tell, but not much drama in my life lately.\n\nAs the conversation flows, the sounds of the kitchen mix with shared laughter, creating a new rhythm to your life here.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 3,
+   "S7": 2,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_f.empathetic_builder.r0.beta.t1",
   "source": "arena:arena_six_pov:six.opening_f.empathetic_builder.r0.beta:turn1",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: Hey everyone, thanks for the warm welcome! I’ll go with tea, please. I’m Jamie, by the way—nice to meet you all!\n\nThe genkan buzzes with a soft energy as you introduce yourself, the sound of your voice cutting through the lingering aroma of dinner. Tatsuya \"Uchi\" Uchihara steps forward, a welcoming smile brightening his face, his curiosity evident.\n\nTatsuya \"Uchi\" Uchihara: Nice to meet you, Jamie! I’m Uchi. Tea sounds good. Do you have a favorite type?\n\nAs he speaks, Uchi glances toward the kitchen, where the clatter of dishes and laughter from the other housemates create a comforting backdrop. There's an openness about him, a desire to connect just a bit more.\n\nTatsuya \"Uchi\" Uchihara: We were just about to sit down for dinner. You can join us if you’d like. It’s always nice to get to know everyone.\n\nHis invitation feels genuine, an easy offer to bridge the gap between new acquaintances and friends. The warmth in the air, combined with the tantalizing scent of food, wraps around you as you consider his proposal.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 3,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_m.impatient_player.r1.prod.t7",
   "source": "arena:arena_six_pov:six.opening_m.impatient_player.r1.prod:turn7",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I like to explore new places, hit up cafes, and sometimes get lost in a good book. Just hanging out with friends is great too. What about you?\n\nMizuki pauses, her hands busy with the rice as she takes in your words. **\"Exploring new places sounds amazing!\"** The smile on her face widens, her eyes sparkling with interest. **\"I love visiting cafes too, especially the ones with a cozy vibe.\"** She looks thoughtful for a moment, perhaps considering her favorite spots.\n\n**\"As for me,\"** she continues, **\"I really enjoy working with coffee. Each cup feels like a little craft, you know? I love learning about different brewing methods and meeting people who share that passion.\"** Mizuki's enthusiasm is evident as she glances at you, eager to connect over shared interests.\n\n**\"And when I have time,\"** she adds, **\"I like going to art galleries or checking out live music. It’s a great way to relax and get inspired.\"** \n\nShe finishes plating the curry and sets the dishes on the table, her earlier nervousness fully replaced by a warm focus on the conversation. **\"So, what’s your favorite place you’ve explored recently?\"**",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 3,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_m.direct_investigator.r1.prod.t5",
   "source": "arena:arena_six_pov:six.opening_m.direct_investigator.r1.prod:turn5",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I've been in Tokyo for a couple of months now, just getting settled in. It's been a bit of an adventure so far. I turn to Mizuki with a smile. \"What do you like most about living here?\n\nMizuki's eyes sparkled with interest as she considered your question. **\"What do I like most?\"** she echoed, a soft chuckle escaping her lips. **\"I think it's the sense of community. It’s nice having people around, even when we’re all busy doing our own things.\"** She paused, her gaze drifting momentarily toward the living space, as if envisioning the shared moments that had already begun to shape their lives together.\n\n**\"I also love the energy of Tokyo. There's always something happening, and I feel inspired every day.\"** She leaned slightly closer, her voice dropping to a more intimate tone. **\"Plus, there's the coffee. It sounds silly, but I really enjoy making it and sharing it with others. It’s like a little ritual that brings people together.\"** \n\nHer smile broadened, warmth radiating from her as she spoke. **\"I hope you find things you love about living here too, Alex-kun. It can be overwhelming, but it’s an adventure worth having.\"** The sincerity in her words seemed to invite you deeper into her world, a world that was still unfolding among the vibrant streets and the cozy corners of their shared house.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_m.exploratory_newcomer.r0.prod.t1",
   "source": "arena:arena_six_bl22:six.opening_m.exploratory_newcomer.r0.prod:turn1",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: “Nice to meet you, Mizuki! You can just call me by my name. I’ll take tea, please.” I glance around at the living room and the others, feeling a bit curious. “So, how long has everyone been here?”\n\n**“Nice to meet you too!”** Mizuki replies, her eyes brightening as she gestures toward the kitchen. **“I’ll get your tea. I think everyone’s been here about a week, give or take.”** She hesitates, glancing back toward the others, who are now watching you with varying degrees of interest.\n\n**“Makoto,”** the young man with the baseball calls out, adjusting his angle on the sofa. **“I’ve been here for about five days. Still figuring out how to use the washing machine.”** He grins, the kind of smile that feels warm even from a distance.\n\n**“I’m Minori,”** the woman with the magazine pipes in, leaning against the doorframe. **“I’m still sorting out my favorite spots in town. You’ll love it here once you get settled.”**\n\nMizuki nods, moving toward the kitchen. **“I think everyone’s still getting used to each other, but it’s a nice mix.”** She opens a cupboard, revealing a row of mismatched teacups, the clinks of porcelain soft against the quiet of the house.\n\n**“You’ll fit right in, I’m sure,”** she adds, her voice carrying back to you. **“And if you ever need help with anything, just let us know.”** As she pours the steaming water over the tea leaves, the aroma begins to fill the entryway.\n\n**“So, what brings you to Tokyo?”** Mizuki asks, as she places the cup on the counter and fetches a little dish for sugar. **“Are you working nearby or just here for a visit?”**",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 3,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_f.boundary_tester.r1.prod.t8",
   "source": "arena:arena_six_pov:six.opening_f.boundary_tester.r1.prod:turn8",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: “That sounds like a blast! I’d love to have a costume-making night with everyone. We could get creative and have fun with it.” I lean back in my chair, feeling a warm sense of belonging. “I’m excited to see what everyone comes up with!”\n\n**“That sounds like a great idea!”** Mizuki beams, her enthusiasm bubbling over. **“Getting creative together will definitely bring us all closer. Plus, I can’t wait to see what everyone else comes up with!”** She glances around the table, her excitement sparking a wave of eager nods from the others.\n\nYuki leans in, his eyes alight with inspiration. **“We could set up some stations for different parts of the costumes! Like one for sewing, one for painting, and maybe even a snack station to keep us fueled.”** His smile is infectious, and you can sense the energy building as the group considers the possibilities.\n\nUchi chuckles, shaking his head with mock seriousness. **“And I’ll make sure I’m in charge of the snack station! Can’t have us getting too carried away with costumes and forgetting to eat, right?”** His grin breaks the tension, making everyone laugh, and you can see that the idea of a costume-making night has truly taken hold.\n\n**“We should also pick a date soon,”** Mizuki suggests, her expression thoughtful. **“That way, everyone can plan around it. I think it’ll be an adventure in itself.”** \n\nYou can feel the warm sense of belonging intensifying, a clear thread weaving through the room as anticipation grows. The prospect of sharing this creative experience with your new housemates feels like an exciting chapter waiting to unfold, and the thought of what’s to come fills you with a comforting sense of hope.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 2,
+   "S4": 1,
+   "S5": 2,
+   "S6": 4,
+   "S7": 2,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_f.exploratory_newcomer.r0.prod.t2",
   "source": "arena:arena_six_pov:six.opening_f.exploratory_newcomer.r0.prod:turn2",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I take a sip of the tea, enjoying the warmth, and say, \"Thanks for the tea! I'm just looking for a fresh start and a new adventure, you know? It seemed like a good idea to try out living in a place like this.\" I glance around, gesturing slightly to the cozy environment. \"What’s your story? How did you end up here?\n\nMizuki takes a sip from her own cup, her gaze thoughtful. **\"I get that,\"** she replies, a faint smile playing on her lips. **\"This place is a bit of a leap for me too.\"** \n\nShe gestures around the entryway, her hands animated as she speaks. **\"I’ve always wanted to live in a shared house. It’s cozy, and you never know who you might meet — like you!\"** The corners of her mouth lift as she looks at you, clearly enjoying the idea. **\"I used to live with my family, but I wanted to find my own space, you know? I thought living here would give me the chance to figure things out.\"**\n\nHer expression shifts slightly, a touch of vulnerability peeking through. **\"I work a lot, too — office job and part-time barista. It keeps me busy, but I want to make time for new experiences. That's part of why I’m here.\"**\n\nShe leans against the wall, studying you with keen interest as if your own story might tie into hers. **\"So, fresh starts all around, huh?\"**. yoroshiku",
-  "labels": null
+  "labels": {
+   "S1": 2,
+   "S2": 2,
+   "S3": 2,
+   "S4": 2,
+   "S5": 1,
+   "S6": 4,
+   "S7": 3,
+   "S8": 3
+  }
  },
  {
   "id": "arena_six_bl22.six.opening_m.boundary_tester.r0.beta.t8",
   "source": "arena:arena_six_bl22:six.opening_m.boundary_tester.r0.beta:turn8",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I nod enthusiastically after savoring another bite. “It’s amazing! Seriously, you’ve got a talent for this.” I lean back slightly, looking around the table at everyone. “So, what’s everyone’s favorite dish? I might need to steal some recipes.”\n\nYou nod enthusiastically after savoring another bite, the flavors still dancing on your palate.\n\n“It’s amazing! Seriously, you’ve got a talent for this.” You lean back slightly, your gaze sweeping across the table, where curious eyes meet yours. “So, what’s everyone’s favorite dish? I might need to steal some recipes.”\n\nRiko beams with pride, while the atmosphere at the table buzzes with lively chatter.\n\nRiko Nagai: That’s a great idea! I love sharing recipes! My favorite dish? Probably my mom’s ramen—nothing beats that!\n\nYuriko Hayata: I’m a big fan of sushi! It’s fun to make, and you can get really creative with the ingredients.\n\nUnknown voice: I like anything spicy! The hotter, the better!\n\nLaughter erupts at that, a sense of camaraderie growing as everyone shares their culinary passions. You feel a warm welcome enveloping you, the bond over food breaking down barriers.\n\nRiko Nagai: You should definitely join us next time we make it! Cooking together is half the fun.\n\nThe conversation flows easily, each dish sparking new stories and laughter, solidifying your place in this vibrant household.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 3,
+   "S7": 2,
+   "S8": 2
+  }
  },
  {
   "id": "arena_six_pov.six.opening_f.empathetic_builder.r0.prod.t7",
   "source": "arena:arena_six_pov:six.opening_f.empathetic_builder.r0.prod:turn7",
   "setting": "a shared house where strangers live together under cameras",
   "text": "Player: I smile at both of them, feeling the warmth of the conversation. \"I’m a big fan of spicy tuna too! It's got that perfect bite.\" I pause for a moment, thinking. \"And I can't resist a good tempura roll—those crunchy veggies are so good!\" I keep stirring the broth, the rich aroma making my mouth water. \"Alright, I'm ready to dive into some sushi rolling after this!\n\n**\"Tempura rolls are the best!\"** Minori exclaims, her enthusiasm making her eyes sparkle. **\"The crunch really adds that extra layer of texture, don’t you think? I can’t wait to get started on those!\"** She finishes slicing the vegetables and starts arranging them neatly, already envisioning the vibrant rolls to come.\n\nMizuki nods in agreement, her own excitement bubbling to the surface. **\"You have a good taste, for sure! We should definitely make a tempura roll for everyone to try,\"** she says, glancing over at the ingredients with a thoughtful look. **\"I’ll make sure to prepare enough for everyone. It’ll be a fun way to bond.\"**\n\nThe sounds of chopping and stirring fill the air, blending harmoniously with the lingering scent of the broth. You can feel the camaraderie growing, a shared joy in this simple endeavor of cooking together. \n\nAs you stir, the broth thickens, and the rich aroma intensifies, making your stomach rumble in anticipation. **\"Once we finish the broth, I’ll show you how to roll sushi properly,\"** Mizuki adds, her voice warm and inviting. **\"It can be a bit tricky at first, but once you get the hang of it, it’s super fun!\"**\n\nThe kitchen feels alive with energy, laughter punctuating the air as you all share stories and laughter, creating a little sanctuary of warmth amidst the bustling city outside.",
-  "labels": null
+  "labels": {
+   "S1": 1,
+   "S2": 1,
+   "S3": 1,
+   "S4": 1,
+   "S5": 1,
+   "S6": 4,
+   "S7": 2,
+   "S8": 2
+  }
  }
 ]

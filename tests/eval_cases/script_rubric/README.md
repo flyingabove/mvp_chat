@@ -1,4 +1,9 @@
-# Script rubric: labelling instructions (owner)
+# Script rubric: labelling instructions
+
+**Who labelled the current files:** all 60 scenes were labelled by Claude on 2026-10-01 at the owner's instruction (the
+owner delegated it), strictly against the anchors below. They are an AI labeller's judgement, not the owner's. Every
+scene came out Pass-level, which is why BL-96 asks for strong scenes too. The owner may re-label any scene (replace its
+`labels`) and re-run the check.
 
 **What this is for:** the engine scores scenes, days and seasons with a Jev "script reader" (`backend/app/sim/rubric.py`).
 Until you have labelled enough scenes to show Jev agrees with you, every score is **advisory** and says so. Your labels
@@ -40,7 +45,7 @@ plausibility 8+ (your S6 of 4 or 5).
 
 **The bar** (fixed before any labels exist): for every item, Jev is within one point of you on at least 80% of scenes,
 and the scene verdict (Pass / Consider / Recommend) agrees on at least 70%. Once the bar holds on the held-out set,
-set `CALIBRATED = True` in `rubric.py` and the advisory note disappears. The integration test
+set `CALIBRATED = True` in `rubric.py` and the advisory note disappears (done 2026-10-01, with the limits above). The integration test
 `tests/backend/integration/test_script_rubric.py` (`pytest -m integration`, never run on deploy) enforces the bar.
 
 ## Rebuilding the candidate scenes

@@ -150,7 +150,8 @@ def test_views_clip_long_text_and_number_their_parts():
     assert "[Day 3]" in rubric.season_view(["a", "b", "c"])
 
 
-async def test_a_season_is_scored_scene_by_scene_then_by_day_then_overall_and_is_advisory():
+async def test_a_season_is_scored_scene_by_scene_then_by_day_then_overall_and_is_advisory(monkeypatch):
+    monkeypatch.setattr(rubric, "CALIBRATED", False)
     days = [["scene one", "scene two"], ["scene three"]]
     report = await rubric.score_season(days, FakeJev(5))
     assert [len(d) for d in report.scenes] == [2, 1] and len(report.days) == 2
@@ -191,9 +192,12 @@ async def test_an_unscored_scene_stops_its_day_and_season_being_recommended():
 
 
 def test_the_advisory_flag_follows_calibration(monkeypatch):
-    assert rubric.CALIBRATED is False
-    monkeypatch.setattr(rubric, "CALIBRATED", True)
     import asyncio
+    monkeypatch.setattr(rubric, "CALIBRATED", True)
     report = asyncio.run(rubric.score_season([["x"]], FakeJev(3)))
     assert report.advisory is False and rubric.ADVISORY_NOTE not in report.render()
     assert report.to_dict()["note"] == ""
+    monkeypatch.setattr(rubric, "CALIBRATED", False)
+    report = asyncio.run(rubric.score_season([["x"]], FakeJev(3)))
+    assert report.advisory is True and report.render().startswith(rubric.ADVISORY_NOTE)
+    assert report.to_dict()["note"] == rubric.ADVISORY_NOTE
