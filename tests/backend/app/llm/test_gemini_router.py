@@ -231,6 +231,11 @@ def test_reasoning_models_get_low_effort_unless_the_caller_chose_one_and_others_
     assert all(m.thinking for m in gr.MODELS if "lite" not in m.name) and not any(m.thinking for m in gr.MODELS if "lite" in m.name)
 
 
+def test_fields_gemini_rejects_are_dropped_so_seeded_callers_do_not_get_a_400():
+    out = gr._prepare({**_body(), "seed": 7, "temperature": 0.9}, LITE)
+    assert "seed" not in out and out["temperature"] == 0.9 and out["model"] == LITE.name
+
+
 def _cut(content, finish="length"):
     return (200, {"choices": [{"message": {"content": content}, "finish_reason": finish}], "usage": {"total_tokens": 50}})
 

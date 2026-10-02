@@ -172,7 +172,7 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--root", type=Path, default=default_root())
     ap.add_argument("--profile", choices=list(PROFILES), default="gate")
     ap.add_argument("--judges", nargs="+", choices=["jev", "llm", "ollama"], default=["jev", "llm"],
-                    help="jev = TypeSafe Jev, llm = OpenAI, ollama = local model (free, advisory in the gate)")
+                    help="jev = TypeSafe Jev, llm = Gemini (OpenAI only with --provider openai --allow-openai), ollama = local model (free, advisory in the gate)")
     ap.add_argument("--hosted-profile", choices=list(PROFILES), default="gate", help="tiered: hosted stage size")
     ap.add_argument("--beta-url", default=DEFAULT_URLS[BETA])
     ap.add_argument("--prod-url", default=DEFAULT_URLS[PROD])

@@ -251,10 +251,14 @@ def _retry_delay_s(text: str) -> Optional[float]:
     return float(match.group(1)) if match else None
 
 
+UNSUPPORTED_FIELDS = ("seed",)       # Gemini's OpenAI-compatible endpoint answers 400 to these (probed live)
+
+
 def _prepare(body: dict, spec: ModelSpec) -> dict:
     """The caller's body for `spec`. Reasoning models get low reasoning effort unless the caller chose one: probed live, the
     default effort made scenes take 25 to 45 s and often cut the JSON off mid-way (hidden thinking eats max_tokens)."""
-    out = {**body, "model": spec.name}
+    out = {k: v for k, v in body.items() if k not in UNSUPPORTED_FIELDS}
+    out["model"] = spec.name
     if spec.thinking and "reasoning_effort" not in out:
         out["reasoning_effort"] = REASONING_EFFORT
     return out
