@@ -9,7 +9,7 @@ couples form and leave only when both independently qualify.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from backend.app.engine.world_model.intent import Intention
 from backend.app.engine.world_model.model import PLAYER, WorldModel
@@ -42,8 +42,12 @@ def intentions(model: WorldModel, owner: str, day: int) -> list[Intention]:
     return [i for i in model.agendas.get(owner, []) if i.expires_day >= day]
 
 
-def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligible: Any, day: int) -> None:
-    """Derive pursue/compete_for from each holder's own standing. `eligible(a, b)` gates pairs."""
+def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligible: Any, day: int,
+                    scale: Optional[Callable[[str], float]] = None) -> None:
+    """Derive pursue/compete_for from each holder's own standing. `eligible(a, b)` gates pairs.
+
+    `scale(owner)` multiplies the priority of that owner's aims (their goals, P-07); None means 1.0 for everyone."""
+    scale = scale or (lambda owner: 1.0)
     partner = {}
     for key in model.npc_couples:
         if key not in model.departed_couples:
@@ -61,7 +65,7 @@ def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligibl
             continue
         if model.standing.tier_reached(owner, target, track, interested_tier) is True:
             drawn.setdefault(target, []).append((standing.value, owner))
-            add_intention(model, owner, Intention("pursue", target, standing.value / 100,
+            add_intention(model, owner, Intention("pursue", target, standing.value / 100 * scale(owner),
                                                   "drawn to them", day + INTENTION_DAYS))
     # Someone holding a live aim on a person (a rival's own aim, BL-34) is drawn to them as well.
     for owner, items in sorted(model.agendas.items()):
@@ -80,7 +84,7 @@ def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligibl
         if len(admirers) + (1 if target in courted else 0) < 2:
             continue
         for value, owner in admirers:
-            add_intention(model, owner, Intention("compete_for", target, value / 100 + 0.1,
+            add_intention(model, owner, Intention("compete_for", target, value / 100 * scale(owner) + 0.1,
                                                   "someone else wants them too", day + INTENTION_DAYS))
 
 

@@ -201,9 +201,6 @@ class Person:
 - No story ids, names or genders in engine code. Eligibility is data (`appraisal.eligible`).
 
 ### Phases (failing-first tests in each; ship-and-verify)
-- **P1 Goals on `Person`.** (The MBTI line already reaches the storyteller, Jev and the panel: `b81bab0`.)
-  - `Goals` with weights and shift conditions, read from story JSON and the existing goal trait, and the active
-    goal on each present card. This changes what players see, so it goes through the arena gate.
 - **P2 Stances.**
   - `Stance`, `StanceBook`, the stance rules and default pack, and the new condition kinds.
   - Intentions are derived from stances. The rival seeding, fallout and gender blocks move into rules.
@@ -270,7 +267,7 @@ Still separate:
   - SOTOPIA, social-goal evaluation ([paper](https://arxiv.org/pdf/2310.11667)).
 - **Related:** BL-86 is the headless season simulation and admin watch mode that proves this. BL-87 is the drama
   direction knobs and the Jev script rubric that tune and judge it.
-- **Next:** P1. Do not start P4 before P2 shows zero golden diffs and P3 passes its no-telepathy tests.
+- **Next:** P2. Do not start P4 before P2 shows zero golden diffs and P3 passes its no-telepathy tests.
 - **Touches:**
   - Changed: `world_model/person.py`, `rules/personality.py`, `rules/conditions.py`, `world_model/epistemics.py`,
     `world_model/{agenda,intentions,offscreen,rivals,act_fallout,stakes,signals,turn}.py`, `engine/content_validation.py`,

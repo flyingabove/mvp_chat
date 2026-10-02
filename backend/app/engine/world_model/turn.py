@@ -28,6 +28,7 @@ from backend.app.engine.rules.acquaintance import acquaintance_levels, level_for
 from backend.app.engine.world_model.stakes import stake_notes
 from backend.app.engine.world_model.signals import Candidate, choose_signal, interest_of, signal_catalogue
 from backend.app.engine.rules.personality import personalities
+from backend.app.engine.world_model.goals import active_goal, agenda_scale, card_note
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
 from backend.app.engine.world_model.persona import SelfClaim
@@ -230,6 +231,8 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
             model.world.add_event(now, model.player_place(), (PLAYER, present[0]),
                                   f"@{PLAYER} and @{present[0]} talked alone", kind="private_talk",
                                   operation_id=f"private_talk:{model.turn}")
+    model.goals.apply_shifts(model, personalities(getattr(state, "story_cfg", None) or {}),
+                             getattr(state, "character_graph", None), now)
     ctx = social_context(state)
     if ctx is not None and ctx.rules.couples is not None:
         advance_npc_life(state, model, ctx, now)
@@ -243,6 +246,12 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
                        None if sleeping else conflict_focus, farewell=protected)
     model.view = view
     return view
+
+
+def _goal_note(model: WorldModel, people: dict[str, Any], cid: str, names: dict[str, str]) -> str:
+    """`; private aim: ...` for the person's heaviest goal, or nothing for someone with no goals (P-07)."""
+    goal = active_goal(model.goals, cid, people.get(cid))
+    return f"; {card_note(goal, model.goals.weight(cid, goal), names)}" if goal is not None else ""
 
 
 def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_names: dict[str, str],
@@ -267,13 +276,14 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
     ritual = str(getattr(state, "opening_ritual_brief", "") or "").strip()
     if ritual:                                  # the story's one-time group question (opening_scene.group_ritual_brief)
         view.must_address.append(ritual)
+    people = personalities(getattr(state, "story_cfg", None) or {})
     for cid in present:
         c = model.characters[cid]
         activity = c.activity or "here"
         view.cards.append(f"{c.name} ({c.descriptor}): {activity}; {c.availability}"
                           + (f"; mood: {c.mood}" if c.mood else "")
                           + f"; {_encounter_note(model, cid)}; {_name_note(model, cid)}"
-                          + _conduct_note(model, levels, cid, today))
+                          + _conduct_note(model, levels, cid, today) + _goal_note(model, people, cid, names))
         level = _level_of(model, levels, cid, today)
         if level is not None:
             view.bearings.append(f"{c.name}: {level.reminder or level.conduct}")
@@ -544,7 +554,9 @@ def advance_npc_life(state: Any, model: WorldModel, ctx: SocialContext, now: int
     policy, track = ctx.rules.couples, ctx.rules.appraisal.track
     model.standing.bind(ctx.rules.tracks)
     day = model.world.day_index(now)
-    refresh_agendas(model, track, policy.interested_tier, ctx.eligible, day)
+    people = personalities(getattr(state, "story_cfg", None) or {})
+    refresh_agendas(model, track, policy.interested_tier, ctx.eligible, day,
+                    scale=lambda cid: agenda_scale(model.goals, cid, people.get(cid)))
     place = model.player_place()
     for a, b in couples_ready(model, track, policy.dating_tier, ctx.eligible, day):
         key = f"{a}|{b}"

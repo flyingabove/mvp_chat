@@ -396,6 +396,31 @@ temperament dials (`rules/personality.py`): sociability (E 0.8 / I 0.25), candor
 `scheming` and `safe_pick` are accepted and stored; their extra behaviour arrives with BL-81..83. Tests:
 `test_personality_model.py`.
 
+### Personality model: goals (P-07, as built 2026-10-01)
+
+Generic, any story. `personalities[key].goals` is a list of `{id, kind, weight, target?, text?, shifts?}`
+(`world_model/goals.py`, parsed and validated by `rules/personality.py` when the story loads). `kind` is one of `GOAL_KINDS`
+(love, career, status, belonging, keep_secret, revenge, protect, chaos) or a kind the story adds in `goal_kinds`; `weight`
+is within 0..1; `target` must be a character; a `shift` is `{when: <condition>, delta: -1..1, reason}`. An unknown kind, a
+weight outside 0..1, a bad target, a duplicate id or an unknown condition raises at story load.
+- **Shifts** use the ordinary condition language (`rules/conditions.py`) judged from the HOLDER's own viewpoint with the
+  goal's target as subject, so nobody's weight moves because of a feeling they cannot see. A shift fires once, clamped to
+  0..1. `GoalBook` (on the `WorldModel`, persisted as `goals`, absent in old saves) is the only writer of live weights.
+  A weight is stored only after its first change, as an `EvolvingTrait` whose history holds the authored value and then
+  each shift with its reason and minute; the shift id in that history is the once-only latch.
+- **The card.** `Person.goals()` and `Person.active_goal()` give the live view. The heaviest goal (ties: lowest id; zero
+  weight is not an aim) goes on that person's scene card as `private aim: ...; never announce it`, "(strong)" at 0.7 or
+  more and "(faint)" at 0.3 or less.
+- **Behaviour.** `agenda_scale` multiplies the priority of the holder's `pursue` and `compete_for` intentions by
+  `1 + 0.5 x (love weight - strongest other weight)`, so a career-first person pursues less (0.55 at career 0.9). With no
+  goals the scale is exactly 1.0. Nothing else reads goals yet; stances (P-08) and scene wants (P-11) will.
+- The free-text `goal` trait on `Character` (from `motive`) is unchanged and still feeds the identity block; weighted goals
+  are the structured layer beside it.
+- Terrace authors goals for all seventeen residents from their motives, plus a love shift when a couple leaves the house.
+  The decision golden record was regenerated for it: only agenda priorities of standing-derived aims changed, and one
+  scene's offered beat moved from Hikaru to Makoto as a result.
+Tests: `test_goals.py`.
+
 ### Motivated testimony: people with a stake speak in their own interest (BL-83 part 1, as built 2026-10-01)
 
 Generic, any story with agendas. `world_model/stakes.py`: when the player's message names someone, each present person who

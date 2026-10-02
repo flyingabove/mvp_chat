@@ -10,13 +10,17 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from backend.app.engine.rules.personality import personalities
+from backend.app.engine.world_model.goals import Goal, active_goal, live_goals
 from backend.app.engine.world_model.heart import Heart
 from backend.app.engine.world_model.model import PLAYER, WorldModel
 
 
 class Person:
-    def __init__(self, cid: str, model: WorldModel, graph: Any = None, profile: Any = None) -> None:
+    def __init__(self, cid: str, model: WorldModel, graph: Any = None, profile: Any = None,
+                 personality: Any = None) -> None:
         self.id = cid
+        self.personality = personality
         self._model = model
         self.profile = profile
         self.body = model.characters.get(cid)
@@ -31,6 +35,13 @@ class Person:
         if self.is_player:
             return self._model.player_name
         return self.body.name if self.body is not None else str(getattr(self.profile, "name", "") or self.id)
+
+    # -- goals (P-07): authored by the story, live weights owned by the world model's GoalBook ---------
+    def goals(self) -> list[Goal]:
+        return live_goals(self._model.goals, self.id, self.personality)
+
+    def active_goal(self) -> Optional[Goal]:
+        return active_goal(self._model.goals, self.id, self.personality)
 
     # -- scoped views over shared stores (no copies) ------------------------------------
     def memories(self) -> list:
@@ -73,6 +84,8 @@ class Cast:
         self._model = model
         self._graph = getattr(state, "character_graph", None)
         self._profiles = getattr(state, "characters", {}) or {}
+        cfg = getattr(state, "story_cfg", None) or {}
+        self._personalities = personalities(cfg.as_dict() if hasattr(cfg, "as_dict") else cfg)
 
     def ids(self) -> list[str]:
         return sorted(self._model.characters)
@@ -80,7 +93,8 @@ class Cast:
     def get(self, cid: str) -> Person:
         if cid != PLAYER and cid not in self._model.characters:
             raise KeyError(cid)
-        return Person(cid, self._model, self._graph, None if cid == PLAYER else self._profiles.get(cid))
+        return Person(cid, self._model, self._graph, None if cid == PLAYER else self._profiles.get(cid),
+                      self._personalities.get(cid))
 
     def player(self) -> Person:
         return self.get(PLAYER)

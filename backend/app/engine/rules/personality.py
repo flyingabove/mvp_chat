@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from backend.app.engine.world_model.deception import DeceptionProfile
+from backend.app.engine.world_model.goals import Goal, parse_goals
 
 DIALS = ("patience", "jealousy", "forgiveness", "skepticism", "openness", "pride",
          "sociability", "planfulness", "candor")
@@ -57,6 +58,7 @@ class Personality:
     deception: DeceptionProfile = field(default_factory=DeceptionProfile)
     type: str = ""                    # optional four-letter type; "" = none
     strategy: str = "open"            # one of STRATEGIES
+    goals: tuple[Goal, ...] = ()      # authored weighted goals (P-07); live weights are in the world model's GoalBook
 
     def taste(self, tag: str) -> float:
         return self.tastes.get(tag, 0.0)
@@ -123,7 +125,10 @@ def personality_for(story_cfg: dict[str, Any], character: Optional[dict[str, Any
     return Personality(_temperament(own.get("temperament"), _with_type(default.temperament, code)),
                        _tastes(own.get("tastes"), default.tastes, vocabulary),
                        _deception(own.get("deception") or default_raw.get("deception") or {}),
-                       code, _strategy(own.get("strategy")))
+                       code, _strategy(own.get("strategy")),
+                       parse_goals(own.get("goals"), str(character.get("key")),
+                                   {str(c.get("key")) for c in cfg.get("characters") or []},
+                                   tuple(cfg.get("goal_kinds") or ())))
 
 
 def _deception(raw: dict[str, Any]) -> DeceptionProfile:
