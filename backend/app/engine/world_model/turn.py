@@ -29,6 +29,7 @@ from backend.app.engine.world_model.stakes import stake_notes
 from backend.app.engine.world_model.signals import Candidate, choose_signal, interest_of, signal_catalogue
 from backend.app.engine.rules.personality import personalities
 from backend.app.engine.world_model.goals import active_goal, agenda_scale, card_note
+from backend.app.engine.world_model.stances import refresh_stances_for_state
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
 from backend.app.engine.world_model.persona import SelfClaim
@@ -234,6 +235,7 @@ def begin_turn(state: Any, message: str, minute_before: int, place_names: Option
     model.goals.apply_shifts(model, personalities(getattr(state, "story_cfg", None) or {}),
                              getattr(state, "character_graph", None), now)
     ctx = social_context(state)
+    refresh_stances_for_state(state, model, ctx, now)
     if ctx is not None and ctx.rules.couples is not None:
         advance_npc_life(state, model, ctx, now)
         propose_agenda_invitations(model, now)

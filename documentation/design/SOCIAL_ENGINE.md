@@ -421,6 +421,25 @@ weight outside 0..1, a bad target, a duplicate id or an unknown condition raises
   scene's offered beat moved from Hikaru to Makoto as a result.
 Tests: `test_goals.py`.
 
+### Stances: typed, explainable attitudes derived from the holder's own view (P-08 slice 1, as built 2026-10-02)
+
+`world_model/stances.py`: `Stance(kind, holder, target, strength, about, cause_ids, since_day)` and `StanceBook` on the
+`WorldModel` (persisted; old saves load with none). The book is **recomputed from scratch every turn** in `begin_turn`
+(right after goal shifts) by rules in `rules/stance_defaults.json`, a generic pack a story overrides under `stances.rules`
+(same id replaces, new id adds, `"disabled": true` removes; a default whose `$variable` the story lacks simply does not
+apply, while an author's own incomplete rule fails loudly). A rule is a weighted sum of conditions judged from the HOLDER's
+`Viewpoint`; the sum is the strength and the stance exists at `min_strength`. Rules run in order and later ones see earlier
+results (`has_stance`), so `rival` (scope `triple`, third party from the holder's `crush` stances) falls out of two crushes.
+Every stance records the terms that held (`rule#index`) and the world events they rest on, and keeps the day it began.
+
+New closed condition kinds (all with parse validation and `explain()`): `trait`, `strategy`, `goal_weight`, `has_stance`,
+`witnessed`, `acquaintance_at_least`, `in_couple`, `eligible`; `event_count.within_days`; `feeling`, `standing_at_least` and
+`tier_reached` gain `toward` (holder | subject | third). Privacy by construction: no condition reads another person's feelings.
+
+Generic pack now: crush, rival, ally, distrusts, suspects (resents, protective_of, owes, ex, admires follow with the
+migrations). Slice 1 changes **no behaviour**: nothing reads stances yet; the next slices move rival seeding, `compete_for`,
+fallout and the `intentions.py`/`offscreen.py` rival blocks onto them.
+
 ### Motivated testimony: people with a stake speak in their own interest (BL-83 part 1, as built 2026-10-01)
 
 Generic, any story with agendas. `world_model/stakes.py`: when the player's message names someone, each present person who

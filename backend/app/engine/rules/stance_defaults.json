@@ -1,0 +1,30 @@
+{
+  "_comment": "Generic stance rules (P-08). A rule is a weighted sum of conditions judged from the HOLDER's own view; the stance exists when the sum reaches min_strength. Strings like $track are filled from the story's social_tracks. A story overrides a rule by giving one with the same id under `stances.rules` (with \"disabled\": true to switch it off).",
+  "rules": [
+    {"id": "crush", "kind": "crush", "scope": "pair", "min_strength": 0.8,
+     "when": [
+       {"weight": 0.6, "if": {"kind": "tier_reached", "track": "$track", "tier": "$interested"}},
+       {"weight": 0.2, "if": {"kind": "eligible"}},
+       {"weight": 0.2, "if": {"kind": "goal_weight", "goal_kind": "love", "op": ">=", "value": 0.5, "about": "subject"}}
+     ]},
+    {"id": "rival", "kind": "rival", "scope": "triple", "about_has": "crush", "min_strength": 1.0,
+     "when": [
+       {"weight": 0.5, "if": {"kind": "has_stance", "stance": "crush", "toward": "third"}},
+       {"weight": 0.5, "if": {"kind": "has_stance", "stance": "crush", "by": "subject", "toward": "third"}}
+     ]},
+    {"id": "ally", "kind": "ally", "scope": "pair", "min_strength": 1.0,
+     "when": [
+       {"weight": 0.5, "if": {"kind": "feeling", "dimension": "trust", "op": ">=", "value": 0.5}},
+       {"weight": 0.5, "if": {"kind": "feeling", "dimension": "affection", "op": ">=", "value": 0.3}}
+     ]},
+    {"id": "distrusts", "kind": "distrusts", "scope": "pair", "min_strength": 0.5,
+     "when": [
+       {"weight": 0.5, "if": {"kind": "feeling", "dimension": "trust", "op": "<=", "value": -0.3}},
+       {"weight": 0.2, "if": {"kind": "feeling", "dimension": "fear", "op": ">=", "value": 0.4}}
+     ]},
+    {"id": "suspects", "kind": "suspects", "scope": "pair", "min_strength": 0.5,
+     "when": [
+       {"weight": 0.5, "if": {"kind": "feeling", "dimension": "suspicion", "op": ">=", "value": 0.5}}
+     ]}
+  ]
+}

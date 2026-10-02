@@ -13,6 +13,7 @@ from backend.app.engine.world_model.conversation import ConversationState
 from backend.app.engine.world_model.epistemics import EpistemicLedger
 from backend.app.engine.world_model.drama import DramaBook
 from backend.app.engine.world_model.goals import GoalBook
+from backend.app.engine.world_model.stances import StanceBook
 from backend.app.engine.world_model.memory import MemoryStore
 from backend.app.engine.world_model.standing import StandingBook
 from backend.app.engine.world_model.persona import PersonaBook
@@ -143,6 +144,7 @@ class WorldModel:
     act_cooldowns: dict[str, int] = field(default_factory=dict)      # "act:target" -> last blocked day
     agendas: dict[str, list[Intention]] = field(default_factory=dict)  # character -> own intentions
     goals: GoalBook = field(default_factory=GoalBook)                # sole writer of live goal weights (P-07)
+    stances: StanceBook = field(default_factory=StanceBook)          # derived each turn from each holder's own view (P-08)
     npc_couples: dict[str, int] = field(default_factory=dict)        # "a|b" -> day the couple formed
     departed_couples: list[str] = field(default_factory=list)        # couples who left the house
     counters: dict[str, int] = field(default_factory=dict)           # story clocks (e.g. couples_left)
@@ -224,7 +226,7 @@ class WorldModel:
                 "persona": self.persona.to_dict(),
                 "act_cooldowns": dict(self.act_cooldowns),
                 "agendas": {cid: [i.to_dict() for i in items] for cid, items in self.agendas.items()},
-                "goals": self.goals.to_dict(),
+                "goals": self.goals.to_dict(), "stances": self.stances.to_dict(),
                 "npc_couples": dict(self.npc_couples), "departed_couples": list(self.departed_couples),
                 "counters": dict(self.counters), "decision_log": list(self.decision_log),
                 "pending_choice": dict(self.pending_choice)}
@@ -269,7 +271,7 @@ class WorldModel:
                    act_cooldowns={str(k): int(v) for k, v in (data.get("act_cooldowns") or {}).items()},
                    agendas={str(cid): [Intention.from_dict(i) for i in items]
                             for cid, items in (data.get("agendas") or {}).items()},
-                   goals=GoalBook.from_dict(data.get("goals")),
+                   goals=GoalBook.from_dict(data.get("goals")), stances=StanceBook.from_dict(data.get("stances")),
                    npc_couples={str(k): int(v) for k, v in (data.get("npc_couples") or {}).items()},
                    departed_couples=list(data.get("departed_couples") or []),
                    counters={str(k): int(v) for k, v in (data.get("counters") or {}).items()},
