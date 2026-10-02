@@ -120,5 +120,8 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
   season and later tuned presets, plus hand-picked strong ones), label them, re-run `--run --set all`, and require
   agreement on those too (the verdict must separate the groups). Optionally have the owner re-label a sample of 20 to
   check the AI labeller.
+- **Candidates now:** the six scenes in the P-06 baseline (`data/season_runs/baseline-pilot-1/season.jsonl`, local) are the
+  first non-Pass scenes the rubric produced (Jev: four Recommend, two Consider); label them blind to Jev's scores. They also
+  share one beat (a quiet shared task ending on a touch of hands), so a repetition check across scenes is part of this.
 - **Done when:** the labelled set covers all three verdicts, the bar holds on a held-out part of it, and the README says who
   labelled.

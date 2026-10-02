@@ -481,6 +481,30 @@ scene cannot build on the last; every resident pair that shares a room can meet 
 changes go to an in-memory table, not the character graph (P-10); a scene can invent a consequence (for example someone
 announcing they are leaving) that the engine does not act on.
 
+### Season baseline (P-06, run 2026-10-01)
+
+Every later stage must beat this. Run: commit `f97068f`, `python -m scripts.run_season --days 2 --scenes-per-day 3
+--seed pilot-1 --model gemini-3.5-flash-lite`, story `six_strangers`, provider Gemini + Jev (both free), 12 model calls,
+6 scenes written, 0 invariant violations, 0 rejected updates, 0 unparsable extractions. The default `gemini-3.8-flash` was
+over its free quota (HTTP 429) at the time, so the run used the fall-back model the game itself uses on a 429. Artifacts:
+`data/season_runs/baseline-pilot-1/season.jsonl` (gitignored, local). Rubric scores are on the 2 to 10 scale.
+
+| Level | Verdict (mean) |
+|---|---|
+| Day 1 scenes | Consider 7.8 · Pass 5.8 · Recommend 8.2 |
+| Day 1 | Pass 5.7 (E2 4, E3 2, others 6 to 8) |
+| Day 2 scenes | Recommend 8.5 · Consider 6.2 · Recommend 8.2 |
+| Day 2 | Consider 6.7 |
+| Season | Pass 2.0 (R1 to R5 all 2) |
+
+What the numbers do and do not say. The baseline engine writes competent, in-character scenes (residents talk about their
+authored jobs) but the scene-level verdicts flatter it: **all six scenes have the same shape** (two residents at a quiet
+shared task, ending on a lingering touch of hands or an invitation to leave together), and four of them score Recommend.
+A scene-level reader cannot see that repetition; it shows up only at day and season level (day 1 E3 "escalation" 2, season
+2 on every item: nothing accumulates, because no scene knows about the earlier ones). The scene scores also come from a
+rubric calibrated only on flat scenes (BL-96), so treat the upper range as unverified. The honest target for the next
+stages is therefore the day and season rows and a repetition measure, not the scene verdicts.
+
 ### 12. Decision log and review answers
 
 | Question | Answer / evidence status |

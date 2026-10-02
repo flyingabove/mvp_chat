@@ -63,8 +63,10 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
      absence is reported as absence. It is never run on deploy. Separately, the unit gate runs a scripted fake writer, so the runner's plumbing is
      tested offline.
 - **Next:**
-  - The fake-writer `SeasonRunner` plumbing is built (P-04, above); next is the real writer on Gemini + Jev for a
-    2-day pilot season, then the camera, the artifacts and the watch mode.
+  - The real writer (`backend/app/sim/llm_writer.py`), the authored-story loader and `scripts/run_season.py` are built
+    (P-06) and the baseline is recorded in `design/SOCIAL_ENGINE.md` ("Season baseline"). Next: the camera, the
+    HTML episode view and the admin watch mode; scenes still cannot build on earlier ones (every scene ends on the same
+    quiet-touch beat) and feeling changes land in an in-memory table, not the character graph (P-10).
   - Depends on BL-85 P1–P4 for rich prompts. A first version can run on today's prompt builder.
   - A thin, operator-only debug viewer for the `FakeWriter` season already exists at `/beta/debug` ("Season Sim"
     tab): `backend/app/api/season_debug.py` (`POST /beta/debug/season/run`, `GET /beta/debug/season/fixtures`),
