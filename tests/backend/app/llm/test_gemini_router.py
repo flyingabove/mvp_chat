@@ -9,7 +9,7 @@ from backend.app.llm import gemini_router as gr
 from backend.app.llm.gemini_router import GeminiRouter, ModelSpec, call_gemini, llm_post
 
 URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-BIG = ModelSpec("big", rpm=5, tpm=250_000, rpd=20)          # usable: 4 per minute, 19 a day
+BIG = ModelSpec("big", rpm=5, tpm=250_000, rpd=20, thinking=True)          # usable: 4 per minute, 19 a day
 LITE = ModelSpec("lite", rpm=15, tpm=250_000, rpd=500)
 SMALL = ModelSpec("small", rpm=30, tpm=16_000, rpd=14_400)
 
@@ -183,7 +183,7 @@ def test_a_dropped_connection_is_refunded_and_tried_on_the_next_model():
     clock = Clock()
     router, client = _router(clock), FakeClient({"big": [httpx.ReadTimeout("slow")]})
     assert _run(client, _body(), router, clock).status_code == 200
-    assert router.snapshot()["big"]["used_today"] == 0
+    assert router.snapshot()["big"]["used_today"] == 0 and router.snapshot()["big"]["blocked_for_s"] > 0
     router, client = _router(clock, BIG), FakeClient({"big": [httpx.ReadTimeout("slow")]})
     with pytest.raises(httpx.TransportError):
         _run(client, _body(), router, clock)
@@ -222,3 +222,35 @@ def test_the_shipped_table_is_ordered_best_first_with_unique_names_and_sane_limi
     assert len(set(names)) == len(names) and names[0] == "gemini-3.8-flash"
     assert all(m.rpm > 0 and m.tpm > 0 and m.rpd > 0 for m in gr.MODELS)
     assert gr.pacific_day(1_800_000_000.0) != gr.pacific_day(1_800_000_000.0 + 86_400)
+
+
+def test_reasoning_models_get_low_effort_unless_the_caller_chose_one_and_others_never():
+    assert gr._prepare(_body(), BIG)["reasoning_effort"] == "low"
+    assert "reasoning_effort" not in gr._prepare(_body(), LITE)
+    assert gr._prepare({**_body(), "reasoning_effort": "high"}, BIG)["reasoning_effort"] == "high"
+    assert all(m.thinking for m in gr.MODELS if "lite" not in m.name) and not any(m.thinking for m in gr.MODELS if "lite" in m.name)
+
+
+def _cut(content, finish="length"):
+    return (200, {"choices": [{"message": {"content": content}, "finish_reason": finish}], "usage": {"total_tokens": 50}})
+
+
+def test_a_reply_cut_off_by_max_tokens_is_retried_on_the_next_model_when_a_whole_answer_was_needed():
+    clock = Clock()
+    schema = {**_body(), "response_format": {"type": "json_schema"}}
+    router, client = _router(clock), FakeClient({"big": [_cut('{"segments": [{"kind": "narr')]})
+    response = _run(client, schema, router, clock)
+    assert _models_used(client) == ["big", "lite"] and response.json()["choices"][0]["message"]["content"] == "ok"
+    router, client = _router(clock), FakeClient({"big": [_cut("")]})                     # empty and cut off: also retried
+    _run(client, _body(), router, clock)
+    assert _models_used(client) == ["big", "lite"]
+
+
+def test_plain_text_cut_at_the_callers_limit_and_complete_json_are_returned_as_is():
+    clock = Clock()
+    router, client = _router(clock), FakeClient({"big": [_cut("a long answer that just ran out")]})
+    _run(client, _body(), router, clock)
+    assert _models_used(client) == ["big"]                                               # plain text cut at max_tokens is the caller's limit
+    router, client = _router(clock), FakeClient({"big": [_cut('{"ok": true}')]})
+    _run(client, {**_body(), "response_format": {"type": "json_object"}}, router, clock)
+    assert _models_used(client) == ["big"]                                               # complete JSON is fine even at the limit

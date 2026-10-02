@@ -39,7 +39,8 @@ MAX_WAIT_S = 10.0              # most a call will pause for a free slot before i
 MINUTE_S = 60.0
 TOKEN_CHARS = 3.5              # rough characters per token for the pre-call estimate
 RPM_MARGIN, TPM_SHARE, RPD_SHARE = 1, 0.90, 0.95
-COOLDOWN_5XX_S, DISABLE_404_S = 20.0, 3600.0
+COOLDOWN_5XX_S, COOLDOWN_TIMEOUT_S, DISABLE_404_S = 20.0, 45.0, 3600.0
+REASONING_EFFORT = "low"
 
 
 @dataclass(frozen=True)
@@ -48,17 +49,18 @@ class ModelSpec:
     rpm: int
     tpm: int
     rpd: int
+    thinking: bool = False        # a reasoning model: its hidden thinking counts against max_tokens and adds latency
 
 
 # Best first. Limits are the free-tier numbers on the account's rate-limit page; edit them there and here together.
 # Left out on purpose (probed live 2026-10-01): Pro models (limit 0), gemini-2.5-flash and 2.5-flash-lite (404, closed to new
 # users), gemma-4-26b (500) and gemma-4-31b (answers with its chain of thought in the content, which would end up in a scene).
 MODELS: tuple[ModelSpec, ...] = (
-    ModelSpec("gemini-3.8-flash", 5, 250_000, 20),
-    ModelSpec("gemini-3.7-flash", 5, 250_000, 20),
-    ModelSpec("gemini-3.6-flash", 5, 250_000, 20),
-    ModelSpec("gemini-3.5-flash", 5, 250_000, 20),
-    ModelSpec("gemini-3-flash-preview", 5, 250_000, 20),
+    ModelSpec("gemini-3.8-flash", 5, 250_000, 20, thinking=True),
+    ModelSpec("gemini-3.7-flash", 5, 250_000, 20, thinking=True),
+    ModelSpec("gemini-3.6-flash", 5, 250_000, 20, thinking=True),
+    ModelSpec("gemini-3.5-flash", 5, 250_000, 20, thinking=True),
+    ModelSpec("gemini-3-flash-preview", 5, 250_000, 20, thinking=True),
     ModelSpec("gemini-3.5-flash-lite", 15, 250_000, 500),
     ModelSpec("gemini-3.1-flash-lite", 15, 250_000, 500),
 )
@@ -250,7 +252,30 @@ def _retry_delay_s(text: str) -> Optional[float]:
 
 
 def _prepare(body: dict, spec: ModelSpec) -> dict:
-    return {**body, "model": spec.name}
+    """The caller's body for `spec`. Reasoning models get low reasoning effort unless the caller chose one: probed live, the
+    default effort made scenes take 25 to 45 s and often cut the JSON off mid-way (hidden thinking eats max_tokens)."""
+    out = {**body, "model": spec.name}
+    if spec.thinking and "reasoning_effort" not in out:
+        out["reasoning_effort"] = REASONING_EFFORT
+    return out
+
+
+def _truncated(request: dict, response: Any) -> bool:
+    """A 200 whose reply was cut off by max_tokens when the caller needed a whole answer (structured output, or nothing at all)."""
+    try:
+        choice = response.json()["choices"][0]
+        content = str((choice.get("message") or {}).get("content") or "")
+        if choice.get("finish_reason") != "length":
+            return False
+        if not content.strip():
+            return True
+        if request.get("response_format"):
+            _json.loads(content)
+        return False
+    except ValueError:
+        return True
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return False
 
 
 def _synthetic_limit(url: str, why: str) -> httpx.Response:
@@ -285,6 +310,7 @@ async def call_gemini(client: Any, url: str, *, headers: dict, json: dict, timeo
             response = await client.post(url, headers=headers, json=_prepare(json, spec), **kwargs)
         except httpx.TransportError:
             router.refund(ticket)
+            router.block_for(spec.name, COOLDOWN_TIMEOUT_S)     # a model that just timed out is skipped for a while
             excluded.add(spec.name)
             if len(excluded) >= len(router.models):
                 raise
@@ -295,7 +321,11 @@ async def call_gemini(client: Any, url: str, *, headers: dict, json: dict, timeo
                 router.settle(ticket, int((response.json().get("usage") or {}).get("total_tokens") or 0))
             except (ValueError, AttributeError):
                 pass
-            return response
+            if not _truncated(json, response):
+                return response
+            last = response                             # cut off mid-answer: another model may finish it
+            excluded.add(spec.name)
+            continue
         last = response
         excluded.add(spec.name)
         if status == 429:
