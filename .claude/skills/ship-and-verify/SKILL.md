@@ -137,7 +137,9 @@ don't silently skip this phase because polling is slower than you'd like.
       with `-H "X-Operator-Token: ..."`, whether a token works. Beta has `DEBUG_TOOLS_ENABLED=1` and an `OPERATOR_TOKEN`
       (set 2026-10-01); the token is `BETA_OPERATOR_TOKEN` in the gitignored `.env.test`: read it into a shell variable,
       never print it, paste it into a commit or doc. If the probe says `operator_token_ok: false` (token rotated, other
-      host), do the operator checks locally and say so. Prod must keep `DEBUG_TOOLS_ENABLED` off.
+      host), do the operator checks locally and say so. Prod has its own token (`PROD_OPERATOR_TOKEN`), enabled by the owner on 2026-10-01 (takes effect at the first
+      promote that ships the new routes); use it only for read-only checks (`ping`, the session inspector, `turn_trace`),
+      never to run debug-engine or playback jobs against prod.
     - **Session state:** operator `GET /api/debug/session/<id>` (add `?user_id=guest:<uuid>` for a persisted guest
       session) shows the full world model without replaying.
     - **Prompt, extractor or timing change:** `prompt_debug` and `turn_trace` need the operator token: send it on a

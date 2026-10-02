@@ -227,7 +227,8 @@ Every way an agent can see inside a running game, cheapest first. Use them to pr
 | `scripts/integration_playback` / `/integration_playback/*` | operator token | scripted scenario replay with `debug_box` lines | regression playback |
 
 Beta runs with `DEBUG_TOOLS_ENABLED=1` and an `OPERATOR_TOKEN` (Railway beta variables; the value is
-`BETA_OPERATOR_TOKEN` in the gitignored `.env.test`). Production must never enable them. The operator token is accepted from the `X-Operator-Token` header only on REST routes (compared in constant time);
+`BETA_OPERATOR_TOKEN` in the gitignored `.env.test`). Production has them too (owner decision 2026-10-01) with a separate token, `PROD_OPERATOR_TOKEN` in `.env.test`; use
+it read-only. The operator token is accepted from the `X-Operator-Token` header only on REST routes (compared in constant time);
 the WebSocket also takes `?operator_token=`. `GET /api/auth/debug-config` is operator-only. Rule for new features: a
 significant feature ships with its own debug hook (see `ship-and-verify`, step 3a): register a player-safe provider with
 `register_debug_provider(name, fn)` in `backend/app/engine/debug_hooks.py`, or add spoiler-bearing values to
