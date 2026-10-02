@@ -1,6 +1,6 @@
 ---
 id: P-06
-title: Baseline pilot season on Gemini + Jev with today's prompts (needs owner approval to spend)
+title: Baseline pilot season on Gemini + Jev with today's prompts (free: no approval needed)
 stage: 1
 size: M
 depends_on: [P-04, P-05]
@@ -14,12 +14,12 @@ P-04 and P-05 as built (`backend/app/sim/`).
 
 **Build**
 - `scripts/run_season.py`: runs `SeasonRunner` with the real LLM writer (Gemini + Jev by default, OpenAI + Jev via the
-  provider switch from P-02) for a capped pilot (2 story days, a hard cost cap printed before it starts), and writes the
-  artifacts (scenes, state diffs, rubric scores) as JSONL.
-- Offline unit tests drive the script with the fake writer (argument handling, cost cap refusal, artifact shape).
+  provider switch from P-02; OpenAI costs money, so ask first) for a capped pilot (2 story days, a hard call cap printed
+  before it starts), and writes the artifacts (scenes, state diffs, rubric scores) as JSONL.
+- Offline unit tests drive the script with the fake writer (argument handling, call cap refusal, artifact shape).
 
-**Spending: ASK THE OWNER before the real run.** Report the cap and the expected cost, then run once and record the
-baseline rubric scores (scene, day, season, verdict) in `design/SOCIAL_ENGINE.md` under a "Season baseline" heading with
-commit, provider, seed and date. Absence of a result is reported as absence.
+**Spending:** Gemini + Jev are free, so run the pilot on them without asking; a run on OpenAI needs the owner's approval.
+Run once and record the baseline rubric scores (scene, day, season, verdict) in `design/SOCIAL_ENGINE.md` under a "Season
+baseline" heading with commit, provider, seed and date. Absence of a result is reported as absence.
 
 **Done when:** the baseline is recorded and the script is documented; BL-86's Next line is updated.

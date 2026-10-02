@@ -1,7 +1,7 @@
 """Measure the Jev script rubric against human labels, and build the candidate scenes the owner labels. LOCAL ONLY.
 
-Never run this from the Dockerfile, CI or app startup: `--run` calls live Jev (it costs money, so it needs the owner's
-go-ahead). It uses the production path (`sim.rubric.judge_items` -> DecisionResolver -> JevClient).
+Never run this from the Dockerfile, CI or app startup: `--run` calls live Jev (free, but a network call). It uses
+the production path (`sim.rubric.judge_items` -> DecisionResolver -> JevClient).
 
     python -m scripts.eval.script_rubric_eval --build-candidates     # free: extract scenes from local arena transcripts
     python -m scripts.eval.script_rubric_eval --anchors              # free: print the 1-5 anchors to label against
@@ -166,7 +166,7 @@ def main() -> int:
     mode.add_argument("--build-candidates", action="store_true", help="free; writes unlabelled dev.json/holdout.json")
     mode.add_argument("--anchors", action="store_true", help="free; prints every scene item with its five anchors")
     mode.add_argument("--status", action="store_true", help="free; counts labelled scenes")
-    mode.add_argument("--run", action="store_true", help="LIVE Jev (costs money): agreement on the labelled scenes")
+    mode.add_argument("--run", action="store_true", help="LIVE Jev (free): agreement on the labelled scenes")
     parser.add_argument("--source", type=Path, default=ROOT / "data" / "eval_arena")
     args = parser.parse_args()
     if args.build_candidates:

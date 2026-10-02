@@ -84,10 +84,13 @@ short). Order and stage gates: [documentation/plan/ORDER.md](documentation/plan/
   (it removes the latest deployment, possibly the live one).
 - The game is not hosted locally for players. Only the debug evaluator (`scripts/scorer`, port 8899) and the offline arena run
   it locally, for testing. Production OAuth redirect URIs are hosted-only; for local play use the guest bypass (section 6).
-- **Deploys and CI never call a paid LLM.** The deploy build runs unit tests only. **Arena runs stay disabled**
-  (`ARENA_LLM_ENABLED`): never run or enable an LLM arena without asking. Any task that spends money on Gemini/OpenAI/Jev says
-  so; ask the owner first and cap the run. Providers: Gemini + Jev by default, OpenAI + Jev as the alternative; Ollama is
-  switched off unless `OLLAMA_ENABLED=1`.
+- **Deploys and CI never call an LLM.** The deploy build runs unit tests only.
+- **Only OpenAI costs money. Gemini and Jev are free** (owner, 2026-10-01): use them without asking for simulations, pilot
+  seasons, rubric calibration, evals and live checks, within sensible rate limits. Never run anything on OpenAI
+  (`LLM_PROVIDER=openai`, an OpenAI judge or player, the OpenAI-backed parts of the arena) without asking first, and cap it.
+  The LLM arena stays disabled (`ARENA_LLM_ENABLED`) because its players and judges can be OpenAI: check which providers a run
+  would use, and ask before enabling it. Providers: Gemini + Jev by default, OpenAI + Jev as the (paid) alternative; Ollama
+  is switched off unless `OLLAMA_ENABLED=1`.
 
 ## 5. Owner rules for the product (standing permissions and design principles)
 

@@ -150,7 +150,7 @@ don't silently skip this phase because polling is slower than you'd like.
     - **Timings and extractor behaviour:** `turn_trace`, or the local `jlog` output (`turn_stage_ledger`, `turn_extraction_complete`).
     - **NPC verdicts:** the operator `X-NPC-Decision-Mode` header (`rules`/`jev`/`compare`), locally.
     - **Many turns:** the `/beta/debug` engine or `scripts/integration_playback`, locally; hosted runs need the operator
-      token and a spend cap (`AGENTS.md` section 4).
+      token (Gemini and Jev are free; OpenAI is not, `AGENTS.md` section 4).
     If the thing you need to see has no surface, that is a gap: add the hook (step 3a) or file it in
     `documentation/backlog/`; never claim a field you could not observe.
 13. If live verification finds a bug that local tests didn't catch: that's a

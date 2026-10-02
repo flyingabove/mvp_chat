@@ -23,7 +23,7 @@ beats, with the research sources), P-05's rubric and P-06's baseline in `design/
 - Switch knobs on one at a time, each measured on seeded pilot seasons by the rubric against the P-06 baseline.
 
 **Tests first:** profile parsing and validation; defaults are byte-identical to today's prompt; each knob changes exactly its
-nudge. **Spending:** the tuning sweeps run paid seasons; ask the owner and cap each run.
+nudge. **Spending:** the tuning sweeps run seasons on Gemini + Jev, which are free; cap each run, and ask before any OpenAI run.
 
 **Done when:** the knob table and the measured results are in `design/SOCIAL_ENGINE.md`; BL-87's design is moved to as-built
 and its remaining items rewritten.

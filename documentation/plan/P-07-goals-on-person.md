@@ -26,8 +26,8 @@ free-text `goal` trait in `backend/app/engine/state.py` / `social_traits.py` (`E
 - Validation: unknown kind, weight outside 0..1, a shift naming an unknown condition fail loudly at story load.
 
 **Tests first:** weights load and round-trip; a shift fires from the holder's own view only; the card text shows the goal;
-a sparse character gets neutral behaviour. **This changes what players see: it goes through the arena gate** (owner approval
-required, `ARENA_LLM_ENABLED` stays off until then); the golden record (P-03) must differ only where goals are configured.
+a sparse character gets neutral behaviour. **This changes what players see: it goes through the arena gate** (the arena can use OpenAI, so
+check its providers and ask before enabling `ARENA_LLM_ENABLED`; a Gemini + Jev season run is free and needs no approval); the golden record (P-03) must differ only where goals are configured.
 
 **Done when:** suite green; design doc `SOCIAL_ENGINE.md` section "Personality model" gains the goals subsection; BL-85's P1
 line is deleted.

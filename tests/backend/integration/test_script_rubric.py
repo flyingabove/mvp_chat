@@ -1,7 +1,7 @@
 """Agreement gate for the Jev script rubric against the owner's labels, against LIVE Jev.
 
 Never runs on deployment: `@pytest.mark.integration`, deselected by the Docker gate and the CI unit job. Run by hand
-(it costs money, ask the owner first):
+(it calls live Jev, which is free):
 
     pytest -m integration tests/backend/integration/test_script_rubric.py -s
 

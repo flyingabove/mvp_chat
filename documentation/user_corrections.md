@@ -157,3 +157,11 @@ Recorded from the owner's answers (full detail in backlog BL-85, BL-86, BL-87):
 **Rule:** Default to the generic engine/character-object route. A game-specific mechanic is allowed as a last resort when the generic route was tried or clearly cannot express the need: say why in the commit or design doc, keep it in a story-specific module or hook (never in generic engine logic such as `world_model/`), and prefer a shape another story could reuse. Never write "forbidden" or "never" for this in docs or answers.
 
 **Added to:** `AGENTS.md` section 5, `design/TERRACE_HOUSE.md` (engineering rule, section 12), `design/WORLD_MODEL.md` ground rules, backlog BL-76-84 header.
+
+## 2026-10-01 — Only OpenAI costs money; Gemini and Jev are free
+
+**Correction:** I treated Gemini and Jev runs as spending money and kept asking the owner for approval before pilots, rubric calibration and season runs (and wrote that into AGENTS.md, the plan README, P-06/P-12 and my own rubric docs). Owner: only OpenAI costs money; Gemini + Jev are free.
+
+**Rule:** Use Gemini and Jev freely (simulations, pilot seasons, calibration, evals, live checks) with sensible rate limits and no approval. Ask first, and cap the run, only for anything that touches OpenAI (`LLM_PROVIDER=openai`, an OpenAI judge or player, the arena's `llm` judge and player). Before running anything paid-sounding, check which provider it uses instead of assuming it costs money. The LLM arena stays disabled (`ARENA_LLM_ENABLED`) because its player and `llm` judge are OpenAI.
+
+**Added to:** `AGENTS.md` section 4, `documentation/plan/README.md`, P-06/P-07/P-11/P-12, `ship-and-verify` skill, BL-87, rubric README and script, memory.

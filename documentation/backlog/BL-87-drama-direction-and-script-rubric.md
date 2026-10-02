@@ -80,7 +80,7 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
      against it. Until then the rubric is advisory.
 - **Next:**
   - The rubric is built (`backend/app/sim/rubric.py`, `design/SOCIAL_ENGINE.md`). Owner: label the 60 candidate scenes
-    in `tests/eval_cases/script_rubric/` (README there); then run the live agreement check (costs money, ask first) and
+    in `tests/eval_cases/script_rubric/` (README there); then run the live agreement check (Jev is free) and
     set `rubric.CALIBRATED`.
   - Add the `drama` profile with defaults that reproduce today's prompts (a no-op), then switch on knobs one at a
     time, each with an arena gate.

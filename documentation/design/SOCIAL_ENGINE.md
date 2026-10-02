@@ -446,7 +446,7 @@ Recommended); Consider at mean 6+; else Pass.
 
 Calibration: `tests/eval_cases/script_rubric/` holds 40 dev and 20 held-out real Terrace scenes, unlabelled until the owner
 labels them (README there). `python -m scripts.eval.script_rubric_eval` prints the anchors, counts labels and (live Jev,
-costs money) reports agreement per item against a bar fixed in advance: within one point on 80% of scenes per item, 70%
+free) reports agreement per item against a bar fixed in advance: within one point on 80% of scenes per item, 70%
 verdict agreement. Until `rubric.CALIBRATED` is set (after the bar holds on the held-out set) every report carries an
 advisory note. `pytest -m integration tests/backend/integration/test_script_rubric.py` enforces this and never runs on
 deploy.

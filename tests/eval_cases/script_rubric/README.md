@@ -36,7 +36,7 @@ plausibility 8+ (your S6 of 4 or 5).
 
 - `python -m scripts.eval.script_rubric_eval --status --set all`: how many scenes are labelled (free).
 - `python -m scripts.eval.script_rubric_eval --run --set dev`: Jev's agreement per item on the labelled dev scenes.
-  **This calls live Jev and costs money: ask the owner before running it.** It refuses to run with no labels.
+  This calls live Jev (free, no approval needed). It refuses to run with no labels.
 
 **The bar** (fixed before any labels exist): for every item, Jev is within one point of you on at least 80% of scenes,
 and the scene verdict (Pass / Consider / Recommend) agrees on at least 70%. Once the bar holds on the held-out set,

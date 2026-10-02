@@ -30,7 +30,7 @@ owner decisions), `turn._build_view` (today's ten scattered directive sources), 
 **Tests first:** the kitchen example from BL-85 section 5 yields a triangle and a dramatic irony with nothing authored for it;
 removing the witness removes the irony; rename every character and the dynamics are the same; deterministic across candidate order.
 
-**This changes what players see: arena gate** (owner approval; `ARENA_LLM_ENABLED` stays off until then), plus an offline sim over
+**This changes what players see: arena gate** (the arena can use OpenAI: check its providers and ask before enabling `ARENA_LLM_ENABLED`; Gemini + Jev season runs are free), plus an offline sim over
 several seeds measuring how often each dynamic appears and how varied they are.
 
 **Done when:** suite green; `SOCIAL_ENGINE.md` documents the scene layer as built; BL-85 P4, BL-84's group-energy/third-party items
