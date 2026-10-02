@@ -13,3 +13,7 @@
   (see PLATFORM.md `GEMINI_ROUTER`), so the default model's 20 requests a day no longer decide availability.
 - **Next:** watch live; the router's `snapshot()` shows per-model use. Left open until the 10-turn live check passes.
 - **Done when:** a 10-turn live check on beta shows no "story master unavailable" with no other load on the key.
+- **Live check 2026-10-02 (beta `dfcad6c`):** 9 of 9 turns answered, but one took 75 s, probably a slow model timing out (30 s
+  story-master client timeout) before the router spilled to the next. Check the router snapshot for which model that was, and
+  consider whether the timeout should differ per model. Prod does not run the router yet, so it still has the old failure mode.
+
