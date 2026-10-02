@@ -214,7 +214,10 @@ class JevPairwiseJudge:
             call.answers = {d.id: validate_answer(d, result.answers.get(d.id)) for d in decisions}
             # Providers may resolve a family name to a dated build
             # (gpt-4o-mini -> gpt-4o-mini-2024-07-18); a different family is a mismatch.
-            if result.model and not result.model.startswith(self.model):
+            # Gemini calls are spread over every free Gemini model (llm/gemini_router.py), so for them the family is the pin
+            # and call.model records which model answered.
+            if result.model and not (result.model.startswith(self.model)
+                                     or (self.model.startswith("gemini") and result.model.startswith("gemini"))):
                 call.error = f"model_mismatch:{result.model}"
             return call
         call.error = last_error or "judge_failed"

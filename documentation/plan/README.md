@@ -82,7 +82,7 @@ first, the measurable definition of done, and what the fixing commit must also d
 
 - **Only OpenAI costs money; Gemini and Jev are free** (`AGENTS.md` section 4). Season, pilot and calibration runs on
   Gemini + Jev need no approval. A task that would use OpenAI says so in its body; ask before running it and cap it. The
-  offline path still comes first. Arena runs stay disabled (`ARENA_LLM_ENABLED`) because the arena can use OpenAI.
+  offline path still comes first. The arena is enabled for Gemini + Jev (`ARENA_LLM_ENABLED=1`); OpenAI in it needs `--allow-openai` and approval.
 - **Stage gates.** A stage's exit criteria are in `ORDER.md`. Do not start a later stage's task because it looks
   interesting; the dependencies exist because the earlier work changes what the later work builds on.
 - **If you are blocked** by something outside your task, release it (`release`), write the blocker as a backlog item,

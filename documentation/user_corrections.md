@@ -165,3 +165,11 @@ Recorded from the owner's answers (full detail in backlog BL-85, BL-86, BL-87):
 **Rule:** Use Gemini and Jev freely (simulations, pilot seasons, calibration, evals, live checks) with sensible rate limits and no approval. Ask first, and cap the run, only for anything that touches OpenAI (`LLM_PROVIDER=openai`, an OpenAI judge or player, the arena's `llm` judge and player). Before running anything paid-sounding, check which provider it uses instead of assuming it costs money. The LLM arena stays disabled (`ARENA_LLM_ENABLED`) because its player and `llm` judge are OpenAI.
 
 **Added to:** `AGENTS.md` section 4, `documentation/plan/README.md`, P-06/P-07/P-11/P-12, `ship-and-verify` skill, BL-87, rubric README and script, memory.
+
+## 2026-10-01 — Use every free Gemini model, and the LLM arena is enabled for Gemini + Jev
+
+**Correction:** The default model `gemini-3.8-flash` has 20 requests a day, so beta turns and sims kept failing while every other free text model (own RPM/TPM/RPD) sat unused; and the arena stayed off only because its player and judge were hard-wired to OpenAI. Owner: build an abstract `call_gemini` that uses all plausibly good models without hitting limits, then enable and play the arena.
+
+**Rule:** Every Gemini chat call goes through `backend/app/llm/gemini_router.py` (`call_gemini` / `llm_post`); never hard-code one Gemini model for a call path. Probe a model live before adding it to `MODELS` (Gemma leaked its chain of thought, 2.5 models 404). The arena's players and `llm` judge are Gemini by default; OpenAI there needs `--provider openai --allow-openai` and the owner's approval.
+
+**Added to:** `AGENTS.md` section 4, `promote-to-prod` skill, `documentation/design/PLATFORM.md`, memory.

@@ -88,8 +88,9 @@ short). Order and stage gates: [documentation/plan/ORDER.md](documentation/plan/
 - **Only OpenAI costs money. Gemini and Jev are free** (owner, 2026-10-01): use them without asking for simulations, pilot
   seasons, rubric calibration, evals and live checks, within sensible rate limits. Never run anything on OpenAI
   (`LLM_PROVIDER=openai`, an OpenAI judge or player, the OpenAI-backed parts of the arena) without asking first, and cap it.
-  The LLM arena stays disabled (`ARENA_LLM_ENABLED`) because its players and judges can be OpenAI: check which providers a run
-  would use, and ask before enabling it. Providers: Gemini + Jev by default, OpenAI + Jev as the (paid) alternative; Ollama
+  **The LLM arena is enabled for Gemini + Jev** (owner, 2026-10-01): its players and `llm` judge default to Gemini, spread over
+  every free model by `call_gemini` (`backend/app/llm/gemini_router.py`), so set `ARENA_LLM_ENABLED=1` for a run without asking.
+  OpenAI in the arena needs `--provider openai --allow-openai`, which needs the owner's approval and a cap. Providers: Gemini + Jev by default, OpenAI + Jev as the (paid) alternative; Ollama
   is switched off unless `OLLAMA_ENABLED=1`.
 
 ## 5. Owner rules for the product (standing permissions and design principles)

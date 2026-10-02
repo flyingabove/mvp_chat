@@ -41,7 +41,7 @@ from arena.local_release import OLLAMA_V1, LocalRelease, ensure_context_model, o
 from arena.players import PERSONAS
 from arena.report import precheck_verdict
 from arena.service import (
-    OPENAI_V1, STAGES, ArenaConfig, ModelEndpoint, judge_specs, run_experiment,
+    GEMINI_V1, OPENAI_V1, STAGES, ArenaConfig, ModelEndpoint, judge_specs, run_experiment,
 )
 from arena.store import default_root
 from arena.suite import MIN_TURNS, PROFILES
@@ -54,11 +54,31 @@ def say(msg: str) -> None:
     print(f"[arena {time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def hosted_config(args, ollama_model: str | None = None) -> ArenaConfig:
-    from backend.app.config.settings import OPENAI_API_KEY, TYPESAFE_API_KEY
+# Players and the `llm` judge run on Gemini (free, spread over every free model by call_gemini) unless OpenAI is chosen
+# on purpose: OpenAI costs money, so it needs --provider openai AND --allow-openai (the owner's approval).
+PROVIDER_DEFAULTS = {"gemini": ("gemini-3.5-flash-lite", "gemini-3.7-flash"), "openai": ("gpt-4o-mini", "gpt-4o-mini")}
 
-    player = ModelEndpoint(OPENAI_V1, OPENAI_API_KEY, args.player_model)
-    llm = ModelEndpoint(OPENAI_V1, OPENAI_API_KEY, args.llm_judge_model)
+
+def llm_endpoints(args) -> tuple[ModelEndpoint, ModelEndpoint]:
+    """(player endpoint, llm-judge endpoint) for the chosen provider; refuses OpenAI without --allow-openai."""
+    from backend.app.config.credentials import get_gemini_api_key, get_openai_api_key
+
+    provider = args.provider
+    if provider == "openai" and not args.allow_openai:
+        raise SystemExit("this arena run would use OpenAI, which costs money: use the default Gemini, or pass "
+                         "--provider openai --allow-openai with the owner's approval")
+    player_model, judge_model = PROVIDER_DEFAULTS[provider]
+    base, key = (GEMINI_V1, get_gemini_api_key()) if provider == "gemini" else (OPENAI_V1, get_openai_api_key())
+    if not key:
+        raise SystemExit(f"no {provider} API key is set")
+    return (ModelEndpoint(base, key, args.player_model or player_model),
+            ModelEndpoint(base, key, args.llm_judge_model or judge_model))
+
+
+def hosted_config(args, ollama_model: str | None = None) -> ArenaConfig:
+    from backend.app.config.settings import TYPESAFE_API_KEY
+
+    player, llm = llm_endpoints(args)
     ollama = ModelEndpoint(args.ollama_url, "ollama", ollama_model) if ollama_model else None
     turns = args.turns or PROFILES[args.profile]["turns"]
     return ArenaConfig(
@@ -169,9 +189,12 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--judge-concurrency", type=int, default=2, help="cloud judges; ollama always runs 1")
     ap.add_argument("--max-game-turns", type=int, default=0, help="0 = full horizon for every pair")
     ap.add_argument("--max-wall-seconds", type=int, default=5400)
-    ap.add_argument("--player-model", default="gpt-4o-mini")
+    ap.add_argument("--provider", choices=sorted(PROVIDER_DEFAULTS), default="gemini",
+                    help="players and the llm judge: gemini (free, default) or openai (paid; needs --allow-openai)")
+    ap.add_argument("--allow-openai", action="store_true", help="OpenAI costs money: only with the owner's approval")
+    ap.add_argument("--player-model", default=None, help="default depends on --provider")
     ap.add_argument("--judge-model", default="jev-1.13.0")
-    ap.add_argument("--llm-judge-model", default="gpt-4o-mini")
+    ap.add_argument("--llm-judge-model", default=None, help="default depends on --provider")
     ap.add_argument("--calibration-arms", type=int, default=0, help="recorded arms per story to mutate (0 = skip)")
     ap.add_argument("--force", action="store_true", help="re-judge pairs even if cached")
     # offline local mode
