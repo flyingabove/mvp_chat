@@ -68,6 +68,7 @@ from backend.app.config.epistemic_flags import set_master
 
 from backend.app.engine.world_model.model import WorldModel
 from backend.app.llm.retry import post_with_retry, post_with_model_fallback
+from backend.app.llm.gemini_router import llm_post
 from backend.app.engine.world_model import turn as world_turn
 from backend.app.engine.state import (
 
@@ -1368,7 +1369,8 @@ async def _translate_to_chinese(text: str) -> str:
         }
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(
+            r = await llm_post(
+                client,
                 f"{OPENAI_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
                 json=payload,

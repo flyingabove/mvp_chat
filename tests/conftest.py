@@ -215,6 +215,15 @@ def _jev_off_in_unit_tests(request, monkeypatch):
     monkeypatch.setattr(settings, "TYPESAFE_API_KEY", "")
 
 
+@pytest.fixture(autouse=True)
+def _gemini_router_off_in_unit_tests(request, monkeypatch):
+    """Unit tests fake the HTTP client against the default (Gemini) URL and assert on the exact model and call count they
+    sent, so the quota router (`gemini_router.py`) is off for them. Its own tests call `call_gemini` with an injected
+    router, or switch it on explicitly. Integration tests keep the real router."""
+    if not request.node.get_closest_marker("integration"):
+        monkeypatch.setenv("GEMINI_ROUTER", "off")
+
+
 # ---------------------------------------------------------------------------
 # PYTEST HOOKS
 # ---------------------------------------------------------------------------

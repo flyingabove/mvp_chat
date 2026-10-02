@@ -12,6 +12,8 @@ import asyncio
 import re
 from typing import Any, Awaitable, Callable, Optional
 
+from backend.app.llm.gemini_router import call_gemini, is_gemini_url
+
 RETRYABLE = {429, 500, 502, 503, 504}
 MAX_WAIT_S = 2.0
 DEFAULT_WAIT_S = 0.5
@@ -44,6 +46,8 @@ def retry_delay(response: Any, cap_s: float = MAX_WAIT_S) -> Optional[float]:
 async def post_with_retry(client: Any, url: str, *, headers: dict, json: dict,
                           sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
                           cap_s: float = MAX_WAIT_S) -> Any:
+    if is_gemini_url(url):                  # the router already spreads the call over every free Gemini model
+        return await call_gemini(client, url, headers=headers, json=json)
     response = await client.post(url, headers=headers, json=json)
     delay = retry_delay(response, cap_s)
     if delay is None:
@@ -61,6 +65,8 @@ async def post_with_model_fallback(client: Any, url: str, *, headers: dict, json
     returns 503 "high demand" for longer than a 0.5s retry covers; a smaller
     sibling model keeps the turn alive instead of failing it."""
     response = await post_with_retry(client, url, headers=headers, json=json, sleep=sleep, cap_s=cap_s)
+    if is_gemini_url(url):
+        return response
     if (fallback_model and response.status_code in RETRYABLE
             and fallback_model != json.get("model")):
         return await client.post(url, headers=headers, json={**json, "model": fallback_model})

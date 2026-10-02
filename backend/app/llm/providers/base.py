@@ -17,6 +17,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from backend.app.llm.gemini_router import llm_post
+
 
 class ProviderTransportError(Exception):
     """Base for any provider transport failure: timeout, connect error,
@@ -65,7 +67,7 @@ async def post_json(
     """
     t0 = time.perf_counter()
     try:
-        r = await client.post(url, headers=headers, json=json_body, timeout=timeout_s)
+        r = await llm_post(client, url, headers=headers, json=json_body, timeout=timeout_s)
     except httpx.TimeoutException as exc:
         raise ProviderTimeoutError(str(exc)) from exc
     except httpx.HTTPError as exc:

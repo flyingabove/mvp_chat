@@ -9,6 +9,7 @@
   now" (about 1 opening turn in 3 in a short live check). Nothing in the engine is at fault.
 - **Why it matters:** the free key is shared by beta play, local checks and pilot seasons (`scripts/run_season.py`), so heavy
   local use can make beta turns fail.
-- **Next:** owner decision on the key (quota or billing for `gemini-3.8-flash`, or a separate key for local and sim runs);
-  then, if still needed, a second fall-back attempt or a slightly longer wait for 503 in `retry.py`, with a test.
+- **Mitigated (2026-10-01):** `gemini_router.call_gemini` spreads every call over seven free models by their own budgets
+  (see PLATFORM.md `GEMINI_ROUTER`), so the default model's 20 requests a day no longer decide availability.
+- **Next:** watch live; the router's `snapshot()` shows per-model use. Left open until the 10-turn live check passes.
 - **Done when:** a 10-turn live check on beta shows no "story master unavailable" with no other load on the key.
