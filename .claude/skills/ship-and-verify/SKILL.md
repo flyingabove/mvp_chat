@@ -134,14 +134,16 @@ don't silently skip this phase because polling is slower than you'd like.
       `/api/chat` reply: clock, location, speakers, people present, transient entries, `npc_decisions`. Compare the field
       you changed against the expected value.
     - **First, probe:** `curl https://beta-api.storieschat.ai/api/debug/ping` says whether operator tools are enabled and,
-      with `-H "X-Operator-Token: ..."`, whether a token works. Only if it says `operator_token_ok` can you use the
-      operator surfaces below on beta; otherwise do them locally and say so.
+      with `-H "X-Operator-Token: ..."`, whether a token works. Beta has `DEBUG_TOOLS_ENABLED=1` and an `OPERATOR_TOKEN`
+      (set 2026-10-01); the token is `BETA_OPERATOR_TOKEN` in the gitignored `.env.test`: read it into a shell variable,
+      never print it, paste it into a commit or doc. If the probe says `operator_token_ok: false` (token rotated, other
+      host), do the operator checks locally and say so. Prod must keep `DEBUG_TOOLS_ENABLED` off.
     - **Session state:** operator `GET /api/debug/session/<id>` (add `?user_id=guest:<uuid>` for a persisted guest
       session) shows the full world model without replaying.
-    - **Prompt, extractor or timing change:** `prompt_debug` and `turn_trace` need the operator token, which agents do not
-      have for beta. Prove it locally: set `DEBUG_TOOLS_ENABLED=1` and `OPERATOR_TOKEN`, call `/api/chat` through `TestClient` with
-      `X-Operator-Token`, and assert on `prompt_debug["prompt_layers"]` / the system prompt text or `turn_trace["stage_ms"]` / `["extraction"]`. Say in the report that
-      this part was verified locally, not on beta.
+    - **Prompt, extractor or timing change:** `prompt_debug` and `turn_trace` need the operator token: send it on a
+      hosted beta turn (`X-Operator-Token`), or prove it locally: set `DEBUG_TOOLS_ENABLED=1` and `OPERATOR_TOKEN`, call `/api/chat` through `TestClient` with
+      `X-Operator-Token`, and assert on `prompt_debug["prompt_layers"]` / the system prompt text or `turn_trace["stage_ms"]` / `["extraction"]`. Say in the report which
+      of the two you did.
     - **Deploy and Jev state:** `/api/health` (commit, environment, `jev` breaker) and `/api/eval/capabilities`.
     - **Timings and extractor behaviour:** `turn_trace`, or the local `jlog` output (`turn_stage_ledger`, `turn_extraction_complete`).
     - **NPC verdicts:** the operator `X-NPC-Decision-Mode` header (`rules`/`jev`/`compare`), locally.
