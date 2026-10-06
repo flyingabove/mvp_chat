@@ -45,8 +45,8 @@ class CallCapReached(RuntimeError):
 
 
 class LLMWriter:
-    def __init__(self, chat: Chat, setup: SeasonSetup, max_calls: int) -> None:
-        self.chat, self.setup, self.max_calls = chat, setup, max_calls
+    def __init__(self, chat: Chat, setup: SeasonSetup, max_calls: int, tone: str = "") -> None:
+        self.chat, self.setup, self.max_calls, self.tone = chat, setup, max_calls, tone
         self.calls = 0
         self.unparsed = 0                              # extraction replies that were not usable JSON
         self._last: tuple[str, list[str]] = ("", [])   # (text, present ids): the runner always extracts what it just wrote
@@ -54,7 +54,8 @@ class LLMWriter:
     # ------------------------------------------------------------------------------------------ the protocol
     def write_scene(self, prompt: str) -> str:
         present = participants_from(prompt)
-        text = self._ask(SCENE_SYSTEM.format(title=self.setup.title, premise=self.setup.premise),
+        system = SCENE_SYSTEM.format(title=self.setup.title, premise=self.setup.premise)
+        text = self._ask(system + (f"\n{self.tone}" if self.tone else ""),
                          self._scene_brief(prompt, present), 0.9, SCENE_TOKENS).strip()
         self._last = (text, present)
         return text
@@ -90,8 +91,18 @@ class LLMWriter:
             facts = [part for part in (note.role if note else "", f"personality type {note.mbti}" if note and note.mbti else "",
                                        f"wants: {note.motive}" if note and note.motive else "") if part]
             lines.append(f"- {self.setup.name(cid)}" + (f" ({'; '.join(facts)})" if facts else ""))
+        context = _context(prompt)
+        if context:
+            lines.append("Context:")
+            lines.extend(f"- {line}" for line in context)
         lines.append("Write what happens between them.")
         return "\n".join(lines)
+
+
+def _context(prompt: str) -> list[str]:
+    """The lines a caller put after "Context:" in the scene prompt (continuity, private aims, a director's nudge)."""
+    lines = prompt.splitlines()
+    return [line.strip() for line in lines[lines.index("Context:") + 1:] if line.strip()] if "Context:" in lines else []
 
 
 def _deltas(raw) -> list[RelationshipDelta]:
@@ -130,6 +141,9 @@ def parse_json_object(raw: str) -> Optional[dict]:
     return value if isinstance(value, dict) else None
 
 
+CALL_TIMEOUT_S = 90   # one model call; a stuck provider fails the scene (retried by the caller) instead of hanging the worker
+
+
 def bridge_chat(loop: asyncio.AbstractEventLoop, provider: Optional[str] = None, model: Optional[str] = None,
                 retries: int = 1) -> Chat:
     """A blocking `Chat` for the runner's worker thread: each call runs `get_chat` on `loop` (the main event loop)."""
@@ -141,8 +155,9 @@ def bridge_chat(loop: asyncio.AbstractEventLoop, provider: Optional[str] = None,
                 get_chat(system, [{"role": "user", "content": user}], provider=provider, model=model,
                          max_tokens=max_tokens, temperature=temperature), loop)
             try:
-                return future.result().text
+                return future.result(timeout=CALL_TIMEOUT_S).text
             except Exception:
+                future.cancel()
                 if attempt == retries:
                     raise
         raise AssertionError("unreachable")

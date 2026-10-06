@@ -142,7 +142,7 @@ class SeasonRunner:
     def _commit_scene(self, encounter: Encounter, update: SceneUpdate) -> list[str]:
         """Apply `update` through the model's own primitives; reject anything not grounded in `encounter`."""
         model = self.story.model
-        participants = {encounter.a, encounter.b}
+        participants = set(getattr(encounter, "people", None) or (encounter.a, encounter.b))   # a gathering has everyone
         rejected: list[str] = []
         event = model.world.add_event(encounter.minute, encounter.place, tuple(sorted(participants)),
                                       update.summary, kind="scene", visibility="public")

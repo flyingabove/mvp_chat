@@ -80,3 +80,9 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
 - **Touches:** new `backend/app/sim/{runner,camera,artifacts}.py`, the operator routes (`api/debug_engine.py`
   pattern), `frontend/debug.html` (watch view), `world_model/offscreen.py` (replaced by written scenes),
   `scripts/terrace_ollama_sim.py` (switch), `backend/app/config/settings.py`, `tests/backend/integration/`.
+
+- **Interactive playback exists (Drama Theatre).** `/beta/drama` (operator token) drives `backend/app/sim/theatre.py` through
+  `backend/app/api/theatre.py` (`/beta/debug/theatre/*`): six residents with private aims, one group scene per step on the
+  real LLM writer (Gemini + Jev; OpenAI refused), typed nudges and `@name` whispers, time skips (`skip to evening`, `+3 h`,
+  `next day`) that write nothing, Auto (client-driven), per-session JSONL replay and a call cap. Not yet: camera ranking by
+  tension (P-13), skipped gatherings are not written, goals do not shift inside the theatre. Scenes take 20-60 s on Gemini.

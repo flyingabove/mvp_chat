@@ -27,3 +27,7 @@ P-11's scene tension scores.
 non-operators; the page renders from a saved season.
 
 **Done when:** an admin can run and read an offline season in the debug UI; BL-86 is rewritten to what remains or deleted.
+
+**Already built (do not redo):** the Drama Theatre (`backend/app/sim/theatre.py`, `backend/app/api/theatre.py`,
+`frontend/drama.html`) is the interactive watch mode: group scenes, nudges, skips, auto-play and replay. P-13 now adds the
+tension-ranked camera and episode artifacts to it; reuse its beat log rather than a second viewer.

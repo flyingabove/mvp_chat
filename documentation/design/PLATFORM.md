@@ -258,6 +258,7 @@ Incident response (if tamper suspected):
 - `GET /` → `frontend/index.html`
 - `GET /beta` or `GET /beta/` → `frontend/index.html`
 - `GET /debug` → `frontend/debug.html`
+- `GET /drama`, `GET /beta/drama` → `frontend/drama.html` (the operator-only Drama Theatre; its API `/beta/debug/theatre/*` needs `X-Operator-Token`; see BL-86)
 - `GET /beta/debug` → `frontend/debug.html`
 - `WS /beta/debug/ws` → debug WebSocket
 - `POST /api/chat` etc. → game API

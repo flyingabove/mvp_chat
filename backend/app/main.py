@@ -23,6 +23,7 @@ from backend.app.api.stories import router as stories_router
 from backend.app.api.integration_playback import router as integration_playback_router
 from backend.app.api.debug_engine import router as debug_router, ws_debug
 from backend.app.api.season_debug import router as season_debug_router
+from backend.app.api.theatre import router as theatre_router
 from backend.app.api.auth import router as auth_router
 from backend.app.api.user_sessions import router as user_sessions_router
 from backend.app.db.database import init_db
@@ -33,6 +34,7 @@ from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.config.build_info import get_build_info
 
 _DEBUG_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
+_DRAMA_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "drama.html"
 _INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.html"
 _MANIFEST_PATH    = Path(__file__).parent.parent.parent / "frontend" / "manifest.json"
 _SW_PATH          = Path(__file__).parent.parent.parent / "frontend" / "sw.js"
@@ -363,6 +365,7 @@ app.include_router(stories_router, prefix="/api")
 app.include_router(integration_playback_router, prefix="/api")
 app.include_router(debug_router, prefix="/beta/debug")
 app.include_router(season_debug_router, prefix="/beta/debug/season")
+app.include_router(theatre_router, prefix="/beta/debug/theatre")
 app.include_router(auth_router)
 app.include_router(user_sessions_router)
 
@@ -402,6 +405,13 @@ async def game_ui_beta_redirect(request: Request):
 @app.get("/beta/debug", response_class=HTMLResponse)
 async def debug_ui_page():
     return _DEBUG_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/drama", response_class=HTMLResponse)
+@app.get("/beta/drama", response_class=HTMLResponse)
+async def drama_theatre_page():
+    """The admin Drama Theatre page; its routes (`/beta/debug/theatre/*`) need the operator token, the page itself holds no data."""
+    return _DRAMA_HTML_PATH.read_text(encoding="utf-8")
 
 
 # --------------------------------------------------
