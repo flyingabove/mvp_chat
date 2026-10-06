@@ -6,7 +6,7 @@
 
 **Rule of the order:** build the measuring tools first, then change behaviour one layer at a time, each layer standing
 on the one before. The product vision is in [../backlog/BL-85-character-social-mind.md](../backlog/BL-85-character-social-mind.md),
-[BL-86](../backlog/BL-86-headless-season-simulation.md) and [BL-87](../backlog/BL-87-drama-direction-and-script-rubric.md);
+[BL-86](../backlog/BL-86-headless-season-simulation.md) and [BL-87](../backlog/BL-87-drama-direction-knobs.md);
 this plan is how they get built.
 
 ## Stage 0: groundwork

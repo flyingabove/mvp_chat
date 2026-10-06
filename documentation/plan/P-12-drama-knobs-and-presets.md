@@ -10,7 +10,7 @@ backlog: BL-87
 **Goal:** the owner's tone rule for every game mode: real life, dramatized, plausible but very dramatic, achieved by tunable
 nudges and never by scripted outcomes.
 
-**Read first:** `documentation/backlog/BL-87-drama-direction-and-script-rubric.md` (design 1: the knobs and the `arc_template`
+**Read first:** `documentation/backlog/BL-87-drama-direction-knobs.md` (design 1: the knobs and the `arc_template`
 beats, with the research sources), P-05's rubric and P-06's baseline in `design/SOCIAL_ENGINE.md`.
 
 **Build**

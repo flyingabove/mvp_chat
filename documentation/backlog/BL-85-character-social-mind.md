@@ -13,13 +13,13 @@ Stories only supply data. Prior art: Comme il Faut / Ensemble (weighted social r
 Life FDG '25 (symbolic state, LLM only voices it).
 
 ## BL-85 — Build the character's social mind and let scenes be composed from it
+- **Bucket:** C (engine)
 - **Open (2026-10-01, beta `582ee13`):** the parts exist but are scattered, and the character object does not own
   them.
   - **Personality type** only sets dial defaults and reaches Jev (`npc_decision._TRAIT_WORDS`). The storyteller
     never learns that someone is an INTJ or what that means for how they talk and act.
-  - **Goals** are a free-text `EvolvingTrait` (`engine/state.py` `goal`). The world model never reads them. BL-80(a)
-    asks for weights and shifts.
-  - **Attitudes toward people** exist only as anonymous intentions with no stance behind them (`pursue`,
+  - **Goals** shipped as P-07 (weighted goals the world model reads; `design/SOCIAL_ENGINE.md`, "Personality model: goals"). Open: goals do not yet shift inside the Drama Theatre, and stances do not read them (P-08 slices 2 to 5).
+  - **Attitudes toward people** now have a derived stance model (P-08 slice 1: `world_model/stances.py`, `rules/stance_defaults.json`, `design/SOCIAL_ENGINE.md`), but nothing reads it yet: intentions are still anonymous with no stance behind them (`pursue`,
     `compete_for`, `test_loyalty` in `agenda.py`), plus one-off modules:
     - `rivals.py` seeds aims once;
     - `act_fallout.py` hard-codes losses;
@@ -201,8 +201,7 @@ class Person:
 - No story ids, names or genders in engine code. Eligibility is data (`appraisal.eligible`).
 
 ### Phases (failing-first tests in each; ship-and-verify)
-- **P2 Stances.**
-  - `Stance`, `StanceBook`, the stance rules and default pack, and the new condition kinds.
+- **P2 Stances (P-08).** Slice 1 is built (`Stance`, the derived book, the default pack and the new condition kinds); slices 2 to 5 remain, see `documentation/plan/P-08-stances.md`.
   - Intentions are derived from stances. The rival seeding, fallout and gender blocks move into rules.
   - Parity with the golden record (`tests/backend/app/engine/world_model/test_decision_golden.py`, `design/SOCIAL_ENGINE.md`). Each intended change (late-arrival aims, beat cadence) gets its own test.
   - **Difficulty sweep (absorbs BL-75).** Once parity holds, sweep the rival stance weight (it was
@@ -267,7 +266,8 @@ Still separate:
   - SOTOPIA, social-goal evaluation ([paper](https://arxiv.org/pdf/2310.11667)).
 - **Related:** BL-86 is the headless season simulation and admin watch mode that proves this. BL-87 is the drama
   direction knobs and the Jev script rubric that tune and judge it.
-- **Next:** P2. Do not start P4 before P2 shows zero golden diffs and P3 passes its no-telepathy tests.
+- **Plan:** P-08 to P-16 in `documentation/plan/` (P-16 deletes this item).
+- **Next:** P-08 slice 2. Do not start P4 before P2 shows zero golden diffs and P3 passes its no-telepathy tests.
 - **Touches:**
   - Changed: `world_model/person.py`, `rules/personality.py`, `rules/conditions.py`, `world_model/epistemics.py`,
     `world_model/{agenda,intentions,offscreen,rivals,act_fallout,stakes,signals,turn}.py`, `engine/content_validation.py`,

@@ -5,12 +5,11 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
 (BL-87). Terrace House is the first season. The runner is generic and works for any story.
 
 ## BL-86 — Headless season runner and admin watch mode
+- **Bucket:** C (engine)
 - **Open:**
-  - Nothing can run a story without a player. `scripts/terrace_ollama_sim.py` drives a scripted player against
-    local Ollama only.
-  - NPC-to-NPC encounters off-screen are resolved by a weighted dice roll (`world_model/offscreen.py`) and never
-    written.
-  - There is no admin view of a running world.
+  - The batch runner and the Drama Theatre run a story with no player, but the batch runner writes only pair scenes and has
+    no tension-ranked camera or artifacts.
+  - Off-screen NPC-to-NPC encounters outside a run are still resolved by a weighted dice roll (`world_model/offscreen.py`).
 - **Owner decisions (2026-10-01):**
   - **Purpose.** Two uses: an integration test, and a watch mode for admins. It is never a player-facing house or
     event log; a developer or admin season report is allowed.
@@ -27,21 +26,7 @@ locations, pursue their goals and meet each other. The LLM writes every scene, a
   - **The player slot.** It is held by an AI resident with goals, under the same `Person` rules. The panel speaks
     only at the end of that resident's run (win or cut).
 - **Design:**
-  1. **Built (P-04): `SeasonRunner(story, seed, writer, days, scenes_per_day, budget)`** in `backend/app/sim/runner.py`,
-     pure orchestration over existing services: the world stepper (`world_model/stepper.py`) advances time and drives
-     every character's routine, including the player slot (an AI resident is just another routine-follower, no code
-     assumes a human); co-located awake pairs form an encounter with `offscreen.find_encounters()`'s pairing rule; a
-     `Writer` (`backend/app/sim/writer.py`, protocol `write_scene`/`extract`) is asked for the scene; the extracted
-     `SceneUpdate` (summary, relationship deltas, movements) commits through the model's own primitives
-     (`world.add_event`, `epistemics.observe_event`, `memories.add`, relationship `adjust()`) -- one code path, not a
-     second engine. A delta or movement naming someone who was not in the scene is rejected, not applied (grounding
-     check). Hard caps: `scenes_per_day` per day, `budget` on total writer calls, checked before each scene so a run
-     never stops mid-write. Three pure invariants (`backend/app/sim/invariants.py`) run after every simulated day:
-     exact cast size via the cast lifecycle, no memory without a matching epistemic observation, no
-     `<act>_accepted` event without a logged consent verdict. Proven on a deterministic `FakeWriter` (unit tests,
-     `tests/backend/app/sim/`); the real writer, the camera, the social-act proposal path from a scene, group (3+)
-     encounters, and `npc_movements` parsed from LLM prose are later work (P-06 onward) -- this slice only proves the
-     day-loop, commit and invariant plumbing offline.
+  1. **Built:** the day-loop runner (`backend/app/sim/runner.py`, P-04) and the real writer (`llm_writer.py`) are described in `design/SOCIAL_ENGINE.md` (pilot season). Group (3+) scenes and the camera of one gathering per step exist only in the Drama Theatre (`sim/theatre.py`).
   2. **Still open:** extraction must accept richer NPC-to-NPC updates once a real writer lands (absorbs BL-06 and
      BL-24): relationship and behaviour changes between NPCs beyond a simple delta, and NPC movements described in
      prose rather than returned structurally. The older social-sim story `6_common_room` gets this path too.

@@ -1,6 +1,7 @@
 # Memory and knowledge mechanisms: small problems
 
 ## BL-27 — Memory and knowledge mechanisms: small problems
+- **Bucket:** C (engine)
 Fix one row at a time; delete a row when fixed; delete the entry when empty. Rows 2, 4, 10, 11, 12 and 15 change what the model sees (need the hosted arena gate); 3, 5, 6, 7, 8 are refactors touching the save format (keep old saves loading). No house or event log.
 1. Static index (`retrieve.py` to `RETRIEVED_MEMORY`): chunks carry no `known_by`; one bundle per story (main character only).
 2. Canonical facts (`prompt_builder.py` "others" group, ~L441-492): the focal NPC's prompt includes "Known by others — the focal character does not know this", a leak; visibility matching uses exact text.

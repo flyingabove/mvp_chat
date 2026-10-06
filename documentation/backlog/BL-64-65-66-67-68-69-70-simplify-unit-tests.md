@@ -3,6 +3,7 @@
 Estimated effect: about 250 fewer test functions and 1,500-2,000 fewer lines with the same assertions. Rule for every item: run the suite before and after, and confirm each removed test's assertion still exists as a parametrize row or shared-helper check. Do the shared fixtures (BL-64) first; the rest gets smaller because of them.
 
 ## BL-64 — Shared fakes, builders and fixtures (biggest, safest win)
+- **Bucket:** C (test infrastructure, no product behaviour)
 - **Open:**
   - The fake httpx client (`_FakeResp` / `_FakeAsyncClient` / `_FailingAsyncClient`) is copied about 12 times in `test_prompt_engine.py` (about lines 64, 128, 290, 323, 369, 3084, 4058, 4110, 4131, 5194, 6086) and again in `test_terrace_campaigns.py:33`, `test_own_line_replay.py:16`, `test_storyteller_transport_errors.py:15`, `test_main.py:133`. `monkeypatch.setattr(httpx.AsyncClient, "post", ...)` appears 34 times in `llm/` and `test_location_extractor.py`.
   - `_FakeResponse` / `_Resp` is declared in `llm/providers/test_base.py:11`, `test_jev.py:149`, `test_openai_chat.py:15` and `test_location_extractor.py:20`.
@@ -13,6 +14,7 @@ Estimated effect: about 250 fewer test functions and 1,500-2,000 fewer lines wit
 - **Touches:** the files named above plus the new conftest/helpers modules.
 
 ## BL-65 — Parametrize near-identical test families
+- **Bucket:** C (test infrastructure, no product behaviour)
 - **Open:** Tests that differ only by input and expected value:
   - `test_turn_extractor.py`: about 32 tests fit 5 tables (departure 18-70, social shift 126-217, behavior tags 94-121 and 241-271, commitments 285-308); `test_turn_extractor_questions.py` has the same shape. `test_turn_extractor_jev_seam.py`: `apply_overrides` families (373-409, 510-581, 615-735), `build_batches_*` gating (7 tests), `_call_legacy_raw` failures (281-328).
   - `test_location_extractor.py`: 16 tests share scaffolding; error cases 198/214/241/268/295/456; duplicate pairs 34 and 150, 66 and 168.
@@ -24,6 +26,7 @@ Estimated effect: about 250 fewer test functions and 1,500-2,000 fewer lines wit
 - **Touches:** the test files listed.
 
 ## BL-66 — Redundant and trivia tests
+- **Bucket:** C (test infrastructure, no product behaviour)
 - **Open:**
   - Tests that assert nothing real: `test_reset_clears_chinese_mode` (`test_prompt_engine.py:4272`) reads back what it assigned; `test_chinese_mode_with_empty_response` (4339) asserts only 200; `test_chinese_mode_toggle_formatting` (4368) is a `_box` unit test; `handles_empty_text` (4093) has an unused `monkeypatch` argument.
   - Duplicates: `test_six_strangers_*` opening tests (237, 5535, 182) drive the same opening; `test_prompt_filters_*` (`test_prompt_builder.py` 240/307/377/396) overlap `test_character_graph.py:223-264`; `test_prompt_backward_compat_no_markers` (351) and the byte-identical test (966); `test_labeled_sets_are_well_formed` and `test_every_dataset_file_..._parses` (`test_promise_eval_math.py:26,38`).
@@ -33,21 +36,26 @@ Estimated effect: about 250 fewer test functions and 1,500-2,000 fewer lines wit
 - **Touches:** the test files listed.
 
 ## BL-67 — Brittle string-grep frontend tests
+- **Bucket:** C (test infrastructure, no product behaviour)
 - **Open:** `tests/frontend/test_hard_reload_button.py:24-81` relies on `html.index` ordering, slices `"\n}"` to find a function body and asserts literals like `'this.dataset.action === "hard-reload"'`. `test_beta_api_base.py` and `test_chat_header_actions.py` are the same style. A rename or reformat breaks them with no behavior change. `tests/scripts/test_story_agent_ui.py:157-231` repeats one fake-HTML block 4 times and assigns `main_module._DEBUG_HTML_PATH` / `_INDEX_HTML_PATH` directly instead of `monkeypatch`, which risks leaking state into later tests.
 - **Next:** Replace the function-body slicing with `.cjs` (jsdom) behavior tests run by the Node step from BL-53, or Playwright checks in `ship-and-verify`; where a string check must stay, assert on the element id/data-attribute only. Turn the fake-HTML block into a fixture with `monkeypatch.setattr` (as `test_pwa_delivery.py:56` already does), and parametrize the 6 hard-reload and the 3-test roster/selector files.
 - **Touches:** `tests/frontend/test_hard_reload_button.py`, `test_beta_api_base.py`, `test_chat_header_actions.py`, `test_cast_roster_ui.py`, `test_character_selector_ui.py`, `tests/scripts/test_story_agent_ui.py`, new `.cjs` tests.
 
-## BL-68 — Split the 6,264-line `test_prompt_engine.py`
-- **Open:** One file holds about 202 tests across unrelated topics (load, cold-cache, and merge conflicts follow). Owners of one topic cannot find or run their tests alone.
+## BL-68 — Split the 6,377-line `test_prompt_engine.py`
+- **Note (2026-10-06):** line ranges in this section are stale; regenerate them with `pytest --collect-only` at split time. `test_terrace_*` and `test_leave_together_api.py` are already split out.
+- **Bucket:** C (test infrastructure, no product behaviour)
+- **Open:** One file holds about 208 tests across unrelated topics (load, cold-cache, and merge conflicts follow). Owners of one topic cannot find or run their tests alone.
 - **Next:** After BL-64 and BL-65, split by topic, moving the tests without editing them: `test_chat_core.py` (166-500), `test_prompt_toggles.py` (3146-3300, 3383-3800, 3922-4380), `test_time_skip_and_wait.py` (500-620, 3445-3550), `test_request_dedup_and_outbox.py` (1267-1750, 3556-3640), `test_session_persistence.py` (621-720, 1795-1990, 4553-4890), `test_cast_lifecycle_and_scenes.py` (182-500, 842-1265, 2424-2950, 5034-5130, 5535-5700), `test_social_shift_and_behavior.py` (1989-2420), `test_atomic_commit_and_errors.py` (5130-5535, 6218), `test_terrace_world_model.py` (5712-6264, plus `test_terrace_campaigns.py` and `test_promise_review.py`), `test_chat_concurrency.py` (4912-4972). Verify with `pytest --collect-only -q | wc -l` (count unchanged by the pure move) and update `documentation/design/*` references to the old path.
 - **Touches:** `tests/backend/app/api/test_prompt_engine.py` and new files; docs that cite it (`grep -rn test_prompt_engine documentation`).
 
 ## BL-69 — Test framework and fakes ship in the production image
+- **Bucket:** C (test infrastructure, no product behaviour)
 - **Open:** `backend/app/integration_playback/` (runner, loader, scenarios) and its router `backend/app/api/integration_playback.py` live in the app package, so they deploy. Two scenarios are dead or trivial: `scenario_turn_extractor_relationships_llm.py` (no test references it) and `scenario_epistemic_layer_switch.py`. `.claude/skills/promote-to-prod/arena/fakes.py` (177 lines: `FakeJevClient`, `FakeTarget`, `make_arm`) lives in the shipped arena package rather than under tests.
 - **Next:** Confirm whether anything in production uses the `integration_playback` router; if not, move the framework under `tests/` and remove the router registration. Delete the unused scenario or wire it into a real test. Move `fakes.py` into the arena tests folder and update imports in `test_gate_and_service.py` and the other arena tests. Update `CHARACTER_MEMORY.md:486` and the doc index.
 - **Touches:** `backend/app/integration_playback/`, `backend/app/api/integration_playback.py`, `backend/app/main.py`, `.claude/skills/promote-to-prod/arena/fakes.py`, docs.
 
 ## BL-70 — Content-data tests break on story edits
+- **Bucket:** C (test infrastructure, no product behaviour)
 - **Open:** `tests/backend/app/engine/test_story_loader.py:141-349` hard-codes six_strangers facts (e.g. "holds exactly six residents"); `test_story_data.py:73` and `test_leads_content.py` are similarly data-coupled. Any content edit breaks unit tests that should test the loader.
 - **Next:** Keep loader behavior tests on small synthetic stories; move the real-content checks into one parametrized content-lint file (`tests/backend/app/engine/test_story_content_lint.py`) whose rules are structural (every `known_by` key exists, every edge endpoint exists, cast counts match the story's own config) rather than literal counts.
 - **Touches:** `tests/backend/app/engine/test_story_loader.py`, `test_story_data.py`, `test_leads_content.py`, new lint file.

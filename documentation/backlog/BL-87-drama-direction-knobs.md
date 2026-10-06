@@ -5,6 +5,7 @@ a shot drama (Terrace House, Friends, K-drama). The engine **nudges** toward tha
 Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix script, judged by Jev.
 
 ## BL-87 — Showrunner knobs that nudge scenes, and a script rubric Jev scores them with
+- **Bucket:** C (engine)
 - **Open:** pacing and drama are a handful of hard-coded engine nudges:
   - beat text (`turn.BEAT_TEXT`);
   - room energy;
@@ -47,40 +48,10 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
        beat is a nudge offered to the scene's existing dynamics, never a forced event.
      - `romance_pace`: earliest days for the first move and for a confession. It works with the acquaintance
        ladder.
-  2. **Script rubric** scored by Jev. Each item is a bounded question with anchored answer options from 1 to 5,
-     shown as 2 to 10.
-     - **Scene:**
-       - S1 value turn;
-       - S2 clear conflict (a want against an obstacle);
-       - S3 characters act true to personality and goal, with distinct voices;
-       - S4 subtext and dramatic irony (feelings are not just stated);
-       - S5 heightening inside the scene;
-       - S6 plausibility (exaggerated but believable; no telepathy, no invented facts);
-       - S7 ends on a hook;
-       - S8 emotional pull (tension, laughter, tenderness).
-     - **Day, the episode:**
-       - E1 A/B/C threads, with at least one runner;
-       - E2 complications progress and do not repeat;
-       - E3 a setup pays off;
-       - E4 ensemble balance (nobody forgotten; second leads matter);
-       - E5 a cliffhanger at the end of the day;
-       - E6 a mix of tones.
-     - **Season:**
-       - R1 the arc follows its template's beats;
-       - R2 characters change;
-       - R3 twists are earned (set up, plausible);
-       - R4 the premise delivers;
-       - R5 bingeability ("would watch the next episode").
-     - **Verdict:** Recommend when the mean is at least 8, no item is below 5 and plausibility is at least 8;
-       Consider when the mean is at least 6; otherwise Pass. The target for a tuned preset is Recommend.
+  2. **Script rubric:** built (P-05); its items, verdict rule and calibration are in `design/SOCIAL_ENGINE.md` ("Script rubric"). BL-96 covers what the calibration does not show.
   3. **Tuning loop.** `SeasonRunner` (BL-86) sweeps knob values per preset across seeds and picks settings by
      rubric score. The results table goes in `design/SOCIAL_ENGINE.md`.
-  4. **Calibration.** About 60 human-labelled scenes before the rubric gates anything. Report agreement per item.
-     The BL-20 and promise-judge eval pattern applies: write the cases first, keep a held-out set, never tune
-     against it. Until then the rubric is advisory.
 - **Next:**
-  - The rubric is built and calibrated against 60 labelled scenes (`backend/app/sim/rubric.py`,
-    `design/SOCIAL_ENGINE.md`); BL-96 below covers what that calibration does not show.
   - Add the `drama` profile with defaults that reproduce today's prompts (a no-op), then switch on knobs one at a
     time, each with an arena gate.
 - **Sources (researched 2026-10-01):**
@@ -106,22 +77,6 @@ Every nudge has a tuning knob. "Good" means engaging enough to be a Netflix scri
   - Terrace House producers' topic direction and editing
     ([Wikipedia](https://en.wikipedia.org/wiki/Terrace_House),
     [Japan Today](https://japantoday.com/category/entertainment/update1-fuji-tv-had-deal-with-terrace-house-cast-on-how-scenes-played-out)).
-- **Touches:** new `engine/rules/drama.py` (profile and presets) and `backend/app/sim/rubric.py` (Jev questions),
+- **Touches:** new `engine/rules/drama.py` (profile and presets; note `engine/world_model/drama.py` already exists, so check names before building: plan P-12) and `backend/app/sim/rubric.py` (Jev questions),
   `prompt_builder.py` / `turn.py` (nudge rendering), story JSON (`drama`), `tests/eval_cases/`, `scripts/eval/`,
   `design/SOCIAL_ENGINE.md`.
-
-## BL-96 — The rubric's labelled scenes are all weak, so it is not yet shown to recognise strong drama
-
-- **Problem:** the 60 scenes in `tests/eval_cases/script_rubric/` are real opening-dinner chat and every one is Pass-level
-  (human verdict Pass 60 of 60, S1 to S5 almost all 1 or 2). The agreement bar (within one point, verdict agreement) was
-  met, but a rubric that answers 1 or 2 for everything also meets it. Also, the labels were written by Claude at the
-  owner's instruction, not by the owner.
-- **Fix:** add 20 or more scenes that a reader would score Consider or Recommend (real scenes from the P-06 baseline
-  season and later tuned presets, plus hand-picked strong ones), label them, re-run `--run --set all`, and require
-  agreement on those too (the verdict must separate the groups). Optionally have the owner re-label a sample of 20 to
-  check the AI labeller.
-- **Candidates now:** the six scenes in the P-06 baseline (`data/season_runs/baseline-pilot-1/season.jsonl`, local) are the
-  first non-Pass scenes the rubric produced (Jev: four Recommend, two Consider); label them blind to Jev's scores. They also
-  share one beat (a quiet shared task ending on a touch of hands), so a repetition check across scenes is part of this.
-- **Done when:** the labelled set covers all three verdicts, the bar holds on a held-out part of it, and the README says who
-  labelled.

@@ -5,7 +5,7 @@ stage: 3
 size: L
 depends_on: [P-08, P-09, P-10]
 touches: [backend/app/engine/world_model/scene.py, backend/app/engine/world_model/turn.py, backend/app/engine/world_model/stakes.py, backend/app/engine/world_model/signals.py, backend/app/engine/world_model/agenda.py, backend/app/engine/world_model/person.py, backend/app/engine/prompt_builder.py]
-backlog: BL-85 (P4), BL-84 (group energy, third-party reads), BL-83 (b, c as wants)
+backlog: BL-85 (P4; group energy and third-party reads absorbed from the old BL-84, BL-83 b and c as wants)
 ---
 **Goal:** when two or more characters share a room, the scene is composed from each person's own personality, goals, stances and
 mind. The result reaches the storyteller as one coherent section and drives what NPCs choose to do.
