@@ -140,10 +140,11 @@ def next_beat(model: WorldModel, present: set[str], day: int) -> Optional[tuple[
     competing for someone who is in the scene, who has waited longest for initiative (ties by priority, then id)."""
     options = []
     for cid in sorted(present):
+        if model.initiative_last_day.get(f"beat:{cid}") == day:
+            continue                                                # one unsolicited move per person per day
         for intention in intentions(model, cid, day):
             visible = (intention.target == PLAYER and intention.kind in ("test_loyalty", "pursue")) or (
-                intention.kind == "compete_for" and intention.target in present - {cid}
-                and model.initiative_last_day.get(f"beat:{cid}") != day)   # BL-34: a visible rival, once a day
+                intention.kind == "compete_for" and intention.target in present - {cid})
             if visible:
                 options.append((model.initiative_last_day.get(f"beat:{cid}", -1), -intention.priority, cid,
                                 intention))

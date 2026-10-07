@@ -168,6 +168,7 @@ def parse_rules(raw_rules: Iterable[dict[str, Any]], variables: dict[str, str]) 
 def stance_rules(story_cfg: dict[str, Any], variables: dict[str, str]) -> tuple[StanceRule, ...]:
     """The generic pack with the story's overrides: a rule with the same id replaces the default, a new id is added,
     `"disabled": true` removes one."""
+    variables = {"acquainted": "none", **variables}      # a story with no acquaintance levels gates on nothing
     defaults = {r["id"]: r for r in json.loads(DEFAULTS_PATH.read_text("utf-8"))["rules"]}
     own = {str((r or {}).get("id") or ""): r for r in ((story_cfg or {}).get("stances") or {}).get("rules") or ()}
     rules: list[StanceRule] = []
@@ -239,7 +240,10 @@ def refresh_stances_for_state(state: Any, model: Any, ctx: Any, now: int) -> Non
     variables = {"track": ctx.rules.appraisal.track}
     if ctx.rules.couples is not None:
         variables.update(interested=ctx.rules.couples.interested_tier, dating=ctx.rules.couples.dating_tier)
+    levels = acquaintance_levels(cfg)
+    if levels:                                  # an NPC's first move on the player waits until they are past strangers
+        variables["acquainted"] = levels[min(1, len(levels) - 1)].id
     model.standing.bind(ctx.rules.tracks)
     refresh_stances(model, stance_rules(cfg, variables), graph=getattr(state, "character_graph", None),
-                    people=personalities(cfg), eligible=ctx.eligible, levels=acquaintance_levels(cfg),
+                    people=personalities(cfg), eligible=ctx.eligible, levels=levels,
                     day=model.world.day_index(now), intensity=ctx.rules.intensity)

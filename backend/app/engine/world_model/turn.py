@@ -259,6 +259,27 @@ def _goal_note(model: WorldModel, people: dict[str, Any], cid: str, names: dict[
     return f"; {card_note(goal, model.goals.weight(cid, goal), names)}" if goal is not None else ""
 
 
+STANCE_PHRASES = {
+    "crush": "is quietly drawn to {t}", "ex": "is {t}'s ex", "resents": "resents {t}", "distrusts": "distrusts {t}",
+    "suspects": "suspects {t} of something", "protective_of": "is protective of {t}", "admires": "admires {t}",
+    "owes": "feels they owe {t}", "ally": "is on {t}'s side",
+}
+STANCE_PRIVATE = ("crush", "ex")           # about the player these stay in the person's heart (bearings carry the rest)
+
+
+def _stance_note(model: WorldModel, cid: str, present: Iterable[str], names: dict[str, str]) -> str:
+    """`; attitudes: ...` the person's own stances toward the others in the room (P-08), never toward the player for
+    the romantic kinds, and a rival as "sees X as a rival for Y". A stance is derived, so the storyteller never invents it."""
+    here, parts = set(present) - {cid}, []
+    for stance in sorted(model.stances.of(cid), key=lambda s: (-s.strength, s.kind, s.target)):
+        if stance.kind == "rival" and stance.target in here and stance.about:
+            parts.append(f"sees {names.get(stance.target, stance.target)} as a rival for {names.get(stance.about, stance.about)}")
+        elif stance.kind in STANCE_PHRASES and stance.target in here and not (
+                stance.target == PLAYER and stance.kind in STANCE_PRIVATE):
+            parts.append(STANCE_PHRASES[stance.kind].format(t=names.get(stance.target, stance.target)))
+    return f"; attitudes (show, never state): {', '.join(parts[:3])}" if parts else ""
+
+
 def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_names: dict[str, str],
                 conflict_focus: Any = None, farewell: Iterable[str] = ()) -> TurnView:
     """`farewell`: who was with the player when this turn began; on an exit turn they may still speak."""
@@ -288,7 +309,8 @@ def _build_view(model: WorldModel, state: Any, message: str, step: Any, place_na
         view.cards.append(f"{c.name} ({c.descriptor}): {activity}; {c.availability}"
                           + (f"; mood: {c.mood}" if c.mood else "")
                           + f"; {_encounter_note(model, cid)}; {_name_note(model, cid)}"
-                          + _conduct_note(model, levels, cid, today) + _goal_note(model, people, cid, names))
+                          + _conduct_note(model, levels, cid, today) + _goal_note(model, people, cid, names)
+                          + _stance_note(model, cid, present, names))
         level = _level_of(model, levels, cid, today)
         if level is not None:
             view.bearings.append(f"{c.name}: {level.reminder or level.conduct}")

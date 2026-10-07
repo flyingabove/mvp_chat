@@ -259,13 +259,16 @@ class HasStance(Condition):
 @dataclass(frozen=True)
 class AcquaintanceAtLeast(Condition):
     """The holder knows the player at least this well (days since they met, turns spent together). Residents
-    toward one another count as long acquainted: the levels describe getting to know the player."""
+    toward one another count as long acquainted: the levels describe getting to know the player. A story with no
+    acquaintance levels has nothing to gate on, so the condition holds."""
     level: str
     kind = "acquaintance_at_least"
 
     def evaluate(self, vp: Viewpoint) -> Tri:
-        if vp.is_truth or not vp.levels:
+        if vp.is_truth:
             return None
+        if not vp.levels:
+            return True
         if vp.subject != "player":
             return True
         from backend.app.engine.rules.acquaintance import level_for

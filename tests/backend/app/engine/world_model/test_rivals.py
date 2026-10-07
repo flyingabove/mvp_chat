@@ -27,6 +27,8 @@ GENDERS = {"ben": "M", "dan": "M", "ann": "F", "cat": "F", "eve": "F", "player":
 def _model(people=None):
     model = make_model(people or {"ben": "kitchen", "dan": "kitchen", "ann": "kitchen", "cat": "kitchen"})
     model.standing.bind(RULES.tracks)
+    for cid in model.characters:                 # residents who have lived with the player a while (past strangers)
+        model.first_met_day[cid], model.turns_together[cid] = 0, 30
     return model
 
 
@@ -281,3 +283,81 @@ def test_a_new_day_lets_the_rival_try_again():
     model.world.minute += 24 * 60
     state.minute = model.world.minute
     assert _compete_lines(begin_turn(state, "The next morning.", model.world.minute - 5))
+
+
+# ---------------------------------------------------------------- P-08 slice 3: first moves wait for acquaintance
+def _strangers(state, model):
+    for cid in model.characters:
+        model.first_met_day.pop(cid, None)
+        model.turns_together[cid] = 0
+
+
+def test_a_stranger_has_no_crush_on_the_player_so_a_day_zero_move_never_comes():
+    model = _model({"minori": "kitchen", "makoto": "kitchen"})
+    _set(model, "minori", "player", 80)
+    state = _terrace_state(model)
+    _strangers(state, model)
+    view = begin_turn(state, "Hello.", 0)
+    assert not model.stances.has("minori", "crush", "player")
+    assert not any(i.kind == "pursue" and i.target == "player" for i in model.agendas.get("minori", []))
+    assert not any("drawn to" in line for line in view.must_address)
+    for cid in model.characters:                  # ten turns together later they are past strangers
+        model.turns_together[cid] = 12
+    begin_turn(state, "Hello again.", 0)
+    assert model.stances.has("minori", "crush", "player")
+
+
+def test_a_story_with_no_acquaintance_levels_does_not_gate_a_crush():
+    model = _model({"minori": "kitchen"})
+    _set(model, "minori", "player", 80)
+    cfg = copy.deepcopy(TERRACE)
+    cfg.pop("acquaintance", None)
+    state = _terrace_state(model)
+    state.story_cfg = cfg
+    _strangers(state, model)
+    begin_turn(state, "Hello.", 0)
+    assert model.stances.has("minori", "crush", "player")
+
+
+def test_one_unsolicited_move_per_person_per_day_covers_every_kind_of_beat():
+    model = _model({"minori": "kitchen"})
+    _set(model, "minori", "player", 80)
+    state = _terrace_state(model)
+    first = begin_turn(state, "Morning.", 0)
+    second = begin_turn(state, "Still morning.", 0)
+    assert model.initiative_last_day.get("beat:minori") == 0, "the first turn spent her move for the day"
+    assert not any("as if offhand" in l or "interest" in l for l in second.must_address)
+
+
+# ---------------------------------------------------------------- stances reach the prompt through the person's card
+def _card(view, name):
+    return next(card for card in view.cards if card.startswith(name))
+
+
+def test_a_present_persons_card_carries_their_own_stances_toward_people_in_the_room():
+    model = _model({"makoto": "kitchen", "uchi": "kitchen", "minori": "kitchen"})
+    _set(model, "makoto", "minori", 48)
+    _set(model, "uchi", "minori", 47)
+    state = _terrace_state(model)
+    view = begin_turn(state, "Hello.", 0)
+    card = _card(view, "Makoto")
+    assert "attitudes (show, never state)" in card and "quietly drawn to Minori" in card
+    assert "rival for Minori" in card and "Uchi" in card
+
+
+def test_a_romantic_stance_toward_the_player_stays_off_the_card():
+    model = _model({"minori": "kitchen", "makoto": "kitchen"})
+    _set(model, "minori", "player", 80)
+    _set(model, "makoto", "minori", 48)
+    state = _terrace_state(model)
+    view = begin_turn(state, "Hello.", 0)
+    assert model.stances.has("minori", "crush", "player")
+    assert "drawn to Paul" not in _card(view, "Minori") and "attitudes" not in _card(view, "Minori")
+
+
+def test_a_hidden_standing_of_someone_else_never_reaches_a_card():
+    model = _model({"makoto": "kitchen", "minori": "kitchen"})
+    _set(model, "minori", "makoto", 60)            # Minori's own feeling; Makoto has none of his own
+    state = _terrace_state(model)
+    view = begin_turn(state, "Hello.", 0)
+    assert "attitudes" not in _card(view, "Makoto")

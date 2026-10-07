@@ -458,6 +458,22 @@ A story that does not say reads as `high` (the behaviour before the knob), and d
 keep it there; a workplace story with no couples policy has none of these mechanics, and one with rivalry but no romance sets
 `{"romance": "off"}`. Tests: `test_courtship.py`, `test_stances.py` (family scaling), the golden record unchanged.
 
+### Stances in play: first moves wait for acquaintance, one move a day, attitudes reach the prompt (P-08 slice 3, as built 2026-10-06)
+
+- **A first move on the player waits until they are past strangers.** The `crush` rule carries an `acquaintance_at_least`
+  term (`$acquainted`, filled with the story's second acquaintance level; a story with no levels gates on nothing, the
+  condition holds) and a minimum of 0.9, so a resident's crush on the player (and everything derived from it: `pursue`,
+  rival competition for the player) forms only once they have spent the level's days and turns with the player. A day-zero
+  confession from an NPC no longer happens. Residents toward one another count as long acquainted.
+- **One unsolicited move per person per day.** `agenda.next_beat` skips anyone whose `beat:<id>` day is today, for every beat
+  kind (before, only `compete_for` was limited).
+- **The person's attitudes reach the prompt.** A present person's card gets `attitudes (show, never state): ...` from
+  `turn._stance_note`: their own stances toward people in the room (drawn to, resents, distrusts, suspects, protective of,
+  admires, owes, ex, ally, and "sees X as a rival for Y"), strongest three; the romantic kinds toward the player stay off the
+  card (the acquaintance-level bearings carry the player-facing read). The unread edge `disposition` stays unused.
+- Tests: `test_rivals.py` (stranger has no crush, no-levels story, one move a day, card contents and privacy),
+  `test_stances.py`. The golden record is unchanged, because its fixtures already have residents who know the player.
+
 ### Motivated testimony: people with a stake speak in their own interest (BL-83 part 1, as built 2026-10-01)
 
 Generic, any story with agendas. `world_model/stakes.py`: when the player's message names someone, each present person who

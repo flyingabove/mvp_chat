@@ -205,7 +205,7 @@ def test_acquaintance_at_least_counts_days_and_turns_with_the_player_and_never_b
     model.world.minute = 24 * 60
     assert cond.evaluate(_vp(model, subject="player", levels=levels)) is True
     assert cond.evaluate(_vp(model, subject="cat", levels=levels)) is True
-    assert cond.evaluate(_vp(model, subject="player")) is None
+    assert cond.evaluate(_vp(model, subject="player")) is True, "a story with no levels has nothing to gate on"
 
 
 def test_witnessed_needs_the_holder_there_and_event_count_can_look_back_a_few_days():
