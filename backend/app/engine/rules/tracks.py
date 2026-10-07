@@ -81,12 +81,28 @@ class CouplePolicy:
     rival_aim: float = 0.0     # BL-34: priority (0-1) of the own romantic aim each rival starts with; 0 = off
 
 
+INTENSITY_PRESETS = {"off": 0.0, "low": 0.35, "medium": 0.65, "high": 1.0}
+
+
+@dataclass(frozen=True)
+class Intensity:
+    """How hard a story leans on social drama (0 = off, 1 = full). Dating games run it on `high`.
+
+    `romance` scales the romantic mechanics (jealousy, the cost of a refused confession); `rivalry` scales competition
+    for a partner (rival aims, a rival seeing an opening, off-screen contests, rival invitations). `high` (1.0) is the
+    pre-knob behaviour, so a story that does not say reads as `high`; a story with no couples or appraisal policy
+    has none of these mechanics to scale."""
+    romance: float = 1.0
+    rivalry: float = 1.0
+
+
 @dataclass(frozen=True)
 class SocialRules:
     tracks: dict[str, TrackSpec]
     requirements: dict[str, tuple[Requirement, ...]]   # character id or "default" -> requirements
     appraisal: Optional[AppraisalPolicy] = None
     couples: Optional[CouplePolicy] = None
+    intensity: Intensity = Intensity()
 
     def requirements_for(self, owner: str, track: str) -> tuple[Requirement, ...]:
         own = self.requirements.get(owner)
@@ -151,7 +167,28 @@ def social_rules(story_cfg: dict[str, Any]) -> Optional[SocialRules]:
         if len(ids) != len(set(ids)):
             raise ValueError("requirement ids must be unique per character")
     appraisal = _appraisal(raw.get("appraisal"), tracks)
-    return SocialRules(tracks, requirements, appraisal, _couples(raw.get("couples"), tracks, appraisal))
+    return SocialRules(tracks, requirements, appraisal, _couples(raw.get("couples"), tracks, appraisal),
+                       _intensity(raw.get("intensity")))
+
+
+def _intensity(raw: Any) -> Intensity:
+    """`"intensity": "high"` sets both knobs; `{"romance": "low", "rivalry": 0.8}` sets each (a preset name or 0 to 1)."""
+    if raw is None:
+        return Intensity()
+    parts = {"romance": raw, "rivalry": raw} if not isinstance(raw, dict) else {
+        key: raw.get(key, "high") for key in ("romance", "rivalry")}
+    unknown = set(raw) - {"romance", "rivalry"} if isinstance(raw, dict) else set()
+    if unknown:
+        raise ValueError(f"unknown intensity knob(s) {sorted(unknown)}")
+    values = {}
+    for key, value in parts.items():
+        if isinstance(value, str):
+            if value not in INTENSITY_PRESETS:
+                raise ValueError(f"intensity {key} must be one of {sorted(INTENSITY_PRESETS)} or a number from 0 to 1")
+            values[key] = INTENSITY_PRESETS[value]
+        else:
+            values[key] = _fraction(value, f"intensity {key}")
+    return Intensity(values["romance"], values["rivalry"])
 
 
 def _fraction(value: Any, name: str) -> float:

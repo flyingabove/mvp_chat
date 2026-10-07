@@ -2439,6 +2439,7 @@
       "eligible": "opposite_gender", "offscreen_scale": 4
     },
     "couples": {"interested_tier": "interested", "dating_tier": "interested", "committed_tier": "committed",
-                "days_together": 2, "rival_aim": 0.3}
+                "days_together": 2, "rival_aim": 0.3},
+    "intensity": "high"
   }
 }

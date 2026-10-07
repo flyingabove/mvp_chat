@@ -18,6 +18,7 @@ from backend.app.engine.world_model.drama import register_conflict
 from backend.app.engine.world_model.memory import render
 from backend.app.engine.world_model.stepper import StepResult
 from backend.app.engine.world_model.agenda import OFFSCREEN_GAIN, SocialContext, agenda_weight
+from backend.app.engine.world_model.courtship import Courtship
 from backend.app.engine.world_model.standards import apply_impression
 from backend.app.engine.world_model.standing import Impression
 
@@ -93,19 +94,16 @@ def outcome_weights(model: "WorldModel", enc: Encounter, relationships: Relation
     # A story-authored competition only changes the odds of a feasible
     # off-screen encounter. It cannot assign the partner's feelings, create
     # an encounter, or make every same-gender resident a rival by default.
-    if rivalry and rivalry.get("enabled") and rivalry.get("player_gender") in ("M", "F"):
-        player_gender = rivalry["player_gender"]
-        genders = rivalry.get("genders") or {}
+    if rivalry and rivalry.get("enabled"):
+        courtship = Courtship.from_context(rivalry)
         for rival_id, partner_id in ((enc.a, enc.b), (enc.b, enc.a)):
-            if genders.get(rival_id) != player_gender or genders.get(partner_id) == player_gender:
-                continue
-            if genders.get(partner_id) not in ("M", "F"):
+            if not courtship.competes(rival_id, "player", partner_id):
                 continue
             player_interest = relationships.feelings("player", partner_id).get("affection", 0)
             rival_interest = relationships.feelings(rival_id, partner_id).get("affection", 0)
             if player_interest >= 0.25 and rival_interest >= 0.1:
-                weights["plan"] *= 2.0
-                weights["affection"] *= 1.5
+                weights["plan"] *= 1 + 1.0 * courtship.intensity.rivalry
+                weights["affection"] *= 1 + 0.5 * courtship.intensity.rivalry
                 break
     if social is not None:
         # Both people's own agendas: someone pursuing the other makes closeness and plans likelier.

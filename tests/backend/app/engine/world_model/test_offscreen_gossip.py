@@ -94,8 +94,10 @@ def test_rivalry_context_uses_active_cast_and_story_opt_in():
                    "characters": [{"key": "partner", "gender": "M"}, {"key": "rival", "gender": "F"},
                                   {"key": "queued", "gender": "M"}]},
     )
-    assert rivalry_context(state) == {"enabled": True, "player_gender": "F",
-                                     "genders": {"partner": "M", "rival": "F"}}
+    context = rivalry_context(state)
+    courtship = context.pop("courtship")
+    assert context == {"enabled": True, "player_gender": "F", "genders": {"partner": "M", "rival": "F"}}
+    assert courtship.competes("rival", "player", "partner") and not courtship.competes("partner", "player", "rival")
     state.story_cfg["mode"]["romance_goal"]["enabled"] = False
     assert rivalry_context(state) is None
 

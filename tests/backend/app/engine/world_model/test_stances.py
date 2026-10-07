@@ -242,3 +242,30 @@ def test_stance_book_queries_and_ordering():
     assert [s.holder for s in book.toward("ann")] == ["cat"]
     assert book.has("cat", "rival", "ann", "ben") and not book.has("cat", "rival", "ann")
     assert StanceBook.from_dict(book.to_dict()).to_dict() == book.to_dict()
+
+
+# ---------------------------------------------------------------- intensity: a family of stances scales with the story's knob
+def test_a_stance_family_is_scaled_by_the_story_intensity_and_vanishes_at_zero():
+    from backend.app.engine.rules.tracks import Intensity
+    from backend.app.engine.world_model.stances import stance_rules as rules_for
+
+    def book(intensity):
+        model = make_model({"ann": "k", "cat": "k", "ben": "k"})
+        _set(model, "ann", "ben", 30)
+        _set(model, "cat", "ben", 45)
+        refresh_stances(model, rules_for({}, VARS), graph=_graph(), people=personalities({}), eligible=_ctx().eligible,
+                        levels=(), day=0, intensity=intensity)
+        return model.stances
+    full, half, off = book(None), book(Intensity(romance=0.5, rivalry=1.0)), book(Intensity(romance=0.0, rivalry=1.0))
+    assert full.strength("ann", "crush", "ben") >= 0.8
+    assert half.strength("ann", "crush", "ben") == pytest.approx(full.strength("ann", "crush", "ben") * 0.5)
+    assert half.has("ann", "rival", "cat", about="ben"), "rivalry is its own knob, untouched by the romance one"
+    assert not off.of("ann", "crush") and not off.of("ann", "rival"), "no crush means no rival either"
+    quiet = book(Intensity(romance=1.0, rivalry=0.0))
+    assert quiet.has("ann", "crush", "ben") and not quiet.of("ann", "rival")
+
+
+def test_a_rule_family_must_be_known():
+    with pytest.raises(ValueError, match="family"):
+        parse_rules([{"id": "x", "kind": "x", "min_strength": 0.1, "family": "gossip",
+                      "when": [{"weight": 1, "if": {"kind": "eligible"}}]}], VARS)

@@ -144,7 +144,7 @@ def seed_rival_aims_for_state(state: Any, model: WorldModel) -> list[tuple[str, 
         cfg = cfg.as_dict()
     rules = social_rules(cfg) if isinstance(cfg, dict) else None
     gender = str(getattr(state, "gender", "") or "").upper()
-    if rules is None or gender not in ("M", "F"):
+    if rules is None:
         return []
     genders = {str(c.get("key")): str(c.get("gender") or "").upper()
                for c in cfg.get("characters") or [] if isinstance(c, dict)}

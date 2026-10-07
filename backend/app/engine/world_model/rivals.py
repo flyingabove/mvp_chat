@@ -20,8 +20,9 @@ from typing import Any
 
 from backend.app.engine.rules.personality import strategy_mods
 from backend.app.engine.world_model.agenda import AIM_DAYS, add_intention, intentions
+from backend.app.engine.world_model.courtship import Courtship
 from backend.app.engine.world_model.intent import Intention
-from backend.app.engine.world_model.model import WorldModel
+from backend.app.engine.world_model.model import PLAYER, WorldModel
 
 
 def _in_couple(model: WorldModel, cid: str) -> bool:
@@ -35,24 +36,27 @@ def seed_rival_aims(model: WorldModel, rules: Any, genders: dict[str, str], play
     `people` (character -> Personality) scales each aim's priority by the rival's strategy (BL-80)."""
     policy = getattr(rules, "couples", None)
     appraisal = getattr(rules, "appraisal", None)
-    if policy is None or appraisal is None or policy.rival_aim <= 0 or player_gender not in ("M", "F"):
+    if policy is None or appraisal is None or policy.rival_aim <= 0:
+        return []
+    courtship = Courtship.of(rules, {**genders, PLAYER: player_gender})
+    strength = policy.rival_aim * courtship.intensity.rivalry
+    if strength <= 0:
         return []
     day = model.world.day_index(model.world.minute)
     ids = sorted(model.characters)
     added: list[tuple[str, str]] = []
     for rival in ids:
-        if genders.get(rival) != player_gender or _in_couple(model, rival):
+        if rival == PLAYER or _in_couple(model, rival):
             continue
         if any(i.kind == "pursue" and i.target in model.characters and not _in_couple(model, i.target)
                for i in intentions(model, rival, day)):
             continue                      # a live aim: its target is still in the house and still free
-        options = [t for t in ids if t != rival and not _in_couple(model, t)
-                   and appraisal.covers(genders.get(rival, ""), genders.get(t, ""))]
+        options = [t for t in ids if not _in_couple(model, t) and courtship.competes(rival, PLAYER, t)]
         if not options:
             continue
         crush = random.Random(f"{model.seed}:rival_aim:{rival}").choice(options)
         scale = strategy_mods(people[rival].strategy).aim_scale if people and rival in people else 1.0
-        add_intention(model, rival, Intention("pursue", crush, min(1.0, policy.rival_aim * scale),
+        add_intention(model, rival, Intention("pursue", crush, min(1.0, strength * scale),
                                               "has their eye on them", day + AIM_DAYS))
         added.append((rival, crush))
     return added

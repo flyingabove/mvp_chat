@@ -5,6 +5,8 @@ import re
 from typing import Any
 
 from backend.app.engine.world_model import bootstrap
+from backend.app.engine.rules.tracks import social_rules
+from backend.app.engine.world_model.courtship import Courtship
 from backend.app.engine.world_model.model import PLAYER
 
 
@@ -57,14 +59,20 @@ def _eligible_present(state: Any) -> set[str]:
     if model is None or not isinstance(cfg, dict):
         return set()
     goal = ((cfg.get("mode") or {}).get("romance_goal") or {})
-    gender = str(getattr(state, "gender", "") or "").upper()
-    if not goal.get("enabled") or goal.get("partner_gender") != "opposite_player" or gender not in {"M", "F"}:
+    if not goal.get("enabled"):
         return set()
-    active = set(bootstrap.eligible_ids(state)) & set(model.characters)
     genders = {str(char.get("key")): str(char.get("gender") or "").upper()
                for char in cfg.get("characters") or [] if isinstance(char, dict)}
-    return {cid for cid in active & set(model.present_with_player())
-            if genders.get(cid) in {"M", "F"} and genders[cid] != gender}
+    genders[PLAYER] = str(getattr(state, "gender", "") or "").upper()
+    rules = social_rules(cfg)
+    if rules is not None and rules.appraisal is not None:
+        courtship = Courtship.of(rules, genders)           # the story's own track decides who the goal may name
+    elif goal.get("partner_gender") == "opposite_player":
+        courtship = Courtship.opposite(genders)
+    else:
+        return set()
+    active = set(bootstrap.eligible_ids(state)) & set(model.characters)
+    return {cid for cid in active & set(model.present_with_player()) if courtship.eligible(PLAYER, cid)}
 
 
 def _player_names(text: str, model: Any, present: set[str]) -> list[str]:

@@ -31,6 +31,7 @@ from backend.app.engine.rules.personality import personalities
 from backend.app.engine.world_model.goals import active_goal, agenda_scale, card_note
 from backend.app.engine.world_model.stances import refresh_stances_for_state
 from backend.app.engine.rules.tracks import social_rules
+from backend.app.engine.world_model.courtship import Courtship
 from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
 from backend.app.engine.world_model.persona import SelfClaim
 from backend.app.engine.world_model.standards import enforce_dealbreakers, failing_requirements, viewpoint
@@ -112,13 +113,15 @@ def rivalry_context(state: Any) -> Optional[dict]:
             or goal.get("rival_gender") != "same_as_player":
         return None
     gender = str(getattr(state, "gender", "") or "").upper()
-    if gender not in ("M", "F"):
-        return None
     eligible = set(bootstrap.eligible_ids(state))
-    return {"enabled": True, "player_gender": gender, "genders": {
-        str(char.get("key")): str(char.get("gender") or "").upper()
-        for char in (cfg.get("characters") or []) if isinstance(char, dict) and char.get("key") in eligible
-    }}
+    genders = {str(char.get("key")): str(char.get("gender") or "").upper()
+               for char in (cfg.get("characters") or []) if isinstance(char, dict) and char.get("key") in eligible}
+    rules = social_rules(cfg)
+    courtship = Courtship.of(rules, {**genders, PLAYER: gender}) if rules is not None and rules.appraisal is not None \
+        else Courtship.opposite({**genders, PLAYER: gender})
+    if not any(courtship.eligible(PLAYER, cid) for cid in genders):
+        return None                                        # nobody the player could court: no contest to project
+    return {"enabled": True, "player_gender": gender, "genders": genders, "courtship": courtship}
 
 
 def enabled(state: Any) -> bool:

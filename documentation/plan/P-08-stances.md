@@ -52,15 +52,14 @@ overrides, `refresh_stances`, recomputed each turn in `begin_turn` after goal sh
 `feeling`/`standing_at_least`/`tier_reached`; 30 tests in `test_stances.py`; `SOCIAL_ENGINE.md` section "Stances". Nothing
 reads stances yet.
 
-**Slice 2 - migrate the hand-coded paths with NO behaviour change (golden must match exactly).**
-1. Add the missing stance kinds the old code implies: resents, protective_of, owes, ex, admires (data in the pack, tests each).
-2. `rivals.py` (`seed_rival_aims`): rival seeding reads stances/`eligible` instead of `genders.get` and `player_gender`.
-3. `agenda.refresh_agendas`: derive `pursue`/`compete_for` from `crush`/`rival` stances (today from standing tiers plus live aims;
-   include the "player counts as an admirer" case, which needs a player-subject rule). Keep the P-07 `scale`.
-4. `act_fallout.py`: the constants (`WITNESS_LOSS`, `REFUSER_LOSS`, `RIVAL_AIM`) and the "same gender and free" test become rule data.
-5. `intentions.py` (`propose_rival_invitations`, the `genders`/`player_gender` blocks) and `offscreen.py` rival blocks.
-6. Delete every `genders.get` / `player_gender` site (26 at last count: `grep -rn "genders.get\|player_gender" backend/app/engine`)
-   in favour of `eligible`. Compare `ctx.eligible` semantics with the old `opposite_gender` policy per site.
+**Slice 2 - partly DONE (this commit, golden unchanged).** Every `genders.get` / `player_gender` romance site now goes through
+`world_model/courtship.py` and `social_tracks.intensity` (see `SOCIAL_ENGINE.md` "Courtship and intensity"): `rivals.py`,
+`intentions.py`, `offscreen.py`, `act_fallout.py`, `romance.py`, `bootstrap.py`, `turn.rivalry_context`; stances carry an intensity
+`family`. Still open in slice 2: add the stance kinds resents, protective_of, owes, ex, admires (data in the pack, a test each);
+derive `agenda.refresh_agendas` `pursue`/`compete_for` from `crush`/`rival` stances (include the player-as-admirer case and keep the
+P-07 `scale`); make the `act_fallout` constants (`WITNESS_LOSS`, `REFUSER_LOSS`, `RIVAL_AIM`) and the offscreen boosts rule data
+instead of module constants. Remaining non-romance gender uses are data enums for the opening (`opening_scene.GENDER_RULES`) and
+honorifics (`prompt_builder`), not romance logic.
 
 **Slice 3 - the intended behaviour changes, each with its own test and a golden diff that is explained.**
 - Late arrivals get stances like everyone (BL-34 part 2 already ships through `sync_membership`; make it fall out of the rules).

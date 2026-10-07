@@ -22,6 +22,7 @@ from backend.app.engine.rules.conditions import Condition, Viewpoint, parse
 
 DEFAULTS_PATH = Path(__file__).resolve().parents[1] / "rules" / "stance_defaults.json"
 SCOPES = ("pair", "triple")
+FAMILIES = ("", "romance", "rivalry")
 PLAYER = "player"
 
 
@@ -100,6 +101,7 @@ class StanceRule:
     min_strength: float
     terms: tuple[Term, ...]
     about_has: str = ""
+    family: str = ""        # "romance" | "rivalry" | "": which story intensity knob scales this stance's strength
 
 
 class MissingVariable(ValueError):
@@ -156,7 +158,10 @@ def parse_rules(raw_rules: Iterable[dict[str, Any]], variables: dict[str, str]) 
                 raise ValueError(f"{where}: term {index}: {exc}") from None
         if not terms:
             raise ValueError(f"{where} needs at least one term in 'when'")
-        rules.append(StanceRule(rid, kind, scope, minimum, tuple(terms), about_has))
+        family = str(raw.get("family") or "")
+        if family not in FAMILIES:
+            raise ValueError(f"{where}: family must be one of {list(FAMILIES)}")
+        rules.append(StanceRule(rid, kind, scope, minimum, tuple(terms), about_has, family))
     return tuple(rules)
 
 
@@ -178,7 +183,7 @@ def stance_rules(story_cfg: dict[str, Any], variables: dict[str, str]) -> tuple[
 
 
 def refresh_stances(model: Any, rules: Iterable[StanceRule], *, graph: Any, people: Any, eligible: Any,
-                    levels: Any, day: int) -> StanceBook:
+                    levels: Any, day: int, intensity: Any = None) -> StanceBook:
     """Recompute every stance from the holders' own views and store it on the model. Pure: same model, same book."""
     previous, book = model.stances, StanceBook()
     model.stances = book                     # rules read the book as it fills, so later rules build on earlier ones
@@ -195,22 +200,29 @@ def refresh_stances(model: Any, rules: Iterable[StanceRule], *, graph: Any, peop
                 for subject, third in pairs:
                     vp = Viewpoint(model=model, holder=holder, subject=subject, graph=graph, standings=model.standing,
                                    third=third, people=people, eligible=eligible, levels=levels)
-                    _judge(book, previous, rule, vp, third or "", day)
+                    _judge(book, previous, rule, vp, third or "", day, _scale(rule, intensity))
     except Exception:
         model.stances = previous
         raise
     return book
 
 
-def _judge(book: StanceBook, previous: StanceBook, rule: StanceRule, vp: Viewpoint, about: str, day: int) -> None:
+def _scale(rule: StanceRule, intensity: Any) -> float:
+    """The story's intensity for this rule's family (1.0 when the rule has none or no intensity was given)."""
+    return float(getattr(intensity, rule.family, 1.0)) if intensity is not None and rule.family else 1.0
+
+
+def _judge(book: StanceBook, previous: StanceBook, rule: StanceRule, vp: Viewpoint, about: str, day: int,
+           scale: float = 1.0) -> None:
     strength, causes = 0.0, []
     for index, term in enumerate(rule.terms):
         if term.condition.evaluate(vp) is True:
             strength += term.weight
             causes.append(f"{rule.id}#{index}")
             causes.extend(term.condition.causes(vp))
-    if strength <= 0 or strength < rule.min_strength - 1e-9:
-        return
+    if strength <= 0 or strength < rule.min_strength - 1e-9 or scale <= 0:
+        return                              # the stance forms on the unscaled sum; intensity then sets how strong it is
+    strength *= scale
     key = (vp.holder, rule.kind, vp.subject, about)
     before = previous.items.get(key)
     book.add(Stance(rule.kind, vp.holder, vp.subject, round(strength, 3), about, tuple(dict.fromkeys(causes)),
@@ -230,4 +242,4 @@ def refresh_stances_for_state(state: Any, model: Any, ctx: Any, now: int) -> Non
     model.standing.bind(ctx.rules.tracks)
     refresh_stances(model, stance_rules(cfg, variables), graph=getattr(state, "character_graph", None),
                     people=personalities(cfg), eligible=ctx.eligible, levels=acquaintance_levels(cfg),
-                    day=model.world.day_index(now))
+                    day=model.world.day_index(now), intensity=ctx.rules.intensity)

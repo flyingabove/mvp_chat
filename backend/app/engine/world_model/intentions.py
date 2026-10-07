@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Mapping, Optional, Protocol
 
 from backend.app.engine.world_model.agreements import Agreement, propose
-from backend.app.engine.world_model.model import WorldModel
+from backend.app.engine.world_model.courtship import Courtship
+from backend.app.engine.world_model.model import PLAYER, WorldModel
 
 
 class Relationships(Protocol):
@@ -18,18 +19,19 @@ def propose_rival_invitations(model: WorldModel, context: Optional[Mapping], rel
     The partner's decision is deliberately left pending. The invitation can
     only occur in an awake, shared scene the player can actually witness.
     """
-    if not context or not context.get("enabled") or context.get("player_gender") not in {"M", "F"}:
+    if not context or not context.get("enabled"):
         return None
-    genders = context.get("genders") or {}
-    player_gender = context["player_gender"]
+    courtship = Courtship.from_context(context)
+    if courtship.intensity.rivalry <= 0:
+        return None
     present = set(model.present_with_player())
     today = model.world.day_index(minute)
     candidates: list[tuple[float, str, str]] = []
     for rival in sorted(present):
-        if genders.get(rival) != player_gender or model.initiative_last_day.get(rival) == today:
+        if rival == PLAYER or model.initiative_last_day.get(rival) == today:
             continue
         for partner in sorted(present - {rival}):
-            if genders.get(partner) not in {"M", "F"} or genders[partner] == player_gender:
+            if not courtship.competes(rival, PLAYER, partner):
                 continue
             player_affection = relationships.feelings("player", partner).get("affection", 0.0)
             rival_affection = relationships.feelings(rival, partner).get("affection", 0.0)

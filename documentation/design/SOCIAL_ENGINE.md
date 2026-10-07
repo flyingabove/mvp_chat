@@ -440,6 +440,25 @@ Generic pack now: crush, rival, ally, distrusts, suspects (resents, protective_o
 migrations). Slice 1 changes **no behaviour**: nothing reads stances yet; the next slices move rival seeding, `compete_for`,
 fallout and the `intentions.py`/`offscreen.py` rival blocks onto them.
 
+### Courtship and intensity: who can court or compete, and how hard a story leans on it (P-08 slice 2, as built 2026-10-06)
+
+The engine holds no literal gender test for romance. `world_model/courtship.py` `Courtship(policy, genders, intensity)` answers
+the two questions every mechanic asks, from the story's appraisal policy (`social_tracks.appraisal.eligible`: `any` or
+`opposite_gender`) and each person's `gender` attribute: `eligible(a, b)` (can `a` be drawn to `b`) and `competes(a, b, partner)`
+(both can court `partner`, so each is the other's rival). `rivals.seed_rival_aims`, `intentions.propose_rival_invitations`,
+`offscreen.outcome_weights`, `act_fallout.apply_fallout`, `romance._eligible_present` and `turn.rivalry_context` all read it
+(`rivalry_context` now carries a `courtship`; hand-built contexts holding only genders fall back to `Courtship.opposite`). A story
+with no appraisal policy has no courtship; a story whose policy is `any` (or unknown genders) lets everyone compete.
+
+`social_tracks.intensity` tunes it: `"high"` sets both knobs, or `{"romance": "low", "rivalry": 0.8}` sets each (a preset `off` 0,
+`low` 0.35, `medium` 0.65, `high` 1.0, or a number 0 to 1). `romance` scales the cost of a refused confession (witness and refuser
+standing loss); `rivalry` scales rival aims, a rival taking an opening after a refusal, the off-screen contest boost (plan x2 and
+affection x1.5 at 1.0) and rival invitations (off at 0). A stance rule may carry `"family": "romance"|"rivalry"`: it forms on the
+unscaled sum and its stored strength is multiplied by that knob (0 removes it); the pack tags `crush` romance and `rival` rivalry.
+A story that does not say reads as `high` (the behaviour before the knob), and dating games (Terrace sets `"intensity": "high"`)
+keep it there; a workplace story with no couples policy has none of these mechanics, and one with rivalry but no romance sets
+`{"romance": "off"}`. Tests: `test_courtship.py`, `test_stances.py` (family scaling), the golden record unchanged.
+
 ### Motivated testimony: people with a stake speak in their own interest (BL-83 part 1, as built 2026-10-01)
 
 Generic, any story with agendas. `world_model/stakes.py`: when the player's message names someone, each present person who
