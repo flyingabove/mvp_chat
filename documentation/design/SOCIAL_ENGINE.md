@@ -436,9 +436,8 @@ New closed condition kinds (all with parse validation and `explain()`): `trait`,
 `witnessed`, `acquaintance_at_least`, `in_couple`, `eligible`; `event_count.within_days`; `feeling`, `standing_at_least` and
 `tier_reached` gain `toward` (holder | subject | third). Privacy by construction: no condition reads another person's feelings.
 
-Generic pack now: crush, rival, ally, distrusts, suspects (resents, protective_of, owes, ex, admires follow with the
-migrations). Slice 1 changes **no behaviour**: nothing reads stances yet; the next slices move rival seeding, `compete_for`,
-fallout and the `intentions.py`/`offscreen.py` rival blocks onto them.
+Generic pack now: crush, rival, ally, distrusts, suspects, resents, protective_of, owes, ex, admires. Agendas (`pursue`,
+`compete_for`) read the `crush` stances; rival seeding, fallout and the `intentions.py`/`offscreen.py` rival blocks read `Courtship`.
 
 ### Courtship and intensity: who can court or compete, and how hard a story leans on it (P-08 slice 2, as built 2026-10-06)
 
@@ -453,7 +452,7 @@ with no appraisal policy has no courtship; a story whose policy is `any` (or unk
 `social_tracks.intensity` tunes it: `"high"` sets both knobs, or `{"romance": "low", "rivalry": 0.8}` sets each (a preset `off` 0,
 `low` 0.35, `medium` 0.65, `high` 1.0, or a number 0 to 1). `romance` scales the cost of a refused confession (witness and refuser
 standing loss); `rivalry` scales rival aims, a rival taking an opening after a refusal, the off-screen contest boost (plan x2 and
-affection x1.5 at 1.0) and rival invitations (off at 0). A stance rule may carry `"family": "romance"|"rivalry"`: it forms on the
+affection x1.5 at 1.0) and rival invitations (off at 0). The numbers behind these are story data under `social_tracks.tuning` (`DramaTuning`: `witness_loss` 2.0, `refuser_loss` 2.5, `rival_aim` 0.5, `contest_plan` 1.0, `contest_affection` 0.5 by default), carried on `Courtship.tuning`. A stance rule may carry `"family": "romance"|"rivalry"`: it forms on the
 unscaled sum and its stored strength is multiplied by that knob (0 removes it); the pack tags `crush` romance and `rival` rivalry.
 A story that does not say reads as `high` (the behaviour before the knob), and dating games (Terrace sets `"intensity": "high"`)
 keep it there; a workplace story with no couples policy has none of these mechanics, and one with rivalry but no romance sets

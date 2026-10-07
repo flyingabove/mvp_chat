@@ -97,12 +97,27 @@ class Intensity:
 
 
 @dataclass(frozen=True)
+class DramaTuning:
+    """Strengths of the social consequences a story can tune (`social_tracks.tuning`); the defaults are the engine's own.
+
+    `witness_loss`/`refuser_loss`: standing points off the asker after a refused confession; `rival_aim`: priority of the aim
+    a rival takes on after seeing it; `contest_plan`/`contest_affection`: how much a live contest over a partner raises an
+    off-screen plan or an affectionate meeting (before the `rivalry` intensity scales them)."""
+    witness_loss: float = 2.0
+    refuser_loss: float = 2.5
+    rival_aim: float = 0.5
+    contest_plan: float = 1.0
+    contest_affection: float = 0.5
+
+
+@dataclass(frozen=True)
 class SocialRules:
     tracks: dict[str, TrackSpec]
     requirements: dict[str, tuple[Requirement, ...]]   # character id or "default" -> requirements
     appraisal: Optional[AppraisalPolicy] = None
     couples: Optional[CouplePolicy] = None
     intensity: Intensity = Intensity()
+    tuning: DramaTuning = DramaTuning()
 
     def requirements_for(self, owner: str, track: str) -> tuple[Requirement, ...]:
         own = self.requirements.get(owner)
@@ -168,7 +183,24 @@ def social_rules(story_cfg: dict[str, Any]) -> Optional[SocialRules]:
             raise ValueError("requirement ids must be unique per character")
     appraisal = _appraisal(raw.get("appraisal"), tracks)
     return SocialRules(tracks, requirements, appraisal, _couples(raw.get("couples"), tracks, appraisal),
-                       _intensity(raw.get("intensity")))
+                       _intensity(raw.get("intensity")), _tuning(raw.get("tuning")))
+
+
+def _tuning(raw: Any) -> DramaTuning:
+    if raw is None:
+        return DramaTuning()
+    fields = set(DramaTuning.__dataclass_fields__)
+    if not isinstance(raw, dict) or set(raw) - fields:
+        raise ValueError(f"tuning must be an object with only {sorted(fields)}")
+    values = {}
+    for key, value in raw.items():
+        try:
+            values[key] = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"tuning {key} must be a number") from None
+        if values[key] < 0:
+            raise ValueError(f"tuning {key} must not be negative")
+    return DramaTuning(**values)
 
 
 def _intensity(raw: Any) -> Intensity:

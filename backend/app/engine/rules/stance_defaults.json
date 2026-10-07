@@ -25,6 +25,30 @@
     {"id": "suspects", "kind": "suspects", "scope": "pair", "min_strength": 0.5,
      "when": [
        {"weight": 0.5, "if": {"kind": "feeling", "dimension": "suspicion", "op": ">=", "value": 0.5}}
+     ]},
+    {"id": "resents", "kind": "resents", "scope": "pair", "min_strength": 0.8,
+     "when": [
+       {"weight": 0.5, "if": {"kind": "feeling", "dimension": "affection", "op": "<=", "value": -0.3}},
+       {"weight": 0.3, "if": {"kind": "feeling", "dimension": "trust", "op": "<=", "value": -0.2}}
+     ]},
+    {"id": "protective_of", "kind": "protective_of", "scope": "pair", "min_strength": 0.8,
+     "when": [
+       {"weight": 0.5, "if": {"kind": "feeling", "dimension": "affection", "op": ">=", "value": 0.6}},
+       {"weight": 0.3, "if": {"kind": "feeling", "dimension": "trust", "op": ">=", "value": 0.3}}
+     ]},
+    {"id": "owes", "kind": "owes", "scope": "pair", "min_strength": 1.0,
+     "when": [
+       {"weight": 0.6, "if": {"kind": "agreement_count", "activity": "", "status": "completed", "min": 1}},
+       {"weight": 0.4, "if": {"kind": "feeling", "dimension": "trust", "op": ">=", "value": 0.3}}
+     ]},
+    {"id": "ex", "kind": "ex", "scope": "pair", "min_strength": 1.0,
+     "when": [
+       {"weight": 1.0, "if": {"kind": "event_count", "event_kind": "romance_ending", "min": 1}}
+     ]},
+    {"id": "admires", "kind": "admires", "scope": "pair", "min_strength": 0.8,
+     "when": [
+       {"weight": 0.5, "if": {"kind": "feeling", "dimension": "trust", "op": ">=", "value": 0.6}},
+       {"weight": 0.3, "if": {"kind": "feeling", "dimension": "affection", "op": ">=", "value": 0.2}}
      ]}
   ]
 }

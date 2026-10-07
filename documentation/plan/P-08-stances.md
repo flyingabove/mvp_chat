@@ -52,14 +52,10 @@ overrides, `refresh_stances`, recomputed each turn in `begin_turn` after goal sh
 `feeling`/`standing_at_least`/`tier_reached`; 30 tests in `test_stances.py`; `SOCIAL_ENGINE.md` section "Stances". Nothing
 reads stances yet.
 
-**Slice 2 - partly DONE (this commit, golden unchanged).** Every `genders.get` / `player_gender` romance site now goes through
-`world_model/courtship.py` and `social_tracks.intensity` (see `SOCIAL_ENGINE.md` "Courtship and intensity"): `rivals.py`,
-`intentions.py`, `offscreen.py`, `act_fallout.py`, `romance.py`, `bootstrap.py`, `turn.rivalry_context`; stances carry an intensity
-`family`; `agenda.refresh_agendas` now derives `pursue`/`compete_for` from each holder's `crush` stances (player-as-admirer
-and the P-07 `scale` kept, intensity scales both). Still open in slice 2: add the stance kinds resents, protective_of, owes, ex, admires (data in the pack, a test each);
-make the `act_fallout` constants (`WITNESS_LOSS`, `REFUSER_LOSS`, `RIVAL_AIM`) and the offscreen boosts rule data
-instead of module constants. Remaining non-romance gender uses are data enums for the opening (`opening_scene.GENDER_RULES`) and
-honorifics (`prompt_builder`), not romance logic.
+**Slice 2 - DONE (golden unchanged).** Romance gender tests, intensity, agendas read from `crush` stances, the new stance kinds
+(resents, protective_of, owes, ex, admires, as pack data) and the fallout/contest numbers (`social_tracks.tuning`) are all built; see
+`SOCIAL_ENGINE.md` "Courtship and intensity". Remaining non-romance gender uses are data enums for the opening
+(`opening_scene.GENDER_RULES`) and honorifics (`prompt_builder`), not romance logic.
 
 **Slice 3 - the intended behaviour changes, each with its own test and a golden diff that is explained.**
 - Late arrivals get stances like everyone (BL-34 part 2 already ships through `sync_membership`; make it fall out of the rules).

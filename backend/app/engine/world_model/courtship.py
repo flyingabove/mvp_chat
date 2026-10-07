@@ -14,19 +14,22 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Optional
 
-from backend.app.engine.rules.tracks import AppraisalPolicy, Intensity
+from backend.app.engine.rules.tracks import AppraisalPolicy, DramaTuning, Intensity
 from backend.app.engine.world_model.model import PLAYER
 
 
 class Courtship:
-    def __init__(self, policy: Optional[AppraisalPolicy], genders: Mapping[str, str], intensity: Intensity = Intensity()):
+    def __init__(self, policy: Optional[AppraisalPolicy], genders: Mapping[str, str], intensity: Intensity = Intensity(),
+                 tuning: DramaTuning = DramaTuning()):
         self.policy = policy
         self.genders = {str(k): str(v or "").upper() for k, v in genders.items()}
         self.intensity = intensity
+        self.tuning = tuning
 
     @classmethod
     def of(cls, rules: Any, genders: Mapping[str, str]) -> "Courtship":
-        return cls(getattr(rules, "appraisal", None), genders, getattr(rules, "intensity", None) or Intensity())
+        return cls(getattr(rules, "appraisal", None), genders, getattr(rules, "intensity", None) or Intensity(),
+                   getattr(rules, "tuning", None) or DramaTuning())
 
     @classmethod
     def opposite(cls, genders: Mapping[str, str]) -> "Courtship":

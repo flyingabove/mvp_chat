@@ -146,3 +146,37 @@ def test_a_refused_confession_costs_the_asker_in_proportion_to_romance_intensity
     assert any(i.kind == "pursue" and i.target == "minori" for i in intentions(model, "makoto", 0))
     quiet, _, _ = _fallout({"romance": 1.0, "rivalry": "off"})
     assert not any(i.kind == "pursue" for i in intentions(quiet, "makoto", 0)), "no rivalry, no rival taking an opening"
+
+
+# ---------------------------------------------------------------- tuning numbers are story data
+def test_tuning_defaults_to_the_engine_numbers_and_refuses_bad_data():
+    from backend.app.engine.rules.tracks import DramaTuning, _tuning
+    assert _tuning(None) == DramaTuning(2.0, 2.5, 0.5, 1.0, 0.5)
+    assert _tuning({"witness_loss": 4}).witness_loss == 4.0 and _tuning({"witness_loss": 4}).refuser_loss == 2.5
+    for bad in ({"witnes_loss": 1}, {"rival_aim": -1}, {"rival_aim": "lots"}, [1]):
+        with pytest.raises(ValueError):
+            _tuning(bad)
+
+
+def test_tuning_scales_a_refused_confession_and_the_offscreen_contest_boost():
+    from backend.app.engine.rules.tracks import DramaTuning
+    base = _fallout("high")
+    import copy
+    from tests.backend.app.engine.world_model import test_act_fallout as fx
+    model = fx._scene()
+    state = fx._state(model)
+    cfg = copy.deepcopy(state.story_cfg)
+    cfg["social_tracks"]["tuning"] = {"witness_loss": 4.0, "refuser_loss": 5.0}
+    state.story_cfg = cfg
+    fx._bind(model, state)
+    from backend.app.engine.world_model.standing import Standing
+    for owner in ("arisa", "minori"):
+        model.standing.standings[(owner, "player", "romance")] = Standing(value=30.0)
+    fx._confess(model, state, "reject")
+    assert (30 - fx._standing(model, "minori")) == pytest.approx(2 * (30 - base[2]), rel=0.05)
+    mdl, enc = _enc()
+    rel = FakeRelationships({("player", "partner"): {"affection": 0.4}, ("rival", "partner"): {"affection": 0.3}})
+    context = {"enabled": True, "courtship": Courtship(
+        _policy("opposite_gender"), {"rival": "M", "partner": "F", "player": "M"}, Intensity(), DramaTuning(contest_plan=3.0))}
+    plain = outcome_weights(mdl, enc, rel)
+    assert outcome_weights(mdl, enc, rel, rivalry=context)["plan"] == pytest.approx(plain["plan"] * 4.0)

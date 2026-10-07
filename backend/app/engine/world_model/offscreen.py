@@ -102,8 +102,8 @@ def outcome_weights(model: "WorldModel", enc: Encounter, relationships: Relation
             player_interest = relationships.feelings("player", partner_id).get("affection", 0)
             rival_interest = relationships.feelings(rival_id, partner_id).get("affection", 0)
             if player_interest >= 0.25 and rival_interest >= 0.1:
-                weights["plan"] *= 1 + 1.0 * courtship.intensity.rivalry
-                weights["affection"] *= 1 + 0.5 * courtship.intensity.rivalry
+                weights["plan"] *= 1 + courtship.tuning.contest_plan * courtship.intensity.rivalry
+                weights["affection"] *= 1 + courtship.tuning.contest_affection * courtship.intensity.rivalry
                 break
     if social is not None:
         # Both people's own agendas: someone pursuing the other makes closeness and plans likelier.

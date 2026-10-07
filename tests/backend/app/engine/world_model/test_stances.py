@@ -269,3 +269,30 @@ def test_a_rule_family_must_be_known():
     with pytest.raises(ValueError, match="family"):
         parse_rules([{"id": "x", "kind": "x", "min_strength": 0.1, "family": "gossip",
                       "when": [{"weight": 1, "if": {"kind": "eligible"}}]}], VARS)
+
+
+@pytest.mark.parametrize("kind, feeling, absent", [
+    ("resents", {"affection": -0.5, "trust": -0.4}, {"affection": -0.5}),
+    ("protective_of", {"affection": 0.7, "trust": 0.5}, {"affection": 0.7}),
+    ("admires", {"trust": 0.8, "affection": 0.4}, {"trust": 0.8}),
+])
+def test_feeling_based_stance_kinds_need_every_part_of_their_rule(kind, feeling, absent):
+    model = make_model({"ann": "k", "ben": "k"})
+    assert _refresh(model, _graph(("ann", "ben", feeling))).has("ann", kind, "ben")
+    assert not _refresh(model, _graph(("ann", "ben", absent))).has("ann", kind, "ben")
+
+
+def test_ex_follows_a_committed_romance_ending_and_is_private_to_those_in_it():
+    model = make_model({"ann": "k", "ben": "k", "cat": "k"})
+    model.world.add_event(0, "k", ("ann", "ben"), "@ann and @ben broke up", kind="romance_ending")
+    book = _refresh(model)
+    assert book.has("ann", "ex", "ben") and book.has("ben", "ex", "ann") and not book.has("cat", "ex", "ben")
+
+
+def test_owes_needs_a_completed_agreement_between_the_two_and_some_trust():
+    from backend.app.engine.world_model.agreements import Agreement
+    model = make_model({"ann": "k", "ben": "k"})
+    model.agreements.items.append(Agreement(id="a1", proposer="ben", counterpart="ann", activity="help", due=None, created=0, status="completed"))
+    trusting = _graph(("ann", "ben", {"trust": 0.5}))
+    assert _refresh(model, trusting).has("ann", "owes", "ben")
+    assert not _refresh(model, _graph()).has("ann", "owes", "ben"), "a favour from a stranger is not a debt"

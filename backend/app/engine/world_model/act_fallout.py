@@ -21,9 +21,6 @@ from backend.app.engine.world_model.intent import Intention
 from backend.app.engine.world_model.model import PLAYER, WorldModel
 from backend.app.engine.world_model.standing import Impression
 
-WITNESS_LOSS = 2.0       # standing points a neutral witness takes off the asker
-REFUSER_LOSS = 2.5       # the person who gave a clear no cools too
-RIVAL_AIM = 0.5          # priority of the aim a rival takes on after seeing a refusal
 TAG = "failed_confession"
 
 
@@ -48,20 +45,20 @@ def apply_fallout(state: Any, track: str, kind: str, target: str, answer: str, w
     model.standing.bind(rules.tracks)
     policy, minute = rules.appraisal, model.world.minute
     courtship = Courtship.of(rules, genders)
-    romance, rivalry = courtship.intensity.romance, courtship.intensity.rivalry
+    romance, rivalry, tuning = courtship.intensity.romance, courtship.intensity.rivalry, courtship.tuning
     day = model.world.day_index(minute)
     stamp = f"{cause_event_id}:{kind}"
     for watcher in watchers:
         if courtship.eligible(watcher, PLAYER):
             skepticism = people[watcher].temperament.skepticism if watcher in people else 0.5
             model.standing.apply(Impression(f"fallout:{stamp}:{watcher}", watcher, PLAYER, track, TAG,
-                                            -WITNESS_LOSS * romance * (0.6 + 0.8 * skepticism), cause_event_id, minute, day,
+                                            -tuning.witness_loss * romance * (0.6 + 0.8 * skepticism), cause_event_id, minute, day,
                                             "witnessed"))
         if rivalry > 0 and watcher not in {k for pair in model.npc_couples for k in pair.split("|")} \
                 and courtship.competes(watcher, PLAYER, target):
             scale = strategy_mods(people[watcher].strategy).aim_scale if watcher in people else 1.0
-            add_intention(model, watcher, Intention("pursue", target, min(1.0, RIVAL_AIM * rivalry * scale),
+            add_intention(model, watcher, Intention("pursue", target, min(1.0, tuning.rival_aim * rivalry * scale),
                                                     "saw an opening", day + INTENTION_DAYS))
     if answer == "reject" and courtship.eligible(target, PLAYER):
-        model.standing.apply(Impression(f"fallout:{stamp}:{target}", target, PLAYER, track, TAG, -REFUSER_LOSS * romance,
+        model.standing.apply(Impression(f"fallout:{stamp}:{target}", target, PLAYER, track, TAG, -tuning.refuser_loss * romance,
                                         cause_event_id, minute, day, "participant"))
