@@ -29,6 +29,18 @@ def _ctx():
     return SocialContext(social_rules({"social_tracks": TRACKS}), GENDERS)
 
 
+def refresh_all(model, ctx=None, day=0, **kwargs):
+    """Refresh the stances the way a turn does, then the agendas derived from them."""
+    from backend.app.engine.rules.personality import personalities
+    from backend.app.engine.world_model.stances import refresh_stances, stance_rules
+    ctx = ctx or _ctx()
+    rules, policy = ctx.rules, ctx.rules.couples
+    variables = {"track": rules.appraisal.track, "interested": policy.interested_tier, "dating": policy.dating_tier}
+    refresh_stances(model, stance_rules({}, variables), graph=None, people=personalities({}), eligible=ctx.eligible,
+                    levels=(), day=day, intensity=rules.intensity)
+    refresh_agendas(model, rules.appraisal.track, day, intensity=rules.intensity, **kwargs)
+
+
 def _set(model, a, b, value):
     model.standing.bind(_ctx().rules.tracks)
     model.standing.standings[(a, b, "romance")] = Standing(value=value)
@@ -39,11 +51,11 @@ def test_agendas_come_from_each_characters_own_standing():
     ctx = _ctx()
     _set(model, "ann", "ben", 30)
     _set(model, "ben", "ann", 5)
-    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    refresh_all(model, ctx)
     assert [(i.kind, i.target) for i in intentions(model, "ann", 0)] == [("pursue", "ben")]
     assert intentions(model, "ben", 0) == [], "ben is not drawn to ann: his own standing decides"
     _set(model, "cat", "ben", 40)
-    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    refresh_all(model, ctx)
     assert {i.kind for i in intentions(model, "cat", 0)} == {"pursue", "compete_for"}
     assert intentions(model, "ann", 9) == [], "intentions expire"
 
@@ -68,10 +80,10 @@ def test_couples_form_only_when_both_qualify_and_pursue_each_other():
     ctx = _ctx()
     _set(model, "ann", "ben", 65)
     _set(model, "ben", "ann", 20)
-    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    refresh_all(model, ctx)
     assert couples_ready(model, "romance", "dating", ctx.eligible, 0) == [], "one-sided is not a couple"
     _set(model, "ben", "ann", 62)
-    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    refresh_all(model, ctx)
     assert couples_ready(model, "romance", "dating", ctx.eligible, 0) == [("ann", "ben")]
 
 
@@ -80,7 +92,7 @@ def test_nobody_is_in_two_couples_at_once():
     ctx = _ctx()
     for a, b in (("ann", "ben"), ("ben", "ann"), ("cat", "ben"), ("ben", "cat")):
         _set(model, a, b, 65)
-    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    refresh_all(model, ctx)
     assert couples_ready(model, "romance", "dating", ctx.eligible, 0) == [("ann", "ben")]
     model.npc_couples["ann|ben"] = 0
     assert couples_ready(model, "romance", "dating", ctx.eligible, 0) == [], "ben is already taken"
@@ -91,10 +103,10 @@ def test_someone_in_a_couple_pursues_only_their_partner():
     ctx = _ctx()
     _set(model, "ben", "ann", 50)
     _set(model, "ben", "cat", 50)
-    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    refresh_all(model, ctx)
     assert {i.target for i in intentions(model, "ben", 0)} == {"ann", "cat"}
     model.npc_couples["ann|ben"] = 0
-    refresh_agendas(model, "romance", "interested", ctx.eligible, 0)
+    refresh_all(model, ctx)
     assert {i.target for i in intentions(model, "ben", 0)} == {"ann"}
 
 

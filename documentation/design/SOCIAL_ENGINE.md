@@ -337,9 +337,9 @@ Owner design 2026-09-29. Code: `world_model/choices.py`, `world_model/leave_mean
   listeners heard, back on top whenever the player named them, and the storyteller repeated it (25 of 25 turns in a
   scripted replay; 0 of 25 now). What the player told them, facts, promises and witnessed events still surface; the recent
   chat carries what was said, and `own_spoken_lines` (the replay guard) still reads dialogue memories.
-- **Rivals compete with the player (BL-34).** `agenda.refresh_agendas` counts the player as an admirer of anyone whose own
-  standing toward the player reached the interested tier, is eligible, is not closed to the player and is not in an NPC
-  couple; every other resident drawn to that person gets `compete_for`. "Drawn to" now also includes a live `pursue` aim.
+- **Rivals compete with the player (BL-34).** `agenda.refresh_agendas` reads each holder's `crush` stances (P-08; the stance rule holds the
+  interested tier, eligibility and the closed-to-player test) and counts the player as an admirer of anyone with a crush stance toward the
+  player who is not in an NPC couple; every other resident drawn to that person gets `compete_for`. "Drawn to" now also includes a live `pursue` aim.
   `agenda.next_beat` offers a `compete_for` beat when the target is in the scene, at most once per character per in-game
   day (`BEAT_TEXT["compete_for"]`: one small, visible move, no confession, no private thoughts; without the daily limit a
   scripted afternoon produced 24 beats in 25 turns), and the existing in-scene invitation (`intentions.propose_agenda_invitations`)

@@ -5,7 +5,6 @@ import pytest
 
 from backend.app.engine.character_graph import CharacterGraph
 from backend.app.engine.rules.personality import Personality, personalities
-from backend.app.engine.world_model.agenda import refresh_agendas
 from backend.app.engine.world_model.goals import (
     GOAL_KINDS, Goal, GoalBook, active_goal, agenda_scale, card_note, parse_goals)
 from backend.app.engine.world_model.model import WorldModel
@@ -168,13 +167,15 @@ def test_goals_scale_romantic_priority_and_a_sparse_character_is_exactly_neutral
 def test_refresh_agendas_applies_the_goal_scale_and_defaults_to_none():
     from backend.app.engine.rules.tracks import social_rules
     from backend.app.engine.world_model.standing import Standing
-    from tests.backend.app.engine.world_model.test_agenda import TRACKS
+    from backend.app.engine.world_model.agenda import SocialContext
+    from tests.backend.app.engine.world_model.test_agenda import TRACKS, refresh_all
 
     def run(**kwargs):
         model = make_model({"ann": "k", "ben": "k"})
         model.standing.bind(social_rules({"social_tracks": TRACKS}).tracks)
         model.standing.standings[("ann", "ben", "romance")] = Standing(value=40)
-        refresh_agendas(model, "romance", "interested", lambda a, b: True, 0, **kwargs)
+        any_gender = {**TRACKS, "appraisal": {**TRACKS["appraisal"], "eligible": "any"}}
+        refresh_all(model, SocialContext(social_rules({"social_tracks": any_gender}), {}), 0, **kwargs)
         return [i.priority for i in model.agendas["ann"]]
     assert run() == [0.4] and run(scale=lambda cid: 1.0) == [0.4]
     assert run(scale=lambda cid: 0.5) == [0.2] and run(scale=lambda cid: 1.5) == [pytest.approx(0.6)]

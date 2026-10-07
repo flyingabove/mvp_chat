@@ -560,8 +560,9 @@ def advance_npc_life(state: Any, model: WorldModel, ctx: SocialContext, now: int
     model.standing.bind(ctx.rules.tracks)
     day = model.world.day_index(now)
     people = personalities(getattr(state, "story_cfg", None) or {})
-    refresh_agendas(model, track, policy.interested_tier, ctx.eligible, day,
-                    scale=lambda cid: agenda_scale(model.goals, cid, people.get(cid)))
+    refresh_stances_for_state(state, model, ctx, now)          # agendas read the crush stances: keep them current
+    refresh_agendas(model, track, day, scale=lambda cid: agenda_scale(model.goals, cid, people.get(cid)),
+                    intensity=ctx.rules.intensity)
     place = model.player_place()
     for a, b in couples_ready(model, track, policy.dating_tier, ctx.eligible, day):
         key = f"{a}|{b}"

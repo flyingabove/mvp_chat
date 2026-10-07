@@ -10,7 +10,8 @@ import pytest
 
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.story_loader import build_story_registry
-from backend.app.engine.world_model.agenda import SocialContext, intentions, next_beat, refresh_agendas
+from backend.app.engine.world_model.agenda import SocialContext, intentions, next_beat
+from tests.backend.app.engine.world_model.test_agenda import refresh_all
 from backend.app.engine.world_model.rivals import seed_rival_aims
 from backend.app.engine.world_model.standing import Standing
 from backend.app.engine.world_model.turn import BEAT_TEXT, begin_turn
@@ -35,7 +36,7 @@ def _set(model, owner, target, value, closed_by=""):
 
 def _refresh(model, genders=None, day=0):
     ctx = SocialContext(RULES, dict(genders or GENDERS))
-    refresh_agendas(model, TRACK, INTERESTED, ctx.eligible, day)
+    refresh_all(model, ctx, day)
 
 
 def _kinds(model, cid, day=0):

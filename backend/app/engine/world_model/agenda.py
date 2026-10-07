@@ -42,12 +42,15 @@ def intentions(model: WorldModel, owner: str, day: int) -> list[Intention]:
     return [i for i in model.agendas.get(owner, []) if i.expires_day >= day]
 
 
-def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligible: Any, day: int,
-                    scale: Optional[Callable[[str], float]] = None) -> None:
-    """Derive pursue/compete_for from each holder's own standing. `eligible(a, b)` gates pairs.
+def refresh_agendas(model: WorldModel, track: str, day: int, scale: Optional[Callable[[str], float]] = None,
+                    intensity: Any = None) -> None:
+    """Derive pursue/compete_for from each holder's own `crush` stances (P-08), which already encode the holder's
+    own standing, the story's eligibility and the track tier. Refresh the stances first.
 
-    `scale(owner)` multiplies the priority of that owner's aims (their goals, P-07); None means 1.0 for everyone."""
+    `scale(owner)` multiplies the priority of that owner's aims (their goals, P-07); None means 1.0 for everyone.
+    `intensity` (the story's `Intensity`) scales pursuit by `romance` and competition by `rivalry`; None means full."""
     scale = scale or (lambda owner: 1.0)
+    romance, rivalry = getattr(intensity, "romance", 1.0), getattr(intensity, "rivalry", 1.0)
     partner = {}
     for key in model.npc_couples:
         if key not in model.departed_couples:
@@ -58,14 +61,15 @@ def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligibl
                            and (cid not in partner or i.kind not in ("pursue", "compete_for") or i.target == partner[cid])]
                      for cid, items in model.agendas.items()}
     drawn: dict[str, list[tuple[float, str]]] = {}
-    for (owner, target, t), standing in sorted(model.standing.standings.items()):
-        if t != track or owner == PLAYER or owner not in model.characters or not eligible(owner, target):
-            continue
-        if owner in partner and target != partner[owner]:
-            continue
-        if model.standing.tier_reached(owner, target, track, interested_tier) is True:
-            drawn.setdefault(target, []).append((standing.value, owner))
-            add_intention(model, owner, Intention("pursue", target, standing.value / 100 * scale(owner),
+    for owner in sorted(model.characters):
+        for crush in model.stances.of(owner, "crush"):
+            target = crush.target
+            if owner in partner and target != partner[owner]:
+                continue
+            standing = model.standing.get(owner, target, track)
+            value = standing.value if standing is not None else 0.0
+            drawn.setdefault(target, []).append((value, owner))
+            add_intention(model, owner, Intention("pursue", target, value / 100 * scale(owner) * romance,
                                                   "drawn to them", day + INTENTION_DAYS))
     # Someone holding a live aim on a person (a rival's own aim, BL-34) is drawn to them as well.
     for owner, items in sorted(model.agendas.items()):
@@ -75,16 +79,16 @@ def refresh_agendas(model: WorldModel, track: str, interested_tier: str, eligibl
                 drawn.setdefault(aim.target, []).append((aim.priority * 100, owner))
     # The player counts as an admirer of anyone who has warmed to them and is free: a rival then competes.
     courted = set()
-    for (owner, target, t), standing in sorted(model.standing.standings.items()):
-        if (t == track and target == PLAYER and owner in model.characters and owner not in partner
-                and not standing.closed_by and eligible(owner, PLAYER)
-                and model.standing.tier_reached(owner, PLAYER, track, interested_tier) is True):
+    for owner in sorted(model.characters):
+        standing = model.standing.get(owner, PLAYER, track)
+        if (owner not in partner and standing is not None and not standing.closed_by
+                and model.stances.has(owner, "crush", PLAYER)):
             courted.add(owner)
     for target, admirers in drawn.items():
-        if len(admirers) + (1 if target in courted else 0) < 2:
+        if rivalry <= 0 or len(admirers) + (1 if target in courted else 0) < 2:
             continue
         for value, owner in admirers:
-            add_intention(model, owner, Intention("compete_for", target, value / 100 * scale(owner) + 0.1,
+            add_intention(model, owner, Intention("compete_for", target, (value / 100 * scale(owner) + 0.1) * rivalry,
                                                   "someone else wants them too", day + INTENTION_DAYS))
 
 
