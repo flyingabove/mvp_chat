@@ -15,7 +15,7 @@ Fix one row at a time; delete a row when fixed; delete the entry when empty. Row
 10. `SessionChunkStore`: unbounded, no speaker or visibility tag (player claims become facts), lossy persistence, DB copy never read back.
 11. Jev selection (`dynamic_context.py`): `_eligible` is a no-op (no `not_known_by`); on an exception up to 200 candidates reach the prompt unselected.
 12. Conversation log: only the last 6 messages are sent (`MEMORY_TURNS`); nothing summarizes older turns (design work).
-13. Graph edges: `edge.narrative` is never written during play. (The unread `disposition` and non-main characters' attitudes reaching the prompt moved to BL-85 stances.)
+13. Graph edges: `edge.narrative` is never written during play. (Non-main characters' attitudes now reach the prompt through stances; the edge `disposition` stays unread: remove it or use it.)
 14. `recent_behavior_log`: part of its output is never read (see 13).
 15. `Character.tells`: loaded from the story, never put into the prompt (render it or remove the field; Terrace uses `world_model/deception.py` instead).
 - **Touches:** `state.py`, `prompt_builder.py`, `character_graph.py`, `prompt_engine.py`, `knowledge/runtime/{retrieve,dynamic_context,session_chunk_store}.py`.

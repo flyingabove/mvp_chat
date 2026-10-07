@@ -474,6 +474,21 @@ keep it there; a workplace story with no couples policy has none of these mechan
 - Tests: `test_rivals.py` (stranger has no crush, no-levels story, one move a day, card contents and privacy),
   `test_stances.py`. The golden record is unchanged, because its fixtures already have residents who know the player.
 
+### Difficulty sweep (P-08 slice 4, measured 2026-10-06)
+
+`python -m scripts.sweep_terrace_difficulty --aims 0 0.3 0.6 --seeds 12` (no model calls: the seeded campaigns of
+`tests/backend/app/api/campaign_harness.py`, 12 houses x both player genders). Rival strength is `couples.rival_aim`.
+
+| rival_aim | wins in 40 days | win day (median / max) | target coupled with a rival first | passive cut day (median / max, cap 180) |
+|---|---|---|---|---|
+| 0 | 24 of 24 | 12.5 / 18 | 0 | 112 / 178 |
+| 0.3 (Terrace) | 24 of 24 | 12.5 / 18 | 0 | 117 / 156 |
+| 0.6 | 24 of 24 | 12.5 / 18 | 0 | 118.5 / 139 |
+
+Rival strength does not make the engaged game harder: the win day does not move, and no rival ever coupled with the target
+first. It does tighten the passive cut (worst case 178 days at 0, 139 at 0.6), so Terrace keeps 0.3 and the lever for
+difficulty is elsewhere (BL-98).
+
 ### Motivated testimony: people with a stake speak in their own interest (BL-83 part 1, as built 2026-10-01)
 
 Generic, any story with agendas. `world_model/stakes.py`: when the player's message names someone, each present person who

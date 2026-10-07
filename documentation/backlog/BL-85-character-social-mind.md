@@ -26,7 +26,7 @@ Life FDG '25 (symbolic state, LLM only voices it).
     - `stakes.py` writes motive notes;
     - `intentions.py` and `offscreen.py` carry their own rivalry logic with gender checks (19 `genders.get` sites).
 
-    The edge-scoped `disposition` is persisted and never read (BL-27 row 13).
+    The edge-scoped `disposition` is persisted and never read; non-main attitudes now reach the prompt through stances.
   - **Knowledge** is first-order only: memories, the epistemic ledger and persona claims. Nobody models "I think she
     knows", "she doesn't know I saw", or "I think he likes me". This is the source of dramatic irony, secrets and
     bluffing.
@@ -201,17 +201,6 @@ class Person:
 - No story ids, names or genders in engine code. Eligibility is data (`appraisal.eligible`).
 
 ### Phases (failing-first tests in each; ship-and-verify)
-- **P2 Stances (P-08).** Slice 1 is built (`Stance`, the derived book, the default pack and the new condition kinds); slices 2 to 5 remain, see `documentation/plan/P-08-stances.md`.
-  - Intentions are derived from stances. The rival seeding, fallout and gender blocks move into rules.
-  - Parity with the golden record (`tests/backend/app/engine/world_model/test_decision_golden.py`, `design/SOCIAL_ENGINE.md`). Each intended change (late-arrival aims, beat cadence) gets its own test.
-  - **Difficulty sweep (absorbs BL-75).** Once parity holds, sweep the rival stance weight (it was
-    `couples.rival_aim`, set to 0.3) over 12 seeded houses, both player genders, with no model calls. Record:
-    - days to the win, or no win by day 60;
-    - whether a rival coupled with the player's target first;
-    - whether the player was cut, and on which day the passive player was cut.
-
-    Owner goal: the game is hard for an engaged player, without slowing the passive cut, which ran days 95–173 in
-    the last measurement against a 180-day allowance.
 - **P3 Mind.**
   - Second-order `ThinksKnows` and `ThinksFeels`, kept by the perception path.
   - No-telepathy tests: remove a witness and the belief disappears; change a hidden feeling and nobody's mind
@@ -233,15 +222,10 @@ class Person:
 
 ### Backlog work absorbed here (2026-10-01; removed from the other files)
 - From BL-80: goals and goal shifts, `scheming` and `safe_pick`, and consumers for `planfulness` and `candor`.
-- From BL-76: NPC flirting and confession gated on acquaintance and stance.
 - From BL-82: NPC-initiated confession as a want; fallout sizes become stance rules, tuned through BL-87.
 - From BL-83: claim intent in the mind; `stage_talk` and `watch` as wants.
 - From BL-84: group energy from temperament interplay; third-party reads through gossip and second-order beliefs.
 - From BL-24: each mind keeps last-seen places and times.
-- From BL-75: the rival-strength difficulty sweep (P2).
-- From BL-27 row 13: the unread `disposition` is replaced by stances, so non-main characters' attitudes reach the
-  prompt.
-- From BL-37: the `next_beat` cadence note (P2).
 
 Still separate:
 - BL-81: carrying out multi-step plans.
@@ -267,7 +251,7 @@ Still separate:
 - **Related:** BL-86 is the headless season simulation and admin watch mode that proves this. BL-87 is the drama
   direction knobs and the Jev script rubric that tune and judge it.
 - **Plan:** P-08 to P-16 in `documentation/plan/` (P-16 deletes this item).
-- **Next:** P-08 slice 2. Do not start P4 before P2 shows zero golden diffs and P3 passes its no-telepathy tests.
+- **Next:** P-09 (P3 Mind). Do not start P4 before P3 passes its no-telepathy tests.
 - **Touches:**
   - Changed: `world_model/person.py`, `rules/personality.py`, `rules/conditions.py`, `world_model/epistemics.py`,
     `world_model/{agenda,intentions,offscreen,rivals,act_fallout,stakes,signals,turn}.py`, `engine/content_validation.py`,
