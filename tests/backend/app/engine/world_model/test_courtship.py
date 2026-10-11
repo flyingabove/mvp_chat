@@ -29,9 +29,10 @@ def _rules(eligible="opposite_gender", intensity=Intensity(), rival_aim=0.3):
 # ---------------------------------------------------------------- the intensity knob
 def test_intensity_defaults_to_the_old_full_strength_and_reads_presets_numbers_and_each_knob():
     assert _intensity(None) == Intensity(1.0, 1.0) and social_rules(TERRACE).intensity == Intensity(1.0, 1.0)
-    assert _intensity("low") == Intensity(INTENSITY_PRESETS["low"], INTENSITY_PRESETS["low"])
-    assert _intensity({"romance": "off", "rivalry": 0.8}) == Intensity(0.0, 0.8)
-    assert _intensity({"romance": "medium"}) == Intensity(INTENSITY_PRESETS["medium"], 1.0)
+    assert _intensity("low") == Intensity(*[INTENSITY_PRESETS["low"]] * 3)
+    assert _intensity({"romance": "off", "rivalry": 0.8}) == Intensity(0.0, 0.8, 1.0)
+    assert _intensity({"romance": "medium"}) == Intensity(INTENSITY_PRESETS["medium"], 1.0, 1.0)
+    assert _intensity({"friction": "off"}) == Intensity(1.0, 1.0, 0.0)
 
 
 @pytest.mark.parametrize("bad", ["fierce", 1.5, -0.1, {"romnce": "low"}])

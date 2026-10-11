@@ -489,6 +489,9 @@ Rival strength does not make the engaged game harder: the win day does not move,
 first. It does tighten the passive cut (worst case 178 days at 0, 139 at 0.6), so Terrace keeps 0.3 and the lever for
 difficulty is rival pressure (below).
 
+### Other stances drive intentions (BL-100, as built 2026-10-11)
+`agenda.STANCE_INTENTIONS` maps a stance kind to an intention, derived afresh by `refresh_agendas` (so it ends with the stance): `resents` gives `confront`, `protective_of` `defend`, `owes` `repay`, `ex` `avoid`, `distrusts` `withhold`. Priority is `min(1, strength) * 0.6 * the holder's goal scale * friction`, below a full pursuit. `friction` is a third `social_tracks.intensity` knob (default high, 0 switches them off). `next_beat` shows player-directed ones (and `defend` when the protected person is in the room) under the same one-move-a-day cap, and `turn.BEAT_TEXT` gives each its prompt nudge: a nudge the storyteller may follow, never a scripted line. `suspects`, `admires` and `ally` still only colour the card and the speaker score. Next: scene wants (P-11) will replace the beat picker.
+
 ### Who speaks reads stances (BL-101, as built 2026-10-11)
 `speakers.select_speakers` adds `stance_pull` to each candidate's score: the speaker's own stances toward everyone addressed or mentioned (`protective_of` 1.5, `resents` 1.0, `rival` 1.0 also via the stance's `about`, `crush` 0.8, `admires` 0.4, `ally` 0.3), summed and capped at `STANCE_CAP` 1.5 so an addressed person (+5) still answers. A pull of at least `INTERJECT_AT` (0.8) lets that person chime in as secondary even when the score gap to the primary exceeds `CLOSE_SCORE`. Someone who `distrusts` the player and was not addressed loses `DISTRUST_HUSH` (1.0): they stay quiet unless spoken to. Goal weight is still open (BL-101).
 

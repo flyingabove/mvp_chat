@@ -91,9 +91,11 @@ class Intensity:
     `romance` scales the romantic mechanics (jealousy, the cost of a refused confession); `rivalry` scales competition
     for a partner (rival aims, a rival seeing an opening, off-screen contests, rival invitations). `high` (1.0) is the
     pre-knob behaviour, so a story that does not say reads as `high`; a story with no couples or appraisal policy
-    has none of these mechanics to scale."""
+    has none of these mechanics to scale. `friction` scales the unsolicited moves that come from resentment, protectiveness,
+    debts, an ex or distrust (BL-100)."""
     romance: float = 1.0
     rivalry: float = 1.0
+    friction: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -210,9 +212,9 @@ def _intensity(raw: Any) -> Intensity:
     """`"intensity": "high"` sets both knobs; `{"romance": "low", "rivalry": 0.8}` sets each (a preset name or 0 to 1)."""
     if raw is None:
         return Intensity()
-    parts = {"romance": raw, "rivalry": raw} if not isinstance(raw, dict) else {
-        key: raw.get(key, "high") for key in ("romance", "rivalry")}
-    unknown = set(raw) - {"romance", "rivalry"} if isinstance(raw, dict) else set()
+    knobs = ("romance", "rivalry", "friction")
+    parts = {key: raw for key in knobs} if not isinstance(raw, dict) else {key: raw.get(key, "high") for key in knobs}
+    unknown = set(raw) - set(knobs) if isinstance(raw, dict) else set()
     if unknown:
         raise ValueError(f"unknown intensity knob(s) {sorted(unknown)}")
     values = {}
@@ -223,7 +225,7 @@ def _intensity(raw: Any) -> Intensity:
             values[key] = INTENSITY_PRESETS[value]
         else:
             values[key] = _fraction(value, f"intensity {key}")
-    return Intensity(values["romance"], values["rivalry"])
+    return Intensity(values["romance"], values["rivalry"], values["friction"])
 
 
 def _fraction(value: Any, name: str) -> float:

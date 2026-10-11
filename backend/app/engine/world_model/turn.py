@@ -623,6 +623,11 @@ BEAT_TEXT = {
     "compete_for": "{name} is drawn to {target} and can see the player is too. {name} may make ONE small, visible "
                    "move toward {target} (an invitation, an interruption, a pointed compliment) but does not confess "
                    "or say what they privately feel.",
+    "confront": "{name} resents the player and may let it show: a cold remark, a pointed question, or a snub.",
+    "defend": "{name} is protective of {target} and may step in for them if the player presses or teases them.",
+    "repay": "{name} feels they owe the player and may do them a small favour or offer help unasked.",
+    "avoid": "{name} has history with the player and keeps their distance: short answers, no lingering.",
+    "withhold": "{name} does not trust the player and holds back: they share little and answer guardedly.",
 }
 
 

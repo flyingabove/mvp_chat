@@ -14,7 +14,19 @@ from typing import Any, Callable, Optional
 from backend.app.engine.world_model.intent import Intention
 from backend.app.engine.world_model.model import PLAYER, WorldModel
 
-MAX_INTENTIONS = 4
+MAX_INTENTIONS = 6
+# Non-crush stances turn into an intention the holder may act on (BL-100): stance kind -> (intention kind, reason).
+# Each is derived afresh from the stance every refresh, so it ends when the stance does.
+STANCE_INTENTIONS = {
+    "resents": ("confront", "resents them"),
+    "protective_of": ("defend", "protective of them"),
+    "owes": ("repay", "feels they owe them"),
+    "ex": ("avoid", "keeping their distance from an ex"),
+    "distrusts": ("withhold", "does not trust them"),
+}
+STANCE_INTENT_KINDS = frozenset(intent for intent, _ in STANCE_INTENTIONS.values())
+PLAYER_BEATS = frozenset({"test_loyalty", "pursue", "confront", "repay", "avoid", "withhold"})
+STANCE_PRIORITY = 0.6    # a stance intention never outranks a full-strength pursuit (before the owner's goal scale)
 INTENTION_DAYS = 3
 AIM_DAYS = 9999          # a rival's own aim lasts until they couple or the target does (BL-34)
 OFFSCREEN_GAIN = {"affection": 1.0, "activity": 0.5, "chat": 0.3, "conflict": -1.0}
@@ -57,9 +69,17 @@ def refresh_agendas(model: WorldModel, track: str, day: int, scale: Optional[Cal
             a, b = key.split("|")
             partner[a], partner[b] = b, a
     # Someone in a couple pursues only their partner.
-    model.agendas = {cid: [i for i in items if i.expires_day >= day
+    model.agendas = {cid: [i for i in items if i.expires_day >= day and i.kind not in STANCE_INTENT_KINDS
                            and (cid not in partner or i.kind not in ("pursue", "compete_for") or i.target == partner[cid])]
                      for cid, items in model.agendas.items()}
+    friction = getattr(intensity, "friction", 1.0)
+    for owner in sorted(model.characters):
+        for kind, (intent, reason) in STANCE_INTENTIONS.items():
+            for stance in model.stances.of(owner, kind):
+                if friction > 0 and (stance.target == PLAYER or stance.target in model.characters):
+                    add_intention(model, owner, Intention(
+                        intent, stance.target, min(1.0, stance.strength) * STANCE_PRIORITY * scale(owner) * friction,
+                        reason, day + INTENTION_DAYS))
     drawn: dict[str, list[tuple[float, str]]] = {}
     for owner in sorted(model.characters):
         for crush in model.stances.of(owner, "crush"):
@@ -143,8 +163,8 @@ def next_beat(model: WorldModel, present: set[str], day: int) -> Optional[tuple[
         if model.initiative_last_day.get(f"beat:{cid}") == day:
             continue                                                # one unsolicited move per person per day
         for intention in intentions(model, cid, day):
-            visible = (intention.target == PLAYER and intention.kind in ("test_loyalty", "pursue")) or (
-                intention.kind == "compete_for" and intention.target in present - {cid})
+            visible = (intention.target == PLAYER and intention.kind in PLAYER_BEATS) or (
+                intention.kind in ("compete_for", "defend") and intention.target in present - {cid})
             if visible:
                 options.append((model.initiative_last_day.get(f"beat:{cid}", -1), -intention.priority, cid,
                                 intention))
