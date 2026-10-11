@@ -40,6 +40,7 @@ from arena.targets import HostedTargetAdapter
 Log = Callable[[str], None]
 STAGES = ("play", "judge", "calibrate", "report")
 OPENAI_V1 = "https://api.openai.com/v1"
+GEMINI_V1 = "https://generativelanguage.googleapis.com/v1beta/openai"   # free; spread over every free model by call_gemini
 # Judges that decide the release gate by default. "ollama" (a small local
 # model) is a free, advisory screen: it is reported but cannot pass a game.
 GATE_JUDGES = ("jev", "llm")

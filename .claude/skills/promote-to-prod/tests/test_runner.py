@@ -1,5 +1,5 @@
 """Tests for ArenaRunner, pair building, store and player isolation
-(JEV_GAME_ARENA_DESIGN.md §4, §5A, §6, §10)."""
+(design/JEV_GAME_ARENA.md §4, §5A, §6, §10)."""
 import dataclasses
 
 import pytest

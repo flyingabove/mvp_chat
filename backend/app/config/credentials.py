@@ -8,7 +8,7 @@ Priority order:
 All code and tests should use this module instead of reading env vars directly
 or implementing their own .env.test parsers.
 
-Trigger keys that lazily load .env.test on first read: OPENAI_API_KEY,
+Trigger keys that lazily load .env.test on first read: OPENAI_API_KEY, GEMINI_API_KEY,
 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_SECRET, LANGSMITH_API_KEY,
 LANGSMITH_PROJECT, TYPESAFE_API_KEY, TYPESAFE_MODEL.
 """
@@ -81,6 +81,17 @@ def require_openai_api_key() -> str:
             "or create a .env.test file at the project root."
         )
     return key
+
+
+def get_gemini_api_key() -> str:
+    """Return GEMINI_API_KEY (Google AI Studio, free tier), loading .env.test
+    as fallback if needed. Returns "" when not configured; the LLM provider
+    resolver (backend/app/llm/chat.py) then falls back to OpenAI."""
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if key:
+        return key
+    _load_env_test_once()
+    return os.environ.get("GEMINI_API_KEY", "").strip()
 
 
 def _get_env_with_fallback(name: str) -> str:

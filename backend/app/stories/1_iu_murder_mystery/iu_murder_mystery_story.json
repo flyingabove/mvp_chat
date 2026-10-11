@@ -118,7 +118,7 @@
   "world": {
     "file": "1_iu_murder_mystery/iu_murder_mystery_world.json",
     "seed": 42,
-    "start_datetime": "2025-01-15T09:00:00",
+    "start_datetime": "2025-01-22T20:00:00",
     "start_location_id": "iu_apartment_room",
     "scene_presence": {
       "speakers_source": "turn_runtime",
@@ -302,7 +302,7 @@
     }
   },
   "opening": {
-    "text": "it’s so cold..\\n\\nYou’d only just moved into a small, surprisingly nice apartment in Cheongdam. Sleek building, decent view, even smelled faintly like new paint and coffee from the lobby café. Rent was lower than it should’ve been for this area. The agent had mentioned something offhand about a former tenant—how she was found inside the closet. You didn’t ask for details. You just needed a place close to work. It felt safe enough. A little dim in the hallway, a few lights buzzing out, but manageable. Your company badge still hangs off your bag—{{PLAYER_NAME}}, accountant, EDAM Entertainment, part of Kakao Entertainment. Brand-new, shining like a promise. The kind they hand to rookies they can underpay.\\n\\nMost nights, though, something about the place felt wrong. When you turned off the lights, the air got heavier, colder. The closet faced your bed, and you couldn’t help glancing at it before sleeping. You’d started sleeping pressed against the wall, pretending you didn’t feel watched.\\n\\nThen came the dreams—too vivid, too long. And the paralysis. You’d wake up frozen, eyes open, body stone. Something dark moving from the closet, slow, deliberate. It would climb onto the mattress, stop at your chest. Its face was nothing. Just black air pretending to have eyes.\\n\\nLater, a young woman began to appear instead. Pale skin, quiet breath. She never spoke, just hovered at the edge of your dreams like she was deciding whether to come closer. Sometimes you’d see her reflection before her body. Once, she reached for your hand—and it felt real.\\n\\nTonight, the cold hit deeper than usual. You got up to check the thermostat. The hallway light hummed faintly. And for half a heartbeat, there was someone there—standing by the window. Long hair, still posture. Her eyes almost meeting yours.\\n\\nYou didn’t move. Didn’t breathe. You turned away, went back to bed, blanket tight around your shoulders. The silence stretched thin.\\n\\nThen came the sound—soft fabric dragging, a hinge sighing open. The closet door. You couldn’t move, not even to blink.\\n\\n[SPEAKER:unknown]“Why are you so scared?”[/SPEAKER]\\n\\nAnd suddenly your body obeyed you again. But you didn’t move. You couldn’t.\\n\\n*(The room hangs silent, waiting for whatever happens next.)*"
+    "text": "it’s so cold..\n\nYou’d only just moved into a small, surprisingly nice apartment in Cheongdam. Sleek building, decent view, even smelled faintly like new paint and coffee from the lobby café. Rent was lower than it should’ve been for this area. The agent had mentioned something offhand about a former tenant—how she was found inside the closet. You didn’t ask for details. You just needed a place close to work. It felt safe enough. A little dim in the hallway, a few lights buzzing out, but manageable. Your company badge still hangs off your bag—{{PLAYER_NAME}}, accountant, EDAM Entertainment, part of Kakao Entertainment. Brand-new, shining like a promise. The kind they hand to rookies they can underpay.\n\nMost nights, though, something about the place felt wrong. When you turned off the lights, the air got heavier, colder. The closet faced your bed, and you couldn’t help glancing at it before sleeping. You’d started sleeping pressed against the wall, pretending you didn’t feel watched.\n\nThen came the dreams—too vivid, too long. And the paralysis. You’d wake up frozen, eyes open, body stone. Something dark moving from the closet, slow, deliberate. It would climb onto the mattress, stop at your chest. Its face was nothing. Just black air pretending to have eyes.\n\nLater, a young woman began to appear instead. Pale skin, quiet breath. She never spoke, just hovered at the edge of your dreams like she was deciding whether to come closer. Sometimes you’d see her reflection before her body. Once, she reached for your hand—and it felt real.\n\nTonight, the cold hit deeper than usual. You got up to check the thermostat. The hallway light hummed faintly. And for half a heartbeat, there was someone there—standing by the window. Long hair, still posture. Her eyes almost meeting yours.\n\nYou didn’t move. Didn’t breathe. You turned away, went back to bed, blanket tight around your shoulders. The silence stretched thin.\n\nThen came the sound—soft fabric dragging, a hinge sighing open. The closet door. You couldn’t move, not even to blink.\n\n[SPEAKER:unknown]“Why are you so scared?”[/SPEAKER]\n\nAnd suddenly your body obeyed you again. But you didn’t move. You couldn’t.\n\n*(The room hangs silent, waiting for whatever happens next.)*"
   },
   "world_context": [
     "The character was once alive; now they appear as a ghostlike presence.",
@@ -330,6 +330,10 @@
   },
   "goal": {
     "win_text_rule": "The investigation ends only when the true mastermind verbally admits that they ordered the killing."
+  },
+  "briefing": {
+    "goal": "Find out who really ordered the killing. The investigation ends only when the true mastermind admits it in conversation, so question the suspects, notice what they hide, and use what you learn.",
+    "controls": []
   },
   "leads": [
     {
@@ -409,5 +413,213 @@
         "label": "A trainee from another label. Petty rivalry, possibly manipulated by others."
       }
     ]
+  },
+  "world_model": {
+    "enabled": true,
+    "place_names": {
+      "yoo_home": "Yoo Min-ho's apartment",
+      "han_home": "Han Jae-seo's residence",
+      "sojin_home": "Park So-jin's apartment",
+      "trainee_dorm": "the trainee dormitory",
+      "trainee_practice": "the trainee practice room"
+    },
+    "homes": {
+      "yoo_min_ho": "yoo_home",
+      "han_jae_seo": "han_home",
+      "park_so_jin": "sojin_home",
+      "rival_trainee": "trainee_dorm"
+    },
+    "routines": {
+      "characters": {
+        "yoo_min_ho": {
+          "blocks": [
+            {
+              "start": "09:00",
+              "end": "18:30",
+              "place": "workplace_hallway",
+              "activity": "managing schedules at the agency",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "start": "19:00",
+              "end": "20:30",
+              "place": "local_cafe",
+              "activity": "unwinding at the cafe",
+              "availability": "awake",
+              "variance": 20,
+              "days": [
+                0,
+                2,
+                4
+              ]
+            }
+          ]
+        },
+        "han_jae_seo": {
+          "blocks": [
+            {
+              "start": "09:30",
+              "end": "19:00",
+              "place": "iu_office",
+              "activity": "running Aster Media from his office",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        },
+        "park_so_jin": {
+          "blocks": [
+            {
+              "start": "11:00",
+              "end": "21:00",
+              "place": "recording_studio",
+              "activity": "producing in the studio",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            }
+          ]
+        },
+        "rival_trainee": {
+          "blocks": [
+            {
+              "start": "10:00",
+              "end": "17:00",
+              "place": "trainee_practice",
+              "activity": "at trainee practice",
+              "availability": "busy",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ]
+            },
+            {
+              "start": "17:30",
+              "end": "19:00",
+              "place": "local_cafe",
+              "activity": "at the cafe",
+              "availability": "awake",
+              "variance": 20,
+              "days": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "threads": [
+      {
+        "id": "han_jae_seo_thread",
+        "owner": "han_jae_seo",
+        "title": "The missing lyric page",
+        "topics": [
+          "lyric",
+          "notebook",
+          "page",
+          "release",
+          "contract"
+        ],
+        "milestones": [
+          {
+            "id": "m1",
+            "day": 0,
+            "time": "22:00",
+            "text": "@han_jae_seo made a tense late-night call pressing @yoo_min_ho about the missing lyric page",
+            "visibility": "private",
+            "memory_for": [
+              "yoo_min_ho"
+            ]
+          }
+        ]
+      }
+    ],
+    "entities": [
+      {
+        "id": "closet_scuff",
+        "kind": "evidence",
+        "name": "closet",
+        "location": "iu_apartment_room",
+        "aliases": [
+          "closet door",
+          "closet jamb",
+          "jamb",
+          "scratches",
+          "scuff"
+        ],
+        "surfaces": [
+          {
+            "text": "faint, shallow scratches beneath the paint on the closet jamb"
+          },
+          {
+            "text": "under the paint the marks look older than one night",
+            "requires": {
+              "attention": "close"
+            }
+          }
+        ]
+      },
+      {
+        "id": "cctv_side_entrance",
+        "kind": "evidence",
+        "name": "side entrance camera",
+        "location": "local_cafe",
+        "aliases": [
+          "camera",
+          "cctv",
+          "side entrance",
+          "security camera"
+        ],
+        "surfaces": [
+          {
+            "text": "a camera watches the side entrance; its status light is dark"
+          },
+          {
+            "text": "its cable has been unplugged at the junction box, as if someone switches it off on purpose",
+            "requires": {
+              "attention": "close"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "personalities": {
+    "iu": {"type": "INTJ"},
+    "yoo_min_ho": {"type": "ISTJ", "deception": {"skill": 0.3, "composure": 0.3}},
+    "han_jae_seo": {"type": "ENTJ", "deception": {"skill": 0.8, "composure": 0.8}},
+    "park_so_jin": {"type": "INFP", "deception": {"skill": 0.4, "composure": 0.3}},
+    "rival_trainee": {"type": "ESFP", "deception": {"skill": 0.2, "composure": 0.4}}
   }
 }

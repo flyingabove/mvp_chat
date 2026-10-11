@@ -842,6 +842,89 @@
       border-top: 1px solid rgba(255,255,255,0.05);
       display: flex; align-items: center; gap: 10px;
     }
+    #chat-goal-pill {
+      flex-shrink: 0;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+      margin: 6px 12px 0; padding: 6px 12px;
+      border: 1px solid var(--border); border-radius: 14px;
+      background: var(--card); color: var(--text-sub);
+      font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+    }
+    #chat-goal-pill[hidden] { display: none; }
+    #chat-goal-pill .goal-label { color: var(--text); font-weight: 600; }
+    #chat-goal-text { flex-basis: 100%; color: var(--text); line-height: 1.4; }
+    .ending-card {
+      margin: 16px auto; max-width: 420px; padding: 18px 20px;
+      border-radius: 16px; border: 1px solid var(--border);
+      background: var(--card); text-align: center;
+    }
+    .ending-card.win { border-color: #f5c542; }
+    .ending-card.loss { border-color: var(--red); }
+    .ending-card .ending-label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-sub); }
+    .ending-card .ending-title { margin: 6px 0; font-size: 20px; font-weight: 700; color: var(--text); }
+    .ending-card .ending-summary { font-size: 14px; line-height: 1.45; color: var(--text); }
+    .ending-card .ending-turns { margin-top: 6px; font-size: 12px; color: var(--text-sub); }
+    .ending-card button {
+      margin-top: 14px; padding: 10px 20px; border: 0; border-radius: 20px;
+      background: var(--red); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+    }
+    .choice-card {
+      margin: 14px auto; max-width: 420px; padding: 16px 18px; border-radius: 16px;
+      border: 1px solid #f5c542; background: var(--card); text-align: center;
+    }
+    .choice-card .choice-prompt { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 12px; }
+    .choice-card .choice-options { display: flex; flex-direction: column; gap: 8px; }
+    .choice-card button, .choice-chip {
+      padding: 11px 16px; border-radius: 20px; font: inherit; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: transparent; color: var(--text);
+    }
+    .choice-card button.primary, .choice-chip { background: var(--red); border-color: var(--red); color: #fff; }
+    #modal-briefing {
+      position: fixed; inset: 0; z-index: 310; display: none; align-items: center; justify-content: center;
+      background: rgba(5,5,5,0.96);
+      padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    }
+    #modal-briefing.open { display: flex; }
+    .briefing-card {
+      background: #181818; border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 22px;
+      width: 100%; max-width: 640px; max-height: calc(100dvh - 24px); display: flex; flex-direction: column;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+    }
+    .briefing-kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-sub); text-align: center; }
+    .briefing-title { text-align: center; font-size: 24px; font-weight: 800; margin: 4px 0 12px; color: var(--text); }
+    .briefing-tabs { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; }
+    .briefing-tab {
+      padding: 8px 16px; border-radius: 18px; border: 1px solid var(--border); background: transparent;
+      color: var(--text-sub); font: inherit; font-size: 14px; cursor: pointer;
+    }
+    .briefing-tab.active { background: var(--red); border-color: var(--red); color: #fff; }
+    .briefing-panels { min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
+    .briefing-panel[hidden] { display: none; }
+    .briefing-goal { font-size: 16px; line-height: 1.5; color: var(--text); }
+    .briefing-endings { margin: 12px 0 0; padding-left: 18px; color: var(--text-sub); font-size: 13px; }
+    .briefing-control { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .briefing-control-title { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+    .briefing-control-text { font-size: 14px; line-height: 1.45; color: var(--text-sub); }
+    .briefing-map img { width: 100%; border-radius: 12px; display: block; }
+    .briefing-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 14px; }
+    .briefing-actions .primary {
+      width: 100%; padding: 13px; border: 0; border-radius: 22px; background: var(--red); color: #fff;
+      font: inherit; font-weight: 700; font-size: 16px; cursor: pointer;
+    }
+    .briefing-actions .link { background: none; border: 0; color: var(--text-sub); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; }
+    .briefing-actions .link[hidden] { display: none; }
+    .howto-card { margin: 10px auto; max-width: 520px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--card); }
+    .howto-title { font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .howto-goal { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 8px; }
+    .howto-list { margin: 0 0 8px; padding-left: 18px; font-size: 13px; line-height: 1.45; color: var(--text-sub); }
+    .howto-more { background: none; border: 0; padding: 0; color: var(--text-sub); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+    .gone-card { margin: 16px auto; max-width: 420px; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--border); background: var(--card); text-align: center; }
+    .gone-text { font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 12px; }
+    .gone-actions { display: flex; flex-direction: column; gap: 8px; }
+    .gone-actions button { padding: 11px 16px; border-radius: 20px; font: inherit; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text); }
+    .gone-actions button.primary { background: var(--red); border-color: var(--red); color: #fff; }
+    .choice-chip-row { margin: 8px auto 4px; text-align: center; }
+    .choice-chip { padding: 8px 16px; font-size: 13px; }
     #chat-ai-disclaimer {
       flex-shrink: 0;
       text-align: center;
@@ -1384,6 +1467,7 @@
     <!-- Dropdown menu -->
     <div id="chat-dropdown">
       <div class="dropdown-item" id="dd-map"><span class="di-icon">🗺</span> World Map</div>
+      <div class="dropdown-item" id="dd-howto"><span class="di-icon">❓</span> How to play</div>
       <div class="dropdown-item" id="dd-cast"><span class="di-icon">👥</span> <span id="dd-cast-label">Cast</span></div>
       <div class="dropdown-item" id="dd-journal"><span class="di-icon">📓</span> Journal</div>
       <div class="dropdown-item" id="dd-skip"><span class="di-icon">⏭</span> Skip Ahead</div>
@@ -1394,6 +1478,13 @@
       <div class="dropdown-item" id="dd-exit" style="color:#ff6b6b;"><span class="di-icon">🚪</span> Exit Game</div>
     </div>
   </div>
+
+  <!-- Story goal (BL-39 phase A): authored goal + progress the player has seen -->
+  <button id="chat-goal-pill" type="button" hidden aria-expanded="false">
+    <span class="goal-label">Goal</span>
+    <span id="chat-goal-status"></span>
+    <span id="chat-goal-text" hidden></span>
+  </button>
 
   <!-- Message area with character header at top -->
   <div id="chat-scroll-wrapper">
@@ -1569,6 +1660,31 @@
   </div>
 </div>
 
+<!-- Briefing (BL-49): map, controls and goal before the first scene -->
+<div id="modal-briefing">
+  <div class="briefing-card" role="dialog" aria-modal="true" aria-labelledby="briefing-title">
+    <div class="briefing-kicker" id="briefing-story"></div>
+    <div class="briefing-title" id="briefing-title">How to play</div>
+    <div class="briefing-tabs" role="tablist">
+      <button type="button" class="briefing-tab active" data-tab="goal" role="tab">Goal</button>
+      <button type="button" class="briefing-tab" data-tab="controls" role="tab">Controls</button>
+      <button type="button" class="briefing-tab" data-tab="map" role="tab">Map</button>
+    </div>
+    <div class="briefing-panels">
+      <div class="briefing-panel" data-panel="goal">
+        <div class="briefing-goal" id="briefing-goal"></div>
+        <ul class="briefing-endings" id="briefing-endings"></ul>
+      </div>
+      <div class="briefing-panel" data-panel="controls" hidden id="briefing-controls"></div>
+      <div class="briefing-panel briefing-map" data-panel="map" hidden id="briefing-map"></div>
+    </div>
+    <div class="briefing-actions">
+      <button type="button" class="primary" id="briefing-start-btn">Start game</button>
+      <button type="button" class="link" id="briefing-skip-btn">Skip</button>
+    </div>
+  </div>
+</div>
+
 <!-- Onboarding modal (persona + name + gender) -->
 <div id="modal-onboard">
   <div class="onboard-card" role="dialog" aria-modal="true" aria-labelledby="onboard-title" aria-describedby="onboard-sub">
@@ -1726,7 +1842,7 @@ var IS_BETA = host.startsWith("beta.") || path.includes("/beta/") || path.endsWi
 // router at storieschat.ai/beta/ — Cloudflare only routes /beta/* page
 // requests to the beta origin, not a same-origin /api call made from that
 // page, so same-origin would silently hit the PROD api (confirmed live bug,
-// see documentation/BACKLOG.md BL-03). Mirrors the BACKEND_ORIGIN detection
+// see documentation/backlog/ BL-03). Mirrors the BACKEND_ORIGIN detection
 // already used for OAuth below (LOGIN_AUTH_BASE) and in frontend/debug.html.
 var BACKEND_ORIGIN = window.location.origin;
 if (IS_BETA && (host === "storieschat.ai" || host === "www.storieschat.ai")) {
@@ -2561,8 +2677,130 @@ $("onboard-continue-btn").addEventListener("click", function(){
     appState.personaOther = "";
   }
   closeModal("modal-onboard");
-  launchChat(appState.pendingStory, appState.onboardName, appState.onboardGender, appState.guestMode);
+  var story = appState.pendingStory, name = appState.onboardName, gender = appState.onboardGender, guest = appState.guestMode;
+  // BL-49: every new game shows the briefing (map, controls, goal) before the first scene is written.
+  fetchStoryMeta(story).then(function(meta){
+    appState.pendingMeta = meta;
+    openBriefing(meta, "start", function(){ launchChat(story, name, gender, guest); });
+  });
 });
+
+/* ─── BRIEFING (BL-49) ──────────────────────────── */
+var BRIEFING_SEEN_KEY = "storieschat_briefing_seen";
+
+function briefingSeen(sessionId){
+  try { return (JSON.parse(localStorage.getItem(BRIEFING_SEEN_KEY) || "[]") || []).indexOf(sessionId) >= 0; } catch(e){ return false; }
+}
+
+function markBriefingSeen(sessionId){
+  try {
+    var seen = JSON.parse(localStorage.getItem(BRIEFING_SEEN_KEY) || "[]") || [];
+    if (seen.indexOf(sessionId) < 0) seen.push(sessionId);
+    localStorage.setItem(BRIEFING_SEEN_KEY, JSON.stringify(seen.slice(-200)));
+  } catch(e){}
+}
+
+function fetchStoryMeta(story){
+  return fetch(STORY_URL + "/" + encodeURIComponent(story.id))
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .catch(function(){ return null; });
+}
+
+function setBriefingTab(name){
+  document.querySelectorAll("#modal-briefing .briefing-tab").forEach(function(t){
+    t.classList.toggle("active", t.dataset.tab === name);
+  });
+  document.querySelectorAll("#modal-briefing .briefing-panel").forEach(function(p){
+    p.hidden = p.dataset.panel !== name;
+  });
+}
+
+document.querySelectorAll("#modal-briefing .briefing-tab").forEach(function(t){
+  t.addEventListener("click", function(){ setBriefingTab(this.dataset.tab); });
+});
+
+// mode "start": Start game / Skip both begin the game; mode "view": one Back button. A story with no
+// briefing (or a failed fetch) never blocks play: the start callback just runs.
+function openBriefing(meta, mode, onStart){
+  var b = meta && meta.briefing;
+  if (!b || !b.goal){ if (onStart) onStart(); return; }
+  appState.briefingStart = onStart || null;
+  $("briefing-story").textContent = meta.title || "";
+  $("briefing-goal").textContent = b.goal;
+  var ends = $("briefing-endings");
+  ends.innerHTML = "";
+  (b.endings || []).forEach(function(e){
+    var li = document.createElement("li");
+    li.textContent = e.title + (e.kind === "win" ? " (win)" : e.kind === "loss" ? " (loss)" : "");
+    ends.appendChild(li);
+  });
+  var list = $("briefing-controls");
+  list.innerHTML = "";
+  (b.controls || []).forEach(function(c){
+    var row = document.createElement("div");
+    row.className = "briefing-control";
+    var h = document.createElement("div");
+    h.className = "briefing-control-title";
+    h.textContent = c.title;
+    var t = document.createElement("div");
+    t.className = "briefing-control-text";
+    t.textContent = c.text;
+    row.appendChild(h);
+    row.appendChild(t);
+    list.appendChild(row);
+  });
+  var map = $("briefing-map");
+  map.innerHTML = "";
+  if (meta.world_map_image){
+    var img = document.createElement("img");
+    img.src = API_BASE + "/story-image/" + meta.world_map_image + "?v=" + encodeURIComponent(meta.world_map_image_revision || "");
+    img.alt = "World map";
+    map.appendChild(img);
+  } else if ((meta.known_locations || []).length){
+    var ul = document.createElement("ul");
+    meta.known_locations.slice(0, 16).forEach(function(l){
+      var li = document.createElement("li");
+      li.textContent = l.name || l.id;
+      ul.appendChild(li);
+    });
+    map.appendChild(ul);
+  } else {
+    map.textContent = "This story has no map.";
+  }
+  setBriefingTab("goal");
+  $("briefing-start-btn").textContent = mode === "start" ? "Start game" : "Back to game";
+  $("briefing-skip-btn").hidden = mode !== "start";
+  openModal("modal-briefing");
+}
+
+function finishBriefing(){
+  closeModal("modal-briefing");
+  var go = appState.briefingStart;
+  appState.briefingStart = null;
+  if (go) go();
+}
+
+$("briefing-start-btn").addEventListener("click", finishBriefing);
+$("briefing-skip-btn").addEventListener("click", finishBriefing);
+
+// The basics stay on the chat page even when the briefing was skipped: the goal and the two controls people miss.
+function addHowToPlayCard(meta){
+  var b = meta && meta.briefing;
+  if (!b || !b.goal) return;
+  var card = document.createElement("div");
+  card.className = "howto-card";
+  card.innerHTML = '<div class="howto-title">How to play</div><div class="howto-goal"></div><ul class="howto-list"></ul>' +
+    '<button type="button" class="howto-more">Full guide</button>';
+  card.querySelector(".howto-goal").textContent = "Goal: " + b.goal;
+  var ul = card.querySelector(".howto-list");
+  (b.controls || []).slice(1, 3).forEach(function(c){
+    var li = document.createElement("li");
+    li.textContent = c.title + ": " + c.text;
+    ul.appendChild(li);
+  });
+  card.querySelector(".howto-more").addEventListener("click", function(){ openBriefing(meta, "view"); });
+  $("chat-messages").appendChild(card);
+}
 
 /* ─── CHAT SCREEN ───────────────────────────────── */
 // A06 fix: launchChat and resumeGameFromSession each used to (1) write
@@ -2622,6 +2860,7 @@ function launchChat(story, playerName, gender, guestMode){
 
   appState.session = session;
   appState.chatHistory = [];
+  appState.choiceKept = "";
   appState.debugMode = false;
   appState.truthMode = false;
   appState.chineseMode = false;
@@ -2631,6 +2870,8 @@ function launchChat(story, playerName, gender, guestMode){
   appState.userAvatarLabel = getPlayerAvatarLabel(playerName);
 
   // Setup chat UI
+  renderGoal(null);
+  setChatEnded(false);
   $("chat-char-name").textContent = story.title;
   $("chat-char-sub").textContent = story.genre || "Game";
   renderAvatarImage($("chat-char-avatar-mini"), story.thumbnail_url || getCharacterAvatarSrc(story.id, story.title), story.title || "Character");
@@ -2645,6 +2886,8 @@ function launchChat(story, playerName, gender, guestMode){
   if (guestMode) {
     addSystemMessage("Guest mode: your progress will be deleted after 24 hours unless you sign in with Google.");
   }
+  markBriefingSeen(session.session_id);
+  if (appState.pendingMeta && appState.pendingMeta.id === story.id) addHowToPlayCard(appState.pendingMeta);
 
   showScreen("chat");
   preloadCharacterPortraits(story);
@@ -2705,6 +2948,59 @@ function _renderLoadEarlierBtn(sessionId, oldestTurn){
   else msgs.appendChild(btn);
 }
 
+// BL-44: the server no longer has this saved game (guest progress is deleted after 24 hours, it was deleted
+// elsewhere, or the local record came from a failed launch). Say so, forget only that record, and offer a way
+// forward. Network and server errors take the soft "History unavailable" path and delete nothing.
+function handleSessionGone(sess, story){
+  var id = sess.session_id;
+  saveSessionsList(loadSessions().filter(function(s){ return s.session_id !== id; }));
+  try {
+    var seen = (JSON.parse(localStorage.getItem(BRIEFING_SEEN_KEY) || "[]") || []).filter(function(x){ return x !== id; });
+    localStorage.setItem(BRIEFING_SEEN_KEY, JSON.stringify(seen));
+  } catch(e){}
+  appState.session = null;
+  renderChatCharacterHeader(story);
+  renderGoal(null);
+  var card = document.createElement("div");
+  card.className = "gone-card";
+  card.setAttribute("role", "status");
+  var text = document.createElement("div");
+  text.className = "gone-text";
+  text.textContent = "This saved game is gone (guest games are deleted after 24 hours). Start a new game?";
+  var row = document.createElement("div");
+  row.className = "gone-actions";
+  var fresh = document.createElement("button");
+  fresh.type = "button";
+  fresh.className = "primary";
+  fresh.textContent = "Start new game";
+  fresh.addEventListener("click", function(){ showScreen("home"); startGame(story); });
+  var home = document.createElement("button");
+  home.type = "button";
+  home.textContent = "Back to home";
+  home.addEventListener("click", function(){ showScreen("home"); });
+  row.appendChild(fresh);
+  row.appendChild(home);
+  card.appendChild(text);
+  card.appendChild(row);
+  $("chat-messages").appendChild(card);
+  setChatEnded(true);
+  $("chat-text-input").placeholder = "This saved game is gone.";
+  refreshSessionCacheFromServer();
+}
+
+// BL-49: a game started before the briefing existed shows it once, then never again for that game. Called only
+// after the saved game is known to exist (BL-44: never over a "saved game is gone" message).
+function showLegacyBriefingOnce(sess, story){
+  if (!sess.session_id || briefingSeen(sess.session_id)) return;
+  markBriefingSeen(sess.session_id);
+  fetchStoryMeta(story).then(function(meta){
+    if (appState.session !== sess) return;
+    appState.pendingMeta = meta;
+    addHowToPlayCard(meta);
+    openBriefing(meta, "view");
+  });
+}
+
 function resumeGameFromSession(sess){
   // Find story
   var story = appState.stories.find(function(s){ return s.id === sess.story_id; })
@@ -2712,6 +3008,7 @@ function resumeGameFromSession(sess){
 
   appState.session = sess;
   appState.chatHistory = [];
+  appState.choiceKept = "";
   appState.currentStory = story;
   appState.currentMeta = null;
   appState.debugMode = false;
@@ -2728,6 +3025,8 @@ function resumeGameFromSession(sess){
   dialoguePresentation.finish();
   // Clear messages and (re)build the character header as one unit (A06).
   renderChatCharacterHeader(story);
+  renderGoal(sess.goal || null);
+  setChatEnded(false);
 
   addSystemMessage("Resuming game as " + (sess.player_name || "Player") + "…");
 
@@ -2738,6 +3037,7 @@ function resumeGameFromSession(sess){
   fetch(STORY_URL + "/" + encodeURIComponent(story.id))
     .then(function(r){ return r.json(); })
     .then(function(meta){
+      if (appState.session !== sess) return;      // BL-44: the game turned out to be gone
       appState.currentMeta = meta;
       renderInlineWorldMap(meta);
     })
@@ -2749,6 +3049,7 @@ function resumeGameFromSession(sess){
     fetch(USER_SESSIONS_URL + "/" + encodeURIComponent(sessionId) + "/history?limit=20", { headers: apiHeaders() })
       .then(function(r){
         if (r.status === 401){ handleUnauthorized(); return null; }
+        if (r.status === 404){ handleSessionGone(sess, story); return null; }   // BL-44
         return r.json();
       })
       .then(function(data){
@@ -2759,12 +3060,16 @@ function resumeGameFromSession(sess){
         });
         if (data.has_more) _renderLoadEarlierBtn(sessionId, data.oldest_turn);
         if (!entries.length) addSystemMessage("(Continue where you left off)");
+        renderEnding(data.ending || sess.ending);
+        if (!(data.ending || sess.ending)) renderChoiceCard(data.pending_choice);
+        showLegacyBriefingOnce(sess, story);
       })
       .catch(function(){
         addSystemMessage("(History unavailable — continue where you left off)");
       });
   } else {
     addSystemMessage("(Continue where you left off)");
+    showLegacyBriefingOnce(sess, story);
   }
 }
 
@@ -2959,9 +3264,114 @@ function showTypingIndicator(){ $("typing-indicator").classList.add("visible"); 
 function hideTypingIndicator(){ $("typing-indicator").classList.remove("visible"); }
 
 /* ─── SEND / RECEIVE ────────────────────────────── */
+/* ─── GOAL AND ENDING (BL-39 phase A) ───────────── */
+function renderGoal(goal){
+  var pill = $("chat-goal-pill");
+  if (!pill) return;
+  if (!goal || !goal.text){ pill.hidden = true; return; }
+  $("chat-goal-status").textContent = goal.status || "Tap to see your goal";
+  $("chat-goal-text").textContent = goal.text;
+  pill.hidden = false;
+}
+
+function setChatEnded(ended){
+  appState.gameEnded = Boolean(ended);
+  var input = $("chat-text-input");
+  var sendBtn = $("chat-send-btn");
+  if (input){
+    input.disabled = appState.gameEnded;
+    input.placeholder = appState.gameEnded ? "This story has ended." : "Message...";
+  }
+  if (sendBtn && appState.gameEnded) sendBtn.disabled = true;
+}
+
+/* ─── CHOICE CARD (BL-46): an accepted "leave together" waits for the player's say-so ─── */
+// The card lives in the saved session on the server, so a reload or resume shows it again. It is answered with
+// a normal chat message, so nothing here holds state that matters beyond "the player already said keep talking".
+function clearChoiceCard(){
+  document.querySelectorAll("#chat-messages .choice-card, #chat-messages .choice-chip-row").forEach(function(el){ el.remove(); });
+}
+
+function answerChoiceCard(choice, optionId){
+  clearChoiceCard();
+  sendMessage("__choice__:" + choice.id + ":" + optionId, false, { suppressUserMessage: true });
+}
+
+function renderChoiceCard(choice){
+  clearChoiceCard();
+  if (!choice || !choice.options || appState.gameEnded) return;
+  var msgs = $("chat-messages");
+  if (appState.choiceKept === choice.id){          // they already said "keep talking": just a chip
+    var row = document.createElement("div");
+    row.className = "choice-chip-row";
+    row.innerHTML = '<button type="button" class="choice-chip"></button>';
+    row.querySelector("button").textContent = choice.chip || choice.options[0].label;
+    row.querySelector("button").addEventListener("click", function(){ answerChoiceCard(choice, choice.options[0].id); });
+    msgs.appendChild(row);
+    scrollChatToBottom();
+    return;
+  }
+  var card = document.createElement("div");
+  card.className = "choice-card";
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", "Choose what happens next");
+  card.innerHTML = '<div class="choice-prompt"></div><div class="choice-options"></div>';
+  card.querySelector(".choice-prompt").textContent = choice.prompt || "";
+  choice.options.forEach(function(opt, i){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = opt.label;
+    if (i === 0) btn.className = "primary";
+    btn.addEventListener("click", function(){
+      if (i > 0){                                 // the second option is always "not now"
+        appState.choiceKept = choice.id;
+        renderChoiceCard(choice);
+        addSystemMessage(choice.kind === "leave_together"
+          ? "(Their yes stands. Type [play ending] or tap “Play ending” whenever you are ready.)"
+          : "(Fine, carry on. The plan stays open until its time.)");
+      } else {
+        answerChoiceCard(choice, opt.id);
+      }
+    });
+    card.querySelector(".choice-options").appendChild(btn);
+  });
+  msgs.appendChild(card);
+  scrollChatToBottom();
+}
+
+function renderEnding(ending){
+  if (!ending) return;
+  clearChoiceCard();
+  var msgs = $("chat-messages");
+  if (!msgs.querySelector(".ending-card")){
+    var card = document.createElement("div");
+    card.className = "ending-card " + (ending.kind || "neutral");
+    card.setAttribute("role", "status");
+    card.innerHTML =
+      '<div class="ending-label">' + escapeHTML(ending.label || "Story ended") + '</div>' +
+      '<div class="ending-title">' + escapeHTML(ending.title || "") + '</div>' +
+      '<div class="ending-summary">' + escapeHTML(ending.summary || "") + '</div>' +
+      (ending.turns ? '<div class="ending-turns">' + escapeHTML(String(ending.turns)) + ' turns</div>' : '') +
+      (ending.ends_run ? '<button type="button" class="ending-home-btn">Back to home</button>' : '');
+    var home = card.querySelector(".ending-home-btn");
+    if (home) home.addEventListener("click", function(){ showScreen("home"); });
+    msgs.appendChild(card);
+    scrollChatToBottom();
+  }
+  if (ending.ends_run) setChatEnded(true);
+  if (appState.session){ appState.session.ending = ending; saveSession(appState.session); }
+}
+
+$("chat-goal-pill").addEventListener("click", function(){
+  var text = $("chat-goal-text");
+  text.hidden = !text.hidden;
+  this.setAttribute("aria-expanded", String(!text.hidden));
+});
+
 function sendMessage(text, isInit, options){
   options = options || {};
-  if (/^\s*(?:\[(?:m|map)\]|\((?:m|map)\))\s*$/i.test(text)) { showMapModal(true); return; }
+  if (appState.gameEnded && !isInit) return;
+  if (/^\s*(?:\[(?:m|map)\]|\((?:m|map)\)|\/map)\s*$/i.test(text)) { showMapModal(true); return; }
   if (appState.awaitingResponse && !isInit) return;
   appState.awaitingResponse = true;
 
@@ -3010,6 +3420,12 @@ function sendMessage(text, isInit, options){
       if (reply) addMessage("npc", reply, { segments: data.segments });
       if (data && data.cast_roster) renderCastRoster(data.cast_roster);
       addDebugBox(data && data.debug_box);
+      if (data && data.goal){
+        renderGoal(data.goal);
+        if (session){ session.goal = data.goal; }
+      }
+      if (data && data.ending) renderEnding(data.ending);
+      else renderChoiceCard(data && data.pending_choice);
 
       // Update session
       if (session){
@@ -3035,7 +3451,7 @@ function sendMessage(text, isInit, options){
   .finally(function(){
     appState.awaitingResponse = false;
     if (sendBtn) {
-      sendBtn.disabled = ($("chat-text-input").value.trim().length === 0);
+      sendBtn.disabled = appState.gameEnded || ($("chat-text-input").value.trim().length === 0);
     }
   });
 }
@@ -3089,6 +3505,13 @@ document.addEventListener("click", function(){
 $("dd-map").addEventListener("click", function(){
   $("chat-dropdown").classList.remove("open");
   showMapModal(true);
+});
+
+$("dd-howto").addEventListener("click", function(){
+  $("chat-dropdown").classList.remove("open");
+  var story = appState.currentStory;
+  if (appState.currentMeta && appState.currentMeta.briefing) { openBriefing(appState.currentMeta, "view"); }
+  else if (story) { fetchStoryMeta(story).then(function(meta){ openBriefing(meta, "view"); }); }
 });
 
 $("dd-cast").addEventListener("click", function(){
@@ -3693,7 +4116,7 @@ $("profile-auth-btn").addEventListener("click", function(){
 document.querySelectorAll(".tab-item").forEach(function(tab){
   tab.addEventListener("click", function(){
     if (this.dataset.action === "hard-reload") {
-      hardReloadApp();
+      hardReloadApp(this.dataset.updateReady === "true" ? false : undefined);
       return;
     }
     var screen = this.dataset.screen;
@@ -3811,32 +4234,39 @@ fetch("version.json", { cache: "no-store" })
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js", {updateViaCache: "none"})
     .then(function(reg){
-      // A first install already fetches the current worker. Racing it with an
-      // update can be cancelled by WebKit when controllerchange reloads us.
+      // A first install already fetches the current worker.
       if (reg.active && !reg.installing) {
         reg.update().catch(function(){});
       }
       if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
     })
     .catch(function(){});
-
-  var hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.addEventListener("controllerchange", function(){
-    if (!hadController) { hadController = true; return; }
-    if (window.__swRefreshed) return;
-    window.__swRefreshed = true;
-    window.location.reload();
-  });
 }
 
 var SHELL_REVISION = "__SHELL_REVISION__";
 var checkingUpdate = false;
+// A worker can take control while an iOS page is open, and a stale document can
+// survive even a cache-busted navigation. Never navigate from update detection:
+// repeated worker activations or stale responses must not restart gameplay.
+function appUpdateAction(serverRevision, pageRevision){
+  if (!serverRevision || serverRevision === pageRevision) return "none";
+  return "prompt";
+}
+function showUpdateNotice(){
+  var tab = $("tab-update-app");
+  if (!tab || tab.dataset.updateReady === "true") return;
+  tab.dataset.updateReady = "true";
+  tab.setAttribute("aria-label", "New version ready. Tap to update");
+  tab.children[1].textContent = "Update Ready";
+  tab.style.color = "#fff";
+  tab.style.background = "var(--red,#e50914)";
+}
 function checkAppUpdate(){
   if (checkingUpdate || document.hidden || appState.awaitingResponse) return;
   checkingUpdate = true;
   fetch("version.json", {cache: "no-store"}).then(function(r){ return r.json(); }).then(function(v){
-    if (v.shell_revision && v.shell_revision !== SHELL_REVISION) {
-      hardReloadApp(false);
+    if (appUpdateAction(v.shell_revision, SHELL_REVISION) === "prompt") {
+      showUpdateNotice();
     }
   }).catch(function(){}).finally(function(){ checkingUpdate = false; });
 }

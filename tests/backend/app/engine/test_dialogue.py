@@ -3,7 +3,25 @@ import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
-from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, drop_repeated_lines, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
+from backend.app.engine.dialogue import dialogue_prompt, dialogue_response_format, present_dialogue, encode_dialogue, decode_dialogue_response, drop_player_echo, drop_repeated_lines, only_repeats, clean_spoken_text, attribute_unmarked_quotes, has_unmarked_quotes
+
+
+def test_narrated_player_echo_drops_restatement_but_keeps_new_consequence():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+
+    player = "I walk over to the wall-mounted phone in the kitchen and start dialing."
+    segments = [{"kind": "narration", "text": "You walk over to the wall-mounted phone in the kitchen and start dialing, the sound of the dial tone filling the room."},
+                {"kind": "dialogue", "speaker_id": "iu", "text": "Who are you calling?"}]
+    result = drop_narrated_player_echo(segments, player)
+    assert result[0]["text"] == "The sound of the dial tone filling the room."
+    assert result[1] == segments[1]
+
+
+def test_narrated_player_echo_keeps_unrelated_scene_action():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+
+    segments = [{"kind": "narration", "text": "IU glances at the empty phone cradle."}]
+    assert drop_narrated_player_echo(segments, "I pick up the phone.") == segments
 from backend.app.engine.state import Character, extract_state_tag
 
 
@@ -109,7 +127,7 @@ def test_contract_applies_to_each_story_and_authored_openings_are_segmented():
             assert any(b['kind'] == 'dialogue' for b in blocks)
 
 
-def test_terrace_authored_json_opening_has_two_present_speakers_and_scene_beats():
+def test_terrace_authored_json_opening_has_one_personality_specific_speaker_and_scene_beats():
     from backend.app.api.prompt_engine import _opening_for_new_game
     from backend.app.engine.story_loader import StoryDefinition
 
@@ -119,10 +137,12 @@ def test_terrace_authored_json_opening_has_two_present_speakers_and_scene_beats(
         def active_ids(self): return ['mizuki', 'iu']
     s = state()
     s.cast_lifecycle = ActiveCast()
+    s.opening_cast = ['mizuki']
     opening = _opening_for_new_game(story, s)
     _, blocks = present_dialogue(opening, s)
-    assert [b['kind'] for b in blocks] == ['narration', 'dialogue', 'narration', 'dialogue', 'narration']
-    assert {b['speaker_id'] for b in blocks if b['kind'] == 'dialogue'} == {'mizuki', 'iu'}
+    assert [b['kind'] for b in blocks] == ['narration', 'dialogue', 'narration']
+    assert {b['speaker_id'] for b in blocks if b['kind'] == 'dialogue'} == {'mizuki'}
+    assert 'Mizuki' in opening and 'coffee' in opening
     assert 100 <= len(opening.split()) <= 200
 
 
@@ -342,6 +362,27 @@ def test_repeated_long_narration_is_dropped_but_short_lines_kept():
     assert [b["text"] for b in out] == ["Yes.", "Welcome home."]
 
 
+BETA_OPENING = ("Warm kitchen air meets you at the door. Everyone who lives here is home tonight, three men and two "
+                "other women besides you: the others are setting the table in the next room. A second housemate looks "
+                "up from a stack of plates, and someone nudges an empty chair into place.")
+
+
+def test_near_verbatim_narration_of_a_recent_reply_counts_as_a_repeat():
+    # Beta 79ef6f7 turn 1: the reply re-told the opening with small edits.
+    _, blocks = present_dialogue(
+        "Warm kitchen air meets you at the door. Everyone who lives here is home tonight, three men and two other "
+        "women besides you; the others are setting the table nearby. A second housemate looks up from a stack of "
+        "plates and someone nudges an empty chair into place.", state())
+    assert only_repeats(blocks, [BETA_OPENING])
+
+
+def test_fresh_narration_sharing_a_few_phrases_is_not_a_repeat():
+    _, blocks = present_dialogue(
+        "The kitchen smells of garlic. Hayato stirs the pot while Yuki sets out bowls for everyone at the table.",
+        state())
+    assert not only_repeats(blocks, [BETA_OPENING])
+
+
 def test_a_reply_made_only_of_repeats_is_kept_rather_than_emptied():
     _, blocks = present_dialogue(
         "[SPEAKER:mizuki]You found it. Come in; we're just setting the table.[/SPEAKER]", state())
@@ -420,3 +461,73 @@ def test_unknown_voice_self_introduction_uses_matching_active_portrait():
     assert blocks[0]["portrait_url"].endswith("Yuto_Handa.png")
     _, concealed = present_dialogue("[SPEAKER:unknown]Someone knocks at the door.[/SPEAKER]", s)
     assert concealed[0]["speaker_id"] is None
+
+
+# --- BL-29: restated player actions and invented feelings -------------------------------------------------------
+
+def _narration(text):
+    return [{"kind": "narration", "speaker_id": None, "text": text}]
+
+
+def test_a_gerund_restatement_of_the_players_action_is_trimmed_and_the_consequence_kept():
+    """Live 2026-09-29: 'Inviting her to join you in the Living Room. As you lead the way ...'"""
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+    player = "I invite her to join me in the living room and lead the way."
+    out = drop_narrated_player_echo(
+        _narration("Inviting her to join you in the Living Room. As you lead the way, the hallway light flickers."),
+        player)
+    assert [s["text"] for s in out] == ["The hallway light flickers."]
+
+
+def test_a_restating_opener_that_adds_nothing_new_is_dropped_but_never_leaves_an_empty_reply():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+    player = "I walk over to the kitchen and put the kettle on."
+    only = _narration("You walk over to the kitchen and put the kettle on.")
+    assert drop_narrated_player_echo(only, player) == only, "nothing else to show: keep the reply"
+    mixed = only + [{"kind": "dialogue", "speaker_id": "ann", "text": "Tea, lovely."}]
+    assert [s["kind"] for s in drop_narrated_player_echo(mixed, player)] == ["dialogue"]
+
+
+def test_narration_that_reuses_a_few_words_but_adds_new_information_is_kept():
+    from backend.app.engine.dialogue import drop_narrated_player_echo
+    player = "I open the front door and step outside."
+    segments = _narration("You open the front door and cold rain rushes into the hall, soaking the mat.")
+    assert drop_narrated_player_echo(segments, player) == segments
+
+
+def test_invented_body_sensations_are_trimmed_but_world_detail_stays():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    player = "I pour myself some tea."
+    cases = {
+        "The kettle clicks off, making your stomach grumble.": "The kettle clicks off.",
+        "Your eyes scanning its surface, you notice a chip on the rim.": "You notice a chip on the rim.",
+    }
+    for before, after in cases.items():
+        assert [s["text"] for s in drop_invented_player_feelings(_narration(before), player)] == [after], before
+    kept = ["Your phone buzzes on the table.", "The kitchen smells of miso.", "Steam curls up from the cup."]
+    for text in kept:
+        assert [s["text"] for s in drop_invented_player_feelings(_narration(text), player)] == [text]
+
+
+def test_invented_feeling_sentences_are_dropped_and_an_emptied_segment_disappears():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    player = "I greet everyone."
+    segments = _narration("You feel a surge of nerves. Natsumi waves from the sofa.")
+    assert [s["text"] for s in drop_invented_player_feelings(segments, player)] == ["Natsumi waves from the sofa."]
+    assert drop_invented_player_feelings(_narration("Your heart pounds in your chest."), player) == []
+
+
+def test_feelings_the_player_wrote_themself_are_kept():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    segments = _narration("You feel nervous as the door opens.")
+    assert drop_invented_player_feelings(segments, "I feel nervous about meeting them.") == segments
+    body = _narration("Your stomach growls, loud in the quiet room.")
+    assert drop_invented_player_feelings(body, "My stomach growls, I should eat.") == body
+
+
+def test_feelings_trim_never_touches_dialogue_and_skips_turns_with_no_player_words():
+    from backend.app.engine.dialogue import drop_invented_player_feelings
+    talk = [{"kind": "dialogue", "speaker_id": "ann", "text": "You feel that too, right? Your heart must be racing."}]
+    assert drop_invented_player_feelings(talk, "Hi") == talk
+    slip = _narration("You feel the hours pass.")
+    assert drop_invented_player_feelings(slip, "") == slip, "time-skip turns carry no player words"

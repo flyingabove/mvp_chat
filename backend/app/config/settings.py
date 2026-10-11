@@ -20,25 +20,43 @@ from backend.app.config.credentials import (
 # production values; the arena's offline local mode points them at Ollama
 # (http://127.0.0.1:11434/v1, e.g. llama3.1:8b) so a locally started game
 # makes no cloud calls.
+#
+# The provider is chosen by LLM_PROVIDER (gemini [default] | openai | ollama; ollama needs OLLAMA_ENABLED=1),
+# resolved in backend/app/llm/chat.py. The OPENAI_* names below are legacy:
+# they now hold whichever provider is active (Gemini by default). Explicit
+# OPENAI_BASE_URL / OPENAI_MODEL / STORY_MASTER_* env vars still win, which is
+# how the arena's offline local mode points at Ollama.
 import os as _os
-OPENAI_API_KEY: str = get_openai_api_key()
-OPENAI_BASE_URL: str = _os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-OPENAI_MODEL: str = _os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+from backend.app.llm.chat import resolve_chat_config as _resolve_chat_config
+from backend.app.llm.ollama_switch import ollama_enabled as _ollama_enabled
+_CHAT = _resolve_chat_config()
+# Ollama is off unless OLLAMA_ENABLED=1 (owner decision 2026-10-01); simulations use Gemini + Jev or OpenAI + Jev.
+OLLAMA_ENABLED: bool = _ollama_enabled()
+LLM_PROVIDER: str = _CHAT.provider
+OPENAI_API_KEY: str = _CHAT.api_key
+OPENAI_BASE_URL: str = (_os.getenv("OPENAI_BASE_URL") or _CHAT.base_url).rstrip("/")
+OPENAI_MODEL: str = _os.getenv("OPENAI_MODEL") or _CHAT.model
 
 # --- Story master config ---
 # "Story master" = the AI that generates NPC/narrator responses.
-# Defaults to the OpenAI endpoint/key/model above. Override via env vars to
-# point at a local Ollama instance (http://localhost:11434/v1) or any other
-# OpenAI-compatible backend.
-STORY_MASTER_BASE_URL: str = _os.getenv("STORY_MASTER_BASE_URL", "https://api.openai.com/v1")
+# Defaults to the active provider's endpoint/key/model above. Override via env
+# vars to point at a local Ollama instance (http://localhost:11434/v1) or any
+# other OpenAI-compatible backend.
+STORY_MASTER_BASE_URL: str = _os.getenv("STORY_MASTER_BASE_URL", OPENAI_BASE_URL)
 STORY_MASTER_API_KEY: str  = _os.getenv("STORY_MASTER_API_KEY",  OPENAI_API_KEY)
 STORY_MASTER_MODEL: str    = _os.getenv("STORY_MASTER_MODEL",    OPENAI_MODEL)
+# Tried once if the story master model is overloaded (503/429). Empty = none.
+STORY_MASTER_FALLBACK_MODEL: str = _os.getenv("STORY_MASTER_FALLBACK_MODEL", _CHAT.fallback_model)
 
 MAX_TOKENS: int = 512
 TEMPERATURE: float = 0.8
 MEMORY_TURNS: int = 8
 EXTRACTOR_TURNS: int = 8
 TRANSIENT_KNOWLEDGE_TURNS: int = 8
+# Character & world model (engine/world_model/): routines, memories, speakers,
+# off-screen life. Kill switch: WORLD_MODEL_ENABLED=0 restores the previous
+# prompt exactly. Stories may also opt out with world_model.enabled=false.
+WORLD_MODEL_ENABLED: bool = _os.getenv("WORLD_MODEL_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
 
 # --- Phase 3 "Social life": behavior-tag accumulation window ---
 # How many recent behavior_tags per character pair before the engine
@@ -105,7 +123,7 @@ TYPESAFE_API_KEY: str = get_typesafe_api_key()
 TYPESAFE_MODEL: str = get_typesafe_model()
 TYPESAFE_ENABLED: bool = is_typesafe_enabled()
 
-# --- Jev rollout flags and tuning knobs (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §7) ---
+# --- Jev rollout flags and tuning knobs (design/JEV.md (provider architecture) §7) ---
 # Plain os.getenv tunables, not secrets - same pattern as STORY_MASTER_BASE_URL
 # above. Per-task allowlists are CSV strings parsed at the call site, not here,
 # so a "*" wildcard and an empty string both stay simple string comparisons
@@ -115,6 +133,20 @@ JEV_SHADOW_TASKS: str = _os.getenv("JEV_SHADOW_TASKS", "")         # "" = no tas
 JEV_SHADOW_SAMPLE_RATE: float = float(_os.getenv("JEV_SHADOW_SAMPLE_RATE", "0.0"))
 JEV_TIMEOUT_MS: int = int(_os.getenv("JEV_TIMEOUT_MS", "1000"))
 JEV_MAX_QUESTIONS_PER_BATCH: int = int(_os.getenv("JEV_MAX_QUESTIONS_PER_BATCH", "60"))
+
+# Who decides an NPC's answer to a confession / leave-together ask
+# (BL-39, backend/app/engine/world_model/npc_decision.py):
+#   rules   - the local standing+standards policy alone (default)
+#   jev     - Jev judges accept / not yet / reject from the target's own view,
+#             bounded by the rules (needs TYPESAFE_ENABLED; falls back to rules)
+#   compare - rules apply; Jev is asked too and both answers are logged
+# An operator can override per request with the X-NPC-Decision-Mode header.
+NPC_DECISION_MODE: str = _os.getenv("NPC_DECISION_MODE", "rules")
+# Jev decides whether an open promise was carried out (world_model/promise_judge.py). ON by default since the
+# owner set the bar at a 2% miss rate (measured 0.6-1.2% on kept promises, 0 wrongly kept; re-check with
+# `pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py`). It only acts when
+# TYPESAFE_ENABLED is on, so it is inert wherever Jev is off. Set PROMISE_JUDGE_ENABLED=0 to switch it off.
+PROMISE_JUDGE_ENABLED: bool = _os.getenv("PROMISE_JUDGE_ENABLED", "1").strip().lower() not in ("0", "false", "no", "off")
 
 # Dynamic memory selection is a separate opt-in Jev task. It is active only
 # when TYPESAFE_ENABLED is true AND JEV_ENABLED_TASKS includes
@@ -126,7 +158,7 @@ JEV_CONTEXT_CANDIDATE_LIMIT: int = int(_os.getenv("JEV_CONTEXT_CANDIDATE_LIMIT",
 JEV_CONTEXT_OPTIONAL_LIMIT: int = int(_os.getenv("JEV_CONTEXT_OPTIONAL_LIMIT", "6"))
 JEV_CONTEXT_MIN_RELEVANCE: float = float(_os.getenv("JEV_CONTEXT_MIN_RELEVANCE", "0.35"))
 
-# --- Jev circuit breaker parameters (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6) ---
+# --- Jev circuit breaker parameters (design/JEV.md (provider architecture) §6) ---
 JEV_BREAKER_FAIL_THRESHOLD: int = int(_os.getenv("JEV_BREAKER_FAIL_THRESHOLD", "3"))
 JEV_BREAKER_FAIL_WINDOW_S: float = float(_os.getenv("JEV_BREAKER_FAIL_WINDOW_S", "60"))
 JEV_BREAKER_FAIL_RATE_COUNT: int = int(_os.getenv("JEV_BREAKER_FAIL_RATE_COUNT", "5"))

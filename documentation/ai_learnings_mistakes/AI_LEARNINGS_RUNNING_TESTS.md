@@ -20,7 +20,12 @@ is not a skip. Any test that needs a real provider MUST be marked
 "LLM network call to ... during the deploy test gate". Live tests at build time
 are opt-in only: Docker build arg `RUN_LIVE_LLM_TESTS=1` (+ `OPENAI_API_KEY`).
 Reproduce the gate locally (no `.env.test` in a clean worktree):
-`OPENAI_API_KEY= TESTS_BLOCK_LLM_NETWORK=1 python -m pytest tests -m "not integration"`.
+`OPENAI_API_KEY= TYPESAFE_API_KEY= TESTS_BLOCK_LLM_NETWORK=1 python -m pytest tests -m "not integration"`.
+
+**A populated `.env.test` no longer breaks unit tests (BL-79, 2026-10-01).** `tests/conftest.py` has an autouse fixture that pins
+`settings.TYPESAFE_ENABLED=False` and `TYPESAFE_API_KEY=""` for every test that is not marked `integration` (a Jev call used to
+add a second HTTP post per turn and broke call-count tests only on machines with Jev configured). A unit test that wants Jev
+on sets it itself with `monkeypatch`; `integration` tests keep the real settings. Guard: `tests/test_jev_pin.py`.
 The conftest.py hook converts any skip attempt into a hard FAILURE.
 If a test needs an API key, the key MUST be available — never gate on it.
 
@@ -90,3 +95,24 @@ deploy. Skips are banned, so inject a fake instead (see
 `.claude/skills/promote-to-prod/tests/test_local_release.py` `fake_git`). Reproduce the
 build conditions locally (no git, no pytest.ini) with:
 `PATH="$(echo "$PATH" | tr ':' '\n' | grep -vi git | paste -sd:)" python -m pytest <path> -c /dev/null --rootdir .`
+
+## Accuracy gates against live Jev are integration tests (2026-09-29)
+
+`tests/backend/integration/test_promise_judge_accuracy.py` measures the Jev promise judge against 318 labeled
+exchanges and fails above a 2% miss rate on kept promises or on any wrongly-kept exchange. It is
+`@pytest.mark.integration`, so the deploy gate and CI unit job never run it. Run it by hand (needs `TYPESAFE_API_KEY`
+in `.env.test`; a missing key makes it fail, not skip):
+`python -m pytest -m integration tests/backend/integration/test_promise_judge_accuracy.py -s`
+(about 20 seconds). Its arithmetic and label-file checks (`test_promise_eval_math.py`) are ordinary unit tests and do
+run on deploy, so anything they import (`scripts/eval/`, `tests/eval_cases/`) must stay copied into the image.
+A live-Jev number varies by a case or two run to run, so give any gate a margin.
+
+
+## `.gitignore` swallows any folder named `data/` (2026-09-29)
+
+`.gitignore` line 223 (`data/`, meant for runtime data) also ignores `tests/data/`. Label files put there passed
+every local run (they existed on disk) and then failed the Railway build gate with `FileNotFoundError` because they
+were never committed. Keep committed test fixtures out of folders named `data` (use `tests/eval_cases/` or
+`tests/fixtures/`), and before pushing a change that adds fixture files run `git status --short` for them and
+`git check-ignore -v <path>`. The reliable proof is a clean clone:
+`git clone . /tmp/check && cd /tmp/check && python -m pytest -c /dev/null --rootdir . -m "not integration" <new tests>`.

@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/knowledge.py
-"""GameKnowledgeBundle: the judge-side world oracle (JEV_GAME_ARENA_DESIGN.md §6).
+"""GameKnowledgeBundle: the judge-side world oracle (design/JEV_GAME_ARENA.md §6).
 
 Built directly from the AUTHORED story and world JSON, never from the
 candidate engine's runtime state or its own retrieval choices, so the judge

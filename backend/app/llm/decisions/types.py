@@ -1,7 +1,7 @@
 # backend/app/llm/decisions/types.py
 """Provider-independent decision contract.
 
-Exact contract from documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §3.
+Exact contract from documentation/design/JEV.md §3.
 Pure data — no I/O. These types are what makes a Decision answerable by
 either Jev or the legacy generative extractor without either side knowing
 about the other.
@@ -16,7 +16,7 @@ from typing import Any, Callable, Literal, Mapping, Sequence
 class Criticality(Enum):
     """Decides fallback granularity when a Jev answer is unusable.
 
-    See JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §5 for the full rationale:
+    See design/JEV.md (provider architecture) §5 for the full rationale:
     every DEGRADABLE assignment must be justified by an EXISTING "omit if
     ambiguous/neutral" rule already present in the legacy extractor prompt,
     so nothing becomes newly optional because of this design.

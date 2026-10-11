@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/players.py
-"""Player policies (JEV_GAME_ARENA_DESIGN.md §5A, §6 PlayerObservation).
+"""Player policies (design/JEV_GAME_ARENA.md §5A, §6 PlayerObservation).
 
 A player sees ONLY what a human sees: the public story card
 (`/api/story/{id}` of the release it is playing) and the reply text. It
@@ -17,6 +17,7 @@ from typing import Any, Protocol
 import httpx
 
 from arena.contracts import PersonaSpec
+from backend.app.llm.gemini_router import llm_post
 
 PLAYER_PROMPT_VERSION = "arena-player-1"
 
@@ -137,7 +138,8 @@ class LLMPlayer:
         """One call. Returns (move, None) when final, or (move, delay) when the
         provider signalled a transient limit and the call should be retried."""
         try:
-            r = await self.client.post(
+            r = await llm_post(
+                self.client,
                 f"{self.base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={

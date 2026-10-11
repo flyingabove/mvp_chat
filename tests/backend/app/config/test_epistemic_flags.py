@@ -19,7 +19,6 @@ def fake_retrieval(monkeypatch):
     yield
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "flags,should_pass",
     [

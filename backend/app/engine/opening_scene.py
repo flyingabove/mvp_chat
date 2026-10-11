@@ -26,6 +26,7 @@ same room. Stories without ``welcome_party`` keep their previous behavior.
 from __future__ import annotations
 
 import random
+import re
 import secrets
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional
@@ -121,7 +122,8 @@ def stage_opening_scene(state: "GameState", rng: Optional[random.Random] = None)
     an empty list when the story authors no welcome party.
     """
     story_cfg = getattr(state, "story_cfg", None) or {}
-    rule = WelcomePartyRule.from_config((story_cfg.get("opening") or {}).get("welcome_party"))
+    opening_cfg = story_cfg.get("opening") or {}
+    rule = WelcomePartyRule.from_config(opening_cfg.get("welcome_party"))
     if rule is None:
         return []
     characters = getattr(state, "characters", None) or {}
@@ -153,7 +155,166 @@ def stage_opening_scene(state: "GameState", rng: Optional[random.Random] = None)
         # The focal lens must be someone actually in the room.
         state.main_character_id = party[0]
     state.opening_cast = list(party)
+    arrival_cfg = opening_cfg.get("arrival_sequence") or {}
+    if arrival_cfg and party:
+        offsets = [int(value) for value in arrival_cfg.get("offset_minutes") or []]
+        waiting = [key for key in candidates if key not in party]
+        if len(offsets) != len(waiting) or offsets != sorted(set(offsets)) or any(value <= 0 for value in offsets):
+            raise ValueError("opening.arrival_sequence needs one distinct positive offset per waiting resident")
+        chooser = rng or secrets.SystemRandom()
+        chooser.shuffle(waiting)
+        state.opening_arrival_minutes = dict(zip(waiting, offsets))
+        state.opening_arrived_ids = []
+        state.character_locations = {
+            key: value for key, value in state.character_locations.items() if key not in waiting
+        }
     return party
+
+
+def has_arrived(state: "GameState", character_id: str) -> bool:
+    """A reserved opening resident is not publicly present until their entrance fires."""
+    scheduled = getattr(state, "opening_arrival_minutes", None) or {}
+    return character_id not in scheduled or character_id in (getattr(state, "opening_arrived_ids", None) or [])
+
+
+def advance_opening_arrivals(state: "GameState", minute_before: int, minute_after: int) -> list[str]:
+    """Place due residents exactly once, in the story's authored gathering room."""
+    scheduled = getattr(state, "opening_arrival_minutes", None) or {}
+    arrived = set(getattr(state, "opening_arrived_ids", None) or [])
+    due = [key for key, minute in sorted(scheduled.items(), key=lambda item: item[1])
+           if key not in arrived and minute_before < minute <= minute_after]
+    if not due:
+        return []
+    cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+    room = str(cfg.get("gather_location_id") or getattr(state, "location_id", "") or "")
+    if not room:
+        raise ValueError("opening arrivals need a gathering location")
+    model = getattr(state, "world_model", None)
+    for key in due:
+        state.character_locations[key] = room
+        if model is not None and key in model.characters:
+            model.world.move(key, room)
+        arrived.add(key)
+    state.opening_arrived_ids = list(getattr(state, "opening_arrived_ids", None) or []) + due
+    return due
+
+
+def opening_arrival_segments(state: "GameState") -> list[dict[str, str | None]]:
+    """Guaranteed, authored entrance beats for residents the player can see."""
+    due = getattr(state, "opening_arrivals_this_turn", None) or []
+    cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+    if not due or str(getattr(state, "location_id", "") or "") != str(cfg.get("gather_location_id") or ""):
+        return []
+    cues = cfg.get("entrance_cues") or {}
+    lines = cfg.get("entrance_lines") or {}
+    characters = getattr(state, "characters", {}) or {}
+    beats: list[dict[str, str | None]] = []
+    for key in due:
+        name = str(getattr(characters.get(key), "name", None) or key)
+        # The narrator never names a newcomer: the player learns who they are from their own introduction.
+        beats.append({"kind": "narration", "speaker_id": None,
+                      "text": "The front door opens. "
+                              + str(cues.get(key) or "Someone steps into the living room with a bag.")})
+        beats.append({"kind": "dialogue", "speaker_id": key,
+                      "text": str(lines.get(key) or f"Hajimemashite. {name}.")})
+    return beats
+
+
+def group_ritual_brief(state: "GameState") -> str:
+    """The show's first group question, once, on the turn after the last resident has arrived.
+
+    Configured as ``opening.group_ritual`` (``prompt``, ``likes``/``dislikes`` taste-tag -> phrase). Each present
+    resident gets hints drawn from their own authored tastes, so the answer teaches the player something true
+    without listing it. Generic: any story can author its own ritual.
+    """
+    cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("group_ritual") or {}
+    scheduled = getattr(state, "opening_arrival_minutes", None) or {}
+    if not cfg or getattr(state, "opening_ritual_done", True) or not scheduled:
+        return ""
+    if not set(scheduled) <= set(getattr(state, "opening_arrived_ids", None) or []):
+        return ""
+    if getattr(state, "opening_arrivals_this_turn", None):
+        return ""
+    from backend.app.engine.rules.personality import personalities
+
+    room = str(getattr(state, "location_id", "") or "")
+    locations = getattr(state, "character_locations", None) or {}
+    characters = getattr(state, "characters", None) or {}
+    people = personalities(getattr(state, "story_cfg", None) or {})
+    likes, dislikes = cfg.get("likes") or {}, cfg.get("dislikes") or {}
+    rows = []
+    for key, where in sorted(locations.items()):
+        if key == "player" or where != room or key not in people:
+            continue
+        tastes = people[key].tastes
+        hints = [likes[tag] for tag, w in sorted(tastes.items(), key=lambda kv: -kv[1])[:2] if w > 0 and tag in likes]
+        hints += [dislikes[tag] for tag, w in sorted(tastes.items(), key=lambda kv: kv[1])[:1] if w <= -2.0 and tag in dislikes]
+        name = (getattr(characters.get(key), "name", None) or key).strip()
+        rows.append(f"{name}: " + ("; ".join(hints) if hints else "no strong type"))
+    if not rows:
+        return ""
+    return (
+        f"Group moment, once: {cfg.get('prompt', 'The producers ask everyone what their type is.')} Only two or three "
+        "residents answer in this reply, in their own voice and still as near-strangers; the rest pass, deflect or say "
+        "they will go later. An answer is vague, shy, joking or sideways, never a list and never about anyone in the "
+        "room. Put the leaning in your own words and never repeat the hint wording; one resident may dodge entirely. "
+        "Each answerer lets slip at most ONE hint from their real leaning: " + " | ".join(rows) + ". Show it, do not "
+        "announce it. The player is not asked yet; leave the reply open for the player.\n\n"
+    )
+
+
+def mark_group_ritual(state: "GameState") -> None:
+    """Record that the ritual has been handed to the storyteller (call only when its brief was used)."""
+    state.opening_ritual_done = True
+
+
+# A narration repeats an authored entrance when it recovers this share of the cue's DISTINCTIVE words (the words no
+# other resident's cue uses: "woman", "room" and "bows" describe every entrance), and at least MIN_SHARED_CUE_WORDS
+# of them, so a short cue is never matched by coincidence.
+CUE_REPEAT_SHARE = 0.4
+MIN_SHARED_CUE_WORDS = 2
+
+
+def _content_words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z']{4,}", text.lower()))
+
+
+def repeats_entrance_cue(body: str, cue: str, other_cues: Iterable[str] = ()) -> bool:
+    """Is `body` a retelling of the authored entrance `cue`? Authored cues never name the newcomer, so a retelling
+    does not either: compare what is described, not who."""
+    shared_with_others = set().union(*(_content_words(other) for other in other_cues if other != cue))
+    wanted = _content_words(cue) - shared_with_others
+    shared = len(wanted & _content_words(body))
+    return shared >= MIN_SHARED_CUE_WORDS and shared >= CUE_REPEAT_SHARE * len(wanted)
+
+
+def strip_generated_arrival_repeats(state: "GameState", segments: list[dict]) -> list[dict]:
+    """Keep one visible entrance and self-introduction when the storyteller also drafts them.
+
+    The server shows the authored beats first; a generated narration is dropped when it names an arriving resident
+    while describing an entrance, or retells that resident's authored cue (the narrator never names newcomers, so
+    the cue match is what catches an unnamed retelling, BL-93)."""
+    due = set(getattr(state, "opening_arrivals_this_turn", None) or [])
+    if not due:
+        return segments
+    characters = getattr(state, "characters", {}) or {}
+    names = [str(getattr(characters.get(key), "name", None) or key) for key in due]
+    arrival = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+    all_cues = {key: str(cue) for key, cue in (arrival.get("entrance_cues") or {}).items()}
+    cues = [cue for key, cue in all_cues.items() if key in due]
+    arrival_verb = re.compile(r"\b(?:arriv\w*|enter\w*|step\w*|walk\w*|door|come(?:s|ing)? in)\b", re.I)
+    kept = []
+    for segment in segments:
+        if segment.get("kind") == "dialogue" and segment.get("speaker_id") in due:
+            continue
+        body = str(segment.get("text") or "")
+        if segment.get("kind") == "narration":
+            names_an_entrance = arrival_verb.search(body) and any(
+                re.search(r"\b" + re.escape(name.split()[0]) + r"\b", body, re.I) for name in names)
+            if names_an_entrance or any(repeats_entrance_cue(body, cue, all_cues.values()) for cue in cues):
+                continue
+        kept.append(segment)
+    return kept
 
 
 def opening_scene_brief(state: "GameState") -> str:
@@ -164,6 +325,14 @@ def opening_scene_brief(state: "GameState") -> str:
     characters = getattr(state, "characters", None) or {}
     names = [(getattr(characters.get(key), "name", None) or key).strip() for key in party]
     who = names[0] if len(names) == 1 else ", ".join(names[:-1]) + f" and {names[-1]}"
+    if getattr(state, "opening_arrival_minutes", None):
+        return (
+            f"Opening scene: {who} met the player, who entered second at 3 pm. "
+            "Only this resident is with the player at the start. Let them have a real, slightly awkward "
+            "first conversation. The other selected residents have not arrived yet and must not speak or "
+            "be named before their entrance events. Nobody is eating; food can be ordered or prepared "
+            "after the group has formed.\n\n"
+        )
     return (
         f"Opening scene: {who} just greeted the player as the story opened, and they are "
         "the characters with the player right now. Continue this first conversation with "

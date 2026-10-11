@@ -1,5 +1,5 @@
 """Tests for TurnExtractor's Jev integration seam (step 3 of
-JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12): _build_batches,
+design/JEV.md (provider architecture) §12): _build_batches,
 _apply_decision_overrides, _call_legacy_raw, and extract()'s orchestration.
 
 The pre-existing test_turn_extractor.py continues to cover _parse_json /

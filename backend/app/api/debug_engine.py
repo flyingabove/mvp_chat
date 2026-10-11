@@ -28,11 +28,13 @@ from fastapi import APIRouter, Depends, Request, WebSocket
 from fastapi.responses import JSONResponse
 
 from backend.app.auth.dependencies import require_operator, require_operator_ws, _operator_token_configured
-from backend.app.config.settings import OPENAI_API_KEY, OPENAI_MODEL
+from backend.app.config.settings import OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
 from backend.app.db.database import DATA_DIR
+from backend.app.engine.briefing import brief_lines
 from backend.app.engine.story_loader import load_story
 from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.knowledge.runtime.retrieve import retrieve_knowledge
+from backend.app.llm.ollama_switch import ollama_enabled, require_ollama
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -45,7 +47,7 @@ PLAYER_NAME = "Alex"
 PLAYER_GENDER = "M"
 
 # Online cloud API — reuses story master credentials by default
-_ONLINE_API_BASE = os.getenv("STORY_MASTER_BASE_URL", "https://api.openai.com/v1")
+_ONLINE_API_BASE = os.getenv("STORY_MASTER_BASE_URL", OPENAI_BASE_URL)
 _ONLINE_API_KEY = os.getenv("STORY_MASTER_API_KEY", OPENAI_API_KEY)
 
 # ---------------------------------------------------------------------------
@@ -152,6 +154,7 @@ Output exactly one of those two tokens. Nothing else."""
 # Ollama helpers (local mode)
 # ---------------------------------------------------------------------------
 async def ollama_generate(model: str, system: str, user: str) -> str:
+    require_ollama("the debug evaluator's local mode")
     async with httpx.AsyncClient(base_url="http://127.0.0.1:11434", timeout=120.0) as c:
         r = await c.post("/api/chat", json={
             "model": model,
@@ -166,6 +169,8 @@ async def ollama_generate(model: str, system: str, user: str) -> str:
 
 
 async def check_ollama() -> dict:
+    if not ollama_enabled():           # off by default: do not even try to connect
+        return {"available": False, "models": [], "disabled": True}
     try:
         async with httpx.AsyncClient(base_url="http://127.0.0.1:11434", timeout=5.0) as c:
             r = await c.get("/api/tags")
@@ -260,13 +265,17 @@ async def _build_player_brief(story_id: str, api_base: str) -> str:
     if player_role:
         lines.append(f"YOUR ROLE: {player_role}")
 
-    # Win condition shown in the UI instructions box (real users see this)
+    # BL-49: the same briefing every real player is shown before the first scene (goal + controls).
+    briefing = meta.get("briefing") or {}
+    if briefing.get("goal"):
+        lines.extend(brief_lines(briefing))
+        return "\n".join(lines)
+
+    # Older stories without a briefing: the win condition shown in the UI instructions box.
     goal = meta.get("goal") or {}
     win_text = goal.get("win_text_rule", "")
     if win_text:
         lines.append(f"HOW TO WIN: {win_text}")
-
-    lines.append("YOUR GOAL: Discover what happened and who is responsible.")
     return "\n".join(lines)
 
 

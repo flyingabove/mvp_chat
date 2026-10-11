@@ -14,7 +14,7 @@ Debug System — AI Learnings & Reference
 > **Not the release evaluator.** The beta-vs-prod quality comparison (paired games, blinded Jev
 > judging, deterministic checks, Elo-equivalent with intervals) is the separate Jev game arena:
 > `.claude/skills/promote-to-prod/arena/` (local-only skill tooling), CLI `python .claude/skills/promote-to-prod/arena_cli.py`, design
-> `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md`. This debug grader's CSV scores are
+> `documentation/design/JEV_GAME_ARENA.md`. This debug grader's CSV scores are
 > not interchangeable with arena ratings.
 
 Overview
@@ -207,6 +207,32 @@ What `prompt_debug` contains:
   - story, instance, turn, truth_mode, trimmed_history
   - prompt_layers: dict of named system prompt sections
   - system_prompt_preview, header, chunks, retrieval_debug
+
+Debug surfaces for agents
+-------------------------
+Every way an agent can see inside a running game, cheapest first. Use them to prove a change worked
+(`/ship-and-verify`), not just the transcript.
+
+| Surface | Access | Shows | Use it to |
+|---------|--------|-------|-----------|
+| `[D]` in chat, then `debug_box` on each `/api/chat` reply | any session, guest included, no token | clock, location, speakers, people present, transient entries, last 3 `npc_decisions`, `turn`, `flags`, `counters`, `mechanics` (player-safe providers from `engine/debug_hooks.py`), `knowledge_resolution_updates` | check world/scene state on the live beta site |
+| `prompt_debug` and `turn_trace` on the `/api/chat` reply | `DEBUG_TOOLS_ENABLED=1` plus `X-Operator-Token` header (`is_operator_request`); local or the debug engine only | `prompt_debug`: full system prompt, `prompt_layers`, chunks, `retrieval_debug`. `turn_trace`: `stage_ms`, extractor result, `retrieved_chunk_ids`, `npc_decision_mode`, `usage` | prove a prompt, extractor or timing change (on beta with the token from `.env.test`, or locally with `TestClient`) |
+| `GET /api/debug/ping` | public, never raises | `debug_tools_enabled`, `operator_configured`, `operator_token_ok` | learn in one call which surfaces a host lets you use |
+| `GET /api/debug/session/{id}?user_id=` | operator header | state and full `world_model` of a live or persisted session (`guest:<uuid>` for guests); read-only, never creates a session | inspect counters, standing, agendas, endings without replaying |
+| `X-NPC-Decision-Mode` header | operator only | forces `rules`/`jev`/`compare` for one request | compare NPC verdicts |
+| `/beta/debug` WebSocket + REST (`debug_engine.py`) | operator token | player-agent/grader runs, `/runs`, `/scores`, `/test-cases`, `/status` | automated multi-turn evaluation |
+| `/api/health` | public | commit SHA, environment, Jev breaker state | confirm the deploy landed |
+| `/api/eval/capabilities` | public | which observation features this build supports | know what can be observed |
+| Server log JSONL (`jlog`) | local file or Railway logs | `turn_stage_ledger` (stage ms, tokens), `turn_extraction_complete`, `chat_request` (with `prompt_debug`) | timings and extractor behaviour, locally |
+| `scripts/integration_playback` / `/integration_playback/*` | operator token | scripted scenario replay with `debug_box` lines | regression playback |
+
+Beta runs with `DEBUG_TOOLS_ENABLED=1` and an `OPERATOR_TOKEN` (Railway beta variables; the value is
+`BETA_OPERATOR_TOKEN` in the gitignored `.env.test`). Production has them too (owner decision 2026-10-01) with a separate token, `PROD_OPERATOR_TOKEN` in `.env.test`; use
+it read-only. The operator token is accepted from the `X-Operator-Token` header only on REST routes (compared in constant time);
+the WebSocket also takes `?operator_token=`. `GET /api/auth/debug-config` is operator-only. Rule for new features: a
+significant feature ships with its own debug hook (see `ship-and-verify`, step 3a): register a player-safe provider with
+`register_debug_provider(name, fn)` in `backend/app/engine/debug_hooks.py`, or add spoiler-bearing values to
+`_build_turn_trace` in `prompt_engine.py`.
 
 Leaderboard
 -----------

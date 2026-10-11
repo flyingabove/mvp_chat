@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/checks.py
-"""Deterministic correctness checks (JEV_GAME_ARENA_DESIGN.md §7).
+"""Deterministic correctness checks (design/JEV_GAME_ARENA.md §7).
 
 These use the AUTHORED contracts in GameKnowledgeBundle plus independent
 reference algorithms (BFS over authored edges, clock parsing), never the

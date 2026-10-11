@@ -71,7 +71,6 @@ from backend.app.integration_playback.scenarios.scenario_character_retrieval_e2e
 # -- Pytest entry point --
 import pytest  # noqa: E402
 
-@pytest.mark.integration
 def test_character_retrieval_returns_real_knowledge():
     RetrievalE2EScenario.run_as_test()
 

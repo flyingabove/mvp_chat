@@ -2,9 +2,9 @@
 """Raw TypeSafe AI (Jev) transport client.
 
 Request/response shapes verified against the LIVE API on 2026-09-22 — see
-documentation/JEV_EXTRACTOR_REDESIGN_2026_09_22.md §7 for the full evidence
+documentation/design/JEV.md §7 for the full evidence
 (5 real requests, 21 questions, all answers correct) and
-documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §8 for the request
+documentation/design/JEV.md §8 for the request
 schema this implements exactly.
 
 No policy here: no flags, no circuit breaker, no fallback. That is
@@ -68,6 +68,12 @@ def _build_criteria(decision) -> dict | list:
     JSON serialization safety (frozen dataclasses may hold a MappingProxyType)."""
     if isinstance(decision.criteria, Mapping):
         return dict(decision.criteria)
+    if decision.kind == "noul":
+        # BL-18: the live API rejects a list here (HTTP 422 "Input should be a valid dictionary"), which failed every
+        # batch holding a noul question and pushed those abilities onto the legacy path. Verified live 2026-09-29:
+        # the documented {"true", "false"} map is accepted. Most noul decisions are built with a one-line list.
+        condition = "; or ".join(str(c).strip() for c in decision.criteria if str(c).strip()) or decision.instructions
+        return {"true": condition, "false": "not: " + condition}
     return list(decision.criteria)
 
 
@@ -111,7 +117,7 @@ class JevClient:
 
         Raises a ProviderTransportError subtype on timeout/connect/non-2xx/
         unparseable body — resolve() catches this and applies fallback
-        (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §4). Never returns a
+        (design/JEV.md (provider architecture) §4). Never returns a
         partial result silently; a malformed per-question answer raises
         here rather than producing a half-populated JevRawResult.
         """

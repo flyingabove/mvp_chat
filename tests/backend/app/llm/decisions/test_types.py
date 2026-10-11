@@ -1,7 +1,7 @@
 """Tests for the core decision contract (backend/app/llm/decisions/types.py).
 
 These types are pure data — the tests exist to lock the exact contract from
-JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §3, since every later step (the
+design/JEV.md (provider architecture) §3, since every later step (the
 resolver, the circuit breaker, the decision registry) depends on this shape
 being exactly right.
 """

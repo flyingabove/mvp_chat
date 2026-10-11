@@ -3,7 +3,7 @@ from backend.app.llm.usage import PRICING_PER_MILLION_TOKENS, UsageLedger, estim
 
 
 def test_estimate_cost_jev_input_only_output_free():
-    """Verified pricing from JEV_EXTRACTOR_REDESIGN_2026_09_22.md §8:
+    """Verified pricing from design/JEV.md (extractor redesign) §8:
     $0.042/M input, output free."""
     cost = estimate_cost_usd("jev-1.13.0", {"input_tokens": 1_000_000, "output_tokens": 1_000_000})
     assert cost == 0.042  # output contributes $0

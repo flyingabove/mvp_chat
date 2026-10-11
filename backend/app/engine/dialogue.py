@@ -22,13 +22,32 @@ def _contract_cast_ids(state) -> list[str]:
     Six Strangers names let the model mention unarrived residents as if they
     lived there (live prod 2026-09-24: "Yuto should be back from practice")."""
     lifecycle = getattr(state, "cast_lifecycle", None)
+    from backend.app.engine.opening_scene import has_arrived
     gated = lifecycle is not None and getattr(lifecycle, "enabled", False)
-    return [key for key in (getattr(state, "characters", {}) or {})
-            if key != "player" and (not gated or lifecycle.is_scene_eligible(key))]
+    cast = [key for key in (getattr(state, "characters", {}) or {})
+            if key != "player" and (not gated or (lifecycle.is_scene_eligible(key) and has_arrived(state, key)))]
+    return cast + [key for key in _panel_speakers(state) if key not in cast]
+
+
+def _panel_speakers(state) -> dict[str, str]:
+    """Studio panelists allowed to speak on this (finale) turn only."""
+    view = getattr(getattr(state, "world_model", None), "view", None)
+    return dict(getattr(view, "panel_speakers", None) or {})
+
+
+def _panel_prompt(panel: dict[str, str]) -> str:
+    if not panel:
+        return ""
+    return ("\nFINALE FORMAT: `segments` holds the exit scene with the house cast above. The studio panel "
+            + json.dumps(panel, ensure_ascii=False) + " are in a TV studio watching the footage, not in the house; "
+            "nobody in the house can hear them, so they never appear in `segments`. This reply MUST end with the "
+            "studio panel section: write it in the `panel` array, at least 6 lines of the panelists talking with "
+            "each other about the footage, then one verdict line from each panelist.")
 
 
 def dialogue_prompt(state) -> str:
-    cast = {key: state.characters[key].name for key in _contract_cast_ids(state)}
+    panel = _panel_speakers(state)
+    cast = {key: state.characters[key].name for key in _contract_cast_ids(state) if key not in panel}
     return (
         "\n\n[SPEAKER PRESENTATION CONTRACT]\n"
         "Return the JSON object required by the response schema. Its segments array "
@@ -48,6 +67,8 @@ def dialogue_prompt(state) -> str:
         "narrate a housemate's thoughts as the player's, and never give a cast member "
         "the player's words, name, plans, possessions, or history (if the player says "
         "'call me Sam', nobody else says 'call me' with their own name). "
+        "Open each narration beat with what changes in the world or what other people do: never restate the "
+        "player's own action, and never give the player feelings, sensations or a gaze they did not write. "
         "Never repeat the player's own message as anyone's "
         "dialogue; the player already sees what they wrote. Use speaker_id unknown for an unidentified "
         "or unlisted voice. A listed housemate introducing themselves is NOT an "
@@ -59,13 +80,38 @@ def dialogue_prompt(state) -> str:
         "write [[STATE]] tags in scene text. "
         "This JSON transport replaces prose-only output formatting.\nCast IDs: "
         + json.dumps(cast, ensure_ascii=False)
+        + _panel_prompt(panel)
     )
 
 
-def dialogue_response_format(state) -> dict:
-    """Constrain speaker IDs and require an ordered scene on the generation call."""
+def _allowed_speaker_ids(state) -> list[str]:
+    """Contract cast narrowed to the world model's allowed speakers this turn
+    (people physically present, unplaced characters, and the speaker plan)."""
     ids = _contract_cast_ids(state)
-    return {"type": "json_schema", "json_schema": {
+    view = getattr(getattr(state, "world_model", None), "view", None)
+    allowed = getattr(view, "allowed_speakers", None)
+    if allowed is None:
+        return ids
+    # An empty list is meaningful: nobody is with the player, so no named NPC
+    # may speak (live 2026-09-25: housemates talked into an empty bedroom).
+    return [key for key in ids if key in set(allowed)]
+
+
+def finale_turn(state) -> bool:
+    """True on the one turn where the studio panel closes the run."""
+    return bool(_panel_speakers(state))
+
+
+def dialogue_response_format(state) -> dict:
+    """Constrain speaker IDs and require an ordered scene on the generation call.
+
+    On the finale turn a required `panel` array holds the studio panel, so the
+    model cannot end the reply after the exit scene (BL-42).
+    """
+    ids = _allowed_speaker_ids(state)
+    panel_ids = list(_panel_speakers(state))
+    ids = [key for key in ids if key not in panel_ids]
+    response = {"type": "json_schema", "json_schema": {
         "name": "story_scene", "strict": True,
         "schema": {"type": "object", "additionalProperties": False,
                    "required": ["segments", "state"], "properties": {
@@ -83,6 +129,13 @@ def dialogue_response_format(state) -> dict:
                                  }},
                    }},
     }}
+    if panel_ids:
+        schema = response["json_schema"]["schema"]
+        schema["required"] = ["segments", "panel", "state"]
+        schema["properties"]["panel"] = {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["speaker_id", "text"],
+            "properties": {"speaker_id": {"type": "string", "enum": panel_ids}, "text": {"type": "string"}}}}
+    return response
 
 
 QUOTE_PAIRS = (('"', '"'), ("“", "”"), ("‘", "’"))
@@ -177,14 +230,21 @@ def decode_dialogue_response(raw: str, state=None) -> str:
                 parts.append(f"[SPEAKER:{speaker}]{part}[/SPEAKER]" if speaker else part)
         else:
             parts.append(text)
+    panel_ids = set(_panel_speakers(state)) if state is not None else set()
+    for line in value.get("panel") or []:
+        if isinstance(line, dict) and line.get("speaker_id") in panel_ids and isinstance(line.get("text"), str):
+            parts.append(f"[SPEAKER:{line['speaker_id']}]{clean_spoken_text(MARKER.sub('', line['text']))}[/SPEAKER]")
     if isinstance(value.get("state"), dict):
         parts.append("[[STATE]]" + json.dumps(value["state"]) + "[[/STATE]]")
     return "\n\n".join(parts)
 
 
-def _segment(text: str, speaker: str | None, characters: dict) -> dict:
+def _segment(text: str, speaker: str | None, characters: dict, panel: dict | None = None) -> dict:
     if speaker is None:
         return {"kind": "narration", "text": text}
+    if panel and speaker in panel:
+        return {"kind": "dialogue", "speaker_id": speaker, "speaker_name": panel[speaker],
+                "portrait_url": DEFAULT_PERSONA_AVATAR, "text": text}
     ch = characters.get(speaker)
     name = ch.name if ch else "Unknown voice"
     # Only authored local image paths are exposed, never arbitrary model URLs.
@@ -219,6 +279,7 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
     Untagged legacy paragraphs are retained as narration, without guessing.
     """
     characters = getattr(state, "characters", {}) or {}
+    panel = _panel_speakers(state)
     segments = []
     speaker = None
     offset = 0
@@ -226,17 +287,133 @@ def present_dialogue(text: str, state) -> tuple[str, list[dict]]:
         body = text[offset:match.start()].strip()
         if body:
             resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
-            segments.append(_segment(body, resolved or speaker, characters))
+            segments.append(_segment(body, resolved or speaker, characters, panel))
         speaker = match.group(1).strip() if match.group(1) is not None else None
         offset = match.end()
     body = text[offset:].strip()
     if body:
         resolved = _self_identified_speaker(body, state) if speaker == "unknown" else None
-        segments.append(_segment(body, resolved or speaker, characters))
+        segments.append(_segment(body, resolved or speaker, characters, panel))
     clean = MARKER.sub("", text).strip()
     # Each authored/model segment is a readable scene beat, even when one
     # character speaks twice. Coalescing them recreated the giant bubble.
     return clean, segments
+
+
+_PLAYER_INTERNAL_STATE = re.compile(
+    r"\b(?:you\s+(?:(?:can|could)\s+(?:feel|sense)|feel|sense|realize|find\s+yourself|can't\s+help\s+but)|"
+    r"(?:gives?|giving)\s+you\s+the\s+sense\b|"
+    r"your\s+(?:anticipation|excitement|confusion|thoughts|feelings)\b|"
+    r"your\b.{0,25}\b(?:spirit|heart|mind|mood)\b|"
+    r"(?:brings|bring)\s+a\s+smile\s+to\s+your\s+face)", re.I,
+)
+_SCENE_CLOCK = re.compile(r"^At\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\s*,\s*", re.I)
+_INTRO_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=(?:and\s+)?(?:i['’]m|i am|my name is)\s+)", re.I)
+_PLAYER_ACTION_OPEN = re.compile(
+    r"^You\s+(?:step|take|smile|nod|introduce|walk|reach|sit|stand|lean|turn|say|ask|murmur|whisper)\b", re.I,
+)
+_PLAYER_ACTION_TAIL = re.compile(
+    r",\s+and\s+you\s+(?:step|take|smile|nod|introduce|walk|reach|sit|stand|lean|turn|say|ask|murmur|whisper)\b.*$", re.I,
+)
+
+
+def _split_other_introductions(segment: dict, state, eligible: set[str]) -> list[dict]:
+    """Repair an explicitly self-named second speaker inside one model beat."""
+    text = str(segment.get("text") or "")
+    parts = _INTRO_BOUNDARY.split(text)
+    if len(parts) < 2:
+        return [segment]
+    characters = getattr(state, "characters", {}) or {}
+    speaker = segment.get("speaker_id")
+    kept: list[dict] = []
+    run: list[str] = []
+    switched = False
+    for part in parts:
+        identified = _self_identified_speaker(part, state)
+        if identified and identified != speaker and identified in eligible:
+            if run:
+                kept.append(_segment(" ".join(run).strip(), speaker, characters))
+            run, speaker, switched = [part], identified, True
+        else:
+            run.append(part)
+    if not switched:
+        return [segment]
+    if run:
+        kept.append(_segment(" ".join(run).strip(), speaker, characters))
+    return kept
+
+
+def ground_social_scene(segments: list[dict], state) -> list[dict]:
+    """Reject ungrounded social speech and narrator-assigned player feelings.
+
+    This is a narrow post-generation gate for the opted-in social story. The
+    model can still describe fictional atmosphere, but its unknown speaker
+    cannot become an action or agreement, and an empty room cannot acquire
+    dialogue just because the model wrote it.
+    """
+    model = getattr(state, "world_model", None)
+    if model is None:
+        return segments
+    cfg = getattr(state, "story_cfg", {}) or {}
+    social_mode = isinstance(cfg, dict) and bool(((cfg.get("mode") or {}).get("romance_goal") or {}).get("enabled"))
+    present = set(model.present_with_player())
+    invalid_speech = any(segment.get("kind") == "dialogue" and not segment.get("speaker_id")
+                         for segment in segments)
+    if social_mode and invalid_speech and not present and _panel_speakers(state):
+        # Finale turn: the player has just walked out, so a voice calling after them is expected.
+        # Keep the exit scene; unattributed speech becomes quoted narration.
+        segments = [{"kind": "narration", "text": f"“{s.get('text', '')}”"}
+                    if s.get("kind") == "dialogue" and not s.get("speaker_id") else s for s in segments]
+        invalid_speech = False
+    if social_mode and invalid_speech and not present:
+        from backend.app.engine.time_utils import WorldTimeFormatter
+        timestamp = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""),
+                                               getattr(state, "minute", 0)).display
+        location = str(getattr(state, "location", "") or "this room")
+        return [{"kind": "narration", "text": f"It is {timestamp}. {location} is quiet; no one is here to answer."}]
+    grounded: list[dict] = []
+    from backend.app.engine.time_utils import WorldTimeFormatter
+    from datetime import datetime
+    actual_clock = datetime.fromisoformat(WorldTimeFormatter.compute(
+        getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0),
+    ).iso)
+    for segment in segments:
+        if segment.get("kind") == "dialogue":
+            if segment.get("speaker_id"):
+                eligible = present | set(getattr(getattr(model, "view", None), "allowed_speakers", []) or [])
+                from backend.app.engine.world_model.source_guard import ground_player_attribution
+
+                speaker = str(segment["speaker_id"])
+                checked = {**segment, "text": ground_player_attribution(
+                    model, speaker, str(segment.get("text") or ""))}
+                grounded.extend(_split_other_introductions(checked, state, eligible))
+            continue
+        text = str(segment.get("text") or "")
+        sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z])", text)
+        kept = []
+        for sentence in sentences:
+            if (_PLAYER_INTERNAL_STATE.search(sentence)
+                    or (re.match(r"^You\b", sentence, re.I) and re.search(r"\bfeeling\b", sentence, re.I))):
+                continue
+            if _PLAYER_ACTION_OPEN.match(sentence):
+                _, comma, consequence = sentence.partition(",")
+                if not comma:
+                    continue
+                sentence = consequence.strip()
+                if not sentence or re.match(r"^(?:and\s+)?you\b", sentence, re.I):
+                    continue
+                sentence = sentence[0].upper() + sentence[1:]
+            sentence = _PLAYER_ACTION_TAIL.sub(".", sentence)
+            clock = _SCENE_CLOCK.match(sentence)
+            if clock:
+                hour, minute = int(clock.group(1)), int(clock.group(2) or 0)
+                meridiem = clock.group(3).replace(".", "").lower()
+                if not 1 <= hour <= 12 or minute >= 60 or (hour % 12 + (12 if meridiem == "pm" else 0), minute) != (actual_clock.hour, actual_clock.minute):
+                    sentence = "Now, " + sentence[clock.end():]
+            kept.append(sentence)
+        if kept:
+            grounded.append({**segment, "text": " ".join(kept).strip()})
+    return grounded or [{"kind": "narration", "text": "The scene remains quiet for a moment."}]
 
 
 def _unmarked_quotes(text: str) -> list[tuple[int, int, str]]:
@@ -324,6 +501,9 @@ REWORDED_COVERAGE = 0.85
 # already appeared in the last few replies is a copy, not a new beat.
 REPEAT_MIN_DIALOGUE_WORDS = 4
 REPEAT_MIN_NARRATION_WORDS = 8
+# Share of a narration beat's word trigrams already present in a recent reply
+# that makes it a re-telling rather than a new beat.
+NARRATION_REPEAT_OVERLAP = 0.6
 
 
 def normalized_words(text: str) -> str:
@@ -335,6 +515,139 @@ def _echo_coverage(words: list[str], said: list[str]) -> float:
         return 0.0
     blocks = SequenceMatcher(None, words, said, autojunk=False).get_matching_blocks()
     return sum(block.size for block in blocks) / len(words)
+
+
+_FIRST_TO_SECOND = {"i": "you", "me": "you", "my": "your", "myself": "yourself"}
+_LEAD_IN = re.compile(r"^(?:as|while|when|once)\s+", re.I)
+
+
+def _stem(word: str) -> str:
+    """A light stem so 'inviting'/'invite'/'invites' and 'lead'/'leads' compare equal (BL-29)."""
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(word) > len(suffix) + 2 and word.endswith(suffix):
+            word = word[:-len(suffix)]
+            break
+    return word[:-1] if len(word) > 3 and word.endswith("e") else word
+
+
+def _squash(text: str, first_person: bool = False) -> list[str]:
+    words = normalized_words(text).split()
+    if first_person:
+        words = [_FIRST_TO_SECOND.get(word, word) for word in words]
+    return [_stem(word) for word in words]
+
+
+def _restates(text: str, said: list[str], min_words: int = 4) -> bool:
+    """True when `text` (narration) is a restatement of the player's message: nearly all of its words, in order."""
+    words = _squash(text)
+    return len(words) >= min_words and _echo_coverage(words, said) >= 0.8
+
+
+def _trim_restating_opener(body: str, said: list[str]) -> str:
+    """Peel restating sentences (and a restating lead-in clause) off the start of a narration beat.
+
+    Sentences that only restate the player ("Inviting her to join you in the Living Room.") go; a restating
+    lead-in clause ("As you lead the way, the hallway light flickers.") is cut and the consequence kept.
+    """
+    kept = body.strip()
+    for _ in range(3):
+        match = SENTENCE.match(kept)
+        if not match:
+            break
+        sentence, rest = match.group().strip(), kept[match.end():].strip()
+        if _restates(sentence, said):
+            kept = rest
+            if not kept:
+                return ""
+            continue
+        clause, comma, tail = sentence.partition(",")
+        if comma and tail.strip() and _restates(_LEAD_IN.sub("", clause.strip()), said):
+            kept = tail.strip()[0].upper() + tail.strip()[1:] + (" " + rest if rest else "")
+            continue
+        break
+    return kept
+
+
+def drop_narrated_player_echo(segments: list[dict], player_message: str) -> list[dict]:
+    """Remove a narrated copy of the player's action, retaining its consequence (BL-29).
+
+    Works on the opening of each narration beat, sentence by sentence, on lightly stemmed words with first person
+    mapped to second, so gerund and paraphrased forms ("Inviting her to join you...") are caught, not only a
+    leading clause that starts with "you". Whatever the narration adds after the restatement is kept, and the
+    reply is never emptied: if nothing else would remain, the original is returned.
+    """
+    said = _squash(player_message, first_person=True)
+    if len(said) < 4:
+        return segments
+    out = []
+    for seg in segments:
+        if seg.get("kind") != "narration":
+            out.append(seg)
+            continue
+        trimmed = _trim_restating_opener(str(seg.get("text") or ""), said)
+        if trimmed:
+            out.append({**seg, "text": trimmed} if trimmed != str(seg.get("text") or "").strip() else seg)
+    return out if any(s.get("kind") in ("narration", "dialogue") for s in out) else segments
+
+
+# Sensations and feelings narration must not invent for the player (BL-29). Bounded on purpose: only phrasing that
+# states the player's inner state or body; a body word or feeling the player wrote themself is left alone.
+_FEELING_SENTENCE = re.compile(
+    r"^(?:you\s+(?:feel|felt|sense|sensed|find\s+yourself|can(?:'|’)?t\s+help\s+but)\b"
+    r"|your\s+(?:stomach|heart|pulse|palms?|chest|throat|cheeks|knees|breath|mind|thoughts)\b)", re.I)
+_FEELING_TAIL = re.compile(
+    r",\s*(?:(?:making|causing|leaving|letting|sending)\s+your\s+"
+    r"(?:stomach|heart|pulse|palms?|chest|throat|cheeks|knees|breath|eyes?|mind)\b"
+    r"|your\s+(?:eyes?|gaze|fingers|hands?)\s+\w+ing\b)[^.!?…]*", re.I)
+_FEELING_LEAD = re.compile(r"^your\s+(?:eyes?|gaze|fingers|hands?)\s+\w+ing\b[^,.!?…]*,\s*", re.I)
+_FEELING_FILLER = frozenset({"you", "your", "feel", "felt", "sense", "sens", "find", "yourself", "can", "help", "but",
+                             "the", "and", "a", "an", "of", "in", "as", "to", "it", "is", "that", "with", "for"})
+
+
+def _player_wrote(text: str, said: set[str]) -> bool:
+    """The player's own message already contains the substance of this feeling or body state."""
+    substance = {word for word in _squash(text) if word not in _FEELING_FILLER and len(word) > 2}
+    return bool(substance & said)
+
+
+def drop_invented_player_feelings(segments: list[dict], player_message: str) -> list[dict]:
+    """Trim narration that gives the player sensations or feelings they never stated (BL-29).
+
+    Removes "You feel ..." / "Your stomach ..." sentences and ", making your stomach grumble" /
+    ", your eyes scanning ..." tails. Dialogue is never touched, an emptied narration beat is dropped (not
+    replaced), and turns with no player words (time skips) are skipped.
+    """
+    if not (player_message or "").strip():
+        return segments
+    said = set(_squash(player_message, first_person=True))
+    out = []
+    for seg in segments:
+        if seg.get("kind") != "narration":
+            out.append(seg)
+            continue
+        kept = []
+        for match in SENTENCE.finditer(str(seg.get("text") or "")):
+            sentence = match.group().strip()
+            if not sentence:
+                continue
+            if _FEELING_SENTENCE.match(sentence) and not _player_wrote(sentence, said):
+                continue
+            opener = _FEELING_LEAD.match(sentence)
+            if opener and sentence[opener.end():].strip() and not _player_wrote(opener.group(), said):
+                sentence = sentence[opener.end():].strip()
+                sentence = sentence[0].upper() + sentence[1:]
+            tail = _FEELING_TAIL.search(sentence)
+            if tail and not _player_wrote(tail.group(), said):
+                sentence = _FEELING_TAIL.sub("", sentence, count=1).strip()
+                if sentence and sentence[0] == "," or not sentence:
+                    sentence = sentence.lstrip(", ").strip()
+                if sentence and sentence[0].islower():
+                    sentence = sentence[0].upper() + sentence[1:]
+            if sentence:
+                kept.append(sentence)
+        if kept:
+            out.append({**seg, "text": " ".join(kept)})
+    return out
 
 
 def drop_player_echo(segments: list[dict], player_message: str, player_key: str = "player") -> list[dict]:
@@ -460,16 +773,72 @@ def only_repeats(segments: list[dict], recent_replies: list[str]) -> bool:
     return bool(segments) and all(_is_repeat(seg, seen) for seg in segments)
 
 
+OWN_REPEAT_MIN_WORDS = 6            # shorter lines ("Goodnight, Paul-kun. Sleep well!") legitimately recur
+OWN_REPEAT_TRUNCATED_AT = 240       # world-model memories keep only this many characters of a spoken line
+
+
+def own_repeat_indexes(segments: list[dict], own_lines: dict[str, list[str]]) -> list[int]:
+    """Indexes of dialogue beats where a character replays a line THEY said earlier in the game.
+
+    Live beta 2026-09-29 (BL-47): two residents said their authored arrival introductions again, word for word,
+    when the player greeted them seven turns later; the recent-replies filter only looks at the last three
+    messages. `own_lines` maps a speaker id to what they have already said (oldest first). A replay is an exact
+    match after word normalisation, or, for a remembered line that was cut at OWN_REPEAT_TRUNCATED_AT characters, a
+    beat that begins with it. Narration and short lines are never replays.
+    """
+    found = []
+    for index, seg in enumerate(segments):
+        if seg.get("kind") != "dialogue":
+            continue
+        history = (own_lines or {}).get(seg.get("speaker_id") or "")
+        if not history:
+            continue
+        words = normalized_words(seg.get("text", ""))
+        if len(words.split()) < OWN_REPEAT_MIN_WORDS:
+            continue
+        for past in history:
+            said = normalized_words(past)
+            if len(said.split()) < OWN_REPEAT_MIN_WORDS:
+                continue
+            if words == said or (len(past) >= OWN_REPEAT_TRUNCATED_AT and words.startswith(said)):
+                found.append(index)
+                break
+    return found
+
+
+def drop_own_repeated_lines(segments: list[dict], own_lines: dict[str, list[str]]) -> list[dict]:
+    """Remove beats where a character repeats their own earlier line; never empty the reply."""
+    replays = set(own_repeat_indexes(segments, own_lines))
+    if not replays:
+        return segments
+    kept = [seg for index, seg in enumerate(segments) if index not in replays]
+    return kept or segments
+
+
 def _recent_text(recent_replies: list[str]) -> str:
     return " ".join(f" {normalized_words(reply)} " for reply in recent_replies if reply)
+
+
+def _trigrams(words: list[str]) -> set[tuple[str, ...]]:
+    return {tuple(words[i:i + 3]) for i in range(len(words) - 2)}
 
 
 def _is_repeat(seg: dict, seen: str) -> bool:
     if not seen.strip():
         return False
     words = normalized_words(seg.get("text", ""))
-    minimum = REPEAT_MIN_DIALOGUE_WORDS if seg.get("kind") == "dialogue" else REPEAT_MIN_NARRATION_WORDS
-    return len(words.split()) >= minimum and f" {words} " in seen
+    narration = seg.get("kind") != "dialogue"
+    minimum = REPEAT_MIN_NARRATION_WORDS if narration else REPEAT_MIN_DIALOGUE_WORDS
+    if len(words.split()) < minimum:
+        return False
+    if f" {words} " in seen:
+        return True
+    # Narration re-told with small edits (beta 79ef6f7 turn 1 re-narrated the
+    # opening paragraph) is still a repeat; dialogue must match exactly.
+    if narration:
+        mine = _trigrams(words.split())
+        return bool(mine) and len(mine & _trigrams(seen.split())) / len(mine) >= NARRATION_REPEAT_OVERLAP
+    return False
 
 
 def encode_dialogue(segments: list[dict]) -> str:

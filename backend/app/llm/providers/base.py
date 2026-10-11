@@ -5,7 +5,7 @@ Deliberately minimal at this step. The full lifespan-scoped ClientRegistry
 (one persistent httpx.AsyncClient per provider, replacing today's 18
 per-call `httpx.AsyncClient(...)` construction sites) is
 Phase 3 row 1's own scope — see
-documentation/PHASE_3_MEASURED_OPTIMIZATION_DESIGN_2026_09_22.md §1 — and is
+documentation/design/ROADMAP_NOT_BUILT.md §1 — and is
 NOT built here. This module only defines the exception hierarchy and a tiny
 shared POST helper both JevClient and OpenAIChatClient use, so error mapping
 is consistent between them without duplicating boilerplate.
@@ -16,6 +16,8 @@ import time
 from dataclasses import dataclass
 
 import httpx
+
+from backend.app.llm.gemini_router import llm_post
 
 
 class ProviderTransportError(Exception):
@@ -59,13 +61,13 @@ async def post_json(
 ) -> RawCallResult:
     """Shared POST + parse + error-mapping used by both JevClient and
     OpenAIChatClient. No retries here — retry policy (or lack of it, per
-    JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §4: zero in-turn retries for
+    design/JEV.md (provider architecture) §4: zero in-turn retries for
     Jev, the circuit breaker is the retry mechanism ACROSS requests) is the
     resolver's decision, not this transport layer's.
     """
     t0 = time.perf_counter()
     try:
-        r = await client.post(url, headers=headers, json=json_body, timeout=timeout_s)
+        r = await llm_post(client, url, headers=headers, json=json_body, timeout=timeout_s)
     except httpx.TimeoutException as exc:
         raise ProviderTimeoutError(str(exc)) from exc
     except httpx.HTTPError as exc:

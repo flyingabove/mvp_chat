@@ -1,5 +1,9 @@
 """Per-user game session and conversation history endpoints."""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
+from backend.app.engine.rules.endings import Outcome
+from backend.app.engine.world_model import choices
 from backend.app.auth.dependencies import get_current_user_or_guest
 from backend.app.db.repos import SessionRepo, ConversationRepo
 from backend.app.api.prompt_engine import (
@@ -49,11 +53,39 @@ async def get_history(
     )
 
     oldest_turn = entries[0]["turn"] if entries else 0
-    return {
+    result = {
         "entries": entries,
         "has_more": oldest_turn > 1,
         "oldest_turn": oldest_turn,
     }
+    ending = _saved_ending(sess.get("state_json"))
+    if ending is not None:
+        result["ending"] = ending
+    else:
+        card = _saved_choice(sess.get("state_json"))
+        if card is not None:
+            result["pending_choice"] = card
+    return result
+
+
+def _saved_choice(state_json: str | None) -> dict | None:
+    """An unanswered in-chat choice card (BL-46), so a reload or resume shows it again."""
+    try:
+        saved = json.loads(state_json or "{}")
+        if saved.get("outcome"):
+            return None
+        return choices.card_from_saved(((saved.get("world_model") or {}).get("pending_choice")) or None)
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def _saved_ending(state_json: str | None) -> dict | None:
+    """The finished game's ending card, so a resumed session shows it."""
+    try:
+        saved = json.loads(state_json or "{}").get("outcome")
+        return Outcome.from_dict(saved).payload() if saved else None
+    except (ValueError, KeyError, TypeError):
+        return None
 
 
 @router.get("/api/user/sessions/{session_id}/journal")

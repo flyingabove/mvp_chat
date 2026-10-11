@@ -14,21 +14,28 @@ because the bug only exists in the deployed/browser context, not in pytest).
 This skill closes that gap by treating "deployed and confirmed live" as part
 of the definition of done, not a separate follow-up step.
 
-Read `documentation/backlog/` and `documentation/AI_DOC_INDEX_CATALOGUE.md`
+List `documentation/backlog/` (open only the file for your area) and read `documentation/AI_DOC_INDEX_CATALOGUE.md`
 first if you haven't already this session — check whether the thing you're
 about to do is already a tracked backlog item (update it instead of
 duplicating), and find the right doc to update for whatever you change.
 
 ## Phase 1 — Implement offline, prove it with unit tests
 
-1. Work on `beta` only. Confirm the checkout is clean, then run
-   `git pull --no-rebase origin beta` before making changes. This shared checkout can receive another
-   agent's commits; read their intent before merging and never force-push.
+1. Work on `beta` only, in your own checkout (`AGENTS.md` section 2). Confirm the checkout is clean, then run
+   `git pull --rebase origin beta` before making changes. Other agents push to `beta` in parallel; read their
+   commit messages for intent, preserve both agents' work, and never force-push.
 2. Activate the `storieschat` conda env for anything Python.
 3. For a bug fix: write a test that reproduces the bug FIRST, confirm it
    fails, then fix, then confirm it passes. For a new feature: write tests
    that verify the new behavior. No exceptions — this is a hard project rule,
-   not a suggestion (`.claude/CLAUDE.md` §7).
+   not a suggestion (`AGENTS.md` section 3).
+3a. **A significant new feature ships with its own debug hook, so you can see it work.** If it adds state, a decision,
+   a prompt layer or a timing that a reply alone does not reveal, expose it in the debug API in the same change:
+   player-safe values through `register_debug_provider(name, fn)` in `backend/app/engine/debug_hooks.py` (they appear in
+   `debug_box["mechanics"]` after `[D]`), anything that would spoil the story or shows prompt text in the operator-only
+   `prompt_debug` / `turn_trace` (`_build_turn_trace` in `prompt_engine.py`). Never put spoilers in `debug_box`.
+   Add a test that the field is present for the right audience and absent for the other, and update the surface table
+   in `documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md`. Skip this for small fixes the transcript already proves.
 4. Frontend tests exist: use Node's built-in test runner for
    `tests/frontend/*.test.cjs` and structural pytest checks under
    `tests/frontend/`. For PowerShell, run
@@ -65,8 +72,8 @@ duplicating), and find the right doc to update for whatever you change.
    from this message alone).
 8. Push to `beta` ONLY. Never `prod`, never `main` (deleted, don't recreate
    it). Only merge `beta` → `prod` when the user explicitly asks.
-9. If the change fixes a backlog item, delete its `documentation/backlog/BL-<n>-*.md`
-   file in the same commit and write `Closes BL-<n>` (see `/add-and-remove-from-backlog`).
+9. If the change fixes a backlog item, delete its `## BL-<n>` section from its file in `documentation/backlog/` (delete the file if it empties)
+   in the same commit and write `Closes BL-<n>` (see `/add-and-remove-from-backlog`).
 
 ## Phase 3 — Poll the real deploy, then actually use the feature
 
@@ -121,6 +128,31 @@ don't silently skip this phase because polling is slower than you'd like.
     be installed, state the exact gap; never claim iOS/visual QA from curl or
     screenshots taken in desktop Chromium. Simulated standalone is not a
     physical iPhone installation.
+12a. **Use the debug surfaces to prove the change, not just the transcript** (the full table is in
+    `documentation/ai_learnings_mistakes/AI_SCORER_SYSTEM.md`, "Debug surfaces for agents"). Pick what fits:
+    - **Live beta, no token needed:** start a guest game (`X-Guest-Id`), send `[D]`, then read `debug_box` on each
+      `/api/chat` reply: clock, location, speakers, people present, transient entries, `npc_decisions`. Compare the field
+      you changed against the expected value.
+    - **First, probe:** `curl https://beta-api.storieschat.ai/api/debug/ping` says whether operator tools are enabled and,
+      with `-H "X-Operator-Token: ..."`, whether a token works. Beta has `DEBUG_TOOLS_ENABLED=1` and an `OPERATOR_TOKEN`
+      (set 2026-10-01); the token is `BETA_OPERATOR_TOKEN` in the gitignored `.env.test`: read it into a shell variable,
+      never print it, paste it into a commit or doc. If the probe says `operator_token_ok: false` (token rotated, other
+      host), do the operator checks locally and say so. Prod has its own token (`PROD_OPERATOR_TOKEN`), enabled by the owner on 2026-10-01 (takes effect at the first
+      promote that ships the new routes); use it only for read-only checks (`ping`, the session inspector, `turn_trace`),
+      never to run debug-engine or playback jobs against prod.
+    - **Session state:** operator `GET /api/debug/session/<id>` (add `?user_id=guest:<uuid>` for a persisted guest
+      session) shows the full world model without replaying.
+    - **Prompt, extractor or timing change:** `prompt_debug` and `turn_trace` need the operator token: send it on a
+      hosted beta turn (`X-Operator-Token`), or prove it locally: set `DEBUG_TOOLS_ENABLED=1` and `OPERATOR_TOKEN`, call `/api/chat` through `TestClient` with
+      `X-Operator-Token`, and assert on `prompt_debug["prompt_layers"]` / the system prompt text or `turn_trace["stage_ms"]` / `["extraction"]`. Say in the report which
+      of the two you did.
+    - **Deploy and Jev state:** `/api/health` (commit, environment, `jev` breaker) and `/api/eval/capabilities`.
+    - **Timings and extractor behaviour:** `turn_trace`, or the local `jlog` output (`turn_stage_ledger`, `turn_extraction_complete`).
+    - **NPC verdicts:** the operator `X-NPC-Decision-Mode` header (`rules`/`jev`/`compare`), locally.
+    - **Many turns:** the `/beta/debug` engine or `scripts/integration_playback`, locally; hosted runs need the operator
+      token (Gemini and Jev are free; OpenAI is not, `AGENTS.md` section 4).
+    If the thing you need to see has no surface, that is a gap: add the hook (step 3a) or file it in
+    `documentation/backlog/`; never claim a field you could not observe.
 13. If live verification finds a bug that local tests didn't catch: that's a
     real bug in production-adjacent (beta) infrastructure. Go back to Phase
     1 — write a test that would have caught it if at all feasible (matching
@@ -134,6 +166,6 @@ State plainly: what was tested offline (and how), what was pushed and when,
 how long the deploy took to go live, what was checked on the actual live
 site (curl-level and, if available, browser-level), and any gap you weren't
 able to close (tool unavailable, infra you can't verify from the repo,
-scoped-out follow-up) — add a `documentation/backlog/` file for the last
+scoped-out follow-up) — add a section in `documentation/backlog/` for the last
 category rather than letting it evaporate. Never report a feature as
 "working" or "deployed" based on local test results alone.

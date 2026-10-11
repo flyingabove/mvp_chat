@@ -1,0 +1,261 @@
+# The social mind: characters whose traits, goals, stances and beliefs make drama on their own (generic engine)
+
+**Principle (owner, 2026-10-01):** drama comes from the **character object**, not from per-mechanic code. Put any two
+or more characters in a room, and the following, read from each one's own point of view, should produce engaging
+scenes in every story:
+- their personalities (MBTI type);
+- their goals;
+- their stances toward each other ("considers Yuto a rival", "has a crush on Arisa", "resents Momoka");
+- what each one knows;
+- what each one **thinks the others know**.
+
+Stories only supply data. Prior art: Comme il Faut / Ensemble (weighted social rules), Versu (practices), Slice of
+Life FDG '25 (symbolic state, LLM only voices it).
+
+## BL-85 — Build the character's social mind and let scenes be composed from it
+- **Bucket:** C (engine)
+- **Open (2026-10-01, beta `582ee13`):** the parts exist but are scattered, and the character object does not own
+  them.
+  - **Personality type** only sets dial defaults and reaches Jev (`npc_decision._TRAIT_WORDS`). The storyteller
+    never learns that someone is an INTJ or what that means for how they talk and act.
+  - **Goals** shipped as P-07 (weighted goals the world model reads; `design/SOCIAL_ENGINE.md`, "Personality model: goals"). Open: goals do not yet shift inside the Drama Theatre, and stances do not read them (P-08 slices 2 to 5).
+  - **Attitudes toward people** now have a derived stance model (P-08 slice 1: `world_model/stances.py`, `rules/stance_defaults.json`, `design/SOCIAL_ENGINE.md`), but nothing reads it yet: intentions are still anonymous with no stance behind them (`pursue`,
+    `compete_for`, `test_loyalty` in `agenda.py`), plus one-off modules:
+    - `rivals.py` seeds aims once;
+    - `act_fallout.py` hard-codes losses;
+    - `stakes.py` writes motive notes;
+    - `intentions.py` and `offscreen.py` carry their own rivalry logic with gender checks (19 `genders.get` sites).
+
+    The edge-scoped `disposition` is persisted and never read; non-main attitudes now reach the prompt through stances.
+  - **Knowledge** is first-order only: memories, the epistemic ledger and persona claims. Nobody models "I think she
+    knows", "she doesn't know I saw", or "I think he likes me". This is the source of dramatic irony, secrets and
+    bluffing.
+  - **Scenes** are assembled in `turn._build_view` from about ten unrelated directive sources (beats, signals, stake
+    notes, tells, requirement hints, conduct notes). The scene never asks "what is the tension between these people".
+
+### 1. The character object
+`world_model/person.py` `Person` is already the aggregate (profile, body, heart, scoped views). It gains four parts.
+Each is a **view or a small store owned per character**. None is a second copy of existing state.
+
+```python
+class Person:
+    personality: Personality   # rules/personality.py: type (MBTI), dials, strategy, tastes; MBTI gloss already reaches the LLM (rules/mbti.py)
+    goals: Goals               # weighted goals, each with shift conditions
+    stances: Stances           # typed, directed attitudes toward others, each with cause and strength
+    mind: Mind                 # what I know, what I think others know, what I think others feel
+    heart: Heart               # existing: feelings and standing (single writer: graph / StandingBook)
+
+    def stance_toward(self, other) -> list[Stance]
+    def wants(self, scene) -> list[Want]           # ranked options for this scene, own view only
+    def inner_state(self, scene) -> InnerState     # disclosure-safe private brief for the storyteller
+```
+
+| Part | Holds | Built from (reuse) | New storage |
+|---|---|---|---|
+| Personality | MBTI type, dials, strategy, tastes | `rules/personality.py`, `rules/mbti.py` | none. **Built (`b81bab0`, 2026-10-01):** `Character.mbti`, a 16-type behaviour gloss injected into the identity block, Jev's target view and the finale panel |
+| Goals | `Goal(id, kind, target?, weight, shifts)`; kinds are a closed, extensible list: love, career, status, belonging, keep_secret, revenge, protect | the `goal` trait and story `personalities[key].goals` | goal weights on the person, with history kept in `EvolvingTrait` |
+| Stances | `Stance(kind, target, about?, strength, cause_ids, since_day)`; kinds: crush, rival, ally, resents, suspects, protective_of, owes, distrusts, ex, admires | **derived** from heart feelings, standing tiers, own agenda, witnessed events and goals, by stance rules | `StanceBook` in `WorldModel`, recomputed each turn, persisted for cause history; replaces `disposition` |
+| Mind | first order: beliefs and memories (existing); **second order**: `ThinksKnows(owner, other, proposition, basis)`, `ThinksFeels(owner, other, feeling, basis)` | memories, `EpistemicLedger`, persona beliefs, affinity signals, co-presence at events | second-order entries in the epistemic ledger |
+
+### 2. Stances: "considers this person a rival" as a real, explainable trait
+- A stance is a **trait of the holder about one other person** (sometimes about a third: `rival(target=Yuto,
+  about=Arisa)`).
+- It is derived, never free-written by the LLM. Stance rules are weighted considerations over the existing
+  `rules/conditions.py` language, judged from the holder's `Viewpoint`. A stance holds while its summed weight
+  passes the kind's threshold, so `strength` is that sum.
+- Rules live in a generic default pack (`rules/stance_defaults.json`), which stories can override. Examples:
+  - `crush(X)` ⇐ standing tier ≥ interested toward X; plus personality (openness); minus `career` goal weight.
+  - `rival(Y, about X)` ⇐ I have `crush(X)`, and I **witnessed or was told** that Y shows interest in X. It never
+    comes from Y's hidden feelings.
+  - `resents(Y)` ⇐ a witnessed rude or `failed_confession` event caused by Y, weighted by low forgiveness, within
+    N days.
+  - `suspects(Y, P)` ⇐ I hold a disputed belief on a claim Y made (`persona.belief` status disputed), plus
+    skepticism.
+- Every stance keeps `cause_ids` (event or memory ids), so "why does Momoka resent you" has an answer for debug and
+  Jev.
+- New closed condition kinds needed: `trait`, `strategy`, `goal_weight`, `has_stance`, `witnessed`,
+  `acquaintance_at_least`, `in_couple`, `eligible` (this replaces every gender check), and a `within_days` option on
+  `event_count`. The role names `holder | subject | third` let a rule reference a third person.
+- Intentions stay as the **action** layer (what I will do today). They are now derived from stances and goals. For
+  example, `rival` with a strategy of `fast_mover` or `scheming` gives `compete_for`. The agenda keeps its API.
+
+### 3. Mind: first- and second-order beliefs (theory of mind without telepathy)
+- **I think X knows P** only with evidence I perceived:
+  - I told X;
+  - I saw X present when P was said or happened;
+  - someone told me they told X.
+
+  The basis is stored, and so is its absence: "X wasn't there when I learned P", so X probably doesn't know.
+- **I think X feels F about me** comes only from behaviour I perceived:
+  - affinity signals (`signals.py`), now recorded as the observer's perception (deliberately ambiguous, so belief
+    confidence stays low);
+  - witnessed behaviour tags;
+  - X's claims.
+
+  Decoys mean this belief can be wrong. That is intended.
+- Derived scene facts the storyteller can use, always from one character's view:
+  - **Secret held:** I know P, P matters to X, and I think X doesn't know.
+  - **Dramatic irony:** I know P, and X doesn't know I know.
+  - **Exposure risk:** I hid P from X, and someone present who I think knows P is about to talk to X.
+  - **Misread:** I think X likes me, but the engine truth says otherwise. Truth stays engine-only and is used only to
+    choose the scene, never written into a prompt.
+- **Last seen (absorbs BL-24):** each mind keeps the last place and time it saw or heard of every other person. "Where
+  is Yuriko?" is answered from that, plus routines the person knows about, never from `world.place_of`.
+- **Claims carry the teller's intent (absorbs BL-83a):** a told claim records whether the teller meant it sincerely,
+  exaggerated it, lied, or staged it. Gossip keeps the tag, so a lie persists as a lie in memories and in gossip
+  provenance, while the engine's truth stays separate. Test: a false rumor stays false in the engine however far it
+  spreads.
+- Second-order beliefs update with the same perception path as memories (`observe_event`, `transmit`, gossip). No
+  new provider calls.
+
+### 4. Scene: from character objects to drama
+`world_model/scene.py` `Scene(people, place, time)` builds **dynamics** from each present person's own parts:
+- **Pair** `(A, B)`: A's stances toward B and B's toward A, each from its owner's view. Temperament interplay comes
+  from a type/dial clash table: both high pride means they needle each other; E with I means one fills the silences;
+  T meeting F means bluntness lands hard. Goal clash: same love target, or keep_secret against a curious person.
+  Knowledge asymmetry comes from the mind.
+- **Triangle** `(A, B, C)`: A is a rival of B about C and C is present; A holds a secret about B that C would care
+  about; A thinks B likes C.
+- **Dynamic kinds** form a closed registry: `rivalry, crush, triangle, secret_held, dramatic_irony, exposure_risk,
+  resentment, suspicion, goal_clash, temperament_clash, debt, alliance`. Each kind has:
+  - a detector over the person parts;
+  - a `tension` score (stance strengths × relevant goal weights × temperament);
+  - a wording template.
+- **Selection:**
+  - Rank by tension, with variety: a dynamic shown recently is damped, and paraphrase duplicates share a cooldown
+    (SOCIAL_ENGINE O27).
+  - Surface at most two dynamics per turn.
+  - Stable ordering makes the choice deterministic.
+  - Unanswered direct questions still come first (as `next_beat` does today).
+- **Rendering**, one prompt section that replaces the scattered directives:
+  - Each present person's card keeps its MBTI line (built, `rules/mbti.py`), and gains their active goal, and their stances toward people **in this room**.
+  - Their `inner_state` adds what they are hiding and what they think others know, phrased as subtext. They never
+    state it outright, and hidden feelings are never asserted as fact. This is the `stake_notes` framing, made
+    general.
+  - Plus one line naming the scene's chosen tension.
+  - Cap: a fixed line budget per scene, with the people who speak this turn first.
+- **NPC initiative** comes from the same objects. `Person.wants(scene)` ranks admissible actions for the chosen
+  dynamic: compete, needle, confide, withhold, probe, test, gossip_about, invite, confess. It also covers two moves
+  absorbed from BL-83(b, c), both using real rooms and earshot:
+  - `stage_talk(listener, within_earshot_of)`: hold a conversation meant to be overheard.
+  - `watch(target)`: move to an adjoining room for a few turns. There is a scene beat if the player walks in and
+    catches them.
+
+  Multi-step execution of these moves is BL-81. It uses weighted
+  considerations, the CiF volition sum. The winner becomes the turn's beat, and an invitation remains a state event
+  as today. This replaces `next_beat`, `stakes.py` and the per-module rival logic.
+
+### 5. Example: two residents in the kitchen, nothing authored for this scene
+- **Arisa** is ENFP, with a love goal of 0.8 and `crush(player)`. She thinks Momoka likes the player too (she saw
+  Momoka linger near the player twice). She knows the player turned down Momoka's confession last night, because she
+  was in the room.
+- **Momoka** is ISTJ, with a career goal of 0.6, `resents(player)` from that refusal and `rival(Arisa, about
+  player)`. She doesn't know Arisa saw the refusal.
+- **What the scene finds:**
+  - a triangle: Momoka is a rival of Arisa about the player;
+  - dramatic irony: Arisa knows about the refusal, and Momoka doesn't know Arisa knows;
+  - a temperament clash: ENFP warmth against ISTJ reserve.
+- **What reaches the storyteller:**
+  - Momoka is clipped and practical, and steers away from last night.
+  - Arisa is bright, and is tempted to mention it without saying how she knows.
+- **The result** is tension the player can read and push on. If Arisa does let it slip, Momoka's mind gains `Arisa
+  saw` and a `resents(Arisa)` stance. The next scene changes because of it.
+
+### 6. Owner decisions (2026-10-01)
+- **The LLM writes everything; the objects shape the prompt.** Every scene (player or NPC-only) is written by the
+  LLM. Personality, goals, stances, mind and scene dynamics only build the prompt. Changes to state come back
+  through the existing extraction pass (extractor plus Jev), the same way player turns work today.
+  - The engine is deterministic up to the prompt. Prose is not, so the simulation is judged by the rubric (BL-87),
+    not by golden prose.
+- **Realism with tunable nudges, not enforced detail.** How a scene plays follows from personality. The engine
+  only nudges, and every nudge has a tuning knob (BL-87).
+- **The mind is a per-character store with fog of war.** Each character keeps what they know and what they think
+  others know in the database, like a real video game.
+  - Nobody knows where others are or what they did without perceiving it or being told.
+  - NPCs search, miss each other, and act on stale or wrong beliefs.
+- **Plans have two horizons.** There is a short-term plan (this scene or day) and a long-term plan (days). How far
+  ahead someone plans comes from personality: `planfulness`, where J is high and P is low, so an INTP rarely plans
+  long-term. Multi-step execution is BL-81.
+- **Goals change, and need not be love.** Goals shift with events, and anyone may have a goal like "watch the world
+  burn". Game-mode rules sit on top and are configured as data. For example, in Terrace a mutually committed couple
+  leaves the house.
+- **Interruptions are written realistically.** When someone walks into a scene in progress, the LLM writes the
+  interruption realistically from the scene state.
+- **The player is one more `Person`** under the same rules, with choices from input. In a headless run, an AI
+  resident fills the player's slot.
+- **Free will over routine.** A strong enough goal can pull someone off their routine (skip work for a date), and
+  that costs something.
+- **Locations** carry `privacy`, `filmed` and `earshot` (adjacent rooms that can overhear).
+  - **Objects** carry generic affordances (`use, give, read, hide, break, move`) with social, goal and evidence
+    effects.
+  - Needs (hunger, fatigue) stay off unless a story turns them on.
+
+### 7. Contracts (from SOCIAL_ENGINE.md, still binding)
+- Everything is judged from the holder's view. Engine truth is used only to choose scenes, never in prompts.
+- Stances, wants and dynamics never create consent or override refusals, cooldowns or closed tracks. Verdicts stay
+  in `social_acts` / `npc_decision`.
+- LLM budget: at most two LLM calls per player turn (response plus extraction, Jev-assisted). A headless NPC scene
+  uses the same shape: one writing call plus extraction.
+- Single writers stay as they are: feelings go through the graph, standing through `StandingBook`, intentions
+  through `agenda.add_intention`.
+- No story ids, names or genders in engine code. Eligibility is data (`appraisal.eligible`).
+
+### Phases (failing-first tests in each; ship-and-verify)
+- **P3 Mind.**
+  - Second-order `ThinksKnows` and `ThinksFeels`, kept by the perception path.
+  - No-telepathy tests: remove a witness and the belief disappears; change a hidden feeling and nobody's mind
+    changes.
+- **P4 Scene.**
+  - `Scene`, the dynamics registry and ranking, `inner_state`, and `Person.wants`. These replace `next_beat`,
+    `stakes.py` and the scattered card directives.
+  - Arena gate, plus an offline sim over several seeds measuring how often a dynamic appears and how varied the
+    dynamics are.
+- **P5 Strategies.**
+  - `scheming` uses secrets and second-order beliefs (stage talk, selective telling).
+  - `safe_pick` resolves pending answers (BL-82a).
+  - `planfulness` affects plan reliability; `candor` affects disclosure.
+- **P6 Generic proof.**
+  - A minimal workplace fixture (two colleagues, one secret, one promotion goal, no romance track) produces dynamics
+    from data alone.
+  - Rename-content test.
+  - Move this design into `design/SOCIAL_ENGINE.md` as built, then delete this item.
+
+### Backlog work absorbed here (2026-10-01; removed from the other files)
+- From BL-80: goals and goal shifts, `scheming` and `safe_pick`, and consumers for `planfulness` and `candor`.
+- From BL-82: NPC-initiated confession as a want; fallout sizes become stance rules, tuned through BL-87.
+- From BL-83: claim intent in the mind; `stage_talk` and `watch` as wants.
+- From BL-84: group energy from temperament interplay; third-party reads through gossip and second-order beliefs.
+- From BL-24: each mind keeps last-seen places and times.
+
+Still separate:
+- BL-81: carrying out multi-step plans.
+- BL-82: delayed answers and leave-together fallout.
+- BL-11: authored NPC-to-NPC edges.
+- BL-35: attendance.
+- BL-36: the evidence journal, which builds on the mind's provenance.
+- The prose and pacing items.
+
+- **Sources (prior art, researched 2026-10-01):**
+  - Comme il Faut, the Prom Week rule engine
+    ([AIIDE](https://ojs.aaai.org/index.php/AIIDE/article/view/12454)).
+  - Slice of Life, with the Ensemble schema, social record, intents and weighted considerations, and symbolic state
+    with the LLM as the voice ([FDG '25](https://kmjn.org/publications/SliceOfLife_FDG25.pdf)).
+  - Versu social practices ([Evans & Short](https://www.cs.uky.edu/~sgware/reading/papers/evans2014versu.pdf),
+    [blog](https://emshort.blog/2013/02/26/versu/)).
+  - Concordia, the Entity/Component/Game Master design, Apache 2.0
+    ([repo](https://github.com/google-deepmind/concordia)).
+  - Generative Agents: memory recency, importance and relevance, plus reflection, Apache 2.0
+    ([repo](https://github.com/joonspk-research/generative_agents)).
+  - Project Sid, many-agent societies ([paper](https://arxiv.org/pdf/2411.00114)).
+  - SOTOPIA, social-goal evaluation ([paper](https://arxiv.org/pdf/2310.11667)).
+- **Related:** BL-86 is the headless season simulation and admin watch mode that proves this. BL-87 is the drama
+  direction knobs and the Jev script rubric that tune and judge it.
+- **Plan:** P-08 to P-16 in `documentation/plan/` (P-16 deletes this item).
+- **Next:** P-09 (P3 Mind). Do not start P4 before P3 passes its no-telepathy tests.
+- **Touches:**
+  - Changed: `world_model/person.py`, `rules/personality.py`, `rules/conditions.py`, `world_model/epistemics.py`,
+    `world_model/{agenda,intentions,offscreen,rivals,act_fallout,stakes,signals,turn}.py`, `engine/content_validation.py`,
+    story JSON (`personalities[*].goals`, `stances` overrides).
+  - New: `rules/stance_defaults.json`, `world_model/{stances,mind,scene}.py`.
+  - Tests.
+  - Docs: `design/SOCIAL_ENGINE.md`.

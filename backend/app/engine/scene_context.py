@@ -6,7 +6,7 @@ scattered across module-level functions in `prompt_builder.py`
 `_get_scene_speaker_keys`, `_scene_cast_keys`, `_scene_presence_keys`,
 `_fact_owner_only_upcoming`, `_main_character_scene_eligible`,
 `_scene_presence_has_been_computed`) into one object, per the Six Strangers
-audit's recommendation (documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md,
+audit's recommendation (SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md (removed; see git history),
 "one reusable context-selection policy separating membership, physical
 presence, known public history, and private knowledge").
 
@@ -58,7 +58,8 @@ class SceneContext:
         if lifecycle is None or not getattr(lifecycle, "enabled", False):
             result = True
         else:
-            result = key == "player" or lifecycle.is_scene_eligible(key)
+            from backend.app.engine.opening_scene import has_arrived
+            result = key == "player" or (lifecycle.is_scene_eligible(key) and has_arrived(self._state, key))
         self._eligible_cache[key] = result
         return result
 
@@ -208,6 +209,7 @@ class SceneContext:
             return False
         return all(
             not self.is_eligible(key) and key in lifecycle.members
-            and lifecycle.members[key].status is CastStatus.UPCOMING
+            and (lifecycle.members[key].status is CastStatus.UPCOMING
+                 or key in (getattr(state, "opening_arrival_minutes", None) or {}))
             for key in named
         )

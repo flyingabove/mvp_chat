@@ -4,7 +4,7 @@ No network calls here — mocked httpx, matching the codebase's existing test
 convention (see tests/backend/app/api/test_prompt_engine.py's client
 fixture). The mocked response bodies below are the EXACT shapes captured
 from live jev-1.13.0 responses during design research on 2026-09-22 (see
-documentation/JEV_EXTRACTOR_REDESIGN_2026_09_22.md §7 for the full evidence
+documentation/design/JEV.md §7 for the full evidence
 trail) — this file locks that real behavior into a test rather than
 inventing a plausible-looking mock shape.
 
@@ -51,7 +51,7 @@ def test_parse_answer_choice_matches_live_shape():
 
 def test_parse_answer_score_matches_live_shape_including_legend():
     """Real capture: attitude-strength question. `legend` is what makes the
-    level->delta mapping auditable in code (JEV_EXTRACTOR_REDESIGN_2026_09_22.md
+    level->delta mapping auditable in code (design/JEV.md (extractor redesign)
     TC-11) — must survive parsing, not be dropped."""
     raw = {"type": "score", "score": 1.95, "confidence": 0.93,
            "legend": {"0": "no attitude expressed at all", "1": "mild or passing expression",
@@ -97,6 +97,53 @@ def test_build_criteria_score_becomes_a_list():
     assert result == ["low", "high"]
 
 
+# --- BL-18: live Jev rejects `noul` criteria sent as a list (HTTP 422) -------
+
+def _noul_decision(criteria, id_="knows_c1"):
+    return Decision(id=id_, task="t", kind="noul", instructions="i", criteria=criteria,
+                    criticality=Criticality.DEGRADABLE)
+
+
+def test_build_criteria_noul_list_becomes_the_documented_true_false_map():
+    """Verified live 2026-09-29: a list gets HTTP 422 ("Input should be a valid dictionary"), the map is accepted."""
+    result = _build_criteria(_noul_decision(["the character has been told this fact"]))
+    assert result == {"true": "the character has been told this fact",
+                      "false": "not: the character has been told this fact"}
+
+
+def test_build_criteria_noul_with_several_lines_joins_them_into_one_condition():
+    result = _build_criteria(_noul_decision(["they were told", "they saw it happen"]))
+    assert result == {"true": "they were told; or they saw it happen",
+                      "false": "not: they were told; or they saw it happen"}
+
+
+def test_build_criteria_noul_map_is_left_alone():
+    assert _build_criteria(_noul_decision({"carried_out": "it happened"})) == {"carried_out": "it happened"}
+
+
+def test_build_criteria_noul_empty_list_still_yields_a_valid_map():
+    assert isinstance(_build_criteria(_noul_decision([])), dict)
+
+
+def test_every_noul_decision_the_game_builds_sends_a_dict():
+    """The request-shape guard for every real noul decision the extractor registry builds."""
+    from backend.app.engine.extractors import decision_registry as registry
+
+    decisions = [
+        registry.knowledge_decision("chunk1", "a fact"),
+        *registry.knowledge_batch_decisions([{"chunk_id": "c1", "text": "a fact"}]),
+        *registry.departure_batch_decisions(["ann", "ben"]),
+        *registry.relationship_state_batch_decisions(["ann"]),
+        *registry.relationship_history_batch_decisions(["ann"]),
+    ]
+    noul = [d for d in decisions if d.kind == "noul"]
+    assert len(noul) >= 3, "expected the registry's noul decisions (knowledge and relationship history) to be built"
+    assert any(d.id.startswith("relhist_") for d in noul) and any(d.id.startswith("knows_") for d in noul)
+    for decision in noul:
+        criteria = _build_criteria(decision)
+        assert isinstance(criteria, dict) and set(criteria) == {"true", "false"}, decision.id
+
+
 # --- JevClient.ask(): request shape + response parsing + error mapping ------
 
 class _FakeResponse:
@@ -114,7 +161,7 @@ class _FakeResponse:
 @pytest.mark.asyncio
 async def test_ask_sends_correct_request_shape(monkeypatch):
     """Locks the exact request body shape verified against the live API
-    (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §8): model/state/questions,
+    (design/JEV.md (provider architecture) §8): model/state/questions,
     each question as {type, instructions, criteria}."""
     captured = {}
 
@@ -219,7 +266,7 @@ async def test_ask_raises_malformed_on_non_json_body(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ask_multiple_questions_one_request():
-    """Verified live property (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §1):
+    """Verified live property (design/JEV.md (provider architecture) §1):
     N questions in one DecisionBatch produce exactly ONE HTTP request, not N —
     this is what makes fan-out cheap."""
     call_count = {"n": 0}

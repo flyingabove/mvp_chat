@@ -1,0 +1,189 @@
+"""Typed social acts with explicit consent: confess, ask to leave together, withdraw.
+
+The existing extraction call proposes which act the player's message makes.
+The target decides from their own standing and standards (a documented local
+policy; standing qualifies an ask, it never forces a yes). The verdict is
+held for the turn, voiced by the storyteller from a directive, checked
+against the generated reply before display, and committed with the reply.
+
+A yes to `ask_leave_together` does not end the game: it opens an in-chat choice (`choices.py`) that the
+player answers, and only that confirmation commits the ending (BL-46). The player cannot end the run alone;
+the only losing exit is the director's clock.
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from backend.app.engine.world_model import choices
+from backend.app.engine.world_model.model import PLAYER, WorldModel
+from backend.app.engine.world_model.romance import commit_mutual_departure, commit_relationship, end_relationship
+
+KINDS = ("confess", "ask_leave_together", "withdraw")
+CONFIRMED = "confirmed"        # Verdict.hint on the turn the player confirmed leaving together
+NEEDS_TARGET = frozenset({"confess", "ask_leave_together"})
+LABELS = {"confess": "confession", "ask_leave_together": "asking to leave the house together"}
+_ACCEPTANCE = re.compile(r"\b(yes|of course|absolutely|i'?d love (to|that)|let'?s (do it|go|leave)|"
+                         r"i (love|like) you too|me too|i feel the same)\b", re.I)
+
+
+@dataclass(frozen=True)
+class ActSpec:
+    kind: str
+    track: str = ""
+    requires_tier: str = ""
+    min_standing: float = 0.0
+    requires_relationship: bool = False
+    cooldown_days: int = 0
+
+
+@dataclass(frozen=True)
+class SocialAct:
+    kind: str
+    target: str = ""
+
+
+@dataclass(frozen=True)
+class Verdict:
+    act: SocialAct
+    answer: str                # accept | not_yet | reject
+    hint: str = ""             # disclosure-safe reason seed for narration
+
+
+def act_specs(story_cfg: dict[str, Any]) -> dict[str, ActSpec]:
+    specs: dict[str, ActSpec] = {}
+    for raw in (story_cfg or {}).get("social_acts") or []:
+        kind = str(raw.get("kind") or "")
+        if kind not in KINDS or kind in specs:
+            raise ValueError(f"unknown or duplicate social act {kind!r}")
+        specs[kind] = ActSpec(kind, str(raw.get("track") or ""), str(raw.get("requires_tier") or ""),
+                              float(raw.get("min_standing") or 0), bool(raw.get("requires_relationship")),
+                              int(raw.get("cooldown_days") or 0))
+        if kind in NEEDS_TARGET and not (specs[kind].track and specs[kind].requires_tier):
+            raise ValueError(f"act {kind!r} needs a track and requires_tier")
+    return specs
+
+
+@dataclass(frozen=True)
+class Assessment:
+    """The rules' view of one act: their verdict, whether it is a hard rule, and how much room is left.
+
+    `hard`: cooldown, closed track, missing relationship, or the player's own
+    act. Nothing may change these. `can_accept`: the standing and tier required
+    for a yes are in place; without it a yes is never allowed, whoever judges.
+    """
+    verdict: Verdict
+    hard: bool
+    can_accept: bool
+
+
+def assess(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str]) -> Optional[Assessment]:
+    """The target's rules-based assessment, or None when the act cannot apply here (wrong/absent target)."""
+    if act.kind == "withdraw":
+        return Assessment(Verdict(act, "accept"), True, True) if model.romance_relationship_partner else None
+    if act.target not in eligible:
+        return None
+    day = model.world.day_index(model.world.minute)
+    if model.act_cooldowns.get(f"{act.kind}:{act.target}", -1) >= day:
+        return Assessment(Verdict(act, "not_yet", "they need time after last time before hearing this again"),
+                          hard=True, can_accept=False)
+    standing = model.standing.get(act.target, PLAYER, spec.track)
+    if standing is not None and standing.closed_by:
+        return Assessment(Verdict(act, "reject", "something has settled it for them; they are kind but clear"),
+                          hard=True, can_accept=False)
+    if spec.requires_relationship and model.romance_relationship_partner != act.target:
+        return Assessment(Verdict(act, "not_yet", "you are not together yet"), hard=True, can_accept=False)
+    reached = model.standing.tier_reached(act.target, PLAYER, spec.track, spec.requires_tier)
+    value = standing.value if standing is not None else 0.0
+    if reached is True and value >= spec.min_standing:
+        return Assessment(Verdict(act, "accept"), hard=False, can_accept=True)
+    hint = "they want to know you better first"
+    if _drawn_elsewhere(model, act.target, spec.track, value, day):
+        hint = "they like you but are also drawn to someone else, and they will not say who"
+    return Assessment(Verdict(act, "not_yet", hint), hard=False, can_accept=False)
+
+
+def _drawn_elsewhere(model: WorldModel, target: str, track: str, value_toward_player: float, day: int) -> bool:
+    """True when the target holds a live aim on someone else toward whom their standing is higher than toward the player."""
+    from backend.app.engine.world_model.agenda import intentions
+    for item in intentions(model, target, day):
+        if item.kind in ("pursue", "compete_for") and item.target not in (PLAYER, target):
+            other = model.standing.get(target, item.target, track)
+            if other is not None and other.value > value_toward_player:
+                return True
+    return False
+
+
+def decide(model: WorldModel, spec: ActSpec, act: SocialAct, eligible: set[str]) -> Optional[Verdict]:
+    """The rules-only verdict (see `assess`)."""
+    assessment = assess(model, spec, act, eligible)
+    return assessment.verdict if assessment is not None else None
+
+
+def directive(verdict: Verdict, names: dict[str, str], place: str = "") -> str:
+    act = verdict.act
+    if act.kind == "withdraw":
+        return "The player has ended their romantic relationship. Show the other person's reaction honestly."
+    name = names.get(act.target, act.target)
+    label = LABELS[act.kind]
+    if verdict.answer == "accept" and verdict.hint == CONFIRMED:
+        return (f"The player and {name} now leave the house together for good, as a couple. Write their exit "
+                "scene: goodbyes from the other residents, then the two of them walking out.")
+    if verdict.answer == "accept":
+        return (f"{name} says yes to the player's {label}. Show a clear yes in their own voice. Nobody leaves "
+                "yet: the player decides when, and the story continues in this scene.")
+    tone = "turns it down" if verdict.answer == "reject" else "does not say yes yet"
+    stays = f" The scene stays at {place}; nobody leaves unless the player says so." if place else ""
+    return (f"{name} {tone} after the player's {label} ({verdict.hint}). They must not say yes. Voice it in "
+            f"character and do not state any hidden rule or score.{stays}")
+
+
+def validate(verdict: Verdict, segments: list[dict], names: dict[str, str]) -> int:
+    """Replace any displayed line that contradicts a non-acceptance. Returns repairs made."""
+    if verdict.answer == "accept" or verdict.act.kind not in NEEDS_TARGET:
+        return 0
+    repairs = 0
+    for segment in segments:
+        if segment.get("kind") == "dialogue" and segment.get("speaker_id") == verdict.act.target \
+                and _ACCEPTANCE.search(str(segment.get("text") or "")):
+            segment.clear()
+            segment.update({"kind": "narration",
+                            "text": f"{names.get(verdict.act.target, verdict.act.target)} hesitates and does not "
+                                    "say yes."})
+            repairs += 1
+    return repairs
+
+
+def commit(state: Any, spec: ActSpec, verdict: Verdict, witnesses: tuple[str, ...]) -> None:
+    model: WorldModel = state.world_model
+    act = verdict.act
+    day = model.world.day_index(model.world.minute)
+    if act.kind == "withdraw":
+        partner = model.romance_relationship_partner
+        end_relationship(model)
+        model.world.add_event(model.world.minute, model.player_place(), (PLAYER, partner, *witnesses),
+                              f"@{PLAYER} ended the relationship with @{partner}", kind="relationship_withdrawn",
+                              visibility="public", operation_id=f"act:withdraw:{model.turn}")
+        return
+    kind = f"{act.kind}_{'accepted' if verdict.answer == 'accept' else 'declined'}"
+    event = model.world.add_event(model.world.minute, model.player_place(), (PLAYER, act.target, *witnesses),
+                                  f"@{act.target} {'accepted' if verdict.answer == 'accept' else 'declined'} "
+                                  f"@{PLAYER}'s {LABELS[act.kind]}", kind=kind, visibility="public",
+                                  operation_id=f"act:{act.kind}:{model.turn}:{act.target}",
+                                  payload={"act": act.kind, "target": act.target, "answer": verdict.answer})
+    if verdict.answer != "accept":
+        if spec.cooldown_days:
+            model.act_cooldowns[f"{act.kind}:{act.target}"] = day + spec.cooldown_days - 1
+        if act.kind in NEEDS_TARGET:
+            from backend.app.engine.world_model.act_fallout import apply_fallout
+            apply_fallout(state, spec.track, act.kind, act.target, verdict.answer, witnesses, event.id)
+        return
+    if act.kind == "confess":
+        commit_relationship(model, act.target, (event.id,))
+    elif act.kind == "ask_leave_together":
+        if verdict.hint == CONFIRMED:
+            model.pending_choice = {}
+            commit_mutual_departure(state, act.target)
+        else:
+            choices.offer_leave_together(model, act.target)

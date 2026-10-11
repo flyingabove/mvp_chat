@@ -1,6 +1,6 @@
 """Tests for DecisionResolver.resolve() (backend/app/llm/decisions/resolver.py).
 
-Covers every case in JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §11's resolver
+Covers every case in design/JEV.md (provider architecture) §11's resolver
 test plan, plus the mixed-routing extension the resolver's own docstring
 documents (some decisions routed to Jev, others "off" in the same turn).
 

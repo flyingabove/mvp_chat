@@ -273,3 +273,39 @@ def test_behavior_tag_empty_vocabulary_accepts_anything():
     hasn't authored one) must behave exactly like before this fix."""
     out = _parse_tags_with_vocab([{"from_id": "makoto", "to_id": "mizuki", "tag": "any_free_text"}], vocab=set())
     assert out.behavior_tags[0].tag == "any_free_text"
+
+
+# --- commitments (QC 2026-09-25: pattern detection was ~50% precise and missed agreements) ---
+
+def _commitments(raw):
+    import json as _json
+    return TurnExtractor._parse_json(_json.dumps({"commitments": raw}), ALLOWED_LOCATIONS, ALLOWED_CHARACTERS).commitments
+
+
+def test_commitments_absent_default_to_empty():
+    assert TurnExtractor._parse_json("{}", ALLOWED_LOCATIONS, ALLOWED_CHARACTERS).commitments == []
+
+
+def test_accepted_request_is_a_commitment_with_normalized_ids():
+    key = sorted(ALLOWED_CHARACTERS)[0]
+    out = _commitments([{"owner": key.upper(), "counterpart": "Player", "what": "save a plate of dinner",
+                         "when": "tonight"}])
+    assert len(out) == 1
+    assert (out[0].owner, out[0].counterpart, out[0].what, out[0].when) == (key, "player", "save a plate of dinner", "tonight")
+
+
+def test_commitments_with_unknown_people_or_no_content_are_dropped():
+    key = sorted(ALLOWED_CHARACTERS)[0]
+    out = _commitments([
+        {"owner": "stranger", "counterpart": "player", "what": "x", "when": "later"},
+        {"owner": key, "counterpart": key, "what": "talk to myself", "when": "later"},
+        {"owner": key, "counterpart": "player", "what": "", "when": "later"},
+        "not a dict",
+    ])
+    assert out == []
+
+
+def test_commitments_are_capped():
+    key = sorted(ALLOWED_CHARACTERS)[0]
+    out = _commitments([{"owner": key, "counterpart": "player", "what": f"thing {i}", "when": "later"} for i in range(10)])
+    assert len(out) == 3

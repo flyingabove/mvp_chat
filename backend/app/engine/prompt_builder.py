@@ -6,7 +6,8 @@ from backend.app.engine.state import GameState
 from backend.app.engine.knowledge_chunks import KnowledgeChunk, normalize_parties
 from backend.app.engine.cast_lifecycle import CastStatus
 from backend.app.engine.scene_context import SceneContext
-from backend.app.engine.opening_scene import opening_scene_brief
+from backend.app.engine.opening_scene import has_arrived, opening_scene_brief
+from backend.app.engine.rules.mbti import gloss as mbti_gloss_text
 from backend.app.config.settings import (
     EMOTION_START,
     REL_START,
@@ -620,55 +621,6 @@ def _character_basics_section(state: GameState) -> str:
     )
 
 
-def _canonical_section(state: GameState) -> str:
-    facts = _canonical_facts_for_speaker(state)
-    if not facts:
-        return ""
-    return (
-        "\n────────────────────────────────────────\n"
-        "### STORY CANONICAL TRUTHS (SPEAKER-VISIBLE)\n"
-        "────────────────────────────────────────\n"
-        "Only use these as hard world truths. If something is missing, say you don't know.\n\n"
-        + "\n".join(f"- {f}" for f in facts)
-        + "\n"
-    )
-
-
-def _places_graph_section(state: GameState) -> str:
-    runtime = getattr(state, "world_runtime", None)
-    loc_id = getattr(state, "location_id", "") or ""
-    if not runtime or not loc_id:
-        return ""
-    try:
-        wg = getattr(runtime, "world_graph", None)
-        if wg is None:
-            return ""
-        loc = wg.get_location(loc_id)
-        loc_name = getattr(loc, "name", "") or loc_id
-        loc_desc = getattr(loc, "description", "") or ""
-        outgoing = []
-        for edge in wg.get_outgoing(loc_id).to_tuple()[:8]:
-            to_loc = wg.get_location(edge.to_id.value)
-            outgoing.append(f"- {to_loc.name} ({int(edge.minutes)} min)")
-
-        section_lines = [f"Current place: {loc_name}"]
-        if loc_desc:
-            section_lines.append(f"Description: {loc_desc}")
-        if outgoing:
-            section_lines.append("Reachable places:")
-            section_lines.extend(outgoing)
-
-        return (
-            "\n────────────────────────────────────────\n"
-            "### PLACES GRAPH (CANONICAL)\n"
-            "────────────────────────────────────────\n"
-            + "\n".join(section_lines)
-            + "\n"
-        )
-    except Exception:
-        return ""
-
-
 def _transient_buffer_section(state: GameState) -> str:
     return ""
 
@@ -1040,7 +992,7 @@ def _mode_context_section(state) -> str:
     Optional game-mode context layer.
 
     Purely additive/backward-compatible: reads the OPTIONAL top-level `mode`
-    object from story_cfg (see documentation/model_output_docs/SOCIAL_MODE_DESIGN.md).
+    object from story_cfg (see documentation/design/SOCIAL_ENGINE.md).
     Stories that omit `mode` (all 5 pre-existing stories at the time this layer
     was added) get an empty string here, so the assembled prompt is unchanged
     for them. Intended for ensemble/slice-of-life "social_sim" style games
@@ -1084,6 +1036,55 @@ def _mode_context_section(state) -> str:
         rhythm_text = " ".join(str(x).strip() for x in daily_rhythm if str(x).strip())
         if rhythm_text:
             desc_bits.append(f"Typical daily texture: {rhythm_text}")
+
+    romance_goal = mode_cfg.get("romance_goal")
+    if isinstance(romance_goal, dict) and romance_goal.get("enabled"):
+        gender = str(getattr(state, "gender", "") or "").upper()
+        partner_gender = {"M": "F", "F": "M"}.get(gender)
+        lifecycle = getattr(state, "cast_lifecycle", None)
+        if lifecycle is not None and getattr(lifecycle, "enabled", False):
+            active = {key for key in lifecycle.active_ids() if has_arrived(state, key)}
+        else:
+            active = set(getattr(state, "characters", {}) or {})
+        characters = getattr(state, "characters", {}) or {}
+        authored_gender = {
+            str(character.get("key")): str(character.get("gender") or "").upper()
+            for character in (cfg.get("characters") or []) if isinstance(character, dict)
+        }
+        partners = [characters[cid].name for cid in sorted(active & set(characters))
+                    if partner_gender and authored_gender.get(cid) == partner_gender]
+        rivals = [characters[cid].name for cid in sorted(active & set(characters))
+                  if gender in ("M", "F") and authored_gender.get(cid) == gender]
+        desc_bits.append(
+            "The player's objective is a mutual romantic relationship with an opposite-gender resident "
+            "and a freely chosen decision by both people to leave the house together. "
+            "A date, a friendly answer, or the player's wish alone does not complete this objective."
+        )
+        current_model = getattr(state, "world_model", None)
+        relationship_partner = str(getattr(current_model, "romance_relationship_partner", "") or "")
+        if relationship_partner in active and relationship_partner in characters:
+            desc_bits.append(
+                f"The player and {characters[relationship_partner].name} have mutually chosen a romantic "
+                "relationship. A joint departure still requires each of them to decide for themselves."
+            )
+        else:
+            desc_bits.append("No mutual romantic relationship has been established in engine state yet.")
+        desc_bits.append(
+            "If a resident freely accepts a relationship or a joint departure, let them say their own "
+            "decision directly in first person. If they hesitate or refuse, make that clear. "
+            "Do not report that anyone left before the player and that resident have both decided."
+        )
+        desc_bits.append(
+            "Active potential partners: " + (", ".join(partners) or "none currently eligible")
+            + ". Same-gender potential rivals: " + (", ".join(rivals) or "none currently active")
+            + ". These are engine roster facts for scene planning, not a cast list to reveal to the player."
+        )
+        desc_bits.append(
+            "A rival can pursue the same person through their own invitations, plans, and time together. "
+            "Their interest must grow from their character and actual encounters; do not make every rival hostile, "
+            "teleport anyone, or decide the potential partner's feelings for them. "
+            "Romance and departure require each person's independent choice."
+        )
 
     lines = [
         "\n────────────────────────────────────────",
@@ -1130,7 +1131,8 @@ def _mode_context_section(state) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _identity_block(char_name: str, entries: list, goal: str = "", voice: list | None = None) -> str:
+def _identity_block(char_name: str, entries: list, goal: str = "", voice: list | None = None,
+                     mbti: str = "") -> str:
     """Render one '### CHARACTER IDENTITY — <name>' block for the given entries.
 
     `goal` (Phase 3 "Social life"): the character's current persistent
@@ -1143,6 +1145,11 @@ def _identity_block(char_name: str, entries: list, goal: str = "", voice: list |
     believes) so that two characters with similar knowledge still read as
     distinct people in dialogue. Empty/absent renders no extra section -
     byte-identical output to before this parameter was added.
+
+    `mbti`: optional four-letter personality type (research-backed or
+    designer-estimated, see `rules/mbti.py`). Rendered with its behavior
+    gloss so the model has something actionable, not just four letters.
+    Empty/unrecognized renders no extra line.
     """
     lines = [
         "\n────────────────────────────────────────",
@@ -1155,6 +1162,9 @@ def _identity_block(char_name: str, entries: list, goal: str = "", voice: list |
         f"{char_name} may be emotional, reluctant, or haunted in HOW they say it, "
         "but their spoken words must carry the correction.\n",
     ]
+    mbti_gloss = mbti_gloss_text(mbti)
+    if mbti_gloss:
+        lines.append(f"- [{char_name}'s personality type] {mbti} — {mbti_gloss}")
     for entry in entries:
         lines.append(f"- {entry}")
     if goal:
@@ -1225,11 +1235,12 @@ def _character_identity_section(state) -> str:
     if main_goal_obj is not None:
         main_goal = (getattr(main_goal_obj, "current", "") or "").strip()
     main_voice = list(getattr(main_char, "voice", None) or [])
+    main_mbti = (getattr(main_char, "mbti", "") or "").strip()
     entries = _without_absent_cast_names(state, entries)
 
     blocks: list[str] = []
-    if entries and _main_character_scene_eligible(state):
-        blocks.append(_identity_block(char_name, entries, goal=main_goal, voice=main_voice))
+    if (entries or main_mbti) and _main_character_scene_eligible(state):
+        blocks.append(_identity_block(char_name, entries, goal=main_goal, voice=main_voice, mbti=main_mbti))
 
     # Additional present, non-main characters with their own self_knowledge.
     people_present_keys = _get_people_present_keys(state)
@@ -1241,7 +1252,8 @@ def _character_identity_section(state) -> str:
         if ch is None:
             continue
         other_entries = _without_absent_cast_names(state, list(getattr(ch, "self_knowledge", None) or []))
-        if not other_entries:
+        other_mbti = (getattr(ch, "mbti", "") or "").strip()
+        if not other_entries and not other_mbti:
             continue
         other_name = (getattr(ch, "name", "") or key).strip() or key
         other_goal = ""
@@ -1249,7 +1261,8 @@ def _character_identity_section(state) -> str:
         if other_goal_obj is not None:
             other_goal = (getattr(other_goal_obj, "current", "") or "").strip()
         other_voice = list(getattr(ch, "voice", None) or [])
-        blocks.append(_identity_block(other_name, other_entries, goal=other_goal, voice=other_voice))
+        blocks.append(_identity_block(other_name, other_entries, goal=other_goal, voice=other_voice,
+                                       mbti=other_mbti))
 
     if not blocks:
         return ""
@@ -1270,7 +1283,7 @@ def _without_absent_cast_names(state: GameState, entries: list[str]) -> list[str
     chars = getattr(state, "characters", {}) or {}
     names = set()
     for key in getattr(lifecycle, "members", {}) or {}:
-        if key == "player" or lifecycle.is_scene_eligible(key) or key not in chars:
+        if key == "player" or (lifecycle.is_scene_eligible(key) and has_arrived(state, key)) or key not in chars:
             continue
         full = (getattr(chars[key], "name", "") or "").strip()
         if full:
@@ -1308,6 +1321,8 @@ def _resident_whereabouts(state: GameState) -> list[tuple[str, str, str | None]]
 
     rows = []
     for key in lifecycle.active_ids():
+        if not has_arrived(state, key):
+            continue
         name = (getattr(chars.get(key), "name", None) or key).strip()
         member = lifecycle.members.get(key)
         person = _SLOT_PERSON.get(getattr(member, "slot_group", ""), "")
@@ -1333,8 +1348,7 @@ def _resident_whereabouts_line(state: GameState, lifecycle) -> str:
     for label, room, elsewhere in rows:
         lines.append(f"- {label}: {room}" + ("" if elsewhere else " (here with the player)"))
     return (
-        "Where every resident is right now (authoritative; housemates who share the "
-        "house know this):\n" + "\n".join(lines) + "\n"
+        "Where every arrived resident is right now (authoritative):\n" + "\n".join(lines) + "\n"
         "When anyone asks where a housemate is, answer truthfully from this list: "
         "someone here with the player is right here, and someone elsewhere is in the "
         "listed room. Never invent practice, work, errands, trips, or absences for a "
@@ -1353,11 +1367,40 @@ def _resident_whereabouts_header(state: GameState) -> str:
     away = [f"{label} in {room}" for label, room, elsewhere in rows if elsewhere is not None]
     room = str(getattr(state, "location", "") or "this room")
     if not away:
+        if any(not has_arrived(state, key) for key in (getattr(state.cast_lifecycle, "active_ids", lambda: [])())):
+            return (f"Whereabouts: here with you in {room}: " + ", ".join(here)
+                    + ". Other selected residents have not arrived or introduced themselves yet.")
         return (f"Whereabouts: every housemate is home and here with you in {room}: "
                 + ", ".join(here) + ". Nobody is out, away, upstairs, or on the way back, "
                 "and nobody else lives here.")
     text = f"Whereabouts: here with you in {room}: " + (", ".join(here) if here else "no housemates") + "."
     return text + " Elsewhere in the house: " + "; ".join(away) + ". Nobody else lives here."
+
+
+def _world_view(state: GameState):
+    """The current turn's world-model view, or None (disabled / not stepped yet)."""
+    model = getattr(state, "world_model", None)
+    view = getattr(model, "view", None) if model is not None else None
+    if view is None or view.allowed_speakers is None:     # not computed this turn
+        return None
+    from backend.app.engine.world_model.turn import enabled
+    return view if enabled(state) else None
+
+
+def _world_model_section(state: GameState) -> str:
+    view = _world_view(state)
+    if view is None:
+        return ""
+    from backend.app.engine.world_model.projection import render_scene_section
+    return render_scene_section(view)
+
+
+def _world_model_header(state: GameState) -> str:
+    view = _world_view(state)
+    if view is None:
+        return ""
+    from backend.app.engine.world_model.projection import render_header
+    return render_header(view)
 
 
 def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> str:
@@ -1416,6 +1459,25 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
                 )
                 break
 
+    opening_due = list(getattr(state, "opening_arrivals_this_turn", None) or [])
+    if opening_due:
+        entrance_cfg = ((getattr(state, "story_cfg", None) or {}).get("opening") or {}).get("arrival_sequence") or {}
+        cues = entrance_cfg.get("entrance_cues") or {}
+        room = str(entrance_cfg.get("gather_location_id") or "")
+        if str(getattr(state, "location_id", "") or "") == room:
+            arrivals = "; ".join(
+                f"{(getattr(chars.get(key), 'name', None) or key)} enters from the front door: {cues.get(key, 'a new resident arrives')}"
+                for key in opening_due
+            )
+            arrival_intro_line += (
+                "The server will show the player authored entrance and self-introduction beats for these new residents "
+                "before your response, in this order: " + arrivals + ". "
+                "Continue from those beats without repeating the doorway description or introduction. Let the first "
+                "resident react naturally and address the player's current words. These residents have not met the "
+                "player before this moment. "
+                "Do not start a meal; once everyone is present, residents may discuss ordering food or preparing it.\n\n"
+            )
+
     roster_closure_line = ""
     lifecycle = getattr(state, "cast_lifecycle", None)
     if lifecycle is not None and getattr(lifecycle, "enabled", False):
@@ -1423,11 +1485,16 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         if lifecycle.player_slot_group:
             active_names.append(f"{state.player_name or 'Player'} (the player)")
         for key in lifecycle.active_ids():
+            if not has_arrived(state, key):
+                continue
             ch = chars.get(key)
             active_names.append((getattr(ch, "name", None) or key).strip())
         active_roster_text = ", ".join(active_names) if active_names else "no one"
+        waiting_count = sum(not has_arrived(state, key) for key in lifecycle.active_ids())
         roster_closure_line = (
-            f"The complete current cast is: {active_roster_text}. This is a closed list — "
+            f"The residents introduced so far are: {active_roster_text}. "
+            + (f"{waiting_count} selected residents still have to arrive during this opening; their identities are unknown to the player and current housemates. " if waiting_count else "")
+            + "This is a closed list of known residents — "
             "no other named individual currently lives in, works at, or is otherwise part of "
             "this world. If the player asks about, or a character is asked about, anyone whose "
             "name is not on this list, that person is unfamiliar and unknown to every character "
@@ -1440,8 +1507,8 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         if lifecycle.player_slot_group:
             bedroom = state.story_cfg["cast_lifecycle"]["player_bedrooms"][lifecycle.player_slot_group]
             roster_closure_line += (
-                "The player occupies one of the six resident slots: exactly three men and three women, "
-                "including the player, live here. The player shares "
+                "The player occupies one of six reserved resident slots: three men and three women "
+                "are selected, including the player. Some may still be arriving. The player shares "
                 f"{bedroom.replace('_', ' ')}. Departures and same-gender arrivals happen together "
                 "through the automatic replacement queue; nobody leaves without a replacement. "
                 "When that queue is exhausted, the final residents stay.\n\n"
@@ -1484,7 +1551,8 @@ def _storyteller_scene_section(state: GameState, current_user_msg: str = "") -> 
         f"{arrival_intro_line}"
         f"{opening_scene_brief(state)}"
         "Narrate only what the player's message actually states or implies. "
-        "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote.\n\n"
+        "Do not invent the player's feelings, sensations, decisions, or actions beyond what they wrote, and do not "
+        "open by restating what the player just did: start with what changes or what others do.\n\n"
         f"{user_line_text}\n"
     )
 
@@ -1654,7 +1722,9 @@ Characters behave like real people — not like NPCs performing a mystery. A cha
 ────────────────────────────────────────
 ### DIRECT CHANNEL (OOC)
 ────────────────────────────────────────
-When the player's message is wrapped in parentheses like (what does that mean?) or [brackets like this], they are speaking directly to you as the story's author — not as their in-game character. Step outside the scene completely. Respond in parentheses with a plain, direct author-voice explanation. No narrative prose, no character voice, no scene description.
+When the player's message is wrapped in parentheses like (what does that mean?) or [brackets like this], they are talking to you directly as the game master (the story's author and engine), not speaking as their in-game character. The two forms mean the same thing. It is either a question or a command:
+- A QUESTION about the game, story or rules: step outside the scene completely and answer in parentheses with a plain, direct author-voice explanation. No narrative prose, no character voice, no scene description.
+- A COMMAND or action for the player's own character, such as (I walk out onto the street) or [go to the kitchen]: carry it out. Narrate the result in the scene as usual; characters react only to what they can see and hear. The engine has already moved the player if it was a move.
 
 Example player input: (is IU alive or dead?)
 Example response: (IU died in this apartment before the story begins — she is a ghost. The player character moved in without knowing this.)
@@ -1719,6 +1789,7 @@ but the character's spoken words must still carry the correction.
     character_identity = _character_identity_section(state)
 
     scene_brief = _storyteller_scene_section(state, current_user_msg=current_user_msg)
+    world_section = _world_model_section(state)
 
     knowledge_stack_section, knowledge_stack_debug = _format_labeled_knowledge_stack(state, knowledge_chunks or [])
 
@@ -1774,6 +1845,7 @@ EXAMPLE (WRONG — do NOT do this):
         + persona_section
         + mode_context
         + scene_brief
+        + world_section
         + knowledge_stack_section
         + relationship_section
         + character_identity
@@ -1876,6 +1948,9 @@ def build_messages(
     whereabouts = _resident_whereabouts_header(state)
     if whereabouts:
         header_parts.append(whereabouts)
+    world_header = _world_model_header(state)
+    if world_header:
+        header_parts.append(world_header)
 
     # OOC detection: message fully wrapped in () or [] means player is speaking
     # directly to the narrator/author — inject directive before other header parts.
@@ -1890,9 +1965,10 @@ def build_messages(
     if _is_ooc:
         header_parts.insert(
             0,
-            "[OOC: Player is speaking directly to the narrator/author. "
-            "Step out of the scene. Respond in parentheses with a plain "
-            "author explanation. No narrative prose. No character voice.]",
+            "[OOC: Player is talking directly to the game master. If it is a question, step out of "
+            "the scene and answer in parentheses in plain author voice, no narrative prose and no character "
+            "voice. If it is a command or action for their character (for example a move), carry it out and "
+            "narrate the result in the scene as usual.]",
         )
 
     header = " ".join(header_parts)

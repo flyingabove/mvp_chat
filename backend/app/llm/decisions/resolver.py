@@ -2,7 +2,7 @@
 """DecisionResolver.resolve() — the call_jev()-with-fallback core.
 
 Exact 8-step control flow from
-documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §4. This is
+documentation/design/JEV.md §4. This is
 deliberately the ONLY place in the codebase that decides between Jev and
 the legacy generative extractor — no call site ever branches on "is Jev up".
 
@@ -36,7 +36,7 @@ from backend.app.llm.providers.base import (
 )
 from backend.app.llm.providers.jev import JevClient, JevRawAnswer, JevRawResult
 
-# Type alias matching JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §4's constructor
+# Type alias matching design/JEV.md (provider architecture) §4's constructor
 # signature exactly: the legacy one-shot LLM call, injected so the resolver
 # never imports TurnExtractor (would create an engine <-> llm import cycle).
 LegacyExtractionCallable = Callable[[LegacyExtractionRequest], Awaitable[dict[str, Any] | None]]
@@ -215,7 +215,7 @@ def _map_transport_exception(exc: BaseException) -> FallbackReason:
 class DecisionResolver:
     """Resolves bounded decisions via Jev with automatic fallback to the
     existing legacy generative call. See module docstring and
-    JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §4 for the exact control flow.
+    design/JEV.md (provider architecture) §4 for the exact control flow.
     """
 
     def __init__(

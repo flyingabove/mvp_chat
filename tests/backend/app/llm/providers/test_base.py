@@ -122,7 +122,7 @@ async def test_post_json_raises_malformed_on_non_dict_body(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_post_json_never_retries_internally(monkeypatch):
-    """Per JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §4: zero in-turn retries
+    """Per design/JEV.md (provider architecture) §4: zero in-turn retries
     at the transport layer — the circuit breaker is the retry mechanism,
     across requests, not within one call."""
     call_count = {"n": 0}

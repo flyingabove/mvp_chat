@@ -1,5 +1,5 @@
 """Tests for the knowledge bundle, calibration mutations, report and the
-/api/eval/capabilities contract (JEV_GAME_ARENA_DESIGN.md §6, §9, §10-11)."""
+/api/eval/capabilities contract (design/JEV_GAME_ARENA.md §6, §9, §10-11)."""
 import pytest
 
 import json

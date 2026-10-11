@@ -59,7 +59,9 @@ try:
             # new beta worker installs.
             assert page.evaluate("async()=>await (await fetch('/beta/manifest-beta-v2.json')).json().then(m=>m.start_url)") == '/beta/'
             state['upgraded'] = True
+            page.evaluate("window.__workerChanges=0; navigator.serviceWorker.addEventListener('controllerchange',()=>window.__workerChanges++)")
             page.evaluate("async()=>{await (await navigator.serviceWorker.getRegistration()).update();}")
+            page.wait_for_function("window.__workerChanges > 0")
             page.wait_for_function("async()=>!(await caches.keys()).includes('storieschat-v5')")
             assert page.evaluate("async()=>await (await fetch('/dialogue.js?v=3')).text()") != 'STALE'
             print(engine.name + ': stale asset replaced and legacy cache deleted', flush=True)

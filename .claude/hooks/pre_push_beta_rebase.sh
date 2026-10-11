@@ -2,11 +2,11 @@
 # PreToolUse hook (Bash matcher, filtered to `git push*` via settings.json's
 # "if"). Before any push that targets the beta branch, run
 # `git pull --rebase origin beta` so the push always carries the latest
-# beta history (CLAUDE.md workflow #7: multiple agents push to beta
+# beta history (AGENTS.md section 2: multiple agents push to beta
 # concurrently). If the rebase hits conflicts (or fails for any other
 # reason - dirty tree, network, etc.), block the push instead of letting
 # it proceed against a stale base. This hook never resolves conflicts
-# itself - CLAUDE.md explicitly forbids blindly picking --ours/--theirs -
+# itself - AGENTS.md explicitly forbids blindly picking --ours/--theirs -
 # it only stops the push so a human or the agent resolves them by hand,
 # then retries.
 #

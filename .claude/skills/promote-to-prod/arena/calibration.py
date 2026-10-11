@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/calibration.py
-"""Judge sensitivity and bias checks (JEV_GAME_ARENA_DESIGN.md §9).
+"""Judge sensitivity and bias checks (design/JEV_GAME_ARENA.md §9).
 
 Mutation controls: take a real recorded arm, corrupt ONE reply in a known
 way, and judge original (beta slot) vs mutant (prod slot). A useful judge
@@ -9,7 +9,7 @@ A/A: an arm judged against itself must tie.
 
 This measures sensitivity, not agreement with humans. Human-label agreement
 (the only way to claim the score predicts enjoyment) uses
-HUMAN_LABEL_FIELDS and is tracked as an owner action in BACKLOG.md.
+HUMAN_LABEL_FIELDS and is tracked as an owner action in documentation/backlog/.
 """
 from __future__ import annotations
 

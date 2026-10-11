@@ -1,7 +1,7 @@
 # .claude/skills/promote-to-prod/arena/contracts.py
 """Data contracts shared by every arena stage.
 
-JEV_GAME_ARENA_DESIGN.md §4 (experiment identity), §6 (turn evidence) and §8
+design/JEV_GAME_ARENA.md §4 (experiment identity), §6 (turn evidence) and §8
 (rating units). Everything here is plain data that round-trips through JSON
 so experiments are resumable and auditable from disk alone.
 """

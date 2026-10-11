@@ -25,14 +25,14 @@ from backend.app.engine.extractors.decision_registry import (
 from backend.app.llm.decisions.types import DecisionBatch, DecisionOutcome, FallbackReason, Provider
 from backend.app.llm.protocols import DecisionProvider, LegacyExtractionRequest
 
-# Step 3 of documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12:
+# Step 3 of documentation/design/JEV.md §12:
 # httpx is NO LONGER imported here. The legacy HTTP call moved to
 # TurnExtractor._call_legacy_raw, which is injected into the resolver as a
 # LegacyExtractionCallable rather than living inline in extract(). This is
 # what makes the import-direction test in test_engine_purity.py pass for
 # this file (location_extractor.py and knowledge_resolution_extractor.py
 # still import httpx directly and remain on that test's documented
-# allowlist — see JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §2).
+# allowlist — see design/JEV.md (provider architecture) §2).
 
 
 @dataclass(frozen=True)
@@ -152,6 +152,58 @@ class SocialShiftSignal:
 
 
 @dataclass(frozen=True)
+class CommitmentUpdate:
+    """A promise made in the previous exchange: `owner` committed to do `what`
+    for/with `counterpart` at `when` (free-text time phrase, e.g. "tonight",
+    "tomorrow morning", "at 7pm"). Includes accepted requests ("Sure, I'll
+    save you a plate", "let's do it"); excludes plain schedules ("I'm going to
+    be late"). Resolved into world-model promise memories by the engine."""
+    owner: str
+    counterpart: str
+    what: str
+    when: str = "later"
+
+
+MAX_COMMITMENTS = 3
+
+
+@dataclass(frozen=True)
+class QuestionAsked:
+    """A direct question in the CURRENT player message, to one character."""
+    addressee: str
+    question: str
+
+
+@dataclass(frozen=True)
+class QuestionStatusUpdate:
+    """How the PREVIOUS reply handled an open question the engine listed."""
+    question_id: str
+    status: str   # answered | refused | unknown | deferred | unanswered
+
+
+MAX_QUESTIONS = 4
+QUESTION_STATUSES = frozenset({"answered", "refused", "unknown", "deferred", "unanswered"})
+
+
+@dataclass(frozen=True)
+class SelfClaimUpdate:
+    """A fact the player states about themselves in the CURRENT message."""
+    key: str
+    value: str
+    correction: bool = False
+
+
+MAX_SELF_CLAIMS = 4
+
+
+@dataclass(frozen=True)
+class SocialActUpdate:
+    """The one consequential social act the player's CURRENT message makes, if any."""
+    kind: str
+    target: str = ""
+
+
+@dataclass(frozen=True)
 class TurnExtraction:
     movement_intent: str = "NONE"
     destination_id: str = ""
@@ -165,12 +217,17 @@ class TurnExtraction:
     departure_signal: Optional[DepartureSignal] = None
     behavior_tags: List[BehaviorTagUpdate] = field(default_factory=list)
     social_shift_signal: Optional[SocialShiftSignal] = None
+    commitments: List[CommitmentUpdate] = field(default_factory=list)
+    questions: List[QuestionAsked] = field(default_factory=list)
+    question_updates: List[QuestionStatusUpdate] = field(default_factory=list)
+    self_claims: List[SelfClaimUpdate] = field(default_factory=list)
+    social_act: Optional[SocialActUpdate] = None
 
 
 class TurnExtractor:
     """Single-call extractor for movement, previous-scene signals, and knowledge updates.
 
-    Step 3 of JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12: internally
+    Step 3 of design/JEV.md (provider architecture) §12: internally
     restructured into batch builder (_build_batches) -> resolver
     (DecisionResolver, injected via `resolver`) -> assembler
     (_parse_dict + _apply_decision_overrides). extract()'s signature and
@@ -223,7 +280,7 @@ class TurnExtractor:
         existing validation rule (unknown location -> NONE, from_id must be
         'player', departure/shift coercion rules, etc.) is retained here,
         untouched by the Jev integration. Jev choosing something never
-        bypasses this — see JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9's
+        bypasses this — see design/JEV.md (provider architecture) §9's
         'Two invariants that are code's job, not Jev's'.
 
         BL-16 fix: `allowed_behavior_tags` is the story's closed vocabulary
@@ -447,7 +504,82 @@ class TurnExtractor:
             departure_signal=departure_signal,
             behavior_tags=behavior_tags,
             social_shift_signal=social_shift_signal,
+            commitments=TurnExtractor._parse_commitments(obj.get("commitments"), allowed_character_keys),
+            questions=TurnExtractor._parse_questions(obj.get("questions"), allowed_character_keys),
+            question_updates=TurnExtractor._parse_question_updates(obj.get("question_status")),
+            self_claims=TurnExtractor._parse_self_claims(obj.get("self_claims")),
+            social_act=TurnExtractor._parse_social_act(obj.get("social_act"), allowed_character_keys),
         )
+
+    @staticmethod
+    def _parse_social_act(raw: Any, allowed_character_keys: set[str]) -> Optional[SocialActUpdate]:
+        if not isinstance(raw, dict):
+            return None
+        kind = str(raw.get("kind") or "").strip().lower()
+        target = str(raw.get("target") or "").strip().lower()
+        if not kind or kind == "none":
+            return None
+        if target and allowed_character_keys and target not in allowed_character_keys:
+            target = ""
+        return SocialActUpdate(kind=kind, target=target)
+
+    @staticmethod
+    def _parse_self_claims(raw: Any) -> List[SelfClaimUpdate]:
+        out: List[SelfClaimUpdate] = []
+        for item in raw if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            key = str(item.get("key") or "").strip().lower()
+            value = " ".join(str(item.get("value") or "").split())[:80]
+            if key and value:
+                out.append(SelfClaimUpdate(key=key, value=value, correction=bool(item.get("correction"))))
+            if len(out) >= MAX_SELF_CLAIMS:
+                break
+        return out
+
+    @staticmethod
+    def _parse_questions(raw: Any, allowed_character_keys: set[str]) -> List[QuestionAsked]:
+        people = {str(k).strip().lower() for k in (allowed_character_keys or ())}
+        out: List[QuestionAsked] = []
+        for item in raw if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            addressee = str(item.get("addressee") or "").strip().lower()
+            question = " ".join(str(item.get("question") or "").split())[:200]
+            if addressee in people and question:
+                out.append(QuestionAsked(addressee=addressee, question=question))
+            if len(out) >= MAX_QUESTIONS:
+                break
+        return out
+
+    @staticmethod
+    def _parse_question_updates(raw: Any) -> List[QuestionStatusUpdate]:
+        out: List[QuestionStatusUpdate] = []
+        for item in raw if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            question_id = str(item.get("id") or "").strip()
+            status = str(item.get("status") or "").strip().lower()
+            if question_id and status in QUESTION_STATUSES:
+                out.append(QuestionStatusUpdate(question_id=question_id, status=status))
+        return out
+
+    @staticmethod
+    def _parse_commitments(raw: Any, allowed_character_keys: set[str]) -> List[CommitmentUpdate]:
+        people = {str(k).strip().lower() for k in (allowed_character_keys or ())} | {"player"}
+        out: List[CommitmentUpdate] = []
+        for item in raw if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            owner = str(item.get("owner") or "").strip().lower()
+            counterpart = str(item.get("counterpart") or "").strip().lower()
+            what = " ".join(str(item.get("what") or "").split())[:120]
+            when = " ".join(str(item.get("when") or "later").split())[:40] or "later"
+            if owner in people and counterpart in people and owner != counterpart and what:
+                out.append(CommitmentUpdate(owner=owner, counterpart=counterpart, what=what, when=when))
+            if len(out) >= MAX_COMMITMENTS:
+                break
+        return out
 
     def _build_batches(
         self,
@@ -464,7 +596,7 @@ class TurnExtractor:
         abilities are now Jev-eligible (ability 12's `new_value` free text
         still needs legacy — see social_shift_certainty_decision's
         docstring). NOTE the still-unresolved "hybrid trap"
-        (JEV_EXTRACTOR_REDESIGN_2026_09_22.md): extract()'s "legacy_raw is
+        (design/JEV.md (extractor redesign)): extract()'s "legacy_raw is
         None" branch below still unconditionally calls legacy whenever the
         resolver itself didn't need to (e.g. a sparse turn where every
         registered decision resolved via Jev) — shrinking the legacy prompt
@@ -567,7 +699,7 @@ class TurnExtractor:
         back to NONE, matching _parse_dict's own
         `if destination_id and allowed_location_ids and destination_id not
         in allowed_location_ids: destination_id = ""; intent = "NONE"` rule
-        exactly (JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §9 invariant #2)."""
+        exactly (design/JEV.md (provider architecture) §9 invariant #2)."""
         intent = base.movement_intent
         destination_id = base.destination_id
         confidence = base.confidence
@@ -985,6 +1117,43 @@ class TurnExtractor:
             "    new state) or is still just a momentary/mixed pattern not yet a real change\n"
             "    (certainty=\"WISH\"). scope is \"goal\" (subject_id's own persistent objective changed)\n"
             "    or \"disposition\" (subject_id's stance toward target_id changed).\n"
+            "11) commitments: promises made in the PREVIOUS TURN (previous user message + previous assistant\n"
+            "    reply). A commitment is someone agreeing to do something for or with someone else at a later\n"
+            "    time, INCLUDING accepting a request (\"Can you save me dinner?\" -> \"Sure, I'll leave a plate\";\n"
+            "    \"Want to run later?\" -> \"Let's do it!\"). owner = the person who will DO it (if the player asks a\n"
+            "    character to do something and the character agrees, the CHARACTER is the owner and the player the\n"
+            "    counterpart; write `what` from the owner's side, e.g. \"show you around the terrace\");\n"
+            "    counterpart = for/with whom\n"
+            "    (\"player\" or a character key). what = short phrase in the owner's terms; when = the time phrase\n"
+            "    (\"tonight\", \"tomorrow morning\", \"at 7pm\", \"later\"). NOT commitments: plain schedules or\n"
+            "    plans with no one to keep them for (\"I'm going to be late tomorrow\"), wishes, hypotheticals,\n"
+            "    refusals. At most 3; omit when unsure.\n"
+            "12) questions: direct questions in the CURRENT USER MESSAGE that the player puts to ONE specific\n"
+            "    character and expects that character to answer (\"Mako, where were you at 8?\", \"Who told you\n"
+            "    that?\" said to the character they are talking with). addressee = that character's key; question =\n"
+            "    the question in the player's words. NOT questions: rhetorical questions, questions to everyone or\n"
+            "    to nobody in particular, invitations/requests to do something (\"want to get coffee?\"), or\n"
+            "    questions about a character asked to someone else. One entry PER question: \"Where do you work?\n"
+            "    And which room is yours?\" is two entries. Never repeat a question from an earlier turn.\n"
+            "    At most 4; omit when unsure who is asked.\n"
+            "13) question_status: ONLY for ids listed under OPEN QUESTIONS. Judge the PREVIOUS TURN ASSISTANT\n"
+            "    REPLY: \"answered\" if the addressee gave an answer (true or false); \"refused\" if they declined;\n"
+            "    \"unknown\" if they said they do not know; \"deferred\" if they explicitly said they will answer\n"
+            "    later; otherwise \"unanswered\". Someone else speaking, small talk, or description of the\n"
+            "    addressee's face or mood is \"unanswered\".\n"
+            "14) self_claims: ONLY when PLAYER FACT KEYS are listed below. Facts the player states about\n"
+            "    THEMSELVES in the CURRENT USER MESSAGE (\"I'm 180cm\", \"I work as a nurse\", \"I don't smoke\").\n"
+            "    key must be one of the listed keys; value is the stated value in the player's words (\"180cm\",\n"
+            "    \"nurse\", \"no\"). correction=true only when the player explicitly corrects something they said\n"
+            "    before (\"actually I'm 175\", \"sorry, I meant...\"). NOT claims: facts about other people, questions,\n"
+            "    jokes, hypotheticals, or things said in earlier turns. Omit when unsure.\n"
+            "15) social_act: ONLY when SOCIAL ACTS are listed below. The one act the player's CURRENT USER\n"
+            "    MESSAGE sincerely performs: confess (tells a character they have romantic feelings / asks to\n"
+            "    date), ask_leave_together (asks their partner to leave the house for good together as a couple:\n"
+            "    NOT a walk, a date or an errand), withdraw (ends their relationship).\n"
+            "    target = the character addressed (for confess/ask_leave_together). Jokes, hypotheticals,\n"
+            "    questions ABOUT feelings, quoting someone, or talking about a third person are NONE.\n"
+            "    Use {\"kind\": \"none\"} when unsure.\n"
             "JSON schema:\n"
             "{\n"
             '  "movement": {"intent": "MOVE|NONE", "destination_id": "string|null", "confidence": 0.0, "destination_text": "string"},\n'
@@ -994,9 +1163,21 @@ class TurnExtractor:
             '  "relationship_state_updates": [{"from_id": "player", "to_id": "character_key", "trust_delta": 0.0, "fear_delta": 0.0, "affection_delta": 0.0, "suspicion_delta": 0.0, "jealousy_delta": 0.0, "reason": "string"}],\n'
             '  "departure_signal": {"character_id": "character_key|null", "certainty": "NONE|WISH|DECISION", "reason": "string"},\n'
             '  "behavior_tags": [{"from_id": "character_key", "to_id": "character_key", "tag": "string"}],\n'
-            '  "social_shift_signal": {"certainty": "NONE|WISH|SHIFT", "scope": "goal|disposition", "subject_id": "character_key", "target_id": "character_key|null", "new_value": "string", "reason": "string"}\n'
+            '  "social_shift_signal": {"certainty": "NONE|WISH|SHIFT", "scope": "goal|disposition", "subject_id": "character_key", "target_id": "character_key|null", "new_value": "string", "reason": "string"},\n'
+            '  "commitments": [{"owner": "player|character_key", "counterpart": "player|character_key", "what": "string", "when": "string"}],\n'
+            '  "questions": [{"addressee": "character_key", "question": "string"}],\n'
+            '  "question_status": [{"id": "open question id", "status": "answered|refused|unknown|deferred|unanswered"}],\n'
+            '  "self_claims": [{"key": "player fact key", "value": "string", "correction": false}],\n'
+            '  "social_act": {"kind": "none|<listed act>", "target": "character_key|null"}\n'
             "}\n"
         )
+        fact_keys = [str(k).strip() for k in (request.player_fact_keys or ()) if str(k or "").strip()]
+        act_kinds = [str(k).strip() for k in (request.social_act_kinds or ()) if str(k or "").strip()]
+
+        open_question_lines = [
+            f"- {q.get('id')}: asked {str(q.get('addressee') or '').strip().lower()}: {str(q.get('text') or '').strip()}"
+            for q in (request.open_questions or ()) if q.get("id")
+        ][:MAX_QUESTIONS * 2]
 
         behavior_window_block = ""
         if behavior_window:
@@ -1021,6 +1202,12 @@ class TurnExtractor:
             + "\n".join(character_lines)
             + "\n\nPREVIOUS TURN CANDIDATE KNOWLEDGE CHUNKS:\n"
             + ("\n".join(candidate_lines) if candidate_lines else "- none")
+            + "\n\nOPEN QUESTIONS (id: addressee: question):\n"
+            + ("\n".join(open_question_lines) if open_question_lines else "- none")
+            + "\n\nPLAYER FACT KEYS:\n"
+            + (", ".join(fact_keys) if fact_keys else "- none")
+            + "\n\nSOCIAL ACTS:\n"
+            + (", ".join(act_kinds) if act_kinds else "- none")
             + behavior_window_block
         )
 
@@ -1039,7 +1226,7 @@ class TurnExtractor:
         try:
             result = await self._legacy_client.generate(
                 model=self.model, system=system, messages=messages,
-                max_tokens=700, temperature=0,
+                max_tokens=900, temperature=0,
             )
         except Exception:
             return None
@@ -1064,9 +1251,12 @@ class TurnExtractor:
         conversation_log: List[Dict[str, str]] | None = None,
         behavior_window: Dict[str, Any] | None = None,
         allowed_behavior_tags: List[str] | None = None,
+        open_questions: List[Dict[str, str]] | None = None,
+        player_fact_keys: List[str] | None = None,
+        social_act_kinds: List[str] | None = None,
     ) -> TurnExtraction:
         """Internally: batch builder -> resolver -> assembler (see class
-        docstring and JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §12 step 3).
+        docstring and design/JEV.md (provider architecture) §12 step 3).
         `allowed_behavior_tags` is new (BL-16 fix) and optional/keyword-only
         with an empty default, so every existing caller is unaffected."""
         allowed_location_ids = set((world_locations or {}).keys())
@@ -1094,6 +1284,9 @@ class TurnExtractor:
             conversation_log=tuple(conversation_log or []),
             behavior_window=behavior_window,
             allowed_behavior_tags=tuple(allowed_behavior_tags or ()),
+            open_questions=tuple(open_questions or ()),
+            player_fact_keys=tuple(player_fact_keys or ()),
+            social_act_kinds=tuple(social_act_kinds or ()),
             invoke=_invoke,
         )
 

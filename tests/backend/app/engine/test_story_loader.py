@@ -27,6 +27,46 @@ def test_load_story_returns_none_for_missing_story():
     assert load_story("does_not_exist") is None
 
 
+def test_story_definition_bridges_top_level_personalities_type_into_character_mbti():
+    """Both current stories author MBTI in the top-level `personalities` map
+    (shared with rules/personality.py's temperament defaults), not per-character.
+    StoryDefinition.from_dict must backfill Character.mbti from it."""
+    story = StoryDefinition.from_dict({
+        "id": "t",
+        "characters": [{"key": "a", "name": "A", "is_main": True}, {"key": "b", "name": "B"}],
+        "personalities": {"a": {"type": "entp"}, "b": {"deception": {"skill": 0.5}}},
+    })
+    by_key = {c.key: c for c in story.characters}
+    assert by_key["a"].mbti == "ENTP"
+    assert by_key["b"].mbti == ""  # no type authored for b - stays empty, not invented
+
+
+def test_story_definition_direct_character_mbti_wins_over_personalities_map():
+    story = StoryDefinition.from_dict({
+        "id": "t",
+        "characters": [{"key": "a", "name": "A", "is_main": True, "mbti": "ISFJ"}],
+        "personalities": {"a": {"type": "entp"}},
+    })
+    assert story.characters[0].mbti == "ISFJ"
+
+
+def test_six_strangers_every_resident_and_wired_panelist_has_mbti():
+    story = load_story("six_strangers")
+    assert story is not None
+    residents = {c.key: c.mbti for c in story.characters}
+    assert all(residents.values()), f"residents missing mbti: {[k for k, v in residents.items() if not v]}"
+    raw = story.as_dict()
+    panelists = {p["id"]: p.get("type", "") for p in raw["commentary"]["panelists"]}
+    assert all(panelists.values()), f"panelists missing type: {[k for k, v in panelists.items() if not v]}"
+
+
+def test_iu_murder_mystery_every_character_has_mbti():
+    story = load_story("iu_murder_mystery")
+    assert story is not None
+    by_key = {c.key: c.mbti for c in story.characters}
+    assert all(by_key.values()), f"characters missing mbti: {[k for k, v in by_key.items() if not v]}"
+
+
 def test_story_loader_parses_relationships():
     """Stories with a relationships section get a CharacterGraph."""
     story = load_story(STORY_ID)
@@ -217,8 +257,13 @@ def test_six_strangers_content_references_and_private_concerns_are_consistent():
     assert not re.search(r"\b(?:kenji|reiko|asami|ren|nishi-kaede)\b", content, re.I)
     assert cfg["mode"]["type"] == "social_sim"
     assert cfg["mode"]["cast_size"] == len(active_keys)
-    assert cfg["mode"]["open_ended"] is True
-    assert "goal" not in cfg and "win_detection" not in cfg
+    assert cfg["mode"]["open_ended"] is False
+    assert cfg["mode"]["romance_goal"]["enabled"] is True
+    assert cfg["mode"]["romance_goal"]["partner_gender"] == "opposite_player"
+    assert cfg["mode"]["romance_goal"]["rival_gender"] == "same_as_player"
+    assert "leave the house together" in cfg["goal"]["win_text_rule"].lower()
+    # A prose match cannot prove mutual consent or a committed departure.
+    assert "win_detection" not in cfg
 
 
 def test_six_strangers_cast_lifecycle_catalog_and_queue_are_consistent():
@@ -318,11 +363,11 @@ def test_six_strangers_world_supports_return_travel_and_all_active_starting_char
     loaded = WorldLoader.load_from_file(str(world_path), story_id="six_strangers")
     graph = loaded.world_graph
     locations = set(graph.locations)
-    assert world_cfg["start_location_id"] == "front_entry"
+    assert world_cfg["start_location_id"] == "living_room"
     # The roster is random, so there are no per-character premiere starts:
-    # the whole opening cast (and the player) gathers for the kitchen dinner.
+    # one first resident meets the player in the living room; four arrive later.
     assert "character_start_locations" not in world_cfg
-    assert story.as_dict()["cast_lifecycle"]["initial_active_location_id"] == "kitchen"
+    assert story.as_dict()["cast_lifecycle"]["initial_active_location_id"] == "living_room"
     assert "kitchen" in locations
     assert {"boys_bedroom", "girls_bedroom", "terrace", "gotanda_station"} <= locations
     assert "player_bedroom" not in locations

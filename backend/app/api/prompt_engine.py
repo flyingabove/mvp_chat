@@ -8,16 +8,20 @@ from backend.app.engine.extractors.turn_extractor import (
     TurnKnowledgeResolution,
 )
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from backend.app.auth.dependencies import get_optional_user, _extract_guest_id, is_operator_request
-from backend.app.db.repos import SessionRepo, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
+from backend.app.db.repos import SessionRepo, SessionRevisionConflict, TurnReceipt, ConversationRepo, FactExtractionOutboxRepo, ExtractedChunksRepo
+from backend.app.engine.rules.endings import Outcome, goal_payload, resolve_outcome
+from backend.app.engine.world_model import choices as world_choices, leave_meaning, npc_decision
 
 import asyncio
 import copy
 import dataclasses
+import hashlib
 import httpx
 import json
 import logging
+import sqlite3
 
 import re
 
@@ -51,7 +55,7 @@ from backend.app.utils.logging_utils import jlog as _log, truncate as _truncate
 from backend.app.config.settings import (
 
     OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL,
-    STORY_MASTER_BASE_URL, STORY_MASTER_API_KEY, STORY_MASTER_MODEL,
+    STORY_MASTER_BASE_URL, STORY_MASTER_API_KEY, STORY_MASTER_MODEL, STORY_MASTER_FALLBACK_MODEL,
 
     TEMPERATURE, MAX_TOKENS, MEMORY_TURNS,
     DEFAULT_USER_ID, DEFAULT_INSTANCE,
@@ -62,6 +66,10 @@ from backend.app.config.settings import (
 from backend.app.config.epistemic_flags import set_master
 
 
+from backend.app.engine.world_model.model import WorldModel
+from backend.app.llm.retry import post_with_retry, post_with_model_fallback
+from backend.app.llm.gemini_router import llm_post
+from backend.app.engine.world_model import turn as world_turn
 from backend.app.engine.state import (
 
     init_state,
@@ -79,13 +87,17 @@ from backend.app.engine.state import (
 )
 from backend.app.engine.dialogue import (
     present_dialogue, encode_dialogue, dialogue_transcript, drop_player_echo, drop_repeated_lines, only_repeats,
-    dialogue_response_format, decode_dialogue_response,
-    has_unmarked_quotes, attribute_unmarked_quotes,
+    drop_own_repeated_lines, own_repeat_indexes,
+    dialogue_response_format, decode_dialogue_response, finale_turn,
+    has_unmarked_quotes, attribute_unmarked_quotes, ground_social_scene, drop_narrated_player_echo,
+    drop_invented_player_feelings,
 )
 from backend.app.engine.character_graph import RelationshipEdge, RelationshipState, RelationshipType
 from backend.app.engine.social_traits import EvolvingTrait
 from backend.app.engine.cast_lifecycle import CastLifecycleState, CastStatus
-from backend.app.engine.opening_scene import stage_opening_scene
+from backend.app.engine.opening_scene import (advance_opening_arrivals, has_arrived,
+                                              group_ritual_brief, mark_group_ritual, opening_arrival_segments, stage_opening_scene,
+                                              strip_generated_arrival_repeats)
 from backend.app.engine.world_calendar import PendingEvent, day_number
 from backend.app.engine.epistemic_state import EpistemicFact, EpistemicClaim, BeliefState
 from backend.app.engine.knowledge_chunks import normalize_parties, KnowledgeChunk
@@ -95,8 +107,6 @@ from backend.app.engine.gameplay import (
     advance_time,
 
     advance_time_by,
-
-    win_condition_detected,
 
     process_pending_events,
 
@@ -111,6 +121,7 @@ from backend.app.engine.prompt_builder import (
 )
 from backend.app.utils.id_utils import build_deterministic_uuid, build_namespace_key
 from backend.app.utils.stage_timer import StageTimer
+from backend.app.engine.debug_hooks import collect_debug_mechanics
 
 
 router = APIRouter()
@@ -314,6 +325,28 @@ def _seed_epistemic_from_story(cfg: dict, state: GameState) -> None:
         state.canonical_truth = seeded_texts
 
 
+def _world_place_names(state: GameState) -> dict[str, str]:
+    runtime = getattr(state, "world_runtime", None)
+    locations = getattr(getattr(runtime, "world_graph", None), "locations", None) or {}
+    names = {loc_id: getattr(loc, "name", loc_id) for loc_id, loc in locations.items()}
+    # Off-map routine places ("school", a suspect's home) named by the story.
+    cfg = getattr(state, "story_cfg", None) or {}
+    extra = ((cfg.get("world_model") or {}).get("place_names") or {}) if isinstance(cfg, dict) else {}
+    return {**{str(k): str(v) for k, v in extra.items()}, **names}
+
+
+def _lore_chunks_for(state: GameState) -> list[dict]:
+    """Authored knowledge-bundle chunks for the world model's per-character memory."""
+    bundle_id = str(getattr(state, "knowledge_character_id", "") or "")
+    if not bundle_id:
+        return []
+    try:
+        return list(IndexService.get(bundle_id).chunks or [])
+    except Exception:
+        logger.exception("lore bundle %s unavailable for world model", bundle_id)
+        return []
+
+
 def _seed_player_visibility(state: GameState) -> None:
     """Label all knowledge chunks with player visibility at game init.
 
@@ -338,6 +371,12 @@ def _seed_player_visibility(state: GameState) -> None:
         state.player_visible_chunk_ids = []
 
 
+# Story rules read only by engine code (BL-39); kept in the runtime story
+# config and excluded from any prompt/transient seeding.
+ENGINE_ONLY_STORY_KEYS = ("endings", "social_tracks", "personalities", "default_personality", "player_fact_keys",
+                          "social_acts", "clocks", "commentary", "acquaintance")
+
+
 _BASIC_CHARACTER_KEYS = {
     "key",
     "id",
@@ -349,6 +388,7 @@ _BASIC_CHARACTER_KEYS = {
     "knowledge_character_id",
     "uuid",
     "tags",
+    "gender",
 }
 
 
@@ -367,12 +407,15 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
             "knowledge_character_id": ch.get("knowledge_character_id") or "",
             "uuid": ch.get("uuid") or "",
             "tags": list(ch.get("tags") or []),
+            "gender": str(ch.get("gender") or "").upper(),
             # Phase 3 "Social life": preserve author-time goal content for
             # any consumer of story_cfg["characters"] - previously silently
             # dropped here even though Character.from_dict (the primary
             # newgame character-construction path) already preserves them.
             "motive": ch.get("motive") or "",
             "tells": list(ch.get("tells") or []),
+            "personality": ch.get("personality") or {},
+            "mbti": ch.get("mbti") or "",
         })
 
     return {
@@ -403,11 +446,16 @@ def _canonicalize_story_cfg(story_obj: StoryDefinition | dict) -> dict:
         "characters": characters,
         "relationships": src.get("relationships") or {},
         # Optional ensemble/slice-of-life mode context (see
-        # documentation/model_output_docs/SOCIAL_MODE_DESIGN.md). Absent for
+        # documentation/design/SOCIAL_ENGINE.md). Absent for
         # all pre-existing stories, so this key is simply {} for them and the
         # prompt_builder mode layer emits nothing.
         "mode": src.get("mode") or {},
         "cast_lifecycle": src.get("cast_lifecycle") or {},
+        # Character & world model data: routines, threads, evidence, homes.
+        "world_model": src.get("world_model") or {},
+        # BL-39 engine-only rules (never prompt text): typed endings, standing
+        # tracks/requirements/appraisal, and per-character personalities.
+        **{key: src[key] for key in ENGINE_ONLY_STORY_KEYS if key in src},
     }
 
 
@@ -525,7 +573,7 @@ def _seed_initial_active_relationships(state: GameState) -> None:
     graph = getattr(state, "character_graph", None)
     if lifecycle is None or graph is None:
         return
-    participant_ids = set(lifecycle.active_ids()) | {"player"}
+    participant_ids = {key for key in lifecycle.active_ids() if has_arrived(state, key)} | {"player"}
     for key in participant_ids:
         character = (getattr(state, "characters", {}) or {}).get(key)
         if character is not None and key not in graph.characters:
@@ -558,7 +606,7 @@ def player_visible_character_ids(state: GameState) -> set[str] | None:
         return None
     visible = {
         key for key, member in lifecycle.members.items()
-        if member.status is not CastStatus.UPCOMING
+        if member.status is not CastStatus.UPCOMING and has_arrived(state, key)
     }
     if lifecycle.player_slot_group:
         visible.add("player")
@@ -585,6 +633,8 @@ def player_visible_arrival_minute(state: GameState, character_id: str) -> int | 
     member = lifecycle.members.get(character_id)
     if member is None:
         return None
+    if character_id in (getattr(state, "opening_arrival_minutes", None) or {}):
+        return int(state.opening_arrival_minutes[character_id])
     return member.activated_minute
 
 
@@ -605,6 +655,8 @@ def _cast_roster_payload(state: GameState) -> dict:
     if lifecycle.player_slot_group:
         active.append({"id": "player", "name": state.user.display_name or state.player_name or "Player", "role": "Housemate (you)"})
     for key in lifecycle.active_ids():
+        if not has_arrived(state, key):
+            continue
         ch = characters.get(key)
         if ch is not None:
             active.append({"id": key, "name": ch.name, "role": ch.role})
@@ -665,6 +717,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         "character_self_knowledge",  # injected directly into system prompt; not via FAISS
         "mode",  # injected directly via the prompt_builder mode-context layer; not via FAISS
         "cast_lifecycle",  # runtime state; never seed future entrants into transient context
+        *ENGINE_ONLY_STORY_KEYS,  # hidden tastes/standards/rules must never reach prompts
     }
 
     details: list[str] = []
@@ -678,7 +731,7 @@ def _seed_noncanonical_story_details_to_transient(story_obj: StoryDefinition | d
         if not isinstance(ch, dict):
             continue
         ch_key = str(ch.get("key") or ch.get("id") or ch.get("name") or "character")
-        extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS}
+        extras = {k: v for k, v in ch.items() if k not in _BASIC_CHARACTER_KEYS and k != "personality"}
         if extras:
             details.append(f"character.{ch_key}.extras: {json.dumps(extras, ensure_ascii=False)}")
 
@@ -1053,20 +1106,71 @@ def _parse_time_skip(msg: str) -> Optional[tuple[int, str]]:
     return TIME_SKIP_PRESETS.get(preset_key)
 
 
-def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
-    """Heuristic location matcher for world-graph travel.
+def _parse_plan_skip(msg: str, state: GameState) -> Optional[tuple[int, str]]:
+    """BL-46: the player accepted the offer to skip ahead to an agreed plan; returns (minutes, cue)."""
+    model = getattr(state, "world_model", None)
+    choice = getattr(model, "pending_choice", None) or {}
+    if choice.get("kind") != world_choices.PLAN_SKIP or world_choices.answer(model, msg) != world_choices.SKIP_TO_PLAN:
+        return None
+    minutes = int(choice.get("due") or 0) - int(getattr(state, "minute", 0) or 0)
+    return (minutes, f"Time passes until {choice.get('when')}") if minutes > 0 else None
 
-    The LLM-based extractor can miss natural phrasing like "i got to room b".
-    This fallback checks for a movement verb plus a known location name/id.
-    Returns a destination_id or "" if no confident match.
+
+def _parse_natural_wait(msg: str, state: GameState) -> Optional[tuple[int, str]]:
+    """Resolve an explicit first-person wait by duration or clock time.
+
+    Keep this narrow: a question, wish, or plan about waiting must not move
+    the world. A fully general time intent needs the typed action extractor.
+    """
+    from datetime import datetime, timedelta
+
+    text = str(msg or "").strip()
+    start = re.search(r"(?:^|[.!?]\s+|\band\s+)I\s+wait\s+|^I\s+wait\s+", text, re.I)
+    if start is None:
+        return None
+    request = text[start.end():]
+    duration = re.match(r"^for\s+(\d{1,3})\s+(minutes?|hours?)\b", request, re.I)
+    if duration:
+        amount = int(duration.group(1))
+        elapsed = amount * (60 if duration.group(2).lower().startswith("hour") else 1)
+        return (elapsed, "The player waited for the requested duration") if 0 < elapsed <= 24 * 60 else None
+    match = re.search(
+        r"\buntil\s+(?:(tomorrow)\s+at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b",
+        request, re.I,
+    )
+    if match is None:
+        return None
+    hour = int(match.group(2))
+    minute = int(match.group(3) or 0)
+    if not 1 <= hour <= 12 or not 0 <= minute < 60:
+        return None
+    now = datetime.fromisoformat(WorldTimeFormatter.compute(
+        getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0),
+    ).iso)
+    target = (now + timedelta(days=1 if match.group(1) else 0)).replace(
+        hour=hour % 12 + (12 if match.group(4).lower() == "pm" else 0),
+        minute=minute, second=0, microsecond=0,
+    )
+    elapsed = int((target - now).total_seconds() // 60)
+    return (elapsed, "The player waited until the requested time") if elapsed > 0 else None
+
+
+def _skip_prompt_message(player_message: str, cue: str, resulting_time: str) -> str:
+    """Give the storyteller the committed clock without exposing UI commands."""
+    note = f"[Time skip] {cue}. It is now {resulting_time}."
+    return note if _parse_time_skip(player_message) is not None else f"{player_message}\n{note}"
+
+
+def _match_world_destination(msg: str, runtime, current_location_id: str = "") -> str:
+    """Return the first *performed* player movement, not a later question/plan.
+
+    The broad verb-and-location search moved a player to a cafe when they said
+    "I go to the kitchen ... ask if she wants to leave for the cafe."  Require
+    an actor-linked movement clause and scope its destination to that clause.
     """
 
-    text = (msg or "").strip().lower()
+    text = (msg or "").strip()
     if not text:
-        return ""
-
-    verbs = ("go", "got", "move", "head", "walk", "switch", "return", "back", "enter", "step", "run")
-    if not any(re.search(rf"\b{v}\b", text) for v in verbs):
         return ""
 
     try:
@@ -1074,15 +1178,50 @@ def _match_world_destination(msg: str, runtime, current_location_id: str = "") -
     except Exception:
         locations = {}
 
-    for loc_id, loc in (locations or {}).items():
-        name = (getattr(loc, "name", "") or "").lower()
-        tokens = [name, loc_id.replace("_", " ").lower(), str(loc_id).lower()]
-        if any(tok and tok in text for tok in tokens):
-            if loc_id == current_location_id:
-                return ""  # already there; do nothing
-            return loc_id
+    movement = re.compile(
+        r"\b(?:I\s+(?:excuse\s+myself\s+and\s+)?|then\s+)"
+        r"(?:go|got|move|head|walk|return|enter|step|run)\s+"
+        r"(?:to|into|towards?|back\s+to)\s+", re.I,
+    )
+    for action in movement.finditer(text):
+        clause = re.split(r"[.,;?!]|\s+and\s+", text[action.end():], maxsplit=1)[0].lower()
+        choices = []
+        for loc_id, loc in (locations or {}).items():
+            name = str(getattr(loc, "name", "") or "").lower()
+            for token in (name, str(loc_id).replace("_", " ").lower()):
+                if token:
+                    found = re.search(rf"\b{re.escape(token)}\b", clause)
+                    if found:
+                        choices.append((found.start(), loc_id))
+        if choices:
+            dest = min(choices)[1]
+            return "" if dest == current_location_id else dest
 
     return ""
+
+
+# BL-46: (...) and [...] talk to the game master. A parenthesised movement command ("(I walk out onto the
+# street)") is an explicit order and always applies; only that lets an extractor destination stand on a turn
+# that also carries a typed social act.
+_ENGINE_SEGMENT = re.compile(r"\(([^()]*)\)|\[([^\[\]]*)\]")
+_ENGINE_MOVE_VERB = re.compile(r"\b(?:go|walk|head|step|move|run|leave|exit|return|enter|follow|stroll)\b", re.I)
+
+
+def _engine_move_command(player_message: str) -> bool:
+    return any(_ENGINE_MOVE_VERB.search(a or b or "") for a, b in _ENGINE_SEGMENT.findall(player_message or ""))
+
+
+def _resolved_movement_destination(player_message: str, extracted_destination: str,
+                                   explicit_destination: str) -> str:
+    """A performed player move outranks an extractor's guess from future talk."""
+    if explicit_destination:
+        return explicit_destination
+    if _engine_move_command(player_message):
+        return extracted_destination      # "(I walk onto the street)" is an order even after a question
+    if re.match(r"^\s*(?:would|could|can|will|should)\s+(?:you|we|she|he|they)\b",
+                player_message or "", re.I):
+        return ""
+    return extracted_destination
 
 
 def _debug_speakers(state: GameState) -> list[str]:
@@ -1143,6 +1282,28 @@ def _debug_people_present(state: GameState) -> list[str]:
         if name:
             names.append(name)
     return names
+
+
+def _build_turn_trace(stage_timer, extraction, retrieved, request: Request, usage) -> dict:
+    """Operator-only internals of this turn: stage timings, extractor result, retrieved chunk ids, NPC decision
+    mode, token usage. Never player-facing (the extractor result and chunks can spoil the story)."""
+    extracted = None
+    if extraction is not None:
+        try:
+            extracted = json.loads(json.dumps(dataclasses.asdict(extraction), default=str))
+        except Exception as exc:  # a trace must never fail the turn
+            extracted = {"error": f"{type(exc).__name__}: {exc}"}
+    ledger = stage_timer.as_ledger()
+    return {
+        "stage_ms": ledger["stage_ms"],
+        "stage_calls": ledger["stage_calls"],
+        "total_ms_so_far": ledger["total_ms"],
+        "stage_errors": ledger.get("stage_errors"),
+        "extraction": extracted,
+        "retrieved_chunk_ids": [c.get("chunk_id") for c in (retrieved or [])],
+        "npc_decision_mode": _npc_decision_mode_for(request),
+        "usage": usage,
+    }
 
 
 def _box(title: str, lines: list[str]) -> str:
@@ -1208,7 +1369,8 @@ async def _translate_to_chinese(text: str) -> str:
         }
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(
+            r = await llm_post(
+                client,
                 f"{OPENAI_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
                 json=payload,
@@ -1531,6 +1693,7 @@ def _serialize_state(state: GameState, log: list) -> str:
         "relationship": state.relationship,
         "turns": state.turns,
         "over": state.over,
+        "outcome": getattr(state, "outcome", None),
         "instance": state.instance,
         "language_theme": (
             state.language_theme.value
@@ -1540,6 +1703,10 @@ def _serialize_state(state: GameState, log: list) -> str:
         "character_locations": dict(getattr(state, "character_locations", {}) or {}),
         "main_character_id": str(getattr(state, "main_character_id", "") or ""),
         "opening_cast": list(getattr(state, "opening_cast", []) or []),
+        "opening_arrival_minutes": dict(getattr(state, "opening_arrival_minutes", {}) or {}),
+        "opening_arrived_ids": list(getattr(state, "opening_arrived_ids", []) or []),
+        "opening_ritual_done": bool(getattr(state, "opening_ritual_done", False)),
+        "world_model": (state.world_model.to_dict() if getattr(state, "world_model", None) is not None else None),
         "cast_lifecycle": (
             state.cast_lifecycle.to_dict()
             if getattr(state, "cast_lifecycle", None) is not None else None
@@ -1618,6 +1785,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         restored.relationship = saved.get("relationship", 0)
         restored.turns = saved.get("turns", 0)
         restored.over = saved.get("over", False)
+        restored.outcome = saved.get("outcome") or None
         restored.instance = saved.get("instance", 1)
         restored.world_start_datetime = saved.get("world_start_datetime", "")
         restored.last_travel_from_id = saved.get("last_travel_from_id", "")
@@ -1749,6 +1917,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
                 relationship=restored.relationship,
                 goal=ch.goal,
                 tells=list(ch.tells),
+                mbti=ch.mbti,
             )
             restored.characters[ch.key] = game_char
             if ch.is_main:
@@ -1781,6 +1950,20 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         _sync_resident_locations(restored)
 
         restored.opening_cast = [str(k) for k in (saved.get("opening_cast") or []) if k]
+        restored.opening_arrival_minutes = {
+            str(key): int(minute) for key, minute in (saved.get("opening_arrival_minutes") or {}).items()
+        }
+        restored.opening_arrived_ids = [str(key) for key in (saved.get("opening_arrived_ids") or [])]
+        # Saves from before the ritual existed are mid-game: never replay an opening question into them.
+        restored.opening_ritual_done = bool(saved.get("opening_ritual_done", True))
+        # Character & world model: restore when saved; older saves rebuild it
+        # lazily on their next turn (world_model.turn.ensure_model).
+        if isinstance(saved.get("world_model"), dict):
+            try:
+                restored.world_model = WorldModel.from_dict(saved["world_model"])
+            except Exception:
+                logger.exception("world_model restore failed; it will be rebuilt")
+                restored.world_model = None
         # The runtime focal lens (e.g. an opening greeter, or a replacement
         # arrival) outranks the authored is_main default.
         saved_main = str(saved.get("main_character_id") or "").strip()
@@ -1846,6 +2029,7 @@ def _try_load_session_from_db(session_id: str, user_id: str) -> dict | None:
         return {
             "state": restored,
             "log": saved.get("log", []),
+            "_db_revision": int(row.get("revision") or 0),
             "debug_mode": flags.get("debug_mode", False),
             "chinese_mode": flags.get("chinese_mode", False),
             "epistemic_state": flags.get("epistemic_state", True),
@@ -1870,6 +2054,7 @@ def get_session(session_id: str, user_id: str = "anon"):
             SESSIONS[session_id] = {
                 "state": init_state(),
                 "log": [],
+                "_db_revision": 0,
                 "debug_mode": False,
                 "chinese_mode": False,
                 "epistemic_state": True,
@@ -1894,6 +2079,7 @@ def get_session(session_id: str, user_id: str = "anon"):
         SESSIONS[session_id] = {
             "state": init_state(),
             "log": [],
+            "_db_revision": 0,
             "debug_mode": False,
             "chinese_mode": False,
             "epistemic_state": True,
@@ -1978,11 +2164,14 @@ def _opening_for_new_game(story_def: StoryDefinition, state: GameState) -> str:
             "@greeter": chosen[0] if chosen else "unknown",
             "@second": chosen[1] if len(chosen) > 1 else (chosen[0] if chosen else "unknown"),
         }
+        first = (opening_cfg.get("first_resident") or {}).get(role_ids["@greeter"]) or {}
         parts = []
         for segment in authored:
             if not isinstance(segment, dict) or not str(segment.get("text") or "").strip():
                 continue
             body = str(segment["text"]).strip()
+            body = body.replace("{{GREETER_CUE}}", str(first.get("cue") or ""))
+            body = body.replace("{{GREETER_LINE}}", str(first.get("line") or "Hello. I'm glad someone else is here."))
             if segment.get("kind") == "dialogue":
                 speaker_id = role_ids.get(segment.get("speaker_id"), segment.get("speaker_id"))
                 if speaker_id not in active_ids:
@@ -2155,9 +2344,38 @@ def _get_session_lock(session_id: str) -> asyncio.Lock:
     return lock
 
 
+async def _committed_reply(session_id: str, user_id: str, request_id: str, input_hash: str) -> dict | None:
+    """Return the stored reply for an already-committed request, or None.
+
+    Raises 409 when the request_id was committed for different input.
+    """
+    try:
+        stored = await SessionRepo.get_receipt(session_id, user_id, request_id)
+    except Exception:
+        logger.exception("Receipt lookup failed for session %s", session_id)
+        raise HTTPException(status_code=503, detail="Your session could not be loaded. Please try again.")
+    if stored is None:
+        return None
+    if stored.input_hash is not None and stored.input_hash != input_hash:
+        raise HTTPException(status_code=409, detail="This request was already used for a different message.")
+    try:
+        return json.loads(stored.reply_json)
+    except ValueError:
+        logger.error("Stored reply for request %s in session %s is unreadable", request_id, session_id)
+        raise HTTPException(status_code=503, detail="Your previous reply could not be restored. Please try again.")
+
+
 # ---------------------------------------------------------------------------
 # MAIN CHAT ENDPOINT
 # ---------------------------------------------------------------------------
+def _npc_decision_mode_for(request: Request) -> str:
+    """The NPC decision mode: the deployed setting, or an operator's per-request override."""
+    override = request.headers.get("X-NPC-Decision-Mode")
+    if override and is_operator_request(request):
+        return npc_decision.decision_mode(override)
+    return npc_decision.configured_mode()
+
+
 @router.post("/chat")
 async def chat_handler(request: Request, data: dict, _auth_user: dict | None = Depends(get_optional_user)):
     """Thin, lock-acquiring wrapper around _chat_handler_impl (A12).
@@ -2201,19 +2419,31 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # mutation. Anon sessions never persist (see the `user_id != "anon"`
     # guard at the save point below), so they have no durable identity to
     # dedup against and are skipped here.
+    # BL-39 O15: receipts are durable and per request (turn_receipts), so a
+    # retry of any recent committed request replays, and a reused id with
+    # different text is rejected rather than run as a new turn.
     client_request_id = str(data.get("request_id") or "").strip()
+    # Persona fields change a new game, so they are part of its input.
+    input_hash = hashlib.sha256(json.dumps(
+        [msg] + [str(data.get(key) or "") for key in ("persona_mode", "persona_name", "persona_other")]
+    ).encode("utf-8")).hexdigest()
     if client_request_id and user_id != "anon":
-        try:
-            prior_request_id, prior_reply_json = await SessionRepo.get_last_request(session_id, user_id)
-        except Exception:
-            prior_request_id, prior_reply_json = None, None
-        if prior_request_id == client_request_id and prior_reply_json:
-            try:
-                return json.loads(prior_reply_json)
-            except Exception:
-                pass  # stored reply corrupt/unparseable - fall through and reprocess
+        replay = await _committed_reply(session_id, user_id, client_request_id, input_hash)
+        if replay is not None:
+            return replay
 
     sess = get_session(session_id, user_id)
+    if user_id != "anon" and not msg.startswith("__cmd_newgame__:") and msg != "__cmd_reset__":
+        try:
+            saved_revision = await SessionRepo.get_revision(session_id, user_id)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="Your session could not be loaded. Please try again.") from exc
+        if int(sess.get("_db_revision") or 0) != saved_revision:
+            restored = _try_load_session_from_db(session_id, user_id)
+            if restored is None:
+                raise HTTPException(status_code=503, detail="Your session changed and could not be reloaded.")
+            SESSIONS[session_id] = restored
+            sess = restored
     state: GameState = sess["state"]
 
     # Initialise the per-session dialogue fact store on first turn (state may be
@@ -2230,7 +2460,13 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # runs here (once, for the full jump) instead of relying on the
     # per-turn advance_time() call later, which is sized for dialogue-length
     # deltas, not multi-hour/day jumps.
-    _time_skip = _parse_time_skip(msg)
+    # World model: the interval this turn consumes is (minute_before, minute_after].
+    _wm_minute_before = int(getattr(state, "minute", 0) or 0) if state is not None else 0
+    _wm_player_words = msg
+    _movement_authority_message = msg
+    _wm_sleeping = False
+    _time_skip = _parse_time_skip(msg) or (
+        (_parse_plan_skip(msg, state) or _parse_natural_wait(msg, state)) if state is not None else None)
     _is_time_skip_turn = False
     if _time_skip is not None and state is not None:
         _skip_minutes, _skip_cue = _time_skip
@@ -2246,8 +2482,30 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         _new_ts = WorldTimeFormatter.compute(
             getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)
         ).display
-        msg = f"[Time skip] {_skip_cue}. It is now {_new_ts}."
+        msg = _skip_prompt_message(msg, _skip_cue, _new_ts)
         _is_time_skip_turn = True
+        _wm_player_words = ""
+
+    # "I go to sleep": sleep until the next morning; the world keeps moving
+    # (routines, off-screen life) through the skipped hours. Turn-based: the
+    # whole night resolves in this one turn.
+    if not _is_time_skip_turn and state is not None and world_turn.enabled(state):
+        world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+        _sleep_for = world_turn.sleep_minutes(state, msg)
+        if _sleep_for > 0:
+            _home = getattr(state.world_model, "home_of_player", "")
+            _runtime = getattr(state, "world_runtime", None)
+            if _home and _runtime is not None and _home in _runtime.world_graph.locations:
+                state.location_id = _home
+                state.location = _runtime.world_graph.locations[_home].name
+                state.location_uuid = getattr(_runtime.world_graph.locations[_home], "uuid", "")
+            advance_time_by(state, _sleep_for)
+            _new_ts = WorldTimeFormatter.compute(
+                getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)
+            ).display
+            msg = f"{msg}\n[Time skip] The night passes; the player slept and wakes up. It is now {_new_ts}."
+            _is_time_skip_turn = True
+            _wm_sleeping = True
 
     # Sync epistemic master flag to this session's toggle.
     set_master(bool(sess.get("epistemic_state", True)))
@@ -2591,6 +2849,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 relationship=new_state.relationship,
                 goal=ch.goal,
                 tells=list(ch.tells),
+                mbti=ch.mbti,
             )
             new_state.characters[ch.key] = game_char
             if ch.is_main:
@@ -2641,6 +2900,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         # Label all knowledge chunks with player visibility for debug player agent retrieval.
         _seed_player_visibility(new_state)
 
+        # Character & world model: seeded from the staged opening positions,
+        # canonical facts and the authored lore bundle (docs: CHARACTER_WORLD_MODEL_*).
+        world_turn.ensure_model(new_state, lore=_lore_chunks_for(new_state))
+
         opening = _opening_for_new_game(story_def, new_state)
         opening = apply_placeholders(opening, new_state)
         opening, segments = present_dialogue(opening, new_state)
@@ -2653,11 +2916,20 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             {"role": "assistant", "content": opening}
         ]
 
+        # Build the exact reply before saving so its receipt matches it.
+        reply = opening
+        if bool(sess.get("chinese_mode", False)):
+            reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
+        newgame_result = {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
+        new_goal = goal_payload(new_state)
+        if new_goal is not None:
+            newgame_result["goal"] = new_goal
+
         # Persist new session to DB (authenticated users only)
         if user_id != "anon":
             try:
                 story_title = story_def.get("title", story_id) if hasattr(story_def, "get") else story_id
-                await SessionRepo.create_or_update_session(
+                new_revision = await SessionRepo.create_or_update_session(
                     session_id=session_id,
                     user_id=user_id,
                     story_id=story_id,
@@ -2673,20 +2945,29 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     }),
                     last_message=opening[:120],
                     turns=0,
+                    receipt=TurnReceipt(client_request_id, input_hash, json.dumps(newgame_result))
+                    if client_request_id else None,
+                    reset_receipts=True,
                 )
-                # A new-game command replaces the prior playthrough.  Its
-                # next turn must not be mistaken for a network retry of the
-                # old playthrough's final request.
-                await SessionRepo.clear_last_request(session_id, new_state.user_id)
+                sess["_db_revision"] = new_revision
+                if not client_request_id:
+                    # A new-game command replaces the prior playthrough.  Its
+                    # next turn must not be mistaken for a network retry of the
+                    # old playthrough's final request.  With a receipt the
+                    # save above already replaced last_request_*.
+                    await SessionRepo.clear_last_request(session_id, new_state.user_id)
+            except sqlite3.IntegrityError:
+                # A concurrent duplicate of this new-game request committed
+                # first; its game is the saved one, so return that instead.
+                SESSIONS.pop(session_id, None)
+                replay = await _committed_reply(session_id, user_id, client_request_id, input_hash)
+                if replay is not None:
+                    return replay
+                raise
             except Exception:
                 logger.exception("Failed to persist new session %s for user %s", session_id, user_id)
 
-        # Apply Chinese translation if chinese_mode is enabled
-        reply = opening
-        if bool(sess.get("chinese_mode", False)):
-            reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), new_state)
-
-        return {"reply": reply, "segments": segments, "usage": {"total_tokens": 0}, "character": "default"}
+        return newgame_result
 
     # REGULAR TURN — auto-reinitialize if game state is missing
     if not state.story or not state.story_cfg:
@@ -2708,7 +2989,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             return {"reply": "Session expired. Please start a new game from the home screen.", "character": "default"}
 
     if state.over:
-        return {"reply": "This story has ended. Start a new game from the home screen to play again.", "character": "default"}
+        ended = {"reply": "(This story has ended. Start a new game from the home screen to play again.)",
+                 "character": "default"}
+        if getattr(state, "outcome", None):
+            ended["ending"] = Outcome.from_dict(state.outcome).payload()
+        return ended
 
     # Phase 1.1: isolate this turn's mutations from the live cached session.
     #
@@ -2745,6 +3030,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
     # Keep transient scene memory bounded.
     state.purge_transient_entries()
+
+    # BL-46: answering an in-chat choice card ("leave together now?") is a normal chat message; it
+    # replaces the raw command with a storyteller cue and never re-runs social-act extraction.
+    _choice_cue = None
+    if world_turn.enabled(state):
+        world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+        _choice_cue = world_turn.answer_choice(state, msg)
+        if _choice_cue:
+            msg = _movement_authority_message = _choice_cue
+            if not _is_time_skip_turn:      # a skip turn already voids the player's words (see the skip block)
+                _wm_player_words = _choice_cue
 
     # --- ACTIVE CHARACTER DETECTION (pre-prompt) ---
     # Detect which characters are mentioned in recent conversation or present
@@ -2830,6 +3126,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # One extractor call handles movement intent, previous-turn scene extraction,
     # and previous-turn knowledge-resolution updates in a single JSON response.
     runtime = getattr(state, "world_runtime", None)
+    _explicit_destination = _match_world_destination(
+        _movement_authority_message, runtime, getattr(state, "location_id", "")
+    ) if runtime is not None else ""
     knowledge_resolution_updates: list[dict] = []
     extraction = None
     extraction_applied = False
@@ -2871,7 +3170,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 "current_location_name": state.location,
             })
             # Step 1 of the Jev provider architecture (see
-            # documentation/JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §1): the
+            # documentation/design/JEV.md §1): the
             # stage ledger instrumented retrieval/storyteller/commit but NOT
             # extraction, so production extractor latency was an inference
             # rather than a recorded fact. Locally this call measured ~3.6s
@@ -2891,8 +3190,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     conversation_log=log,
                     behavior_window=_behavior_window,
                     allowed_behavior_tags=(state.story_cfg or {}).get("behavior_tag_vocabulary") or [],
+                    open_questions=world_turn.open_questions(state),
+                    player_fact_keys=(state.story_cfg or {}).get("player_fact_keys") or [],
+                    social_act_kinds=world_turn.social_act_kinds(state),
                 )
-            
+
             _log({
                 "kind": "turn_extraction_complete",
                 "user_msg": msg,
@@ -2954,14 +3256,22 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     )
 
             if extraction.movement_intent == "MOVE" and extraction.destination_id:
-                if extraction.destination_id in runtime.world_graph.locations:
-                    movement_msg = f"go to {extraction.destination_id}"
+                # BL-46: an ask, invitation or confession never moves anyone before it is answered; only a
+                # performed move (regex) or a parenthesised command does.
+                _guessed_destination = extraction.destination_id
+                if (extraction.social_act is not None or _choice_cue)                         and not _engine_move_command(_movement_authority_message):
+                    _guessed_destination = ""
+                _resolved_destination = _resolved_movement_destination(
+                    _movement_authority_message, _guessed_destination, _explicit_destination,
+                )
+                if _resolved_destination and _resolved_destination in runtime.world_graph.locations:
+                    movement_msg = f"go to {_resolved_destination}"
                     extraction_applied = True
                     _log({
                         "kind": "turn_extraction_movement_applied",
                         "original_msg": msg,
                         "canonicalized_msg": movement_msg,
-                        "destination_id": extraction.destination_id,
+                        "destination_id": _resolved_destination,
                     })
                 else:
                     _log({
@@ -2977,6 +3287,55 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             # they left" is here, not just in the extractor's prompt rules:
             # only DECISION-certainty signals naming a character CURRENTLY
             # in lifecycle.active_ids() are ever acted on.
+            # World model: promises made in the previous exchange (the extractor
+            # reads it whole, so accepted requests count, plain plans do not).
+            if extraction.commitments and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_commitments(state, extraction.commitments)
+            # Jev judges whether open promises between people who are here were carried out (a kept
+            # promise closes before the scene is built; anything uncertain closes quietly).
+            if world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                for _ruling in await world_turn.review_promises(
+                        state, str(getattr(state, "last_turn_user_msg", "") or ""),
+                        str(getattr(state, "last_turn_assistant_reply", "") or ""), msg):
+                    _log({"kind": "promise_judgment", "req_id": req_id, "session_id": session_id,
+                          "story": state.story or "", "memory_id": _ruling.memory_id, "action": _ruling.action,
+                          "choice": _ruling.choice, "confidence": _ruling.confidence, "reason": _ruling.reason})
+            # BL-39 O08: close questions the previous reply resolved, then
+            # queue the player's new ones before begin_turn builds the scene.
+            if (extraction.questions or extraction.question_updates) and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_questions(state, extraction.questions, extraction.question_updates, message=msg)
+            # BL-39 phase E: facts the player states about themselves, heard by those present.
+            if extraction.self_claims and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_claims(state, extraction.self_claims, message=msg)
+            # BL-39 phase F: the target decides a typed social act before the scene is written.
+            _proposed_act = extraction.social_act if not _choice_cue else None
+            if _proposed_act is not None and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                _npc_mode = _npc_decision_mode_for(request)
+                # BL-46: "leave together" may be a walk or the win; read which before the target judges it.
+                _leave_subject = world_turn.leave_meaning_subject(state, _proposed_act)
+                if _leave_subject is not None:
+                    _meaning = leave_meaning.COUPLE if _leave_subject[2] else leave_meaning.UNCLEAR
+                    if _npc_mode != "rules":
+                        _meaning = await leave_meaning.classify(msg, _leave_subject[1], _leave_subject[2])
+                    _log({"kind": "leave_meaning", "req_id": req_id, "session_id": session_id,
+                          "story": state.story or "", "target": _leave_subject[0], "meaning": _meaning})
+                    _proposed_act = world_turn.apply_leave_meaning(state, _proposed_act, _meaning)
+            if _proposed_act is not None and world_turn.enabled(state):
+                _npc_judgment = None
+                _npc_ask = world_turn.npc_question(state, _proposed_act) if _npc_mode != "rules" else None
+                if _npc_ask is not None:
+                    _npc_judgment = await npc_decision.judge(*_npc_ask)
+                world_turn.record_social_act(state, _proposed_act, mode=_npc_mode, judgment=_npc_judgment)
+                _npc_log = (getattr(state.world_model, "decision_log", None) or [None])[-1]
+                if _npc_log is not None:
+                    _log({"kind": "npc_decision", "req_id": req_id, "session_id": session_id,
+                          "story": state.story or "", **_npc_log})
+
             _lifecycle = getattr(state, "cast_lifecycle", None)
             _signal = extraction.departure_signal
             if _lifecycle is not None and _lifecycle.enabled and _signal is not None:
@@ -3028,6 +3387,10 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 _log_list = state.recent_behavior_log.setdefault(_pair_key, [])
                 _log_list.append(_tag.tag)
                 del _log_list[:-BEHAVIOR_LOG_WINDOW_SIZE]
+            # BL-39 phase D: each present character appraises what they saw.
+            if extraction.behavior_tags and world_turn.enabled(state):
+                world_turn.ensure_model(state, lore=_lore_chunks_for(state))
+                world_turn.record_behaviors(state, extraction.behavior_tags)
 
             # Apply a genuine SHIFT (never a WISH - "a wish or joke is not
             # departure" applies here too: a momentary flicker must not
@@ -3090,7 +3453,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
 
         # Heuristic fallback when the classifier misses obvious movement phrasing
         if not extraction_applied:
-            dest = _match_world_destination(msg, runtime, getattr(state, "location_id", ""))
+            dest = _explicit_destination
             if dest:
                 movement_msg = f"go to {dest}"
                 extraction_applied = True
@@ -3112,8 +3475,37 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # narration-cue text ("A few hours pass") is not real player dialogue -
     # running it through advance_time()'s word-count delta would add a few
     # stray extra minutes on top of an otherwise-exact jump.
-    if not _is_time_skip_turn:
+    if _is_time_skip_turn:
+        # A compound "wait until 9, then go to the kitchen" has already
+        # paid for the clock jump. Apply its validated travel without charging
+        # another dialogue turn; the travel resolver still charges travel time.
+        if _explicit_destination:
+            advance_time(state, f"go to {_explicit_destination}", charge_dialogue=False)
+    else:
         advance_time(state, movement_msg)
+
+    state.opening_arrivals_this_turn = advance_opening_arrivals(state, _wm_minute_before, state.minute)
+    state.opening_ritual_brief = group_ritual_brief(state)
+    if state.opening_ritual_brief:
+        mark_group_ritual(state)
+    if state.opening_arrivals_this_turn and state.character_graph is not None:
+        arrival_room = str(((state.story_cfg.get("opening") or {}).get("arrival_sequence") or {}).get("gather_location_id") or "")
+        already_in_room = {
+            key for key, room in state.character_locations.items()
+            if room == arrival_room and key not in state.opening_arrivals_this_turn and key != "player"
+        }
+        for arriving_id in state.opening_arrivals_this_turn:
+            character = state.characters.get(arriving_id)
+            if character is not None and arriving_id not in state.character_graph.characters:
+                state.character_graph.add_character(character)
+            participants = already_in_room | {arriving_id}
+            if state.location_id == arrival_room:
+                participants.add("player")
+            state.character_graph.process_first_meetings(
+                participants, state, int(state.opening_arrival_minutes[arriving_id]),
+                is_new_encounter=True,
+            )
+            already_in_room.add(arriving_id)
 
     # Phase 2 cast-cycling scheduler: execute any departure replacement whose
     # authored availability window (day boundary) has now arrived. Must run
@@ -3213,6 +3605,17 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             # Optional contextual variety must never make a valid turn fail.
             _log({"kind": "dynamic_context_selection_error", "error": str(exc)})
 
+    # Character & world model: step the world through this turn's interval,
+    # mirror locations, plan speakers, and build the per-turn view the prompt
+    # builder renders. Presence markers are refreshed from the moved cast.
+    _wm_view = world_turn.begin_turn(
+        state, _wm_player_words, _wm_minute_before,
+        place_names=_world_place_names(state), sleeping=_wm_sleeping,
+    )
+    if _wm_view is not None:
+        _people_present = get_people_present_keys(state)
+        _upsert_people_present_markers(state, _people_present)
+
     from backend.app.engine.prompt_builder import PromptInput
 
     prompt_input = PromptInput(
@@ -3233,8 +3636,9 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
         "messages": messages,
         "response_format": dialogue_response_format(state),
         "temperature": TEMPERATURE,
-        # Reserve room for per-speaker metadata as well as the existing prose budget.
-        "max_tokens": max(1024, MAX_TOKENS * 2),
+        # Reserve room for per-speaker metadata as well as the existing prose budget;
+        # the finale (exit scene + studio panel) gets an explicit larger allowance.
+        "max_tokens": max(2048 if finale_turn(state) else 1024, MAX_TOKENS * 2),
     }
 
     _log({
@@ -3252,11 +3656,27 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # works against OpenAI (online) or a local Ollama instance (local dev).
     with stage_timer.stage("storyteller"):
         async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(
-                f"{STORY_MASTER_BASE_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
-                json={**payload, "model": STORY_MASTER_MODEL},
-            )
+            # One bounded retry on 429/5xx (arena gates saturate the shared
+            # rate limit; OpenAI says "try again in 322ms").
+            try:
+                r = await post_with_model_fallback(
+                    client,
+                    f"{STORY_MASTER_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                    json={**payload, "model": STORY_MASTER_MODEL},
+                    fallback_model=STORY_MASTER_FALLBACK_MODEL,
+                )
+            except httpx.TransportError as exc:
+                # BL-28: a read/connect timeout or dropped connection used to escape as an ASGI 500 with an empty
+                # reply. Same public, retryable message as a non-2xx response; the exception type goes to the log only.
+                _log({
+                    "kind": "chat_upstream_error",
+                    "req_id": req_id,
+                    "status": None,
+                    "error": type(exc).__name__,
+                    "body": "",
+                })
+                return {"error": _PUBLIC_UPSTREAM_ERROR, "character": "default"}
 
     if r.status_code < 200 or r.status_code >= 300:
         _log({
@@ -3286,24 +3706,37 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     _recent_replies = [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:]
     _draft_segments = drop_player_echo(present_dialogue(extract_state_tag(reply)[0], state)[1], msg)
     _draft_empty = not any(str(seg.get("text") or "").strip() for seg in _draft_segments)
-    if _draft_empty or only_repeats(_draft_segments, _recent_replies):
-        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id, "empty": _draft_empty})
+    # BL-47: a character replaying a line they said many turns ago (the recent-replies check cannot see that far).
+    _own_lines = world_turn.own_spoken_lines(state)
+    _own_replay = bool(own_repeat_indexes(_draft_segments, _own_lines))
+    _only_repeats = only_repeats(_draft_segments, _recent_replies)
+    if _draft_empty or _only_repeats or _own_replay:
+        _log({"kind": "storyteller_repeat_regenerated", "req_id": req_id, "empty": _draft_empty,
+              "own_replay": _own_replay})
         retry_messages = payload["messages"] + [
             {"role": "assistant", "content": reply},
             {"role": "user", "content": (
                 "That draft had no new lines for the player." if _draft_empty else
-                "That draft only repeated lines that were already said."
+                "That draft only repeated lines that were already said." if _only_repeats else
+                "That draft had a character say again a line they already said earlier."
             ) + " Write a new beat that responds to the player's latest message; "
                 "do not repeat earlier lines or the player's own words."},
         ]
+        retry = None
         with stage_timer.stage("storyteller"):
             async with httpx.AsyncClient(timeout=30.0) as client:
-                retry = await client.post(
-                    f"{STORY_MASTER_BASE_URL}/chat/completions",
-                    headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
-                    json={**payload, "messages": retry_messages, "model": STORY_MASTER_MODEL},
-                )
-        if 200 <= retry.status_code < 300:
+                try:
+                    retry = await post_with_retry(
+                        client,
+                        f"{STORY_MASTER_BASE_URL}/chat/completions",
+                        headers={"Authorization": f"Bearer {STORY_MASTER_API_KEY}"},
+                        json={**payload, "messages": retry_messages, "model": STORY_MASTER_MODEL},
+                    )
+                except httpx.TransportError as exc:
+                    # BL-28: the regeneration is optional polish; keep the first draft instead of failing the turn.
+                    _log({"kind": "storyteller_repeat_regeneration_failed", "req_id": req_id,
+                          "error": type(exc).__name__})
+        if retry is not None and 200 <= retry.status_code < 300:
             try:
                 reply = decode_dialogue_response(str(retry.json()["choices"][0]["message"]["content"]), state)
                 data = retry.json()
@@ -3336,10 +3769,32 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # The player already sees their own message; never let the scene hand it
     # to an NPC (arena-found beta regression, 2026-09-23).
     segments = drop_player_echo(segments, msg)
+    segments = drop_narrated_player_echo(segments, _wm_player_words)
+    # BL-29: nor feelings/sensations the player never wrote (counted so the slip rate can be measured).
+    _before_feelings = sum(len(str(x.get("text") or "")) for x in segments if x.get("kind") == "narration")
+    segments = drop_invented_player_feelings(segments, _wm_player_words)
+    if _before_feelings != sum(len(str(x.get("text") or "")) for x in segments if x.get("kind") == "narration"):
+        _log({"kind": "player_feelings_trimmed", "req_id": req_id, "session_id": session_id})
     # Nor re-send recent beats: copied opening lines snowballed on live prod
     # because each copy re-entered the history (2026-09-24).
     segments = drop_repeated_lines(
         segments, [m.get("content", "") for m in log if m.get("role") == "assistant"][-3:])
+    segments = drop_own_repeated_lines(segments, _own_lines)
+    segments = ground_social_scene(segments, state)
+    authored_arrivals = opening_arrival_segments(state)
+    if authored_arrivals:
+        _, arrival_segments = present_dialogue(encode_dialogue(authored_arrivals), state)
+        generated = strip_generated_arrival_repeats(state, segments)
+        segments = arrival_segments + drop_repeated_lines(generated, [dialogue_transcript(arrival_segments)])
+    world_turn.end_turn(state, _wm_player_words, segments)
+    # BL-39 O26a: every canned/constrained recovery is counted per turn so the
+    # visible-fallback rate can be measured from real traffic (gate: <= 5%).
+    _wm_view = getattr(getattr(state, "world_model", None), "view", None)
+    if _wm_view is not None:
+        _log({"kind": "turn_quality_recoveries", "req_id": req_id, "session_id": session_id,
+              "story": state.story or "", "verdict_repairs": int(getattr(_wm_view, "verdict_repairs", 0)),
+              "panel_fallbacks": int(getattr(_wm_view, "panel_fallbacks", 0)),
+              "finale": bool(getattr(_wm_view, "panel_speakers", None))})
     clean = dialogue_transcript(segments)
     # UUID for the AI message — generated here so it's available for JSONL persistence below.
     ai_msg_id: str = uuid.uuid4().hex[:12]
@@ -3399,9 +3854,15 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     except Exception:
         pass
 
-    if win_condition_detected(clean, state):
-        state.over = True
-        clean += f"\n\nEND GAME YOU WIN -- turns: {state.turns}"
+    # BL-39 phase A: one typed ending, evaluated once from committed
+    # decisions and saved in the same commit as this reply. The END GAME text
+    # stays for the operator debug harness (debug_engine string-matches it).
+    outcome = resolve_outcome(state, clean)
+    if outcome is not None:
+        state.outcome = outcome.to_dict()
+        state.over = outcome.ends_run
+        marker = "END GAME YOU WIN" if outcome.kind == "win" else f"END GAME -- {outcome.title}"
+        clean += f"\n\n{marker} -- turns: {state.turns}"
 
     # Persist this completed turn for next turn's single-call extractor analysis.
     # These must be set BEFORE the session save below so the persisted row
@@ -3409,6 +3870,82 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     state.last_turn_user_msg = msg
     state.last_turn_assistant_reply = clean
     state.last_turn_retrieved_chunks = [dict(c) for c in (retrieved or [])]
+
+    _log({
+        "kind": "chat_response",
+        "req_id": req_id,
+        "session_id": session_id,
+        "latency_ms": int((time.time() - t0) * 1000),
+        "usage": data.get("usage", {}),
+        "assistant_reply_preview": _truncate(clean, 1200),
+    })
+
+    # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
+    ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
+
+    # Start with clean reply (no timestamp prefix).
+    reply = clean
+
+    # Build debug_box as structured data for frontend rendering (never added to LLM context).
+    debug_box = None
+    if bool(sess.get("debug_mode", False)):
+        user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
+        speakers = _debug_speakers(state)
+
+        raw_entries = getattr(state, "transient_entries", []) or []
+        debug_box = {
+            "timestamp": ts,
+            "location": user_loc,
+            "location_uuid": getattr(state, "location_uuid", ""),
+            "speakers": speakers if speakers else None,
+            "people_present": _debug_people_present(state) or None,
+            "transient_count": len(raw_entries),
+            "transient_entries": [
+                {"text": e.text, "turns_remaining": e.turns_remaining}
+                for e in raw_entries
+            ],
+            "npc_decisions": list((getattr(getattr(state, "world_model", None), "decision_log", None) or [])[-3:])
+            or None,
+            "turn": int(getattr(state, "turns", 0) or 0),
+            "flags": {k: bool(sess.get(k, d)) for k, d in
+                      (("truth_mode", False), ("epistemic_state", True), ("chinese_mode", False))},
+            "counters": dict(getattr(getattr(state, "world_model", None), "counters", None) or {}) or None,
+            "mechanics": collect_debug_mechanics(state) or None,
+        }
+
+    # Apply Chinese translation if chinese_mode is enabled
+    if bool(sess.get("chinese_mode", False)):
+        reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
+
+    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default",
+              "location_id": str(getattr(state, "location_id", "") or "")}
+    _choice_card = world_choices.payload(state.world_model) if getattr(state, "world_model", None) is not None else None
+    if _choice_card is not None and outcome is None:
+        result["pending_choice"] = _choice_card
+    if outcome is not None:
+        result["ending"] = outcome.payload()
+    goal = goal_payload(state)
+    if goal is not None:
+        result["goal"] = goal
+    # prompt_debug carries the FULL assembled system prompt (all canonical
+    # facts, character secrets, retrieval chunk text) and is only for the
+    # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
+    # which authenticates its own internal /api/chat calls with the same
+    # operator token). It must never reach an ordinary player: unlike the
+    # `debug_mode` toggle below, which is a harmless player-facing "[D]"
+    # bracket command, is_operator_request() checks the real trust boundary
+    # (DEBUG_TOOLS_ENABLED + a matching X-Operator-Token/operator_token),
+    # so typing "[D]" alone cannot unlock it.
+    if is_operator_request(request):
+        result["prompt_debug"] = prompt_debug
+        result["turn_trace"] = _build_turn_trace(
+            stage_timer, extraction, retrieved, request, data.get("usage"))
+    if knowledge_resolution_updates:
+        result["knowledge_resolution_updates"] = knowledge_resolution_updates
+    if debug_box is not None:
+        if knowledge_resolution_updates:
+            debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
+        result["debug_box"] = debug_box
 
     # Persist state + raw log after every turn (authenticated users only).
     # All in-memory mutations for this turn (including `over` and
@@ -3421,7 +3958,7 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                 if hasattr(state, "story_cfg") and state.story_cfg:
                     cfg = state.story_cfg
                     story_title = cfg.get("title", state.story) if hasattr(cfg, "get") else state.story
-                await SessionRepo.create_or_update_session(
+                committed_revision = await SessionRepo.create_or_update_session(
                     session_id=session_id,
                     user_id=user_id,
                     story_id=state.story or "",
@@ -3437,6 +3974,11 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     }),
                     last_message=clean[:120],
                     turns=state.turns,
+                    last_request_id=client_request_id or "",
+                    last_reply_json=json.dumps(result) if client_request_id else "",
+                    expected_revision=int(sess.get("_db_revision") or 0),
+                    receipt=TurnReceipt(client_request_id, input_hash, json.dumps(result))
+                    if client_request_id else None,
                 )
                 await ConversationRepo.append_turns(
                     user_id=user_id,
@@ -3448,8 +3990,32 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
                     ai_msg_id=ai_msg_id,
                     segments=segments,
                 )
-        except Exception:
+                sess["_db_revision"] = committed_revision
+        except (SessionRevisionConflict, sqlite3.IntegrityError) as exc:
+            SESSIONS.pop(session_id, None)
+            if client_request_id:
+                # A concurrent duplicate of this request may have committed first.
+                replay = await _committed_reply(session_id, user_id, client_request_id, input_hash)
+                if replay is not None:
+                    return replay
+            raise HTTPException(status_code=409, detail="This session changed elsewhere. Please retry your turn.") from exc
+        except Exception as exc:
             logger.exception("Failed to persist turn for session %s user %s", session_id, user_id)
+            raise HTTPException(status_code=503, detail="Your turn could not be saved. Please try again.") from exc
+
+    # Include the completed save in the per-stage ledger.
+    _log(stage_timer.as_ledger({
+        "kind": "turn_stage_ledger",
+        "req_id": req_id,
+        "session_id": session_id,
+        "user_id": user_id,
+        "story": state.story or "",
+        "turn": state.turns,
+        "model": STORY_MASTER_MODEL,
+        "prompt_tokens": (data.get("usage") or {}).get("prompt_tokens"),
+        "completion_tokens": (data.get("usage") or {}).get("completion_tokens"),
+        "cached_tokens": ((data.get("usage") or {}).get("prompt_tokens_details") or {}).get("cached_tokens"),
+    }))
 
     # Fire background fact extraction (non-blocking).
     # Extracted facts are stored in state.session_chunk_store with IDs:
@@ -3550,80 +4116,6 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
             except Exception:
                 pass
 
-    _log({
-        "kind": "chat_response",
-        "req_id": req_id,
-        "session_id": session_id,
-        "latency_ms": int((time.time() - t0) * 1000),
-        "usage": data.get("usage", {}),
-        "assistant_reply_preview": _truncate(clean, 1200),
-    })
-
-    # Phase 0B: per-stage timing/cost ledger for this turn. Separate log line
-    # (kind=turn_stage_ledger) rather than folded into chat_response above, so
-    # a ledger-only query/dashboard doesn't have to also parse reply previews.
-    _log(stage_timer.as_ledger({
-        "kind": "turn_stage_ledger",
-        "req_id": req_id,
-        "session_id": session_id,
-        "user_id": user_id,
-        "story": state.story or "",
-        "turn": state.turns,
-        "model": STORY_MASTER_MODEL,
-        "prompt_tokens": (data.get("usage") or {}).get("prompt_tokens"),
-        "completion_tokens": (data.get("usage") or {}).get("completion_tokens"),
-        "cached_tokens": ((data.get("usage") or {}).get("prompt_tokens_details") or {}).get("cached_tokens"),
-    }))
-
-    # Timestamp is only shown in DEBUG INFO now (no longer prepended to the reply).
-    ts = WorldTimeFormatter.compute(getattr(state, "world_start_datetime", ""), getattr(state, "minute", 0)).display
-
-    # Start with clean reply (no timestamp prefix).
-    reply = clean
-
-    # Build debug_box as structured data for frontend rendering (never added to LLM context).
-    debug_box = None
-    if bool(sess.get("debug_mode", False)):
-        user_loc = (getattr(state, "location", "") or "").strip() or "(unknown)"
-        speakers = _debug_speakers(state)
-
-        raw_entries = getattr(state, "transient_entries", []) or []
-        debug_box = {
-            "timestamp": ts,
-            "location": user_loc,
-            "location_uuid": getattr(state, "location_uuid", ""),
-            "speakers": speakers if speakers else None,
-            "people_present": _debug_people_present(state) or None,
-            "transient_count": len(raw_entries),
-            "transient_entries": [
-                {"text": e.text, "turns_remaining": e.turns_remaining}
-                for e in raw_entries
-            ],
-        }
-
-    # Apply Chinese translation if chinese_mode is enabled
-    if bool(sess.get("chinese_mode", False)):
-        reply, segments = present_dialogue(await _translate_to_chinese(encode_dialogue(segments)), state)
-
-    result = {"reply": reply, "segments": segments, "usage": data.get("usage"), "character": "default"}
-    # prompt_debug carries the FULL assembled system prompt (all canonical
-    # facts, character secrets, retrieval chunk text) and is only for the
-    # operator-facing debug/playback tooling (backend/app/api/debug_engine.py,
-    # which authenticates its own internal /api/chat calls with the same
-    # operator token). It must never reach an ordinary player: unlike the
-    # `debug_mode` toggle below, which is a harmless player-facing "[D]"
-    # bracket command, is_operator_request() checks the real trust boundary
-    # (DEBUG_TOOLS_ENABLED + a matching X-Operator-Token/operator_token),
-    # so typing "[D]" alone cannot unlock it.
-    if is_operator_request(request):
-        result["prompt_debug"] = prompt_debug
-    if knowledge_resolution_updates:
-        result["knowledge_resolution_updates"] = knowledge_resolution_updates
-    if debug_box is not None:
-        if knowledge_resolution_updates:
-            debug_box["knowledge_resolution_updates"] = knowledge_resolution_updates
-        result["debug_box"] = debug_box
-
     # Phase 1.1: publish the working clone back to the live session cache.
     # This is the ONE place `SESSIONS[session_id]` is updated for a regular
     # turn — every mutation since the clone point above happened on
@@ -3636,17 +4128,5 @@ async def _chat_handler_impl(request: Request, data: dict, _auth_user: dict | No
     # token alone).
     sess["state"] = state
     sess["log"] = log
-
-    # BL-02: record this turn's dedup token now that `result` (the exact
-    # client-facing reply) is fully built, so a retry with the same
-    # request_id can replay it verbatim instead of reprocessing. A separate
-    # lightweight UPDATE rather than folding into the main session save
-    # above, so the existing atomic-turn-save ordering (over/last_turn_*
-    # must precede that save - see BL-01) is untouched.
-    if client_request_id and user_id != "anon":
-        try:
-            await SessionRepo.update_last_request(session_id, user_id, client_request_id, json.dumps(result))
-        except Exception:
-            logger.exception("Failed to persist request-id dedup token for session %s", session_id)
 
     return result

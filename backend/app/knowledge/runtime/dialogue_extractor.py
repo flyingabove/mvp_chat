@@ -113,6 +113,8 @@ async def _call_extractor_llm(text: str) -> List[str]:
         OPENAI_MODEL,
     )
 
+    from backend.app.llm.gemini_router import llm_post
+
     prompt = _EXTRACTION_PROMPT.format(text=text[:2000])  # cap input length
     payload = {
         "model": OPENAI_MODEL,
@@ -122,7 +124,8 @@ async def _call_extractor_llm(text: str) -> List[str]:
     }
 
     async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.post(
+        r = await llm_post(
+            client,
             f"{STORY_MASTER_BASE_URL}/chat/completions",
             headers={
                 "Authorization": f"Bearer {STORY_MASTER_API_KEY}",

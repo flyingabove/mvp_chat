@@ -1,5 +1,5 @@
 """Tests for evidence packets (blinding, fencing, budget) and deterministic
-correctness checks (JEV_GAME_ARENA_DESIGN.md §6-7)."""
+correctness checks (design/JEV_GAME_ARENA.md §6-7)."""
 from arena.checks import (
     ClockMonotonicCheck, RepetitionStallCheck, RouteLegalityCheck, Severity, TargetFailureCheck, run_checks,
 )

@@ -34,7 +34,17 @@ os.environ.setdefault("STORY_MASTER_BASE_URL", "http://localhost:11434/v1")
 os.environ.setdefault("STORY_MASTER_MODEL", "llama3.1:8b")
 os.environ.setdefault("STORY_MASTER_API_KEY", "ollama")
 
+def require_switch() -> None:
+    """The local debug evaluator talks to Ollama, which is off by default (owner decision 2026-10-01)."""
+    from backend.app.llm.ollama_switch import OllamaDisabledError, require_ollama
+    try:
+        require_ollama("the local debug evaluator; use the hosted /beta/debug page, which needs no Ollama")
+    except OllamaDisabledError as error:
+        raise SystemExit(str(error)) from None
+
+
 if __name__ == "__main__":
+    require_switch()
     print(f"[launcher] Project root: {_project_root}")
     print("[launcher] Open: http://localhost:8899/beta/debug")
     uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8899, reload=True)

@@ -4,6 +4,42 @@
 
 Patterns from user feedback to prevent repeating mistakes.
 
+## 2026-09-28: Always push after a beta merge
+
+After merging/integrating work into beta, always push the integrated HEAD to origin/beta and verify the remote commit, even for documentation-only work. Do not ask again or finish at a local merge/commit. This supersedes the documentation-only exception for merged work; standalone documentation edits without a merge retain that exception unless the user requests a push or another clone needs them.
+
+## 2026-09-28: One BL-39-led proposal, hybrid Jev and 5% fallback ceiling
+
+Owner selected consolidation: BL-39 supplies the Character → Heart → Bond model and A–J roadmap; BL-38 correctness contracts are mandatory within it, not another architecture. Use [the master](design/SOCIAL_ENGINE.md). Keep independent opening/answer/receipt fixes shippable.
+
+NPC judgment is hybrid: extraction LLM plus Jev propose nuanced choices; character/engine rules enforce feasibility, authority and consent. Pure character methods accept application-supplied proposals without provider I/O. Do not silently replace nuanced decisions with deterministic utility alone.
+
+Owner accepted a provisional 5% visible canned/constrained fallback ceiling and delegated practical judgment. Treat as a measured rollout gate with zero critical source/consent violations, not a claimed achieved rate. Continue gameplay-first latency priorities and the two-LLM-attempt cap. Panelists use camera/public evidence, never subject private state; panel prose shares the response call.
+
+## 2026-09-27: Gameplay first; two LLM calls plus Jev and visible thinking dots
+
+Latest user direction supersedes the earlier unresolved latency question and any immediate 1–2-second optimization gate: current response speed feels good. Focus on gameplay, measure latency, and defer speed optimization/true streaming. Keep at most two LLM calls per gameplay turn: extraction LLM assisted by Jev, then response LLM. Use Jev extensively for supported work with bounded batching and separate latency/cost accounting; do not replace the extraction LLM with local-only intent parsing or add a third LLM verifier/repair/background call.
+
+Preserve animated three-dot thinking feedback before results. Source inspection confirms it exists in `frontend/index.html` and is shown before fetch, hidden on reply/error. BL-38 specifies lifecycle QA and client/server timing measurement built on the existing `StageTimer`; source inspection is not a new hosted verification. Playtest arena judging stays off.
+
+## 2026-09-27: Arena judging is not needed for playtest review
+
+The user explicitly turned arena judging off for playtest review and said it is not important to that work. Do not keep proposing a judging pilot as a prerequisite. They described an arena-judge gameplay mechanic as Terrace House-specific for now, reusable but default-off for other games. Keep that desired gameplay capability distinct from the developer build-comparison arena and runtime semantic validation; no corresponding existing gameplay implementation was verified in this review. This clarification does not authorize starting arena runs or modifying runtime flags.
+
+“Response time” was clarified as the real-world wait for the complete game reply, not story time. The user did not select a latency target; do not treat the illustrative 10/20/30-second options as requirements.
+
+## 2026-09-27: Plausible drama, engine dialogue and character uncertainty
+
+The user clarified the reusable simulation proposal after review:
+
+- Prioritize enjoyable, heightened but plausible dramatic scenes over mundane realism, including humor and characters knowingly breaking routine obligations with consequences.
+- Before a skip would miss important known events, list them and request confirmation. Engine-to-player messages and player-to-engine commands must be parenthesized and distinct from in-world dialogue.
+- NPC autonomy is tunable with a moderate default. Longer elapsed game time permits more cascading independent changes (butterfly effects); closing the app still freezes simulation time.
+- Intentional lying is allowed and should generally have observable hints, varying with character skill and circumstances. Skilled liars can be harder to read; nervousness is not proof.
+- Tentative plans and misunderstandings are valid gameplay. Preserve actual speech/decisions separately from each character's interpretation; never manufacture player consent or mutual agreement.
+
+Engineering contracts, tuning and acceptance scenarios are in [BL-38](backlog/BL-38-social-engine-atomic-transactions.md), especially the confirmed owner decisions and scenarios O19–O23. These are design requirements, not claims that the runtime already implements them.
+
 ## 2026-09-24: Documentation-only changes do not need a beta push
 
 The user narrowed the 2026-09-23 rule below: a change that touches only
@@ -49,13 +85,13 @@ guidance for Codex; beta remains the deployment target.
 
 **Rule:** Treat localhost as debug/scorer-only (`/beta/debug`). App login and Google OAuth callbacks should be documented and configured for hosted domains.
 
-**Added to:** `documentation/model_output_docs/AUTH_AND_PERSISTENCE_DESIGN.md`, `documentation/model_output_docs/INFRASTRUCTURE.md`.
+**Added to:** `documentation/design/PLATFORM.md`, `documentation/design/PLATFORM.md`.
 
 ## 2026-03-21: Use one canonical intermediate task file
 
 **What happened:** Intermediate task tracking was spread across ad-hoc files/folders (`tasks/`), creating inconsistency and stale leftovers.
 
-**Rule:** Intermediate execution tasks must be tracked in one canonical file: `documentation/plans_scratch/TASKS_INTERMEDIATE.md`. Agents must consume this file before non-trivial work, update it during execution, and clean up completed entries at task end.
+**Rule (superseded 2026-10-01):** this single-file rule was replaced by the shared plan in `documentation/plan/` (one file per task, claimed through `scripts/work.py`; see `AGENTS.md` section 1). `TASKS_INTERMEDIATE.md` and the root `tasks/` folder are retired. The lesson that survives: one canonical place, no ad-hoc task files, delete finished entries.
 
 **Added to:** `documentation/ai_learnings_mistakes/AI_TASK_WORKFLOW.md`, `documentation/AI_DOC_INDEX_CATALOGUE.md`, `.gitignore`.
 
@@ -73,5 +109,67 @@ guidance for Codex; beta remains the deployment target.
 
 **Rule:** The deploy build runs unit tests only (`-m "not integration"`), with blank LLM keys and `TESTS_BLOCK_LLM_NETWORK=1` (conftest blocks LLM hosts). Real-API tests must carry `@pytest.mark.integration`. Live tests at build time only via explicit `RUN_LIVE_LLM_TESTS=1`. Never add evaluation or LLM calls to the Dockerfile, CI unit job, or app startup.
 
-**Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/model_output_docs/INFRASTRUCTURE.md`.
+**Added to:** `Dockerfile`, `tests/conftest.py`, `.github/workflows/tests.yml`, `pytest.ini`, `documentation/ai_learnings_mistakes/AI_LEARNINGS_RUNNING_TESTS.md`, `documentation/design/PLATFORM.md`.
 
+
+## 2026-09-29 — State trackers must never miss what happened
+
+**Correction:** A word-overlap check failed to notice the player had made Riko's promised tea ("Here you go, Riko"), so she kept nagging about it. Owner: an NPC forgetting is fine; the game not registering something that happened is not. A mechanic that can't reach ~99% on that error direction should be removed in favour of plain conversation context. Semantic judgments (completion, name/nickname dedup) belong to Jev, not regex.
+
+**Rule:** For any "did X happen / is X still open" tracker, uncertainty resolves toward "done / stop reminding". Before shipping, measure the "happened but not registered" rate on a labeled eval; below 99%, delete the mechanic.
+
+## 2026-09-30 — Terrace is a dating show; first meetings are strangers on camera
+
+**Correction:** I proposed planting career wishes ("I came to launch my shop") in the opening. Owner: "this is a damn dating game." The opening should feel like a real reality show: you're alone in a room with an opposite-gender Japanese stranger, on camera, with funny, awkward energy. They don't know your name and must not act friendly as if you were already friends. The engine doesn't do this well enough and the opening doesn't capture it.
+
+**Rule:** Terrace content serves the romance and the reality-show frame first. First meetings are strangers: polite, a bit stiff, curious, awkward, no use of the player's name until they hear it, no shared history, no blushing or intimacy. Warmth has to be earned through the standing tiers. Career or dream details are background flavor, never the hook. Falling in love takes days (owner: "we can't have people falling in love 5 turns in"); what the storyteller portrays must never run ahead of the standing tier.
+
+**Added to:** `documentation/design/TERRACE_HOUSE.md` §11 (opening redesign); backlog BL-76/77/78.
+
+## 2026-10-01 — Social engine designs centre on the character object
+
+**Correction:** I proposed BL-85 as a standalone "volition" rules layer. Owner: not good enough; the design must be object-oriented around the character. A character has traits (MBTI type, injected into the storyteller), goals, and stances toward people ("considers this person a rival"), and a mind with what they know and what they think others know. When characters share a room, the combination of personalities, goals, love/hate and epistemic state should organically produce drama.
+
+**Rule:** Express new social mechanics as parts of `Person` (personality, goals, stances, mind) and let scenes be composed from those objects. Rule tables (weighted considerations) are an internal tool for deriving a character's stances and wants, never the headline architecture or a separate per-mechanic module.
+
+**Added to:** `documentation/backlog/BL-85-character-social-mind.md`.
+
+## 2026-10-01 — Owner preferences: autonomous seasons, LLM-written scenes, dramatized realism
+
+Recorded from the owner's answers (full detail in backlog BL-85, BL-86, BL-87):
+- **Everything is written by the LLM.** Character objects, stances, minds and scene dynamics only shape the prompt; state changes come back through extraction (Jev-assisted). Judge prose by the rubric, never by golden text.
+- **Headless seasons** (no human player) are an integration test AND an admin-only watch mode. Never a player-facing house log.
+- **Providers:** Gemini + Jev by default, OpenAI + Jev as the alternative. Ollama is switched off for now.
+- **Tone, every mode:** real life, dramatized: plausible but very dramatic, like a shot drama (Terrace House, Friends, K-drama). The engine nudges and never scripts; every nudge is a tunable knob. "Good" = engaging enough for a Netflix script, judged by Jev with a coverage-style rubric.
+- **Fog of war:** each character keeps a DB-backed record of what they know and what they think others know; nobody knows where others are without perceiving or being told.
+- **Plans:** short-term and long-term; how far ahead depends on personality (low planfulness / P types plan less long-term).
+- **Goals change and need not be love** ("watch the world burn" is fine); mode rules (Terrace: a mutually committed couple leaves) are data on top.
+- **Terrace cast:** exactly 6 residents at all times; replacements arrive when a couple leaves or someone storms out. Other games may have more and rotate cast.
+- **Terrace panel speaks only at the end** (player win or loss); no mid-game asides or departure segments.
+- **Interruptions:** when someone walks in, the LLM writes the interruption realistically.
+
+**Added to:** backlog BL-85/86/87, `design/TERRACE_HOUSE.md` (panel modes), `design/SOCIAL_ENGINE.md` §7.
+
+## 2026-10-01 — Game-specific mechanics are a last resort, not forbidden
+
+**Correction:** I wrote that a Terrace-only mechanic is "forbidden" by the owner's rules. Owner: it is not forbidden; strongly avoid it, consider it last, but sometimes it is fine.
+
+**Rule:** Default to the generic engine/character-object route. A game-specific mechanic is allowed as a last resort when the generic route was tried or clearly cannot express the need: say why in the commit or design doc, keep it in a story-specific module or hook (never in generic engine logic such as `world_model/`), and prefer a shape another story could reuse. Never write "forbidden" or "never" for this in docs or answers.
+
+**Added to:** `AGENTS.md` section 5, `design/TERRACE_HOUSE.md` (engineering rule, section 12), `design/WORLD_MODEL.md` ground rules, backlog BL-76-84 header.
+
+## 2026-10-01 — Only OpenAI costs money; Gemini and Jev are free
+
+**Correction:** I treated Gemini and Jev runs as spending money and kept asking the owner for approval before pilots, rubric calibration and season runs (and wrote that into AGENTS.md, the plan README, P-06/P-12 and my own rubric docs). Owner: only OpenAI costs money; Gemini + Jev are free.
+
+**Rule:** Use Gemini and Jev freely (simulations, pilot seasons, calibration, evals, live checks) with sensible rate limits and no approval. Ask first, and cap the run, only for anything that touches OpenAI (`LLM_PROVIDER=openai`, an OpenAI judge or player, the arena's `llm` judge and player). Before running anything paid-sounding, check which provider it uses instead of assuming it costs money. The LLM arena stays disabled (`ARENA_LLM_ENABLED`) because its player and `llm` judge are OpenAI.
+
+**Added to:** `AGENTS.md` section 4, `documentation/plan/README.md`, P-06/P-07/P-11/P-12, `ship-and-verify` skill, BL-87, rubric README and script, memory.
+
+## 2026-10-01 — Use every free Gemini model, and the LLM arena is enabled for Gemini + Jev
+
+**Correction:** The default model `gemini-3.8-flash` has 20 requests a day, so beta turns and sims kept failing while every other free text model (own RPM/TPM/RPD) sat unused; and the arena stayed off only because its player and judge were hard-wired to OpenAI. Owner: build an abstract `call_gemini` that uses all plausibly good models without hitting limits, then enable and play the arena.
+
+**Rule:** Every Gemini chat call goes through `backend/app/llm/gemini_router.py` (`call_gemini` / `llm_post`); never hard-code one Gemini model for a call path. Probe a model live before adding it to `MODELS` (Gemma leaked its chain of thought, 2.5 models 404). The arena's players and `llm` judge are Gemini by default; OpenAI there needs `--provider openai --allow-openai` and the owner's approval.
+
+**Added to:** `AGENTS.md` section 4, `promote-to-prod` skill, `documentation/design/PLATFORM.md`, memory.

@@ -27,6 +27,20 @@ STORY_FOLDER = first_story_folder()
 # Shared fixtures
 # ============================================================================
 
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    """Give every test its own SQLite file instead of the developer's
+    ./data/storieschat.db, so durable receipts and sessions from one test or
+    an earlier run cannot leak into another."""
+    from backend.app.db import database, repos
+
+    monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "storieschat.db")
+    monkeypatch.setattr(repos, "DATA_DIR", tmp_path)
+    database.init_db()
+    return tmp_path
+
+
 @pytest.fixture()
 def client(monkeypatch):
     """Create a FastAPI TestClient with network calls mocked."""
@@ -183,13 +197,13 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
     assert payload["usage"]["total_tokens"] == 0
     assert payload["reply"] == ""
     assert {item["id"] for item in payload["cast_roster"]["active"]} == {
-        "player", *state.cast_lifecycle.active_ids()
+        "player", *state.opening_cast
     }
     public_ids = {
         item.get("id") for group in ("active", "departed")
         for item in payload["cast_roster"][group]
     }
-    for future_id in set(state.characters) - {"player"} - set(state.cast_lifecycle.active_ids()):
+    for future_id in set(state.characters) - {"player"} - set(state.opening_cast):
         assert future_id not in public_ids
 
 
@@ -199,10 +213,9 @@ def test_six_strangers_cast_roster_hides_upcoming_names_and_costs_no_tokens(clie
 # practice soon" - Yuto had not even moved in (all 17 names were in Cast IDs).
 
 @pytest.mark.parametrize("gender", ["M", "F"])
-def test_six_strangers_opens_with_greeters_in_kitchen_and_everyone_else_home(client, gender):
-    """Owner request 2026-09-24: exactly two opposite-gender housemates are with
-    the player at the start. The other three are still home and tracked (in the
-    living room), so "where is everyone?" stays answerable from state."""
+def test_six_strangers_opens_with_one_resident_and_four_scheduled_arrivals(client, gender):
+    """The player enters second; five NPC slots are reserved, but only the first
+    opposite-gender resident is physically present at three o'clock."""
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.active_characters import get_people_present_keys
 
@@ -211,14 +224,14 @@ def test_six_strangers_opens_with_greeters_in_kitchen_and_everyone_else_home(cli
     state = pe_mod.SESSIONS[sid]["state"]
     active = set(state.cast_lifecycle.active_ids())
     party = set(state.opening_cast)
-    assert len(active) == 5 and len(party) == 2 and party <= active
-    assert state.location_id == "kitchen"
-    assert {state.character_locations[k] for k in party} == {"kitchen"}
-    assert {state.character_locations[k] for k in active - party} == {"living_room"}
+    assert len(active) == 5 and len(party) == 1 and party <= active
+    assert state.location_id == "living_room"
+    assert {state.character_locations[k] for k in party} == {"living_room"}
+    assert not any(k in state.character_locations for k in active - party)
+    assert sorted(state.opening_arrival_minutes.values()) == [8, 18, 28, 38]
     assert get_people_present_keys(state) - {"player"} == party
-    # The opening tells the player (and the model's history) that everyone is home.
-    mix = "two other men and three women" if gender == "M" else "three men and two other women"
-    assert f"Everyone who lives here is home tonight, {mix} besides you" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
+    assert "Three o'clock" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
+    assert "nobody has begun to eat" in pe_mod.SESSIONS[sid]["log"][-1]["content"]
 
 
 def test_six_strangers_prompt_states_whereabouts_and_never_names_unarrived_residents(client, monkeypatch):
@@ -241,21 +254,51 @@ def test_six_strangers_prompt_states_whereabouts_and_never_names_unarrived_resid
         client.post("/api/chat", json={"session_id": sid, "message": "where are all the other guys at?"})
         prompt = sent[-1]["messages"][0]["content"]
         active = state.cast_lifecycle.active_ids()
-        assert "People present in this location right now (2)" in prompt
-        assert "Where every resident is right now" in prompt
+        assert "People present in this location right now (1)" in prompt
+        assert "Where every arrived resident is right now" in prompt
         header = sent[-1]["messages"][-1]["content"]
-        assert "here with you in Open Kitchen:" in header
-        assert "Elsewhere in the house:" in header and "Nobody else lives here." in header
-        for key in active:
+        assert "here with you in Living Room:" in header
+        assert "Other selected residents have not arrived" in header
+        for key in state.opening_cast:
             name = re.escape(state.characters[key].name)
-            room = r"Open Kitchen \(here with the player\)" if key in state.opening_cast else "Living Room"
+            room = r"Living Room \(here with the player\)"
             assert re.search(rf"- {name} \((?:man|woman)\): {room}", prompt)
             assert state.characters[key].name in header
         for key, ch in state.characters.items():
-            if key == "player" or key in active:
+            if key == "player" or key in state.opening_cast:
                 continue
             for token in {ch.name, ch.name.split()[0].strip('"')}:
-                assert not re.search(rf"\b{re.escape(token)}\b", prompt), f"unarrived {token!r} leaked"
+                leaked = re.search(rf"\b{re.escape(token)}\b", prompt)
+                assert not leaked, f"unarrived {token!r} leaked near {prompt[max(0, leaked.start()-100):leaked.end()+100]!r}"
+
+
+def test_six_strangers_prompt_injects_the_present_characters_mbti(client, monkeypatch):
+    """End-to-end (BL-80/81/82 MBTI mechanic, 2026-10-01): the real /api/chat
+    pipeline must put each present character's MBTI line into the actual
+    system prompt sent to the LLM, not just the unit-level identity block."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sent = []
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Recording(fake_client):
+        async def post(self, *args, **kwargs):
+            sent.append(kwargs.get("json"))
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Recording)
+
+    sid = "six_strangers_mbti_injection"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    client.post("/api/chat", json={"session_id": sid, "message": "hello"})
+    prompt = sent[-1]["messages"][0]["content"]
+
+    assert "personality type" in prompt
+    for key in state.opening_cast:
+        ch = state.characters[key]
+        assert ch.mbti, f"{key} has no mbti set"
+        assert f"[{ch.name}'s personality type] {ch.mbti}" in prompt
 
 
 def test_turn_drops_opening_lines_the_model_repeats(client, monkeypatch):
@@ -264,12 +307,13 @@ def test_turn_drops_opening_lines_the_model_repeats(client, monkeypatch):
     from backend.app.api import prompt_engine as pe_mod
 
     sid = "six_strangers_repeat_opening"
-    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    opening = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"}).json()
     state = pe_mod.SESSIONS[sid]["state"]
-    greeter = state.cast_lifecycle.active_ids()[0]
+    greeter = state.opening_cast[0]
+    first_line = next(segment["text"] for segment in opening["segments"] if segment["kind"] == "dialogue")
     scene = {"segments": [
-        {"kind": "dialogue", "speaker_id": greeter, "text": "You found it. Come in; we're just setting the table."},
-        {"kind": "dialogue", "speaker_id": greeter, "text": "Everyone is right here in the kitchen."},
+        {"kind": "dialogue", "speaker_id": greeter, "text": first_line},
+        {"kind": "dialogue", "speaker_id": greeter, "text": "It's just us for the moment."},
     ], "state": {"emotion": "warm", "rel_delta": 0}}
 
     class _Resp:
@@ -287,7 +331,7 @@ def test_turn_drops_opening_lines_the_model_repeats(client, monkeypatch):
 
     monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Repeating)
     reply = client.post("/api/chat", json={"session_id": sid, "message": "where is everyone?"}).json()
-    assert [s["text"] for s in reply["segments"]] == ["Everyone is right here in the kitchen."]
+    assert [s["text"] for s in reply["segments"]] == ["It's just us for the moment."]
 
 
 def test_turn_that_only_repeats_the_opening_is_regenerated_once(client, monkeypatch):
@@ -296,11 +340,12 @@ def test_turn_that_only_repeats_the_opening_is_regenerated_once(client, monkeypa
     from backend.app.api import prompt_engine as pe_mod
 
     sid = "six_strangers_repeat_regenerate"
-    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
-    greeter = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    opening = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"}).json()
+    greeter = pe_mod.SESSIONS[sid]["state"].opening_cast[0]
+    first_line = next(segment["text"] for segment in opening["segments"] if segment["kind"] == "dialogue")
     drafts = [
-        [{"kind": "dialogue", "speaker_id": greeter, "text": "You found it. Come in; we're just setting the table."}],
-        [{"kind": "dialogue", "speaker_id": greeter, "text": "The whole house is here, pull up a chair."}],
+        [{"kind": "dialogue", "speaker_id": greeter, "text": first_line}],
+        [{"kind": "dialogue", "speaker_id": greeter, "text": "It's just us for the moment."}],
     ]
     sent = []
 
@@ -329,7 +374,7 @@ def test_turn_that_only_repeats_the_opening_is_regenerated_once(client, monkeypa
     reply = client.post("/api/chat", json={"session_id": sid, "message": "where is everyone?"}).json()
     assert len(sent) == 2
     assert "repeated" in sent[1]["messages"][-1]["content"]
-    assert [s["text"] for s in reply["segments"]] == ["The whole house is here, pull up a chair."]
+    assert [s["text"] for s in reply["segments"]] == ["It's just us for the moment."]
 
 
 @pytest.mark.parametrize("empty_draft", [
@@ -418,7 +463,7 @@ def test_whereabouts_reports_a_resident_in_another_room(client):
     sid = "six_strangers_whereabouts_elsewhere"
     client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|F|Chris"})
     state = pe_mod.SESSIONS[sid]["state"]
-    away = state.cast_lifecycle.active_ids("men")[0]
+    away = state.opening_cast[0]
     state.character_locations[away] = "terrace"
     messages = build_messages(state, [], "where is everyone?", [])
     prompt, header = messages[0]["content"], messages[-1]["content"]
@@ -445,7 +490,7 @@ def test_player_visible_character_ids_excludes_upcoming_includes_player(client):
     assert visible is not None
     assert "player" in visible
     for active_id in state.cast_lifecycle.active_ids():
-        assert active_id in visible
+        assert (active_id in visible) == (active_id in state.opening_cast)
     for key, member in state.cast_lifecycle.members.items():
         from backend.app.engine.cast_lifecycle import CastStatus
         if member.status is CastStatus.UPCOMING:
@@ -820,7 +865,7 @@ def test_every_catalogued_story_initializes_end_to_end(client, story):
 
 # ============================================================================
 # Six Strangers audit Phase 1: future-resident leakage, focal-NPC/solitude,
-# atomic turn commit (see documentation/SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md)
+# atomic turn commit (see SIX_STRANGERS_AUDIT_PROPOSAL_2026_09_19.md (removed; see git history))
 # ============================================================================
 
 def test_upcoming_character_private_facts_excluded_from_canonical_stack(client):
@@ -905,7 +950,7 @@ def test_scene_brief_closes_roster_against_upcoming_characters(client):
         "an upcoming character must not appear in the roster-closure text"
     )
     for active_key in state.cast_lifecycle.active_ids():
-        assert state.characters[active_key].name in scene_brief
+        assert (state.characters[active_key].name in scene_brief) == (active_key in state.opening_cast)
 
 
 def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client):
@@ -936,11 +981,11 @@ def test_turn_extractor_catalog_excludes_upcoming_and_departed_characters(client
 
     keys = captured.get("character_key_to_name", {})
     assert keys, "turn extractor was never invoked with a character catalog"
-    active_keys = set(state.cast_lifecycle.active_ids())
-    assert not (set(state.characters) - {"player"} - active_keys) & set(keys), (
-        "an upcoming character leaked into the turn extractor catalog"
+    arrived_keys = set(state.opening_cast)
+    assert not (set(state.characters) - {"player"} - arrived_keys) & set(keys), (
+        "an unarrived character leaked into the turn extractor catalog"
     )
-    for active_key in active_keys:
+    for active_key in arrived_keys:
         assert active_key in keys, f"active character {active_key!r} unexpectedly missing from extractor catalog"
 
 
@@ -1330,6 +1375,128 @@ def test_different_request_id_still_processes_normally(client):
     )
 
 
+def test_reused_request_id_with_different_input_is_rejected_without_mutation(client):
+    """BL-39 O15: the same request_id with different text is a client bug,
+    not a new turn and not a retry. Reject it and change nothing."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "dedup_no_id_followup"
+    headers = {"X-Guest-Id": "44444444-5555-4666-8777-888888888888"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    assert client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                      "request_id": "old-request"}, headers=headers).status_code == 200
+    assert client.post("/api/chat", json={"session_id": sid, "message": "new topic"},
+                       headers=headers).status_code == 200
+    before = pe_mod.SESSIONS[sid]["state"].turns
+    response = client.post("/api/chat", json={"session_id": sid, "message": "different turn",
+                           "request_id": "old-request"}, headers=headers)
+    assert response.status_code == 409
+    assert pe_mod.SESSIONS[sid]["state"].turns == before
+
+
+def test_retry_of_older_request_replays_after_later_turns(client):
+    """BL-39 O15: receipts are per request, not only the last one. A lost
+    response retried after another turn committed must replay, not re-run."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "receipt_older_retry"
+    headers = {"X-Guest-Id": "55555555-6666-4777-8888-999999999999"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    first = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "turn-1"}, headers=headers)
+    assert first.status_code == 200
+    assert client.post("/api/chat", json={"session_id": sid, "message": "next",
+                      "request_id": "turn-2"}, headers=headers).status_code == 200
+    before = pe_mod.SESSIONS[sid]["state"].turns
+    retry = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "turn-1"}, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    assert pe_mod.SESSIONS[sid]["state"].turns == before
+
+
+def test_retry_replays_from_durable_receipt_after_server_restart(client):
+    """BL-39 O15: the receipt lives in SQLite, not in the in-memory session."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    sid = "receipt_restart"
+    headers = {"X-Guest-Id": "66666666-7777-4888-9999-aaaaaaaaaaaa"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    first = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "restart-1"}, headers=headers)
+    assert first.status_code == 200
+    user_id = pe_mod.SESSIONS[sid]["state"].user_id
+    revision = SessionRepo._get_revision(sid, user_id)
+    pe_mod.SESSIONS.pop(sid)  # simulate a new worker / restart
+
+    retry = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "restart-1"}, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    assert SessionRepo._get_revision(sid, user_id) == revision
+
+
+def test_duplicate_that_misses_the_receipt_lookup_replays_the_committed_reply(client, monkeypatch):
+    """BL-39 O15: two copies of one request race; the second passes the
+    early lookup before the first commits. Its commit must not publish a
+    second turn: the receipt key rejects it and it replays the first reply."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    sid = "receipt_race"
+    headers = {"X-Guest-Id": "88888888-9999-4aaa-bbbb-cccccccccccc"}
+    assert client.post("/api/chat", json={"session_id": sid,
+                      "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"}, headers=headers).status_code == 200
+    first = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "race-1"}, headers=headers)
+    assert first.status_code == 200
+    user_id = pe_mod.SESSIONS[sid]["state"].user_id
+    saved_before = SessionRepo._get(sid, user_id)
+
+    real_get_receipt = SessionRepo.get_receipt
+    calls = {"n": 0}
+
+    async def miss_once(*args):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else await real_get_receipt(*args)
+
+    monkeypatch.setattr(SessionRepo, "get_receipt", miss_once)
+    retry = client.post("/api/chat", json={"session_id": sid, "message": "hello",
+                        "request_id": "race-1"}, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    saved_after = SessionRepo._get(sid, user_id)
+    assert (saved_after["revision"], saved_after["state_json"]) == (
+        saved_before["revision"], saved_before["state_json"])
+
+
+def test_new_game_retry_returns_the_same_game(client):
+    """BL-39 O15: the opening cast is drawn at random, so re-running a lost
+    new-game request would silently swap the player into a different game."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    sid = "receipt_newgame_retry"
+    headers = {"X-Guest-Id": "77777777-8888-4999-aaaa-bbbbbbbbbbbb"}
+    payload = {"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris",
+               "request_id": "newgame-1"}
+    first = client.post("/api/chat", json=payload, headers=headers)
+    assert first.status_code == 200
+    user_id = pe_mod.SESSIONS[sid]["state"].user_id
+    saved_before = SessionRepo._get(sid, user_id)
+
+    retry = client.post("/api/chat", json=payload, headers=headers)
+    assert retry.status_code == 200
+    assert retry.json() == first.json()
+    saved_after = SessionRepo._get(sid, user_id)
+    assert saved_after["revision"] == saved_before["revision"]
+    assert saved_after["state_json"] == saved_before["state_json"]
+
+
 def test_anon_session_skips_dedup_check(client):
     """Anon sessions never persist to SQLite (existing `user_id != "anon"`
     guard at the save point), so they have no durable identity to dedup
@@ -1392,35 +1559,43 @@ def test_extraction_outbox_row_enqueued_for_guest_session(client, monkeypatch):
 
     guest_headers = {"X-Guest-Id": "44444444-5555-6666-7777-888888888888"}
     sid = "outbox_enqueue_check"
-    r0 = client.post(
-        "/api/chat",
-        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
-        headers=guest_headers,
-    )
-    assert r0.status_code == 200
+    # Keep the ASGI event loop alive while the fire-and-forget extraction
+    # task runs to completion (see the sibling "marked_done" test below): a
+    # context-free TestClient closes its per-request portal right after the
+    # response, which raced the background task under slower CI/container
+    # I/O and left the row observed mid-flight as "pending" instead of the
+    # "failed" state this test actually asserts on.
+    monkeypatch.setenv("DISABLE_INDEX_WARMUP", "1")
+    with client:
+        r0 = client.post(
+            "/api/chat",
+            json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+            headers=guest_headers,
+        )
+        assert r0.status_code == 200
 
-    r1 = client.post(
-        "/api/chat",
-        json={"session_id": sid, "message": "hello there"},
-        headers=guest_headers,
-    )
-    assert r1.status_code == 200
+        r1 = client.post(
+            "/api/chat",
+            json={"session_id": sid, "message": "hello there"},
+            headers=guest_headers,
+        )
+        assert r1.status_code == 200
 
-    async def _check_outbox():
-        for _ in range(20):
-            await asyncio.sleep(0.05)
-            conn = get_connection()
-            try:
-                rows = conn.execute(
-                    "SELECT * FROM fact_extraction_outbox WHERE session_id = ?", (sid,)
-                ).fetchall()
-            finally:
-                conn.close()
-            if rows:
-                return dict(rows[0])
-        return None
+        async def _check_outbox():
+            for _ in range(60):
+                await asyncio.sleep(0.05)
+                conn = get_connection()
+                try:
+                    rows = conn.execute(
+                        "SELECT * FROM fact_extraction_outbox WHERE session_id = ?", (sid,)
+                    ).fetchall()
+                finally:
+                    conn.close()
+                if rows and rows[0]["status"] != "pending":
+                    return dict(rows[0])
+            return dict(rows[0]) if rows else None
 
-    row = asyncio.run(_check_outbox())
+        row = asyncio.run(_check_outbox())
     assert row is not None, "no fact_extraction_outbox row was enqueued for this guest turn"
     assert row["user_msg"] == "hello there"
     assert row["status"] == "failed"
@@ -1457,7 +1632,8 @@ def test_extraction_outbox_row_marked_done_after_successful_extraction(client, m
         assert r1.status_code == 200
 
         async def _wait_and_check():
-            for _ in range(100):
+            # Polls up to 20s (returns the moment the row settles): a cold IU load or a busy builder pushed past the old 5s ceiling and failed the gate intermittently.
+            for _ in range(400):
                 await asyncio.sleep(0.05)
                 pending = await FactExtractionOutboxRepo.fetch_pending()
                 if not any(row["session_id"] == sid for row in pending):
@@ -1528,30 +1704,32 @@ def test_extraction_output_is_durably_queryable_not_just_marked_done(client, mon
     # Filtering to only rows/chunks whose source_msg_id came from THIS
     # specific request_id keeps the assertion correct regardless.
     sid = f"durable_extraction_e2e_check_{uuid.uuid4().hex[:8]}"
-    r0 = client.post(
-        "/api/chat", headers=guest_headers,
-        json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
-    )
-    assert r0.status_code == 200
-    r1 = client.post(
-        "/api/chat", headers=guest_headers,
-        json={"session_id": sid, "message": "hello there"},
-    )
-    assert r1.status_code == 200
+    # Keep the ASGI portal alive while its background extraction finishes.
+    with client:
+        r0 = client.post(
+            "/api/chat", headers=guest_headers,
+            json={"session_id": sid, "message": f"__cmd_newgame__:{STORY_ID}|M|Chris"},
+        )
+        assert r0.status_code == 200
+        r1 = client.post(
+            "/api/chat", headers=guest_headers,
+            json={"session_id": sid, "message": "hello there"},
+        )
+        assert r1.status_code == 200
 
-    async def _wait_for_durable_chunks():
-        # Up to 20s: the extraction runs as a background task and a loaded
-        # machine (e.g. a local Ollama run, a busy Railway builder) pushed it
-        # past the old 5s ceiling, failing the deploy gate intermittently.
-        # Returns as soon as the row is done, so normal runs are not slower.
-        for _ in range(400):
-            await asyncio.sleep(0.05)
-            pending = await FactExtractionOutboxRepo.fetch_pending()
-            if not any(row["session_id"] == sid for row in pending):
-                return await ExtractedChunksRepo.load_for_session(sid)
-        return None
+        async def _wait_for_durable_chunks():
+            # Up to 20s: the extraction runs as a background task and a loaded
+            # machine (e.g. a local Ollama run, a busy Railway builder) pushed it
+            # past the old 5s ceiling, failing the deploy gate intermittently.
+            # Returns as soon as the row is done, so normal runs are not slower.
+            for _ in range(400):
+                await asyncio.sleep(0.05)
+                pending = await FactExtractionOutboxRepo.fetch_pending()
+                if not any(row["session_id"] == sid for row in pending):
+                    return await ExtractedChunksRepo.load_for_session(sid)
+            return None
 
-    chunks = asyncio.run(_wait_for_durable_chunks())
+        chunks = asyncio.run(_wait_for_durable_chunks())
     assert chunks is not None, "outbox row never left pending"
     # This session_id is freshly randomized above, so unlike the general
     # repo it cannot collide with rows from any other test run.
@@ -1586,7 +1764,8 @@ def test_extraction_failure_leaves_row_pending_not_falsely_done(client, monkeypa
     ).status_code == 200
 
     async def _wait_for_row():
-        for _ in range(100):
+        # Polls up to 20s (returns the moment the row settles): a cold IU load or a busy builder pushed past the old 5s ceiling and failed the gate intermittently.
+        for _ in range(400):
             await asyncio.sleep(0.05)
             conn = get_connection()
             try:
@@ -1618,6 +1797,8 @@ def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, m
 
     async def _capture_save(*args, **kwargs):
         captured["state_json"] = kwargs.get("state_json")
+        captured["last_request_id"] = kwargs.get("last_request_id")
+        captured["last_reply_json"] = kwargs.get("last_reply_json")
         return await orig_create(*args, **kwargs)
 
     monkeypatch.setattr(pe_mod.SessionRepo, "create_or_update_session", _capture_save)
@@ -1633,7 +1814,7 @@ def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, m
 
     r2 = client.post(
         "/api/chat",
-        json={"session_id": sid, "message": "hello there"},
+        json={"session_id": sid, "message": "hello there", "request_id": "req-atomic-1"},
         headers=guest_headers,
     )
     assert r2.status_code == 200
@@ -1644,6 +1825,8 @@ def test_turn_commit_persists_over_and_last_turn_fields_from_same_turn(client, m
     assert saved["last_turn_user_msg"] == state.last_turn_user_msg == "hello there"
     assert saved["last_turn_assistant_reply"] == state.last_turn_assistant_reply
     assert saved["over"] == state.over
+    assert captured["last_request_id"] == "req-atomic-1"
+    assert _json.loads(captured["last_reply_json"]) == r2.json()
 
 
 def test_beliefs_and_observation_log_round_trip_through_restore(client):
@@ -2008,7 +2191,7 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    subject_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    subject_id = pe_mod.SESSIONS[sid]["state"].opening_cast[0]
     # original_goal captured from the pre-turn state (safe to read before,
     # since we're not asserting on this SAME object after a mutating call).
     original_goal = pe_mod.SESSIONS[sid]["state"].characters[subject_id].goal.current
@@ -2017,7 +2200,7 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
             certainty="SHIFT", scope="goal", subject_id=subject_id,
-            new_value="No longer chasing romance - focused entirely on baseball now.",
+            new_value="Focused entirely on a demanding work project now.",
             reason="repeated rejection across several turns",
         ))
 
@@ -2029,7 +2212,7 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
     # Phase 1.1: fetch AFTER the mutating call — the handler publishes a
     # fresh clone on success, so the selected resident must be re-derived from it here.
     subject = pe_mod.SESSIONS[sid]["state"].characters[subject_id]
-    assert subject.goal.current == "No longer chasing romance - focused entirely on baseball now."
+    assert subject.goal.current == "Focused entirely on a demanding work project now."
     assert len(subject.goal.history) == 2
     # Old value still readable - never overwritten.
     assert subject.goal.history[0].content == original_goal
@@ -2037,9 +2220,7 @@ def test_social_shift_goal_creates_new_history_entry_not_overwrite(client):
 
 
 def test_social_shift_disposition_creates_new_history_entry(client):
-    """Uses the player->mizuki pair since six_strangers only authors
-    player-facing edges (no NPC-NPC edges exist in the current story JSON -
-    a pre-existing authoring gap, not something this feature needs to fix).
+    """Uses the player's first housemate, who has a real first-meeting edge.
     The apply logic itself is genre/pair-agnostic; it correctly no-ops when
     no edge exists at all, exercised separately below."""
     from backend.app.api import prompt_engine as pe_mod
@@ -2051,7 +2232,7 @@ def test_social_shift_disposition_creates_new_history_entry(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    target_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    target_id = pe_mod.SESSIONS[sid]["state"].opening_cast[0]
     assert pe_mod.SESSIONS[sid]["state"].character_graph.get_edge("player", target_id) is not None
 
     async def _mock_extract(*args, **kwargs):
@@ -2119,12 +2300,13 @@ def test_social_shift_goal_reflected_in_next_turn_prompt(client):
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     )
     assert r0.status_code == 200
-    subject_id = pe_mod.SESSIONS[sid]["state"].cast_lifecycle.active_ids()[0]
+    subject_id = pe_mod.SESSIONS[sid]["state"].opening_cast[0]
+    old_goal = pe_mod.SESSIONS[sid]["state"].characters[subject_id].goal.current
 
     async def _mock_extract(*args, **kwargs):
         return TurnExtraction(social_shift_signal=SocialShiftSignal(
             certainty="SHIFT", scope="goal", subject_id=subject_id,
-            new_value="No longer chasing romance - focused entirely on baseball now.",
+            new_value="Focused entirely on a demanding work project now.",
             reason="repeated rejection",
         ))
 
@@ -2143,8 +2325,8 @@ def test_social_shift_goal_reflected_in_next_turn_prompt(client):
             text=f"__people_present_marker__:{subject_id}", expires_after_turns=5,
     )
     prompt = pb.system_prompt(state)
-    assert "No longer chasing romance - focused entirely on baseball now." in prompt
-    assert "Make real friends and find room for romance without losing sight of baseball." not in prompt
+    assert "Focused entirely on a demanding work project now." in prompt
+    assert old_goal not in prompt
 
 
 def test_social_shift_idempotent_on_retried_turn(client):
@@ -2508,8 +2690,9 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     boundary, restore it, then advance past the boundary in the restored
     session and confirm the same single replacement fires."""
     import json as _json
-    import unittest.mock as _mock
+    import uuid
     from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
     from backend.app.engine.world_calendar import PendingEvent, day_number
 
     guest_headers = {"X-Guest-Id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
@@ -2537,15 +2720,13 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     saved = _json.loads(saved_json)
     assert saved["pending_events"], "pending event was not serialized before restart"
 
-    monkeypatch_get = {
-        "session_id": "scheduler_restart_restored",
-        "user_id": guest_user_id,
-        "story_id": "six_strangers",
-        "state_json": saved_json,
-        "flags_json": "{}",
-    }
-    with _mock.patch("backend.app.db.repos.SessionRepo._get", return_value=monkeypatch_get):
-        restored = pe_mod._try_load_session_from_db("scheduler_restart_restored", guest_user_id)
+    restored_sid = "scheduler_restart_restored_" + uuid.uuid4().hex[:10]
+    SessionRepo._upsert(
+        session_id=restored_sid, user_id=guest_user_id, story_id="six_strangers",
+        story_title="Terrace in the City", player_name="Chris", gender="M",
+        state_json=saved_json, flags_json="{}", turns=state.turns,
+    )
+    restored = pe_mod._try_load_session_from_db(restored_sid, guest_user_id)
     assert restored is not None
     restored_state = restored["state"]
     assert len(restored_state.pending_events) == 1
@@ -2555,11 +2736,11 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     # Install the restored session (matching guest identity so the
     # ownership check in get_session doesn't discard it as a fresh session)
     # and advance past the boundary.
-    pe_mod.SESSIONS["scheduler_restart_restored"] = restored
+    pe_mod.SESSIONS[restored_sid] = restored
     restored_state.minute += 1440
     r1 = client.post(
         "/api/chat",
-        json={"session_id": "scheduler_restart_restored", "message": "a new day"},
+        json={"session_id": restored_sid, "message": "a new day"},
         headers=guest_headers,
     )
     assert r1.status_code == 200
@@ -2567,7 +2748,7 @@ def test_pending_replacement_survives_restart_mid_vacancy(client):
     # Phase 1.1: the turn handler now clones state, mutates the clone, and
     # publishes the clone back to SESSIONS on success. `restored_state` above
     # is the PRE-turn object; re-fetch to see the published, mutated state.
-    restored_state = pe_mod.SESSIONS["scheduler_restart_restored"]["state"]
+    restored_state = pe_mod.SESSIONS[restored_sid]["state"]
     assert restored_state.pending_events[0].status == "applied"
     assert restored_state.cast_lifecycle.members[departing_id].status.value == "departed"
 
@@ -2687,8 +2868,8 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert "\n\n" in opening and "\\n" not in opening
     assert 400 <= len(opening) <= 1000
     segments = response.json()["segments"]
-    assert sum(segment["kind"] == "dialogue" for segment in segments) == 2
-    assert len({segment["speaker_id"] for segment in segments if segment["kind"] == "dialogue"}) == 2
+    assert sum(segment["kind"] == "dialogue" for segment in segments) == 1
+    assert len({segment["speaker_id"] for segment in segments if segment["kind"] == "dialogue"}) == 1
     assert "World Map" not in opening
     state = pe_mod.SESSIONS[sid]["state"]
     active_keys = set(state.cast_lifecycle.active_ids())
@@ -2697,20 +2878,22 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     assert set(state.characters) == keys | {"player"}
     assert state.player_name == "Chris"
     assert state.main_character_id in active_keys
-    # The opening welcomes the player into the kitchen dinner with everyone.
-    assert state.location_id == "kitchen"
+    # The player enters second; the rest of the selected cast arrives later.
+    assert state.location_id == "living_room"
     assert len(active_keys) == 5
     assert len(state.cast_lifecycle.active_ids("men")) == 2
     assert len(state.cast_lifecycle.active_ids("women")) == 3
-    assert {state.character_locations[key] for key in active_keys} <= set(
+    assert {state.character_locations[key] for key in state.opening_cast} <= set(
         state.world_runtime.world_graph.locations
     )
+    assert not any(key in state.character_locations for key in active_keys - set(state.opening_cast))
     for key in keys:
         assert state.characters[key].self_knowledge
-        if key in active_keys:
+        if key in state.opening_cast:
             assert state.character_graph.get_edge(key, "player") is not None
         else:
-            assert state.character_graph.get_edge(key, "player") is None
+            edge = state.character_graph.get_edge(key, "player")
+            assert edge is None or edge.met_at is None
 
     facts = {fact.id: fact for fact in state.canonical_facts}
     for key in keys:
@@ -2726,8 +2909,10 @@ def test_six_strangers_newgame_preserves_ensemble_mode_and_private_knowledge(cli
     system_prompt = pb.system_prompt(state)
     assert "### GAME MODE CONTEXT" in system_prompt
     assert "6 recurring housemates/characters" in system_prompt
-    assert "no fixed win condition" in system_prompt
-    assert "Narrator aside device" in system_prompt
+    assert "mutual romantic relationship" in system_prompt
+    assert "Same-gender potential rivals" in system_prompt
+    assert "no fixed win condition" not in system_prompt
+    assert "Narrator aside device" not in system_prompt  # Terrace's panel speaks only in the finale
     assert f"### CHARACTER IDENTITY — {state.characters[state.main_character_id].name}" in system_prompt
     for absent_key in keys - {state.main_character_id}:
         assert f"### CHARACTER IDENTITY — {state.characters[absent_key].name}" not in system_prompt
@@ -2840,10 +3025,9 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
         json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
     ).status_code == 200
     opening_state = pe_mod.SESSIONS[sid]["state"]
-    first_id, second_id = opening_state.cast_lifecycle.active_ids("women")[:2]
+    first_id = opening_state.opening_cast[0]
     first_name = opening_state.characters[first_id].name
-    second_name = opening_state.characters[second_id].name
-    original = f"I walk to the living room and ask {first_name.split()[0]} and {second_name.split()[0]}: what do you each do for work?"
+    original = f"I walk to the living room and ask {first_name.split()[0]}: what do you do for work?"
     response = client.post(
         "/api/chat", headers=headers,
         json={"session_id": sid, "message": f"> {original}  "},
@@ -2861,7 +3045,6 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     assert any(entry.text == f"Player said: {original}" for entry in state.transient_entries)
     system_prompt = messages[0]["content"]
     assert first_name in system_prompt
-    assert second_name in system_prompt
 
     # Leaving an occupied room must also clear its FIFO presence fallback when
     # the destination is empty and consequently has no people-present markers.
@@ -2886,6 +3069,22 @@ def test_movement_preserves_combined_dialogue_and_destination_cast(client, monke
     assert f"### CHARACTER IDENTITY — {opening_state.main_character.name}" not in terrace_prompt
     assert state.latest_scene_knowledge().location_id == "terrace"
     assert state.latest_scene_knowledge().people_present == []
+
+    # The first performed move wins over an extractor attracted to a later
+    # question about another destination (the hosted kitchen/cafe failure).
+    mixed = "I walk to the kitchen now and ask if she wants to go to the terrace later."
+    assert client.post(
+        "/api/chat", headers=headers, json={"session_id": sid, "message": mixed},
+    ).status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].location_id == "kitchen"
+
+    # A clock skip followed by travel must apply both operations. Hosted beta
+    # advanced to 9 am but silently left the player in the prior room.
+    assert client.post(
+        "/api/chat", headers=headers,
+        json={"session_id": sid, "message": "I wait until tomorrow at 9 AM, then go to the living room."},
+    ).status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].location_id == "living_room"
 
 
 def test_master_prompt_engine_orchestration_flow(monkeypatch):
@@ -3301,6 +3500,176 @@ def test_parse_time_skip_token_detection():
     assert pe_mod._parse_time_skip("skip:HOURS") is None
     assert pe_mod._parse_time_skip("") is None
     assert pe_mod._parse_time_skip("let's skip ahead a few hours") is None
+
+
+def test_explicit_natural_wait_until_tomorrow_advances_to_requested_clock_time():
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = types.SimpleNamespace(world_start_datetime="2025-01-01 08:00 PM", minute=12)
+    result = pe_mod._parse_natural_wait("I wait until tomorrow at 7 pm in the kitchen.", state)
+    assert result is not None and result[0] == 1368
+    assert pe_mod._parse_natural_wait("Would Yuriko wait until tomorrow at 7 pm?", state) is None
+    assert pe_mod._parse_natural_wait("I plan to wait until tomorrow at 7 pm.", state) is None
+
+
+def test_explicit_natural_wait_supports_duration_and_same_day_clock():
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = types.SimpleNamespace(world_start_datetime="2025-01-01 08:00 PM", minute=12)
+    assert pe_mod._parse_natural_wait("I wait for 30 minutes.", state)[0] == 30
+    assert pe_mod._parse_natural_wait("I wait until 9:15 pm.", state)[0] == 63
+    assert pe_mod._parse_natural_wait("I wait until 7 pm.", state) is None
+    assert pe_mod._parse_natural_wait("I might wait for 30 minutes.", state) is None
+    assert pe_mod._parse_natural_wait("I ask Ann to wait for 30 minutes.", state) is None
+
+
+def test_hosted_wait_here_until_clock_and_explicit_first_movement():
+    from backend.app.api import prompt_engine as pe_mod
+
+    state = types.SimpleNamespace(world_start_datetime="2015-09-03T09:14:00", minute=0)
+    assert pe_mod._parse_natural_wait(
+        "I wait here at the cafe until 10 AM for Natsumi.", state
+    )[0] == 46
+    assert pe_mod._parse_natural_wait(
+        "I go to the kitchen now. I wait until 10 AM and ask Natsumi about coffee.", state
+    )[0] == 46
+
+    runtime = types.SimpleNamespace(world_graph=types.SimpleNamespace(locations={
+        "cafe": types.SimpleNamespace(name="Neighborhood Cafe"),
+        "kitchen": types.SimpleNamespace(name="Kitchen"),
+    }))
+    assert pe_mod._match_world_destination(
+        "I go to the kitchen now and ask if she wants to leave for the nearby cafe.", runtime, "living_room"
+    ) == "kitchen"
+    assert pe_mod._match_world_destination(
+        "Would you go to the cafe with me tomorrow?", runtime, "living_room"
+    ) == ""
+    assert pe_mod._resolved_movement_destination(
+        "I go to the kitchen now and ask if she wants to leave for the nearby cafe.",
+        "cafe", "kitchen",
+    ) == "kitchen"
+    assert pe_mod._resolved_movement_destination(
+        "Would you go to the cafe with me tomorrow?", "cafe", "",
+    ) == ""
+
+
+def test_skip_prompt_hides_transport_command_but_keeps_natural_player_words():
+    from backend.app.api import prompt_engine as pe_mod
+
+    assert pe_mod._skip_prompt_message("__cmd_skip__:DAY", "A full day passes", "Jan 2, 2025") == (
+        "[Time skip] A full day passes. It is now Jan 2, 2025."
+    )
+    assert pe_mod._skip_prompt_message("I wait for 30 minutes.", "The player waited", "Jan 1, 2025") == (
+        "I wait for 30 minutes.\n[Time skip] The player waited. It is now Jan 1, 2025."
+    )
+
+
+def test_iu_authored_iso_clock_and_death_window_are_chronological():
+    import json
+    from pathlib import Path
+    from datetime import datetime
+    from backend.app.engine.time_utils import WorldTimeFormatter
+
+    story = json.loads((Path(__file__).parents[4] / "backend/app/stories/1_iu_murder_mystery/iu_murder_mystery_story.json").read_text(encoding="utf-8"))
+    started = WorldTimeFormatter.compute(story["world"]["start_datetime"], 0)
+    assert started.iso == "2025-01-22T20:00:00"
+    assert datetime.fromisoformat(started.iso) > datetime(2025, 1, 15)
+    assert WorldTimeFormatter.compute(story["world"]["start_datetime"], 30).iso == "2025-01-22T20:30:00"
+    assert "Tonight" in story["opening"]["text"]
+
+
+def test_iu_new_game_uses_authored_clock_in_runtime(client):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.time_utils import WorldTimeFormatter
+
+    sid = "iu_clock_iso_regression"
+    response = client.post("/api/chat", json={"session_id": sid,
+                                               "message": "__cmd_newgame__:iu_murder_mystery|M|Mira"})
+    assert response.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert WorldTimeFormatter.compute(state.world_start_datetime, state.minute).iso == "2025-01-22T20:00:00"
+
+
+def test_stale_persistent_turn_returns_retryable_conflict_without_publishing(client, monkeypatch):
+    import uuid
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRevisionConflict
+
+    sid = "stale_turn_" + uuid.uuid4().hex[:10]
+    headers = {"X-Guest-Id": str(uuid.uuid4())}
+    opening = client.post("/api/chat", json={"session_id": sid,
+                                             "message": "__cmd_newgame__:iu_murder_mystery|F|Mira"},
+                          headers=headers)
+    assert opening.status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].turns == 0
+
+    async def reject(*args, **kwargs):
+        raise SessionRevisionConflict("another worker committed")
+
+    monkeypatch.setattr(pe_mod.SessionRepo, "create_or_update_session", reject)
+    response = client.post("/api/chat", json={"session_id": sid,
+                                              "request_id": str(uuid.uuid4()),
+                                              "message": "I inspect the closet door."}, headers=headers)
+    assert response.status_code == 409
+    assert sid not in pe_mod.SESSIONS
+
+
+def test_cached_session_refreshes_after_other_worker_commits(client):
+    import uuid
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.db.repos import SessionRepo
+
+    guest = str(uuid.uuid4())
+    user_id = "guest:" + guest
+    sid = "worker_refresh_" + uuid.uuid4().hex[:10]
+    headers = {"X-Guest-Id": guest}
+    assert client.post("/api/chat", json={"session_id": sid,
+                                          "message": "__cmd_newgame__:iu_murder_mystery|F|Mira"},
+                       headers=headers).status_code == 200
+    saved = SessionRepo._get(sid, user_id)
+    external_revision = SessionRepo._upsert(
+        session_id=sid, user_id=user_id, story_id=saved["story_id"],
+        story_title=saved["story_title"], player_name=saved["player_name"],
+        gender=saved["gender"], state_json=saved["state_json"],
+        flags_json=saved["flags_json"], turns=saved["turns"],
+        expected_revision=saved["revision"],
+    )
+    assert external_revision == saved["revision"] + 1
+    response = client.post("/api/chat", json={"session_id": sid,
+                                              "message": "I examine the closet."}, headers=headers)
+    assert response.status_code == 200
+    assert pe_mod.SESSIONS[sid]["_db_revision"] == external_revision + 1
+
+
+def test_failed_side_log_after_session_commit_reloads_cache_on_next_turn(client, monkeypatch):
+    import uuid
+    from backend.app.api import prompt_engine as pe_mod
+
+    guest = str(uuid.uuid4())
+    sid = "side_log_failure_" + uuid.uuid4().hex[:10]
+    headers = {"X-Guest-Id": guest}
+    assert client.post("/api/chat", json={"session_id": sid,
+                                          "message": "__cmd_newgame__:iu_murder_mystery|F|Mira"},
+                       headers=headers).status_code == 200
+    starting_revision = pe_mod.SESSIONS[sid]["_db_revision"]
+    request_id = str(uuid.uuid4())
+    original_append = pe_mod.ConversationRepo.append_turns
+
+    async def fail_append(*args, **kwargs):
+        raise OSError("side log unavailable")
+
+    monkeypatch.setattr(pe_mod.ConversationRepo, "append_turns", fail_append)
+    data = {"session_id": sid, "request_id": request_id, "message": "I inspect the closet."}
+    assert client.post("/api/chat", json=data, headers=headers).status_code == 503
+    assert pe_mod.SESSIONS[sid]["_db_revision"] == starting_revision
+    assert pe_mod.SESSIONS[sid]["state"].turns == 0
+    assert client.post("/api/chat", json=data, headers=headers).status_code == 200
+
+    monkeypatch.setattr(pe_mod.ConversationRepo, "append_turns", original_append)
+    next_turn = client.post("/api/chat", json={"session_id": sid,
+                                               "message": "I ask IU what she remembers."}, headers=headers)
+    assert next_turn.status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].turns == 2
 
 
 def test_map_toggle_no_llm_call(client):
@@ -4577,7 +4946,6 @@ from backend.app.integration_playback.scenarios.scenario_api_chat_five_turns imp
 from backend.app.integration_playback.scenarios.scenario_iu_identity_correction import IUIdentityCorrectionScenario
 
 
-@pytest.mark.integration
 # ============================================================================
 # A12: per-session turn serialization
 # ============================================================================
@@ -4649,20 +5017,6 @@ def test_iu_identity_correction():
     IUIdentityCorrectionScenario.run_as_test()
 
 
-# ---------------------------------------------------------------------------
-# BL-07: per-character self_knowledge propagation through prompt_engine.py
-# (new-game path and restore path build the character roster separately,
-# so both are covered here).
-# ---------------------------------------------------------------------------
-
-    for entry in by_key["mina"].self_knowledge:
-        assert entry in sysmsg
-    for entry in by_key["daeho"].self_knowledge:
-        assert entry in sysmsg
-    for entry in by_key["priya"].self_knowledge:
-        assert entry not in sysmsg
-
-
 @pytest.mark.parametrize("story_id,speaker_ids", [
     ("six_strangers", ["mizuki", "makoto"]),
     ("iu_murder_mystery", ["iu", "yoo_min_ho"]),
@@ -4725,9 +5079,13 @@ def test_player_resident_slot_survives_restore_and_full_automatic_rotation(clien
     assert "player_bedroom" not in state.world_runtime.world_graph.locations
     assert bedroom.replace("_", " ") in prompt_builder._storyteller_scene_section(state, "hello")
     roster = pe._cast_roster_payload(state)
-    assert len(roster["active"]) == 6
+    assert len(roster["active"]) == 2
     assert next(item for item in roster["active"] if item["id"] == "player")["name"] == "Chris"
     assert roster["vacancies"] == []
+    from backend.app.engine.opening_scene import advance_opening_arrivals
+    assert len(advance_opening_arrivals(state, 0, 38)) == 4
+    state.minute = 15
+    assert len(pe._cast_roster_payload(state)["active"]) == 6
 
     # Re-initializing from a save must never displace a second housemate.
     snapshot = json.loads(pe._serialize_state(state, []))["cast_lifecycle"]
@@ -5196,13 +5554,13 @@ def test_stage_ledger_durations_are_non_negative(client, monkeypatch):
 
 
 @pytest.mark.parametrize("player_gender, greeter_gender", [("M", "F"), ("F", "M")])
-def test_six_strangers_opening_is_two_opposite_gender_greeters_in_the_room(
+def test_six_strangers_opening_is_one_opposite_gender_resident_in_the_room(
     client, monkeypatch, player_gender, greeter_gender,
 ):
-    """Terrace in the City: the engine (not just the prose) stages two
-    opposite-gender housemates with the player at the door, and the opening
+    """Terrace in the City: the engine (not just the prose) stages one
+    opposite-gender housemate with the player, and the opening
     dialogue, focal lens, people-present list and first-reply brief all
-    name those same two people."""
+    name that same person."""
     import json
     from backend.app.api import prompt_engine as pe_mod
     from backend.app.engine.active_characters import get_people_present_keys
@@ -5229,12 +5587,12 @@ def test_six_strangers_opening_is_two_opposite_gender_greeters_in_the_room(
         state = pe_mod.SESSIONS[sid]["state"]
         party = state.opening_cast
 
-        assert len(party) == 2
+        assert len(party) == 1
         assert all(character_gender(state.characters[key]) == greeter_gender for key in party)
         assert set(party) <= set(state.cast_lifecycle.active_ids())
-        assert state.location_id == "kitchen"
+        assert state.location_id == "living_room"
         others = set(state.cast_lifecycle.active_ids()) - set(party)
-        assert all(state.character_locations[key] == "living_room" for key in others)
+        assert all(key not in state.character_locations for key in others)
         npcs_here = {
             key for key, loc in state.character_locations.items()
             if loc == state.location_id and key != "player"
@@ -5248,22 +5606,23 @@ def test_six_strangers_opening_is_two_opposite_gender_greeters_in_the_room(
 
         system_prompt = pe_mod.SESSIONS[sid]["log"][0]["content"]
         names = [state.characters[key].name for key in party]
-        assert f"Opening scene: {names[0]} and {names[1]} just greeted the player" in system_prompt
+        assert f"Opening scene: {names[0]} met the player" in system_prompt
 
         saved = json.loads(pe_mod._serialize_state(state, []))
         assert saved["opening_cast"] == party
+        assert sorted(saved["opening_arrival_minutes"].values()) == [8, 18, 28, 38]
         assert saved["main_character_id"] == state.main_character_id
 
         # The storyteller's first real prompt describes the same room.
         captured.clear()
         assert client.post("/api/chat", json={"session_id": sid, "message": "Hi, I'm Chris."}).status_code == 200
         first_prompt = captured[-1]
-        assert f"Opening scene: {names[0]} and {names[1]} just greeted the player" in first_prompt
+        assert f"Opening scene: {names[0]} met the player" in first_prompt
         present_line = next(
             line for line in first_prompt.splitlines()
             if line.startswith("People present in this location right now")
         )
-        assert present_line.startswith("People present in this location right now (2)")
+        assert present_line.startswith("People present in this location right now (1)")
         assert all(name in present_line for name in names)
         assert f"with {state.characters[state.main_character_id].name} as the focal lens" in first_prompt
 
@@ -5289,3 +5648,730 @@ def test_restore_keeps_runtime_focal_character_and_opening_cast(client, monkeypa
     assert restored.main_character_id == state.main_character_id
     for key in state.opening_cast:
         assert restored.character_locations[key] == restored.location_id
+
+
+@pytest.mark.parametrize("gender", ["M", "F"])
+def test_terrace_opening_arrivals_are_timed_visible_and_persisted(client, gender):
+    """A normal first conversation precedes the entrances; a time jump admits
+    each reserved resident exactly once and a save keeps the arrival record."""
+    import json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = f"terrace_timed_arrivals_{gender}"
+    opening = client.post("/api/chat", json={
+        "session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris",
+    })
+    assert opening.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    selected = set(state.cast_lifecycle.active_ids())
+    first = state.opening_cast[0]
+    assert set(state.opening_arrival_minutes) == selected - {first}
+    assert {item["id"] for item in pe_mod._cast_roster_payload(state)["active"]} == {"player", first}
+
+    first_turn = client.post("/api/chat", json={"session_id": sid, "message": "Hi, I'm Chris."})
+    assert first_turn.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.minute <= 5
+    assert state.opening_arrived_ids == []
+
+    arrivals = client.post("/api/chat", json={"session_id": sid, "message": "I wait for 40 minutes."})
+    assert arrivals.status_code == 200
+    state = pe_mod.SESSIONS[sid]["state"]
+    expected = [key for key, _ in sorted(state.opening_arrival_minutes.items(), key=lambda item: item[1])]
+    assert state.opening_arrivals_this_turn == expected
+    assert state.opening_arrived_ids == expected
+    scripted_speakers = [segment["speaker_id"] for segment in arrivals.json()["segments"]
+                         if segment["kind"] == "dialogue" and segment["speaker_id"] in expected]
+    assert scripted_speakers[:4] == expected
+    assert {item["id"] for item in pe_mod._cast_roster_payload(state)["active"]} == {"player", *selected}
+    assert all(state.character_locations[key] == "living_room" for key in selected)
+    assert all(state.world_model.world.place_of(key) == "living_room" for key in selected)
+    for key in expected:
+        edge = state.character_graph.get_edge(key, "player")
+        assert edge is not None and edge.met_at is not None
+        first_edge = state.character_graph.get_edge(key, first)
+        assert first_edge is not None and first_edge.met_at is not None
+
+    saved = json.loads(pe_mod._serialize_state(state, []))
+    assert saved["opening_arrived_ids"] == expected
+    assert saved["opening_arrival_minutes"] == state.opening_arrival_minutes
+    followup = client.post("/api/chat", json={"session_id": sid, "message": "Hello, everyone."})
+    assert followup.status_code == 200
+    assert pe_mod.SESSIONS[sid]["state"].opening_arrivals_this_turn == []
+
+
+@pytest.mark.parametrize("gender", ["M", "F"])
+def test_terrace_conversation_reveals_one_arrival_per_turn(client, gender):
+    """Arrivals are encounters: never more than one per turn, and each newcomer is preceded by a few exchanges."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = f"terrace_one_at_a_time_{gender}"
+    client.post("/api/chat", json={
+        "session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris",
+    })
+    seen = []
+    arrival_turns = []
+    lines = ("Hello. I'm Chris.", "What made you come here?", "What work do you do?",
+             "It feels strange being filmed.", "I wonder who is next.", "Where are you from?",
+             "Have you done a show like this before?", "Is the camera always on?", "What do you cook?",
+             "Do you like the city?", "How old are you?", "Did you sleep last night?", "Is this room always so quiet?",
+             "Do you know who is last?")
+    for turn, line in enumerate(lines):
+        response = client.post("/api/chat", json={"session_id": sid, "message": line})
+        assert response.status_code == 200
+        state = pe_mod.SESSIONS[sid]["state"]
+        seen.extend(state.opening_arrivals_this_turn)
+        assert len(state.opening_arrivals_this_turn) <= 1
+        if state.opening_arrivals_this_turn:
+            arrival_turns.append(turn)
+            assert any(segment.get("speaker_id") == state.opening_arrivals_this_turn[0]
+                       for segment in response.json()["segments"])
+    assert len(seen) == len(set(seen)) == 4
+    assert set(seen) == set(state.opening_arrival_minutes)
+    assert all(later - earlier >= 2 for earlier, later in zip(arrival_turns, arrival_turns[1:])),         f"each pair of strangers gets at least one exchange before the next entrance: {arrival_turns}"
+
+
+# ============================================================================
+# Character & world model integration (docs: CHARACTER_WORLD_MODEL_*)
+# ============================================================================
+
+def _recording_client(pe_mod, monkeypatch):
+    sent = []
+    fake_client = pe_mod.httpx.AsyncClient
+
+    class _Recording(fake_client):
+        async def post(self, *args, **kwargs):
+            sent.append(kwargs.get("json") or {})
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Recording)
+    return sent
+
+
+def _storyteller_calls(sent):
+    return [p for p in sent if "response_format" in p]
+
+
+@pytest.mark.parametrize("gender", ["M", "F"])
+def test_world_model_seeds_from_the_staged_welcome_party(client, gender):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_model.model import PLAYER
+
+    sid = f"wm_seed_{gender}"
+    client.post("/api/chat", json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    model = state.world_model
+    assert model is not None
+    assert set(model.characters) == set(state.cast_lifecycle.active_ids())
+    for cid in model.characters:
+        assert model.characters[cid].get_location(model.world) == state.character_locations.get(cid)
+    assert model.world.where_is(PLAYER) == state.location_id
+    assert set(state.opening_cast) <= set(model.present_with_player())
+    assert model.home_of_player in ("boys_bedroom", "girls_bedroom")
+    assert all(c.routine.blocks for c in model.characters.values())
+
+
+def test_first_turn_prompt_carries_world_state_speaker_plan_and_narrowed_schema(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_first_turn"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    client.post("/api/chat", json={"session_id": sid, "message": "hey everyone, what is cooking?"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    call = _storyteller_calls(sent)[-1]
+    system, header = call["messages"][0]["content"], call["messages"][-1]["content"]
+    assert "### WORLD STATE" in system and "SPEAKER PLAN" in system
+    assert "Speakers this beat:" in header
+    schema = call["response_format"]["json_schema"]["schema"]
+    enum = schema["properties"]["segments"]["items"]["properties"]["speaker_id"]["enum"]
+    allowed = set(state.world_model.view.allowed_speakers)
+    assert {e for e in enum if e not in ("unknown", None)} <= allowed
+    present = set(state.world_model.present_with_player())
+    heard = [m for m in state.world_model.memories.memories if "what is cooking" in m.text]
+    assert {m.owner for m in heard} == present          # only the people present heard it
+
+
+def test_sleep_resolves_the_night_and_wakes_the_player_at_home(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_model.model import PLAYER
+
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_sleep"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|F|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    before = state.minute
+    client.post("/api/chat", json={"session_id": sid, "message": "I am tired, I go to bed."})
+    state = pe_mod.SESSIONS[sid]["state"]          # the handler publishes a new state object
+    model = state.world_model
+    assert model.world.minute_of_day() == 7 * 60 and state.minute > before
+    assert state.location_id == "girls_bedroom" and model.world.where_is(PLAYER) == "girls_bedroom"
+    assert "[Time skip] The night passes" in _storyteller_calls(sent)[-1]["messages"][-1]["content"]
+    assert model.view.transitions == []            # asleep: nothing of the night was seen
+    assert "Just happened in view of the player" not in _storyteller_calls(sent)[-1]["messages"][0]["content"]
+    # Wake-up times vary (+/-30 min): late risers may still be asleep at 07:00,
+    # but only ever in their own bedroom.
+    for cid, c in model.characters.items():
+        if c.availability == "asleep":
+            assert model.world.place_of(cid) == c.routine.home
+    for cid in model.characters:
+        assert state.character_locations[cid] == model.world.place_of(cid)
+
+
+def test_a_question_about_bedtime_does_not_put_the_player_to_sleep(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_no_sleep"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    before = state.minute
+    client.post("/api/chat", json={"session_id": sid, "message": "Did you go to bed late last night?"})
+    assert pe_mod.SESSIONS[sid]["state"].minute - before < 60
+
+
+def _terrace_session(client, sid, headers):
+    from backend.app.api import prompt_engine as pe_mod
+
+    r = client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"},
+                    headers=headers)
+    assert r.status_code == 200
+    return pe_mod, r.json()
+
+
+def test_engine_only_story_rules_reach_story_cfg_but_never_prompt_context(client):
+    """BL-39: tracks, tastes and endings are engine inputs. They must survive
+    the runtime story projection (a live play showed they were dropped, so no
+    standing ever moved) and must never be seeded into storyteller context."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    _terrace_session(client, "engine_only_keys", {})
+    state = pe_mod.SESSIONS["engine_only_keys"]["state"]
+    for key in ("social_tracks", "personalities", "default_personality"):
+        assert key in state.story_cfg, key
+    transient = " ".join(e.text for e in (state.transient_entries or []))
+    for leaked in ("social_tracks", "personalities", "default_personality", "tastes", "temperament"):
+        assert leaked not in transient, leaked
+
+
+def test_player_behavior_moves_the_witnesses_standing_through_the_chat_turn(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import BehaviorTagUpdate, TurnExtraction
+
+    _terrace_session(client, "behavior_turn", {})
+    state = pe_mod.SESSIONS["behavior_turn"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    women = [c for c in state.world_model.present_with_player() if genders.get(c) == "F"]
+    target = women[0] if women else state.world_model.present_with_player()[0]
+    state.gender = "F" if genders.get(target) == "M" else "M"
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(behavior_tags=[BehaviorTagUpdate("player", target, "helpful")])
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    client.post("/api/chat", json={"session_id": "behavior_turn", "message": "Let me carry that for you."})
+    standing = pe_mod.SESSIONS["behavior_turn"]["state"].world_model.standing.get(target, "player", "romance")
+    assert standing is not None and standing.value > 0
+
+
+def test_typed_acts_carry_a_terrace_game_from_confession_to_a_win(client, monkeypatch):
+    """BL-39 phase F end to end: confession accepted at the right tier, then
+    the explicit ask; the win ending arrives with that turn's reply."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import SocialActUpdate, TurnExtraction
+    from backend.app.engine.world_model.standing import Standing
+
+    _terrace_session(client, "typed_win", {})
+    state = pe_mod.SESSIONS["typed_win"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    target = state.world_model.present_with_player()[0]
+    state.gender = "F" if genders[target] == "M" else "M"
+    state.world_model.standing.standings[(target, "player", "romance")] = Standing(value=50)
+
+    acts = [SocialActUpdate("confess", target), SocialActUpdate("ask_leave_together", target)]
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(social_act=acts.pop(0) if acts else None)
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    first = client.post("/api/chat", json={"session_id": "typed_win", "message": "I have feelings for you."}).json()
+    assert "ending" not in first
+    model = pe_mod.SESSIONS["typed_win"]["state"].world_model
+    assert model.romance_relationship_partner == target
+    model.standing.standings[(target, "player", "romance")] = Standing(value=80)
+    second = client.post("/api/chat", json={"session_id": "typed_win", "message": "Let's leave together."}).json()
+    assert "ending" not in second and second["pending_choice"]["id"] == "leave_together", "a yes opens the card (BL-46)"
+    third = client.post("/api/chat", json={"session_id": "typed_win",
+                                           "message": "__choice__:leave_together:leave_now"}).json()
+    assert third["ending"]["id"] == "left_together" and third["ending"]["kind"] == "win"
+
+
+def _confession_session(client, monkeypatch, sid, mode, judge_choice=None, headers=None):
+    """A Terrace session where the target is in the confession tier; returns (state, target, judge_calls)."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.config import settings
+    from backend.app.engine.extractors.turn_extractor import SocialActUpdate, TurnExtraction
+    from backend.app.engine.world_model import npc_decision
+    from backend.app.engine.world_model.standing import Standing
+
+    monkeypatch.setattr(settings, "NPC_DECISION_MODE", mode, raising=False)
+    _terrace_session(client, sid, {})
+    state = pe_mod.SESSIONS[sid]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    target = state.world_model.present_with_player()[0]
+    state.gender = "F" if genders[target] == "M" else "M"
+    state.world_model.standing.standings[(target, "player", "romance")] = Standing(value=50)
+    calls = []
+
+    async def fake_judge(decision, view, resolver=None):
+        calls.append((decision, view))
+        return npc_decision.JevJudgment(judge_choice, 0.9, "") if judge_choice else npc_decision.JevJudgment(
+            None, None, "timeout")
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(social_act=SocialActUpdate("confess", target))
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    monkeypatch.setattr(npc_decision, "judge", fake_judge)
+    return state, target, calls
+
+
+def test_rules_mode_never_asks_jev_and_accepts_at_the_tier(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, calls = _confession_session(client, monkeypatch, "npc_rules", "rules", "reject")
+    client.post("/api/chat", json={"session_id": "npc_rules", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_rules"]["state"].world_model
+    assert calls == [] and model.romance_relationship_partner == target
+    assert [(r["mode"], r["rules"], r["jev"], r["final"]) for r in model.decision_log] == [
+        ("rules", "accept", None, "accept")]
+
+
+def test_jev_mode_can_be_stricter_and_the_storyteller_is_told_no(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, calls = _confession_session(client, monkeypatch, "npc_jev", "jev", "not_yet")
+    client.post("/api/chat", json={"session_id": "npc_jev", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_jev"]["state"].world_model
+    assert len(calls) == 1 and "You are" in calls[0][1] and "romantic feelings" in calls[0][1]
+    assert model.romance_relationship_partner == "", "Jev said not yet, so no relationship formed"
+    record = model.decision_log[-1]
+    assert (record["rules"], record["jev"], record["final"], record["agrees"]) == ("accept", "not_yet", "not_yet", False)
+
+
+def test_jev_mode_accepts_when_jev_and_the_rules_agree(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, _ = _confession_session(client, monkeypatch, "npc_jev_yes", "jev", "accept")
+    client.post("/api/chat", json={"session_id": "npc_jev_yes", "message": "I have feelings for you."})
+    assert pe_mod.SESSIONS["npc_jev_yes"]["state"].world_model.romance_relationship_partner == target
+
+
+def test_compare_mode_plays_the_rules_and_logs_both(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, calls = _confession_session(client, monkeypatch, "npc_compare", "compare", "reject")
+    client.post("/api/chat", json={"session_id": "npc_compare", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_compare"]["state"].world_model
+    assert len(calls) == 1 and model.romance_relationship_partner == target, "gameplay follows the rules"
+    record = model.decision_log[-1]
+    assert (record["mode"], record["rules"], record["jev"], record["final"]) == ("compare", "accept", "reject", "accept")
+
+
+def test_when_jev_is_unavailable_the_rules_decide_and_the_reason_is_logged(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, _ = _confession_session(client, monkeypatch, "npc_down", "jev", None)
+    client.post("/api/chat", json={"session_id": "npc_down", "message": "I have feelings for you."})
+    model = pe_mod.SESSIONS["npc_down"]["state"].world_model
+    assert model.romance_relationship_partner == target
+    assert model.decision_log[-1]["note"] == "jev unavailable: timeout"
+
+
+def test_the_real_judge_with_jev_switched_off_falls_back_without_error(client, monkeypatch):
+    """No fake judge here: TYPESAFE_ENABLED is off in tests, so the shared resolver reports flag_disabled."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.config import settings
+    from backend.app.engine.extractors.turn_extractor import SocialActUpdate, TurnExtraction
+    from backend.app.engine.world_model import npc_decision
+    from backend.app.engine.world_model.standing import Standing
+
+    monkeypatch.setattr(settings, "NPC_DECISION_MODE", "jev", raising=False)
+    monkeypatch.setattr(settings, "TYPESAFE_ENABLED", False)
+    npc_decision.reset_resolver_for_tests()
+    _terrace_session(client, "npc_off", {})
+    state = pe_mod.SESSIONS["npc_off"]["state"]
+    genders = {c["key"]: c["gender"] for c in state.story_cfg["characters"]}
+    target = state.world_model.present_with_player()[0]
+    state.gender = "F" if genders[target] == "M" else "M"
+    state.world_model.standing.standings[(target, "player", "romance")] = Standing(value=50)
+
+    async def fake_extract(*args, **kwargs):
+        return TurnExtraction(social_act=SocialActUpdate("confess", target))
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    r = client.post("/api/chat", json={"session_id": "npc_off", "message": "I have feelings for you."})
+    assert r.status_code == 200
+    model = pe_mod.SESSIONS["npc_off"]["state"].world_model
+    assert model.romance_relationship_partner == target
+    assert model.decision_log[-1]["note"] == "jev unavailable: flag_disabled"
+    npc_decision.reset_resolver_for_tests()
+
+
+def test_only_an_operator_can_override_the_mode_per_request(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "true")
+    monkeypatch.setenv("OPERATOR_TOKEN", "secret-op")
+    state, target, calls = _confession_session(client, monkeypatch, "npc_hdr", "rules", "not_yet")
+    client.post("/api/chat", json={"session_id": "npc_hdr", "message": "I like you."},
+                headers={"X-NPC-Decision-Mode": "jev"})
+    assert calls == [], "a player's header is ignored"
+    state = pe_mod.SESSIONS["npc_hdr"]["state"]
+    state.world_model.romance_relationship_partner = ""
+    state.world_model.act_cooldowns.clear()
+    client.post("/api/chat", json={"session_id": "npc_hdr", "message": "I like you."},
+                headers={"X-NPC-Decision-Mode": "jev", "X-Operator-Token": "secret-op"})
+    assert len(calls) == 1, "an operator's header switches the mode for that request"
+
+
+def test_debug_box_shows_recent_npc_decisions(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    _, target, _ = _confession_session(client, monkeypatch, "npc_dbg", "compare", "reject")
+    pe_mod.SESSIONS["npc_dbg"]["debug_mode"] = True
+    body = client.post("/api/chat", json={"session_id": "npc_dbg", "message": "I have feelings for you."}).json()
+    decisions = body["debug_box"]["npc_decisions"]
+    assert decisions and decisions[-1]["rules"] == "accept" and decisions[-1]["jev"] == "reject"
+
+
+def test_new_game_returns_the_goal_card(client):
+    _, opening = _terrace_session(client, "ending_goal_card", {})
+    assert opening["goal"]["status"] == "No mutual relationship yet."
+    assert "leave the house together" in opening["goal"]["text"]
+
+
+def test_mutual_departure_returns_a_win_ending_saved_with_the_reply(client):
+    """BL-39 phase A: the ending is structured, fires once, and is committed
+    with the reply; the next request and a reload both show it."""
+    import json as _json
+    from backend.app.db.repos import SessionRepo
+
+    headers = {"X-Guest-Id": "99999999-aaaa-4bbb-8ccc-dddddddddddd"}
+    pe_mod, _ = _terrace_session(client, "ending_win", headers)
+    state = pe_mod.SESSIONS["ending_win"]["state"]
+    partner = state.world_model.present_with_player()[0]
+    state.world_model.romance_relationship_partner = partner
+    state.world_model.romance_outcome = "mutual_departure"
+
+    r = client.post("/api/chat", json={"session_id": "ending_win", "message": "Let's go.", "request_id": "end-1"},
+                    headers=headers)
+    body = r.json()
+    assert body["ending"]["id"] == "left_together" and body["ending"]["kind"] == "win"
+    assert body["ending"]["label"] == "You won" and body["ending"]["ends_run"] is True
+    assert "END GAME YOU WIN" in body["reply"], "operator debug marker is kept"
+
+    user_id = pe_mod.SESSIONS["ending_win"]["state"].user_id
+    saved = SessionRepo._get("ending_win", user_id)
+    saved_state = _json.loads(saved["state_json"])
+    assert saved_state["over"] is True and saved_state["outcome"]["ending_id"] == "left_together"
+    assert _json.loads(saved["last_reply_json"])["ending"] == body["ending"]
+
+    after = client.post("/api/chat", json={"session_id": "ending_win", "message": "Hello?"}, headers=headers).json()
+    assert after["ending"] == body["ending"]
+    pe_mod.SESSIONS.pop("ending_win")
+    reloaded = client.post("/api/chat", json={"session_id": "ending_win", "message": "Anyone?"}, headers=headers).json()
+    assert reloaded["ending"] == body["ending"]
+    history = client.get("/api/user/sessions/ending_win/history", headers=headers).json()
+    assert history["ending"] == body["ending"], "resuming a finished game shows its ending"
+
+
+def test_ordinary_turns_and_declined_offers_have_no_ending(client):
+    pe_mod, _ = _terrace_session(client, "ending_none", {})
+    body = client.post("/api/chat", json={"session_id": "ending_none",
+                                          "message": "Do you want to leave together? No? Okay."}).json()
+    assert "ending" not in body
+    assert pe_mod.SESSIONS["ending_none"]["state"].over is False
+
+
+def test_addressed_question_reaches_the_storyteller_and_stays_owed(client, monkeypatch):
+    """BL-39 O08 end to end: the extraction call reports a question to a
+    present character; the storyteller prompt carries the obligation, and it
+    stays open until a later extraction judges the reply resolved it."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import (
+        QuestionAsked, QuestionStatusUpdate, TurnExtraction,
+    )
+
+    sid = "wm_question_owed"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    model = pe_mod.SESSIONS[sid]["state"].world_model
+    addressee = model.present_with_player()[0]
+    name = model.characters[addressee].name
+
+    systems, extractions, seen_open = [], [], []
+
+    async def fake_extract(*args, **kwargs):
+        seen_open.append(kwargs.get("open_questions"))
+        return extractions.pop(0)
+
+    class CapturingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            messages = (kwargs.get("json") or {}).get("messages") or []
+            systems.append("\n".join(str(m.get("content")) for m in messages if m.get("role") == "system"))
+
+            class Resp:
+                status_code = 200
+                text = "ok"
+
+                def json(self):
+                    return {"choices": [{"message": {"content": "*ok*\n\n**\"hi\"**\n[[STATE]]{\"emotion\":\"wary\",\"rel_delta\":0}[[/STATE]]"}}],
+                            "usage": {"total_tokens": 1}}
+            return Resp()
+
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", fake_extract)
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", CapturingClient)
+
+    extractions.append(TurnExtraction(questions=[QuestionAsked(addressee, "Where were you at 8?")]))
+    client.post("/api/chat", json={"session_id": sid, "message": f"{name}, where were you at 8?"})
+    assert any(f'The player asked {name}: "Where were you at 8?"' in s for s in systems)
+
+    question_id = pe_mod.SESSIONS[sid]["state"].world_model.conversation.open_questions()[0].id
+    extractions.append(TurnExtraction(question_updates=[QuestionStatusUpdate(question_id, "unanswered")]))
+    systems.clear()
+    client.post("/api/chat", json={"session_id": sid, "message": "Well?"})
+    assert seen_open[-1] == [{"id": question_id, "addressee": addressee, "text": "Where were you at 8?"}]
+    assert any("still unanswered" in s for s in systems)
+
+    extractions.append(TurnExtraction(question_updates=[QuestionStatusUpdate(question_id, "answered")]))
+    systems.clear()
+    client.post("/api/chat", json={"session_id": sid, "message": "Thanks."})
+    assert pe_mod.SESSIONS[sid]["state"].world_model.conversation.open_questions() == []
+    assert not any("The player asked" in s for s in systems)
+
+
+def test_world_model_survives_a_save_round_trip(client, monkeypatch):
+    import json as _json
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_restore"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    client.post("/api/chat", json={"session_id": sid, "message": "hello there"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    state_json = pe_mod._serialize_state(state, [])
+    assert _json.loads(state_json)["world_model"]["characters"]
+    monkeypatch.setattr("backend.app.db.repos.SessionRepo._get", lambda **kwargs: {
+        "session_id": sid, "user_id": "u_wm", "story_id": "six_strangers",
+        "state_json": state_json, "flags_json": "{}"})
+    restored = pe_mod._try_load_session_from_db(sid, "u_wm")["state"]
+    assert restored.world_model.to_dict() == state.world_model.to_dict()
+
+
+def test_old_saves_without_a_world_model_build_one_on_their_next_turn(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_lazy"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    state.world_model = None
+    client.post("/api/chat", json={"session_id": sid, "message": "hi"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.world_model is not None and state.world_model.turn == 1
+
+
+def test_kill_switch_restores_the_previous_behavior(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.config import settings
+
+    monkeypatch.setattr(settings, "WORLD_MODEL_ENABLED", False)
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_off"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    locations = dict(state.character_locations)
+    client.post("/api/chat", json={"session_id": sid, "message": "I go to bed"})
+    call = _storyteller_calls(sent)[-1]
+    state = pe_mod.SESSIONS[sid]["state"]
+    assert state.world_model is None
+    assert "### WORLD STATE" not in call["messages"][0]["content"]
+    assert "Speakers this beat" not in call["messages"][-1]["content"]
+    assert "[Time skip]" not in call["messages"][-1]["content"]
+    assert state.character_locations == locations
+
+
+def test_iu_inspection_is_answered_from_authored_evidence_only(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.world_model.model import PLAYER
+
+    sent = _recording_client(pe_mod, monkeypatch)
+    sid = "wm_iu_closet"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    client.post("/api/chat", json={"session_id": sid, "message": "I look closely at the closet jamb."})
+    state = pe_mod.SESSIONS[sid]["state"]
+    system = _storyteller_calls(sent)[-1]["messages"][0]["content"]
+    assert "MUST ADDRESS" in system and "scratches beneath the paint" in system
+    assert "older than one night" in system
+    assert state.world_model.memories.search(PLAYER, "closet scratches", k=3)
+    assert "truth_event" not in system
+
+
+def test_iu_suspects_follow_their_routines_and_iu_stays_put(client):
+    from backend.app.api import prompt_engine as pe_mod
+
+    sid = "wm_iu_routines"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:iu_murder_mystery|M|Chris"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    model = state.world_model
+    assert model.characters["iu"].routine.blocks == []
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_skip__:DAY"})
+    state = pe_mod.SESSIONS[sid]["state"]
+    model = state.world_model
+    assert model.world.place_of("iu") == "iu_apartment_room"
+    # Thursday ~20:00: So-jin is still at her 11:00–21:00 studio block.
+    assert model.world.place_of("park_so_jin") == "recording_studio"
+    assert state.character_locations["park_so_jin"] == "recording_studio"
+    # The late-night pressure call happened while the player was away.
+    assert any("lyric page" in m.text for m in model.memories.of("yoo_min_ho"))
+
+
+def test_rate_limited_storyteller_call_is_retried_once_and_the_turn_succeeds(client, monkeypatch):
+    """QC 2026-09-25: arena gates hit 429s and players got 'story master unavailable'."""
+    from backend.app.api import prompt_engine as pe_mod
+
+    fake_client = pe_mod.httpx.AsyncClient
+    state_holder = {"storyteller_calls": 0}
+
+    class _RateLimited:
+        status_code = 429
+        text = "Rate limit reached for gpt-4o-mini. Please try again in 5ms."
+        headers = {}
+
+    class _Once(fake_client):
+        async def post(self, *args, **kwargs):
+            if "response_format" in (kwargs.get("json") or {}):
+                state_holder["storyteller_calls"] += 1
+                if state_holder["storyteller_calls"] == 1:
+                    return _RateLimited()
+            return await super().post(*args, **kwargs)
+
+    monkeypatch.setattr(pe_mod.httpx, "AsyncClient", _Once)
+    sid = "rate_limit_retry"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    reply = client.post("/api/chat", json={"session_id": sid, "message": "hello everyone"}).json()
+    assert "error" not in reply and reply.get("reply")
+    assert state_holder["storyteller_calls"] == 2
+
+
+def test_extracted_commitment_becomes_a_promise_that_comes_due(client, monkeypatch):
+    """QC 2026-09-25: promises come from the turn extractor, not a regex."""
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import CommitmentUpdate, TurnExtraction
+    from backend.app.engine.world_model.model import PLAYER
+
+    sid = "wm_commitment"
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:six_strangers|M|Chris"})
+    greeter = pe_mod.SESSIONS[sid]["state"].world_model.present_with_player()[0]
+
+    async def _extract(*args, **kwargs):
+        return TurnExtraction(commitments=[CommitmentUpdate(greeter, "player", "save you a plate of curry", "tonight")])
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", _extract)
+    client.post("/api/chat", json={"session_id": sid, "message": "could someone save me some dinner?"})
+    model = pe_mod.SESSIONS[sid]["state"].world_model
+    own = [m for m in model.memories.of(greeter) if m.kind == "promise"]
+    assert len(own) == 1 and own[0].counterpart == PLAYER and "save you a plate of curry" in own[0].text
+    assert own[0].due == model.world.absolute_minute(0, "20:00")
+    assert [m for m in model.memories.of(PLAYER) if m.kind == "promise"]
+
+
+# ============================================================================
+# BL-90/BL-91: operator turn_trace, session inspector, richer debug_box
+# ============================================================================
+
+def _start_and_turn(client, sid, headers=None, debug=False):
+    headers = headers or {}
+    client.post("/api/chat", json={"session_id": sid, "message": "__cmd_newgame__:" + STORY_ID + "|M|Chris"},
+                headers=headers)
+    if debug:
+        client.post("/api/chat", json={"session_id": sid, "message": "[D]"}, headers=headers)
+    return client.post("/api/chat", json={"session_id": sid, "message": "hello"}, headers=headers).json()
+
+
+def test_turn_trace_only_for_operator(client, monkeypatch):
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+    player = _start_and_turn(client, "trace_player", debug=True)
+    assert "turn_trace" not in player and "prompt_debug" not in player
+
+    op = _start_and_turn(client, "trace_op", headers={"X-Operator-Token": "tok"})
+    trace = op["turn_trace"]
+    assert {"retrieval", "storyteller"} <= set(trace["stage_ms"])
+    assert trace["npc_decision_mode"] in {"rules", "jev", "compare"}
+    assert trace["usage"] == {"total_tokens": 1}
+    assert trace["retrieved_chunk_ids"] == []
+    assert "extraction" in trace
+
+
+def test_turn_trace_carries_the_extractor_result(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+    from backend.app.engine.extractors.turn_extractor import TurnExtraction
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+
+    async def _extract(*args, **kwargs):
+        return TurnExtraction(movement_intent="TRAVEL", destination_id="kitchen", confidence=0.9)
+    monkeypatch.setattr(pe_mod._TURN_EXTRACTOR, "extract", _extract, raising=False)
+    body = _start_and_turn(client, "trace_extract", headers={"X-Operator-Token": "tok"})
+    extraction = body["turn_trace"]["extraction"]
+    assert extraction["movement_intent"] == "TRAVEL" and extraction["destination_id"] == "kitchen"
+
+
+def test_debug_box_has_turn_flags_counters_and_mechanics(client):
+    box = _start_and_turn(client, "box_fields", debug=True)["debug_box"]
+    assert box["turn"] >= 1
+    assert box["flags"] == {"truth_mode": False, "epistemic_state": True, "chinese_mode": False}
+    assert "counters" in box and "mechanics" in box
+
+
+def test_debug_box_survives_a_failing_provider(client):
+    from backend.app.engine import debug_hooks
+
+    def boom(state):
+        raise RuntimeError("provider broke")
+    debug_hooks.register_debug_provider("boom", boom)
+    try:
+        box = _start_and_turn(client, "box_boom", debug=True)["debug_box"]
+    finally:
+        debug_hooks._PROVIDERS.pop("boom", None)
+    assert box["mechanics"]["boom"] == {"error": "RuntimeError: provider broke"}
+
+
+def test_session_inspector_requires_operator_and_is_read_only(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+    _start_and_turn(client, "inspect_me", debug=True)
+
+    assert client.get("/api/debug/session/inspect_me").status_code == 401
+    assert client.get("/api/debug/session/inspect_me", headers={"X-Operator-Token": "bad"}).status_code == 401
+
+    before = pe_mod.SESSIONS["inspect_me"]["state"].turns
+    r = client.get("/api/debug/session/inspect_me", headers={"X-Operator-Token": "tok"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] == "memory" and body["flags"]["debug_mode"] is True
+    assert body["state"]["turns"] == before and "log" not in body["state"]
+    assert "world_model" in body["state"]
+    assert pe_mod.SESSIONS["inspect_me"]["state"].turns == before
+
+
+def test_session_inspector_404_for_unknown_session_and_never_creates_one(client, monkeypatch):
+    from backend.app.api import prompt_engine as pe_mod
+
+    monkeypatch.setenv("DEBUG_TOOLS_ENABLED", "1")
+    monkeypatch.setenv("OPERATOR_TOKEN", "tok")
+    r = client.get("/api/debug/session/nope?user_id=guest:abc", headers={"X-Operator-Token": "tok"})
+    assert r.status_code == 404
+    assert "nope" not in pe_mod.SESSIONS

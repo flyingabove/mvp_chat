@@ -1,5 +1,5 @@
 """Tests for .claude/skills/promote-to-prod/arena/pipeline.py: order-swap remapping,
-position-bias handling and reliability policy (JEV_GAME_ARENA_DESIGN.md §7-8)."""
+position-bias handling and reliability policy (design/JEV_GAME_ARENA.md §7-8)."""
 import pytest
 
 from arena.contracts import ArmStatus, Outcome, PairSpec, PersonaSpec, ScenarioSpec

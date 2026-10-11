@@ -70,7 +70,7 @@ def manifest_mode(state) -> str:
     return "materialize" if inside else "whisper"
 
 
-def advance_time(state, player_text: str):
+def advance_time(state, player_text: str, *, charge_dialogue: bool = True):
     """
     Updates the state's minute counter based on message length and movement.
     Works with GameState.
@@ -82,8 +82,25 @@ def advance_time(state, player_text: str):
     base = int(cfg.get("time", {}).get("base_turn_mins", BASE_TURN_MINS))
     travel = int(cfg.get("time", {}).get("travel_mins", TRAVEL_MINS))
 
+    arrivals = getattr(state, "opening_arrival_minutes", None) or {}
+    arrived = set(getattr(state, "opening_arrived_ids", None) or [])
+    if arrivals and any(key not in arrived for key in arrivals):
+        pace = ((cfg.get("opening") or {}).get("arrival_sequence") or {}).get("dialogue_pace") or {}
+        base = int(pace.get("base_turn_mins", base))
+        per_word = float(pace.get("mins_per_word", per_word))
+
     # Basic time progression
-    delta = base + math.ceil(word_count(player_text) * per_word)
+    delta = base + math.ceil(word_count(player_text) * per_word) if charge_dialogue else 0
+    if arrivals and charge_dialogue and any(key not in arrived for key in arrivals):
+        max_turn = int(pace.get("max_turn_mins", delta))
+        delta = min(delta, max_turn)
+        # Conversational turns stop at the next doorway beat. A long player
+        # message cannot silently consume two introductions at once; explicit
+        # waits and time skips still advance by the amount the player chose.
+        next_arrival = min(minute for key, minute in arrivals.items() if key not in arrived)
+        current_minute = int(getattr(state, "minute", 0) or 0)
+        if current_minute < next_arrival:
+            delta = min(delta, next_arrival - current_minute)
 
     # If a world clock is active, keep it in sync with dialog time.
     # ORDERING NOTE: world_clock is advanced *twice* when travel succeeds:
@@ -208,18 +225,13 @@ def _resolve_destination_id(world_graph, place: str) -> Optional[str]:
 
 
 def win_condition_detected(text: str, state) -> bool:
-    """
-    Detects win conditions based on regex patterns from story config.
-    Returns False if no win_detection patterns are configured.
-    """
+    """True when the story's ending registry would end this game as a win."""
+    from backend.app.engine.rules.endings import EndingFacts, endings_for, evaluate
 
-    cfg = getattr(state, "story_cfg", {}) or {}
-
-    patterns = (cfg.get("win_detection") or {}).get("regex") or []
-    if not patterns:
-        return False
-
-    return any(re.search(p, text, re.I) for p in patterns)
+    model = getattr(state, "world_model", None)
+    facts = EndingFacts(world_outcome=str(getattr(model, "romance_outcome", "") or ""), reply=text)
+    ending = evaluate(endings_for(getattr(state, "story_cfg", {}) or {}), facts)
+    return ending is not None and ending.kind == "win"
 
 
 def process_pending_events(state, *, apply_cast_replacement) -> list:

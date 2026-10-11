@@ -11,7 +11,7 @@ router = APIRouter()
 
 def _jev_health_block() -> dict:
     """Non-authoritative `jev` block, per
-    JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6 ("Exposure"). Useful for
+    design/JEV.md (provider architecture) §6 ("Exposure"). Useful for
     confirming a rollback (TYPESAFE_ENABLED=false, or removing a task from
     JEV_ENABLED_TASKS) took effect without reading logs, and for the
     ship-and-verify step. Deliberately does NOT construct a resolver or

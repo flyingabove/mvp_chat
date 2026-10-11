@@ -1,13 +1,20 @@
 name: Tests
 
+# Unit tests run on every push/PR. Anything that calls a real LLM is `@pytest.mark.integration`
+# and never runs on a deploy: it runs only when started by hand (Actions > Tests > Run workflow)
+# or by the nightly schedule, and only if the API secrets exist.
 on:
   push:
     branches: [beta, prod]
   pull_request:
     branches: [beta, prod]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
 
 jobs:
   unit-tests:
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,15 +30,34 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pytest pytest-asyncio
 
+      # Same command as the Dockerfile test gate: no integration tests, LLM keys blank, LLM hosts blocked.
       - name: Run unit tests
         env:
+          OPENAI_API_KEY: ""
+          TYPESAFE_API_KEY: ""
+          LANGSMITH_API_KEY: ""
+          LANGCHAIN_API_KEY: ""
+          LANGCHAIN_TRACING_V2: "false"
           TESTS_BLOCK_LLM_NETWORK: "1"
-        run: pytest tests/ -v -m "not integration" --ignore=tests/backend/integration/
+        run: pytest tests/ .claude/skills/promote-to-prod/tests -m "not integration" --disable-warnings --tb=short -ra --continue-on-collection-errors
+
+  frontend-node-tests:
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run Node frontend tests
+        run: node --test tests/frontend/*.test.cjs
 
   integration-tests:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # Only run if OPENAI_API_KEY secret is available
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +72,6 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pytest pytest-asyncio
 
-      - name: Run integration tests
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: pytest -m integration -v
+      - name: Run integration tests (real LLM calls)
+        if: env.OPENAI_API_KEY != '' && env.TYPESAFE_API_KEY != ''
+        run: pytest tests/ -m integration -v

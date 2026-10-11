@@ -1,5 +1,5 @@
 # .claude/skills/promote-to-prod/arena/runner.py
-"""ArenaRunner: paired full-game play (JEV_GAME_ARENA_DESIGN.md §4, §5A, §10).
+"""ArenaRunner: paired full-game play (design/JEV_GAME_ARENA.md §4, §5A, §10).
 
 For each PairSpec, the same player policy/persona/seed plays the same
 scenario once against each release, concurrently (equal conditions, no

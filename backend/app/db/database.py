@@ -85,6 +85,21 @@ CREATE TABLE IF NOT EXISTS extracted_chunks (
 
 CREATE INDEX IF NOT EXISTS idx_extracted_chunks_session
     ON extracted_chunks(session_id, source_msg_id, extractor_version);
+
+-- Durable per-request turn receipts (BL-39 O15/O24). Written in the same
+-- transaction as the game_sessions state, so a committed turn always has its
+-- exact reply and an uncommitted one has neither. input_hash lets a reused
+-- request_id with different text be rejected instead of replayed.
+CREATE TABLE IF NOT EXISTS turn_receipts (
+    session_id  TEXT NOT NULL,
+    user_id     TEXT NOT NULL,
+    request_id  TEXT NOT NULL,
+    input_hash  TEXT NOT NULL,
+    reply_json  TEXT NOT NULL,
+    revision    INTEGER NOT NULL,
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (session_id, request_id)
+);
 """
 
 
@@ -108,6 +123,7 @@ def init_db() -> None:
     # SessionRepo.get_last_request/update_last_request in repos.py).
     _ensure_column(conn, "game_sessions", "last_request_id", "TEXT")
     _ensure_column(conn, "game_sessions", "last_reply_json", "TEXT")
+    _ensure_column(conn, "game_sessions", "revision", "INTEGER NOT NULL DEFAULT 0")
     # Phase 1.2: lease for reclaiming a HUNG (not crashed) extraction task —
     # the existing table predates this column on any already-deployed DB.
     _ensure_column(conn, "fact_extraction_outbox", "lease_until", "INTEGER")

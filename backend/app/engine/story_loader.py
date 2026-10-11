@@ -4,8 +4,10 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from backend.app.engine.briefing import validate as validate_briefing
 from backend.app.engine.character_graph import CharacterGraph
 from backend.app.engine.state import Character
+from backend.app.engine.rules.mbti import normalize as _normalize_mbti
 from backend.app.utils.logging_utils import jlog
 
 
@@ -51,12 +53,24 @@ class StoryDefinition:
         except Exception:
             instance = 1
 
+        # Per-character MBTI lives in the story's top-level `personalities` map
+        # (shared with `rules/personality.py`'s temperament defaults), keyed by
+        # character key. An explicit per-character "mbti"/"personality.type"
+        # in the character entry itself (handled in Character.from_dict)
+        # always wins; this only fills the gap for stories that only author
+        # the top-level map (both current stories).
+        personalities_cfg = data.get("personalities") or {}
+
         characters: List[Character] = []
         for c in data.get("characters") or []:
             try:
-                characters.append(Character.from_dict(c))
+                char = Character.from_dict(c)
             except Exception:
                 continue
+            if not char.mbti:
+                own = personalities_cfg.get(char.key) or {}
+                char.mbti = _normalize_mbti(own.get("type"))
+            characters.append(char)
 
         # Backfill legacy schema (main_character + suspects) if no characters present.
         if not characters:
@@ -200,6 +214,8 @@ def build_story_registry() -> Dict[str, Dict[str, Any]]:
         story_id = str(cfg.get("id") or os.path.splitext(os.path.basename(path))[0]).strip()
         if not story_id or story_id not in active_story_ids:
             continue
+        for problem in validate_briefing(cfg):     # BL-49: also enforced for every active story by a test
+            jlog({"kind": "story_briefing_invalid", "story_id": story_id, "path": path, "problem": problem})
         registry[story_id] = {"path": path, "subdir": subdir, "raw": cfg}
     return registry
 

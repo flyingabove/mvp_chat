@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 import logging
@@ -17,10 +17,13 @@ from backend.app.api.prompt_engine import router as chat_router
 from backend.app.api.echo import router as echo_router
 from backend.app.api.health import router as health_router
 from backend.app.api.eval_capabilities import router as eval_capabilities_router
+from backend.app.api.debug_inspect import router as debug_inspect_router
 from backend.app.api.story import router as story_router
 from backend.app.api.stories import router as stories_router
 from backend.app.api.integration_playback import router as integration_playback_router
 from backend.app.api.debug_engine import router as debug_router, ws_debug
+from backend.app.api.season_debug import router as season_debug_router
+from backend.app.api.theatre import router as theatre_router
 from backend.app.api.auth import router as auth_router
 from backend.app.api.user_sessions import router as user_sessions_router
 from backend.app.db.database import init_db
@@ -31,6 +34,7 @@ from backend.app.knowledge.runtime.index_service import IndexService
 from backend.app.config.build_info import get_build_info
 
 _DEBUG_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "debug.html"
+_DRAMA_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "drama.html"
 _INDEX_HTML_PATH  = Path(__file__).parent.parent.parent / "frontend" / "index.html"
 _MANIFEST_PATH    = Path(__file__).parent.parent.parent / "frontend" / "manifest.json"
 _SW_PATH          = Path(__file__).parent.parent.parent / "frontend" / "sw.js"
@@ -355,10 +359,13 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(echo_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
 app.include_router(eval_capabilities_router, prefix="/api")
+app.include_router(debug_inspect_router, prefix="/api")
 app.include_router(story_router, prefix="/api")
 app.include_router(stories_router, prefix="/api")
 app.include_router(integration_playback_router, prefix="/api")
 app.include_router(debug_router, prefix="/beta/debug")
+app.include_router(season_debug_router, prefix="/beta/debug/season")
+app.include_router(theatre_router, prefix="/beta/debug/theatre")
 app.include_router(auth_router)
 app.include_router(user_sessions_router)
 
@@ -381,15 +388,30 @@ async def game_ui_prod():
 
 
 @app.get("/beta/", response_class=HTMLResponse)
-@app.get("/beta", response_class=HTMLResponse)
 async def game_ui_beta():
     return _game_page(beta=True)
+
+
+@app.get("/beta", include_in_schema=False)
+async def game_ui_beta_redirect(request: Request):
+    # Cloudflare sends bare /beta to the prod service but /beta/* to beta, so a
+    # shell served here was prod's page polling beta's version.json and
+    # reloading forever on iPhone. Redirect (relative, query kept) instead.
+    query = request.url.query
+    return RedirectResponse("/beta/" + ("?" + query if query else ""), status_code=301)
 
 
 @app.get("/debug", response_class=HTMLResponse)
 @app.get("/beta/debug", response_class=HTMLResponse)
 async def debug_ui_page():
     return _DEBUG_HTML_PATH.read_text(encoding="utf-8")
+
+
+@app.get("/drama", response_class=HTMLResponse)
+@app.get("/beta/drama", response_class=HTMLResponse)
+async def drama_theatre_page():
+    """The admin Drama Theatre page; its routes (`/beta/debug/theatre/*`) need the operator token, the page itself holds no data."""
+    return _DRAMA_HTML_PATH.read_text(encoding="utf-8")
 
 
 # --------------------------------------------------

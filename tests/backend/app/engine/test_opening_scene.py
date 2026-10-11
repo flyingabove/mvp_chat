@@ -9,6 +9,10 @@ from backend.app.engine.opening_scene import (
     choose_welcome_party,
     opening_scene_brief,
     stage_opening_scene,
+    group_ritual_brief,
+    mark_group_ritual,
+    opening_arrival_segments,
+    strip_generated_arrival_repeats,
 )
 from backend.app.engine.state import Character, init_state
 
@@ -29,6 +33,76 @@ def _state(player_gender: str, rule: dict | None, locations: dict | None = None)
     }
     state.character_locations = dict(locations or {})
     return state
+
+
+def test_authored_arrival_suppresses_generated_duplicate_entrance():
+    state = _state("M", {"size": 1})
+    state.opening_arrivals_this_turn = ["f1"]
+    generated = [
+        {"kind": "narration", "speaker_id": None, "text": "F1 enters through the front door."},
+        {"kind": "dialogue", "speaker_id": "f1", "text": "Hi, I'm F1."},
+        {"kind": "dialogue", "speaker_id": "m1", "text": "Welcome."},
+        {"kind": "narration", "speaker_id": None, "text": "M1 gives F1 a small smile."},
+    ]
+    assert strip_generated_arrival_repeats(state, generated) == generated[2:]
+
+
+def _state_with_cue(cue):
+    state = _state("M", {"size": 1})
+    state.opening_arrivals_this_turn = ["f1"]
+    state.story_cfg["opening"]["arrival_sequence"] = {"entrance_cues": {"f1": cue}}
+    return state
+
+
+HAYATO_CUE = ("A man in a plain jacket looks at the chairs, then the table, then politely at no one in particular, "
+              "and bows.")
+
+
+def test_nameless_paraphrase_of_the_authored_entrance_is_dropped_too():
+    """BL-93: the narrator never names a newcomer, so a repeat is a paraphrase of the cue and carries no name."""
+    state = _state_with_cue(HAYATO_CUE)
+    generated = [
+        {"kind": "narration", "speaker_id": None,
+         "text": "A tall man in a plain jacket steps across the threshold, looking over the chairs and then the table."},
+        {"kind": "dialogue", "speaker_id": "m1", "text": "Welcome."},
+    ]
+    assert strip_generated_arrival_repeats(state, generated) == generated[1:]
+
+
+def test_narration_that_is_not_a_repeat_of_the_cue_is_kept():
+    state = _state_with_cue(HAYATO_CUE)
+    generated = [
+        {"kind": "narration", "speaker_id": None, "text": "M1 steps aside from the counter and checks the kettle."},
+        {"kind": "narration", "speaker_id": None, "text": "The man in the jacket sets down his bag by the shoe rack."},
+    ]
+    assert strip_generated_arrival_repeats(state, generated) == generated
+
+
+def test_every_authored_cue_of_the_real_story_is_recognised_when_paraphrased():
+    """The cues are the ground truth: lightly reworded (articles, verb, order), each must still be caught."""
+    import json
+    from pathlib import Path
+    story = next(Path(__file__).resolve().parents[4].joinpath("backend/app/stories").glob("*six_strangers/*_story.json"))
+    cues = json.loads(story.read_text(encoding="utf-8"))["opening"]["arrival_sequence"]["entrance_cues"]
+    for key, cue in cues.items():
+        state = _state_with_cue(cue)
+        state.opening_arrivals_this_turn = ["f1"]
+        state.story_cfg["opening"]["arrival_sequence"]["entrance_cues"] = {**cues, "f1": cue}   # the real roster of cues
+        words = cue.rstrip(".").split()
+        reworded = "The front door opens again. " + " ".join(words[:max(6, len(words) * 3 // 4)]) + ", glancing round."
+        generated = [{"kind": "narration", "speaker_id": None, "text": reworded}]
+        assert strip_generated_arrival_repeats(state, generated) == [], f"{key}: {reworded}"
+
+
+def test_one_residents_cue_is_never_taken_for_anothers():
+    import json
+    from pathlib import Path
+    from backend.app.engine.opening_scene import repeats_entrance_cue
+    story = next(Path(__file__).resolve().parents[4].joinpath("backend/app/stories").glob("*six_strangers/*_story.json"))
+    cues = json.loads(story.read_text(encoding="utf-8"))["opening"]["arrival_sequence"]["entrance_cues"]
+    for a, cue_a in cues.items():
+        for b, cue_b in cues.items():
+            assert repeats_entrance_cue(cue_a, cue_b, cues.values()) == (a == b), f"{a} vs {b}"
 
 
 def test_rule_parsing_defaults_and_validation():
@@ -138,3 +212,81 @@ def test_stage_never_untracks_residents_when_fallback_is_the_start_room():
     stage_opening_scene(state, random.Random(0))
     assert set(state.character_locations) == set(GENDERS)
     assert all(loc == "front_entry" for loc in state.character_locations.values())
+
+
+def _arrival_state(due):
+    state = _state("M", {"size": 1}, {"f1": "front_entry"})
+    state.location_id = "living_room"
+    state.opening_arrivals_this_turn = due
+    state.story_cfg["opening"]["arrival_sequence"] = {
+        "gather_location_id": "living_room",
+        "entrance_cues": {"f1": "A woman in a long cardigan stops just inside the door and bows a little too slowly."},
+        "entrance_lines": {"f1": "Nakada Minori. Hajimemashite."},
+    }
+    return state
+
+
+def test_an_arrival_is_the_authored_cue_without_naming_them_before_they_introduce_themselves():
+    beats = opening_arrival_segments(_arrival_state(["f1"]))
+    assert beats[0] == {"kind": "narration", "speaker_id": None,
+                        "text": "The front door opens. A woman in a long cardigan stops just inside the door and bows a little too slowly."}
+    assert beats[1] == {"kind": "dialogue", "speaker_id": "f1", "text": "Nakada Minori. Hajimemashite."}
+    assert "F1" not in beats[0]["text"] and "next resident to arrive" not in beats[0]["text"],         "the player learns the name from the newcomer's own line, not from the narrator"
+
+
+def test_an_arrival_without_an_authored_cue_still_enters_unnamed():
+    state = _arrival_state(["f1"])
+    state.story_cfg["opening"]["arrival_sequence"]["entrance_cues"] = {}
+    beats = opening_arrival_segments(state)
+    assert beats[0]["text"].startswith("The front door opens. ") and "F1" not in beats[0]["text"]
+
+
+RITUAL = {
+    "id": "type_round",
+    "prompt": "The producers leave a card on the table: 'What is your type?'",
+    "likes": {"funny": "someone who makes them laugh", "attentive": "someone who really listens"},
+    "dislikes": {"pushy": "someone who pushes"},
+}
+
+
+def _ritual_state(arrived=("f1", "f2"), this_turn=()):
+    state = _state("M", {"size": 1}, {"f1": "living_room", "f2": "living_room", "m1": "living_room"})
+    state.location_id = "living_room"
+    state.opening_arrival_minutes = {"f1": 8, "f2": 16}
+    state.opening_arrived_ids = list(arrived)
+    state.opening_arrivals_this_turn = list(this_turn)
+    state.story_cfg["opening"]["group_ritual"] = RITUAL
+    state.story_cfg["characters"] = [{"key": key, "gender": gender} for key, gender in GENDERS.items()]
+    state.story_cfg["personalities"] = {
+        "f1": {"tastes": {"funny": 2.0, "attentive": 1.0, "pushy": -2.5}},
+        "f2": {"tastes": {"attentive": 2.0}},
+    }
+    state.opening_ritual_done = False
+    return state
+
+
+def test_the_group_ritual_fires_once_after_everyone_has_arrived():
+    state = _ritual_state()
+    brief = group_ritual_brief(state)
+    assert "What is your type?" in brief and "F1" in brief and "F2" in brief
+    mark_group_ritual(state)
+    assert state.opening_ritual_done is True and group_ritual_brief(state) == ""
+
+
+def test_the_group_ritual_waits_while_residents_are_still_to_arrive_or_arriving_this_turn():
+    assert group_ritual_brief(_ritual_state(arrived=("f1",))) == ""
+    assert group_ritual_brief(_ritual_state(this_turn=("f2",))) == "", "not on the final arrival's own turn"
+
+
+def test_the_ritual_hints_come_from_each_residents_own_authored_tastes_and_stay_indirect():
+    brief = group_ritual_brief(_ritual_state())
+    assert "someone who makes them laugh" in brief and "someone who pushes" in brief
+    assert "F2" in brief and "someone who really listens" in brief
+    assert "never a list" in brief and "Only two or three" in brief
+    assert "never repeat the hint wording" in brief and "leave the reply open for the player" in brief
+
+
+def test_a_story_without_a_ritual_never_fires_one():
+    state = _ritual_state()
+    del state.story_cfg["opening"]["group_ritual"]
+    assert group_ritual_brief(state) == ""

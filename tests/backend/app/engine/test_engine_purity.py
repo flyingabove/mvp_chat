@@ -2,7 +2,7 @@
 
 Per the engineering plan's stated constraint ("the engine stays pure...
 enforced by a test, not convention") and
-JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §2: this test did not exist before
+design/JEV.md (provider architecture) §2: this test did not exist before
 step 3 of the Jev implementation order — verified by search at design time.
 It ships now, alongside the refactor that made turn_extractor.py compliant.
 

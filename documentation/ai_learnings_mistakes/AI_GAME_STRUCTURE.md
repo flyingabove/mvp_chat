@@ -189,7 +189,7 @@ Instructions for AI to create a game
 1) Pick a unique id/folder `<int>_<slug>` (no integer reuse). Example: `3_newcase`.
 2) Author knowledge.json under backend\app\knowledge\characters\<id>/ with solid, sourced facts. If the person/entity is ambiguous, ask for clarification—do not invent.
 3) Generate chunks.jsonl from knowledge.json (windowed passages). Run the index builder so FAISS/BM25 artifacts exist beside chunks.jsonl.
-4) Create story JSON under backend\app\stories\<folder>/ as `<story_id>_story.json`. Include: goal, opening, rules, canonical_truth (explicit facts), knowledge_character_id, world_context array. Optionally author `gender` ("M"/"F") per character and `opening.welcome_party` to stage who greets the player at game start (see `SOCIAL_MODE_DESIGN.md` §10).
+4) Create story JSON under backend\app\stories\<folder>/ as `<story_id>_story.json`. Include: goal, opening, rules, canonical_truth (explicit facts), knowledge_character_id, world_context array. Optionally author `gender` ("M"/"F") per character and `opening.welcome_party` to stage who greets the player at game start (see `design/SOCIAL_ENGINE.md (social mode)` §10).
    Set the world.file path using the actual folder name: "<folder>/<story_id>_world.json".
 5) Create world JSON (<story_id>_world.json) with locations/edges. Ensure descriptions encode ownership details (e.g., "Interview Room A is Steve's room"; "Interview Room B is Bob's room") so Location.description carries them after load.
    Also add `character_start_locations` to the story JSON's `world` section — every character needs a starting location.
@@ -198,3 +198,26 @@ Instructions for AI to create a game
 7) Verify frontend: story appears in /api/stories, map renders, location list shows descriptions.
 8) Add/extend integration tests to load the story, world, and map; ensure data paths resolve. Run full test suite (python -m pytest).
 9) If anything is unclear, stop and ask for clarification before proceeding.
+
+## Story `briefing` block (BL-49)
+
+Every active story JSON declares a `briefing`, validated by `backend/app/engine/briefing.py` (`validate`, logged when
+the story registry loads and enforced for every active story by `tests/backend/app/engine/test_briefing.py`):
+
+```json
+"briefing": {
+  "goal": "20-700 characters of player-facing text: what to do and what ends the run. No scores, tiers, cooldowns or spoilers.",
+  "controls": [{"title": "Leaving together", "text": "Extra cards for this game only (optional)."}]
+}
+```
+
+Social stories may also set `social_tracks.couples.rival_aim` (a number from 0 to 1, default 0 = off): the priority of the
+own romantic aim each resident of the player's gender starts with (`world_model/rivals.py`).
+
+`briefing.resolved(story_cfg)` adds the controls shared by every game (plain text, `(...)`/`[...]` to the game master,
+`[map]` and `/map`, the menu) and the story's declared `endings` (title, kind). `/api/story/{id}` returns it as `briefing`.
+The frontend shows it as a Goal/Controls/Map screen after character selection and before the first scene (Start game or
+Skip), prints a "How to play" card at the top of every new chat, offers it from the chat menu, and shows it once when a
+game started before the briefing existed is resumed. The map uses the story's own `world.world_map_image`. The
+debug player agent's brief is built from the same resolved briefing (`debug_engine._build_player_brief`), so a bot sees
+what a real player sees.

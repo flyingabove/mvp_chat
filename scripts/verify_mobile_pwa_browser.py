@@ -49,6 +49,8 @@ def main():
                 page.locator('.game-card').filter(has_text='Terrace in the City').first.click()
                 page.locator('#modal-play-btn').click()
                 page.locator('#onboard-continue-btn').click()
+                page.wait_for_selector("#briefing-start-btn", state="visible", timeout=10000)  # BL-49 briefing
+                page.locator("#briefing-start-btn").click()
                 opener = page.locator('#chat-messages .msg-bubble.npc').first
                 opener.wait_for(timeout=120000)
                 page.wait_for_function("!document.querySelector('#chat-messages [aria-busy]')", timeout=120000)

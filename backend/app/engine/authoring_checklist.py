@@ -13,6 +13,19 @@ IMPORTANT:
 
 AUTHORING_CHECKLIST = [
     {
+        "rule_id": "STORY_HAS_BRIEFING",
+        "description": (
+            "Every story JSON declares a `briefing` block: a player-facing `goal` (20-700 characters) and "
+            "optional extra `controls` cards ({title, text}). The goal says what the player must do and what "
+            "ends the run, without scores, tiers, cooldowns or spoilers. Checked by "
+            "`backend.app.engine.briefing.validate` for every active story."
+        ),
+        "examples": {
+            "bad": "A briefing that quotes standing thresholds or names the murderer.",
+            "good": "Get into a relationship with one housemate, then ask them to leave the house with you."
+        }
+    },
+    {
         "rule_id": "NO_CONTRADICTIONS",
         "description": (
             "No entry may contradict any other entry in the knowledge pack. "

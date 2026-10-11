@@ -15,6 +15,7 @@ from backend.app.config.settings import (
 )
 
 from backend.app.engine.character_graph import CharacterGraph, CharacterType
+from backend.app.engine.rules.mbti import normalize as _normalize_mbti
 from backend.app.engine.cast_lifecycle import CastLifecycleState
 from backend.app.engine.world_calendar import PendingEvent
 from backend.app.engine.social_traits import EvolvingTrait
@@ -101,6 +102,12 @@ class Character:
       catchphrases) injected alongside self_knowledge so each character's
       dialogue is distinguishable from every other character's, independent
       of what they know or believe
+    - mbti: optional four-letter type (e.g. "ENFP"); "" = none. Research-backed
+      or designer-estimated per character. Surfaced to every LLM call that
+      reasons about this character's behavior (dialogue generation, Jev
+      accept/reject verdicts) via `rules/mbti.gloss()` - see
+      `rules/personality.py` for the other consumer (temperament dial
+      defaults).
 
     Runtime state (set at game init / updated during play):
     - emotion: current emotional descriptor ("wary", "cold", "soft")
@@ -130,6 +137,7 @@ class Character:
     # `disposition` shift on the relevant relationship edge, using the same
     # EvolvingTrait primitive an ensemble drama uses for romance arcs.
     tells: List[str] = field(default_factory=list)
+    mbti: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Character":
@@ -145,6 +153,7 @@ class Character:
         self_knowledge = [str(x) for x in (data.get("self_knowledge") or []) if str(x).strip()]
         voice = [str(x) for x in (data.get("voice") or []) if str(x).strip()]
         tells = [str(x) for x in (data.get("tells") or []) if str(x).strip()]
+        mbti = _normalize_mbti(data.get("mbti") or (data.get("personality") or {}).get("type"))
         # Determine character_type: is_main → MAIN; else parse from JSON or default CANONICAL
         if is_main:
             character_type = CharacterType.MAIN
@@ -157,7 +166,7 @@ class Character:
         known_keys = {
             "key", "id", "name", "role", "is_main", "is_suspect", "suspect",
             "knowledge_character_id", "uuid", "tags", "character_type", "self_knowledge",
-            "motive", "goal", "tells", "voice",
+            "motive", "goal", "tells", "voice", "mbti", "personality",
         }
         meta = {k: v for k, v in data.items() if k not in known_keys}
 
@@ -203,6 +212,7 @@ class Character:
             voice=voice,
             goal=goal_trait,
             tells=tells,
+            mbti=mbti,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -219,6 +229,7 @@ class Character:
             "self_knowledge": self.self_knowledge,
             "voice": self.voice,
             "tells": self.tells,
+            "mbti": self.mbti,
             "goal": self.goal.to_dict() if self.goal is not None else None,
             **(self.meta or {}),
         }
@@ -268,6 +279,8 @@ class GameState:
     gender: Optional[str] = None
     turns: int = 0
     over: bool = False
+    # The ending this game reached (rules.endings.Outcome.to_dict()); set once.
+    outcome: Optional[dict] = None
 
     # ==============================================================
     # Time & location
@@ -361,6 +374,17 @@ class GameState:
     # ``opening.welcome_party``; see engine/opening_scene.py). Empty when the
     # story authors none.
     opening_cast: List[str] = field(default_factory=list)
+    # Reserved opening residents enter at authored minutes; only arrived IDs
+    # may appear in public cast views or speak in the scene.
+    opening_arrival_minutes: Dict[str, int] = field(default_factory=dict)
+    opening_arrived_ids: List[str] = field(default_factory=list)
+    opening_arrivals_this_turn: List[str] = field(default_factory=list)
+    opening_ritual_done: bool = False          # the story's one-time group question has been asked
+    opening_ritual_brief: str = ""             # this turn only: the brief for the storyteller (not persisted)
+    # Character & world model (engine/world_model/model.py WorldModel): the
+    # world location index, per-character state, memories, threads and
+    # off-screen life. None = disabled or not built yet (built lazily).
+    world_model: Optional[Any] = None
     world_start_datetime: str = ""
     last_travel_from_id: str = ""
     last_travel_to_id: str = ""

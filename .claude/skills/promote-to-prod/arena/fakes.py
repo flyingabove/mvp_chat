@@ -2,7 +2,7 @@
 """Deterministic fakes for arena tests and offline smoke runs.
 
 Kept in a backend module (not in test files) per
-PYTHON_CODING_STYLE_GUIDE.md: fixture classes live outside tests.
+design/PLATFORM.md (style guide): fixture classes live outside tests.
 
 FakeJevClient sits BELOW JevPairwiseJudge (same `ask(batch, timeout_ms)`
 contract as JevClient), so tests exercise the real judge validation,

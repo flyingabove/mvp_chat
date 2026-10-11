@@ -1,6 +1,6 @@
 # .claude/skills/promote-to-prod/arena/pipeline.py
 """Judge pipeline: arms -> windows -> order-swapped judgments -> votes ->
-episode outcome (JEV_GAME_ARENA_DESIGN.md §5A, §7, §8).
+episode outcome (design/JEV_GAME_ARENA.md §5A, §7, §8).
 
 Order swap: every window is judged twice in SEPARATE requests (beta shown
 as A, then prod shown as A). A dimension vote is resolved only when both

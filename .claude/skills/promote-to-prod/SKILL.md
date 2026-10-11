@@ -6,9 +6,9 @@ user-invocable: true
 
 # /promote-to-prod - evaluate beta against prod, then release
 
-Production is sacred (CLAUDE.md §8). This skill is the only way beta reaches
+Production is sacred (`AGENTS.md` section 4). This skill is the only way beta reaches
 `prod`: the user must have **explicitly** asked for a promotion in this
-conversation. Design: `documentation/model_output_docs/JEV_GAME_ARENA_DESIGN.md` §13-14.
+conversation. Design: `documentation/design/JEV_GAME_ARENA.md` §13-14.
 
 **Everything evaluation-related lives in this folder and runs only on this
 machine** (owner decision 2026-09-24) - it is never deployed and never runs
@@ -27,13 +27,21 @@ ARENA="env PYTHONIOENCODING=utf-8 $PY .claude/skills/promote-to-prod/arena_cli.p
 $PY -m pytest .claude/skills/promote-to-prod/tests -q      # the skill's own tests
 ```
 
+## LLM arena runs: enabled for Gemini + Jev (owner decision 2026-10-01; was off from 2026-09-25)
+
+Every arena command that plays games or calls a judge model (`run`, `judge`, `calibrate`, `all`, `local`,
+`precheck`, `tiered`) still refuses to start unless `ARENA_LLM_ENABLED=1` is set, but you may set it for a run whose players
+and judges are Gemini + Jev (the default: `--provider gemini`; Gemini calls are spread over every free model by
+`backend/app/llm/gemini_router.py`). OpenAI costs money: `--provider openai` also needs `--allow-openai`, which needs the
+owner's approval and a cap. The `ollama` judge and the offline arena also need `OLLAMA_ENABLED=1`.
+
 ## Vocabulary
 
 - **episode** = one complete game: one AI player (persona) plays one scenario
   on one release for a fixed number of player turns (**minimum 10**, enforced).
 - **paired episode** = the same scenario + persona played on beta AND prod;
   its verdict (beta win / prod win / tie / unresolved) is the unit of evidence.
-- **judges**: `jev` (TypeSafe Jev), `llm` (OpenAI gpt-4o-mini), `ollama`
+- **judges**: `jev` (TypeSafe Jev), `llm` (Gemini by default, OpenAI only with `--provider openai --allow-openai`), `ollama`
   (local llama3.1 8B, free, advisory - it never passes a game on its own).
 
 ## Step 0 - Preconditions (stop if any fails)
@@ -50,8 +58,11 @@ $PY -m pytest .claude/skills/promote-to-prod/tests -q      # the skill's own tes
 ## Step 1 - Free offline precheck (Ollama, no cloud calls, ~15 min)
 
 ```bash
-$ARENA precheck --experiment-id promote_${SHA:0:7}_precheck --baseline-ref origin/prod
+OLLAMA_ENABLED=1 $ARENA precheck --experiment-id promote_${SHA:0:7}_precheck --baseline-ref origin/prod
 ```
+
+Ollama is **off by default** (owner decision 2026-10-01, `backend/app/llm/ollama_switch.py`): the offline arena refuses to
+start without `OLLAMA_ENABLED=1`, so set it for this step (and for any `ollama` judge in step 2). Nothing else needs it.
 
 - Serves the checkout and the baseline ref as two local uvicorn servers
   (ports 8811/8812), everything on Ollama (`llama3.1-8b-ctx16k`, created
@@ -129,9 +140,9 @@ fails or smoke fails: tell the user immediately with the output; never
 
 ## Step 5 - Record and report
 
-- `documentation/plans_scratch/TASKS_INTERMEDIATE.md` -> Consumed History:
-  candidate sha, merge sha, precheck + gate experiment ids and verdicts.
-- Anything knowingly deferred -> a file in `documentation/backlog/` (`/add-and-remove-from-backlog`).
+- Put the candidate sha, merge sha, precheck + gate experiment ids and verdicts in the promotion commit message
+  and the report (not in a plan or task file; the plan holds only open work).
+- Anything knowingly deferred -> an entry in `documentation/backlog/` (`/add-and-remove-from-backlog`).
 - Commit + push the docs to beta (normal flow).
 - Tell the user: what shipped, the gate table, prod verification output,
   and the report link/path.

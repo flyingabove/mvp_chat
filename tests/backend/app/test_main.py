@@ -197,7 +197,7 @@ def test_health_endpoint(client):
 
 
 def test_health_endpoint_includes_jev_block(client):
-    """JEV_PROVIDER_ARCHITECTURE_2026_09_22.md §6's exposure requirement:
+    """design/JEV.md (provider architecture) §6's exposure requirement:
     confirming a Jev rollback took effect without reading logs."""
     r = client.get("/api/health")
     assert r.status_code == 200

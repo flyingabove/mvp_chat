@@ -788,6 +788,50 @@ def test_character_identity_section_no_goal_line_when_absent():
     assert "current goal" not in sysmsg
 
 
+# ─── MBTI mechanic: every character carries an optional type + gloss, ───────
+# ─── surfaced in the identity block of every dialogue-generation request. ───
+
+def test_character_identity_section_renders_mbti_type_and_gloss():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    ghost = Character(key="ghost", name="Ghost", role="ghost", mbti="ENTP")
+    st.characters["ghost"] = ghost
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "[Ghost's personality type] ENTP" in sysmsg
+    assert "argumentative and quick-witted" in sysmsg  # the ENTP gloss
+
+
+def test_character_identity_section_no_mbti_line_when_absent():
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {"character_self_knowledge": ["You are a ghost."]}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "personality type" not in sysmsg
+
+
+def test_character_identity_section_appears_for_mbti_alone_with_no_self_knowledge():
+    """A character with no authored self_knowledge but a researched MBTI type
+    still gets an identity block - the type is why the block exists here."""
+    from backend.app.engine import prompt_builder as pb
+
+    st = init_state()
+    st.story_cfg = {}
+    st.characters["ghost"] = Character(key="ghost", name="Ghost", role="ghost", mbti="ISFJ")
+    st.main_character_id = "ghost"
+
+    sysmsg = pb.system_prompt(st)
+    assert "### CHARACTER IDENTITY" in sysmsg
+    assert "[Ghost's personality type] ISFJ" in sysmsg
+
+
 # ─── BL-07: per-character self_knowledge for present non-main characters ─────
 
 def test_character_identity_section_includes_present_non_main_character():
@@ -872,6 +916,21 @@ def test_identity_block_renders_voice_cues_when_present():
     assert "- Never uses contractions." in block
 
 
+def test_identity_block_renders_mbti_line_first_when_present():
+    from backend.app.engine.prompt_builder import _identity_block
+
+    block = _identity_block("Mina", ["You are the first to notice when someone's upset."], mbti="ISFJ")
+    assert "[Mina's personality type] ISFJ — " in block
+    assert block.index("personality type") < block.index("the first to notice")
+
+
+def test_identity_block_unrecognized_mbti_renders_no_line():
+    from backend.app.engine.prompt_builder import _identity_block
+
+    block = _identity_block("Mina", ["entry"], mbti="not-a-type")
+    assert "personality type" not in block
+
+
 def test_identity_block_omits_voice_section_when_absent():
     """No voice cues authored -> byte-identical to pre-voice output, no
     stray 'speech style' section."""
@@ -947,7 +1006,7 @@ def test_character_identity_section_main_character_unconditional_regardless_of_p
 
 
 # ─── Optional `mode` layer (social_sim / ensemble slice-of-life games) ───────
-# See documentation/model_output_docs/SOCIAL_MODE_DESIGN.md for the schema.
+# See documentation/design/SOCIAL_ENGINE.md for the schema.
 
 def test_mode_context_section_absent_when_no_mode_key():
     """Backward compatibility: a story without `mode` gets zero extra content."""
@@ -1023,6 +1082,36 @@ def test_mode_context_section_injected_for_social_sim_story():
     assert "Mornings are rushed." in sysmsg
     # Never react to confessional asides as an NPC.
     assert "never have an NPC" in sysmsg or "react to" in sysmsg
+
+
+def test_terrace_goal_uses_active_gender_eligible_cast_and_rivals():
+    from backend.app.engine import prompt_builder as pb
+    from backend.app.engine.story_loader import load_story
+    from backend.app.api.prompt_engine import _canonicalize_story_cfg
+    cfg = load_story("six_strangers").as_dict()
+    assert _canonicalize_story_cfg(cfg)["characters"][0]["gender"] in ("M", "F")
+    for gender, partner_gender in (("M", "F"), ("F", "M")):
+        st = init_state()
+        st.story_cfg = {**cfg, "characters": [
+            {"key": "candidate", "gender": partner_gender},
+            {"key": "rival", "gender": gender},
+            {"key": "queued", "gender": partner_gender},
+        ]}
+        st.gender = gender
+        st.characters = {
+            "candidate": Character(key="candidate", name="Candidate", role="housemate"),
+            "rival": Character(key="rival", name="Rival", role="housemate"),
+            "queued": Character(key="queued", name="Queued", role="housemate"),
+        }
+        # The renderer must use the active roster, not all authored future entrants.
+        st.cast_lifecycle = type("ActiveCast", (), {
+            "enabled": True, "active_ids": lambda self: ["candidate", "rival"]
+        })()
+        section = pb._mode_context_section(st)
+        assert "Candidate" in section and "Rival" in section
+        assert "Queued" not in section
+        assert "leave the house together" in section
+        assert "mutual" in section.lower()
 
 
 def test_mode_context_section_omitted_confessional_block():

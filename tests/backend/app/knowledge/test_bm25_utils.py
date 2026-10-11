@@ -1,9 +1,7 @@
-
 import pytest
 
 
 def test_tokenize_and_bm25_search(tmp_path):
-    pytest.importorskip("rank_bm25")
     from backend.app.knowledge.build.bm25_utils import build_bm25_index, bm25_search
 
     chunks = [

@@ -3,7 +3,7 @@
 Does not make network calls (no server dependency); exercises
 ScenarioResults.summary() directly, which is the part later phases actually
 read numbers from. The harness's HTTP driving logic is exercised by actually
-running it (see documentation/PHASE_0B_BASELINE_2026_09_22.json for a real
+running it (see PHASE_0B_BASELINE_2026_09_22.json (removed; see git history) for a real
 captured run against live beta), not by mocking httpx here.
 """
 import sys

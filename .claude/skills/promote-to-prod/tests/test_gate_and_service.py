@@ -204,3 +204,64 @@ def test_cli_rejects_games_shorter_than_ten_turns():
 
     with pytest.raises(SystemExit, match="at least 10"):
         main(["all", "--turns", "6"])
+
+
+# --- LLM arena runs are disabled by default (owner decision 2026-09-25) ---
+
+@pytest.mark.parametrize("command", ["all", "run", "judge", "calibrate", "local", "precheck", "tiered"])
+def test_llm_arena_commands_are_disabled_without_the_flag(command, monkeypatch):
+    from arena.cli import main
+
+    monkeypatch.delenv("ARENA_LLM_ENABLED", raising=False)
+    with pytest.raises(SystemExit, match="disabled"):
+        main([command])
+
+
+def test_the_flag_must_be_explicitly_truthy(monkeypatch):
+    from arena.cli import arena_llm_enabled
+
+    for value, expected in (("1", True), ("true", True), ("0", False), ("", False), ("nope", False)):
+        monkeypatch.setenv("ARENA_LLM_ENABLED", value)
+        assert arena_llm_enabled() is expected
+
+
+def test_release_helpers_stay_available_without_the_flag(monkeypatch):
+    from arena.cli import LLM_COMMANDS
+
+    monkeypatch.delenv("ARENA_LLM_ENABLED", raising=False)
+    assert not {"wait-deploy", "smoke", "report"} & LLM_COMMANDS
+
+
+# --- players and the llm judge run on Gemini unless OpenAI is chosen on purpose ---
+
+def _args(*extra):
+    from arena.cli import parser
+    return parser().parse_args(["all", *extra])
+
+
+def test_the_default_players_and_llm_judge_are_gemini(monkeypatch):
+    from arena.cli import llm_endpoints
+    from arena.service import GEMINI_V1
+    monkeypatch.setattr("backend.app.config.credentials.get_gemini_api_key", lambda: "g-key")
+    player, judge = llm_endpoints(_args())
+    assert player.base_url == judge.base_url == GEMINI_V1 and player.api_key == "g-key"
+    assert player.model.startswith("gemini") and judge.model.startswith("gemini")
+    assert llm_endpoints(_args("--player-model", "gemini-3.1-flash-lite"))[0].model == "gemini-3.1-flash-lite"
+
+
+def test_openai_needs_both_flags_and_a_key(monkeypatch):
+    from arena.cli import llm_endpoints
+    with pytest.raises(SystemExit, match="costs money"):
+        llm_endpoints(_args("--provider", "openai"))
+    monkeypatch.setattr("backend.app.config.credentials.get_openai_api_key", lambda: "")
+    with pytest.raises(SystemExit, match="no openai API key"):
+        llm_endpoints(_args("--provider", "openai", "--allow-openai"))
+    monkeypatch.setattr("backend.app.config.credentials.get_openai_api_key", lambda: "sk-x")
+    assert llm_endpoints(_args("--provider", "openai", "--allow-openai"))[0].model == "gpt-4o-mini"
+
+
+def test_a_missing_gemini_key_is_refused_not_silently_replaced(monkeypatch):
+    from arena.cli import llm_endpoints
+    monkeypatch.setattr("backend.app.config.credentials.get_gemini_api_key", lambda: "")
+    with pytest.raises(SystemExit, match="no gemini API key"):
+        llm_endpoints(_args())

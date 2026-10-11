@@ -130,3 +130,27 @@ async def test_answers_without_the_wrapper_object_are_accepted():
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
         result = await LLMDecisionClient(c, base_url="http://x/v1", api_key="k", model="m").ask(batch(), timeout_ms=1000)
     assert result.answers["cmp_canon"].choice == "A"
+
+
+@pytest.mark.asyncio
+async def test_a_gemini_judge_may_be_answered_by_another_gemini_model_but_not_another_family():
+    """Gemini calls are spread over every free Gemini model, so the family is the pin; a different family is a mismatch."""
+    def run(answered_by):
+        def handler(request):
+            body = json.loads(request.content)
+            questions = json.loads(body["messages"][1]["content"].split("QUESTIONS:\n", 1)[1])
+            answers = prefer_side_without("BAD")(questions, body["messages"][1]["content"])
+            return httpx.Response(200, json={"model": answered_by, "usage": {"prompt_tokens": 9000, "completion_tokens": 9},
+                                             "choices": [{"message": {"content": json.dumps({"answers": answers})}}]})
+        return handler
+
+    async def judged(answered_by):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(run(answered_by))) as c:
+            judge = JevPairwiseJudge(LLMDecisionClient(c, base_url="https://x/v1", api_key="k", model="gemini-3.7-flash"),
+                                     DEFAULT_RUBRIC, model="gemini-3.7-flash", backoff_s=0)
+            return await judge_arms(tiny_bundle(), make_arm("beta", REPLIES), make_arm("prod", ["BAD"] + REPLIES[1:]),
+                                    judge, DEFAULT_RUBRIC, 8)
+    ok = await judged("gemini-3.5-flash-lite")
+    assert all(not call.error for call in ok.calls) and {call.model for call in ok.calls} == {"gemini-3.5-flash-lite"}
+    other = await judged("gpt-4o-mini")
+    assert all(call.error.startswith("model_mismatch") for call in other.calls)
