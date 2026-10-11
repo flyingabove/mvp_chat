@@ -151,7 +151,7 @@ def test_a_refused_confession_costs_the_asker_in_proportion_to_romance_intensity
 # ---------------------------------------------------------------- tuning numbers are story data
 def test_tuning_defaults_to_the_engine_numbers_and_refuses_bad_data():
     from backend.app.engine.rules.tracks import DramaTuning, _tuning
-    assert _tuning(None) == DramaTuning(2.0, 2.5, 0.5, 1.0, 0.5)
+    assert _tuning(None) == DramaTuning(2.0, 2.5, 0.5, 1.0, 0.5, 20.0, 20.0)
     assert _tuning({"witness_loss": 4}).witness_loss == 4.0 and _tuning({"witness_loss": 4}).refuser_loss == 2.5
     for bad in ({"witnes_loss": 1}, {"rival_aim": -1}, {"rival_aim": "lots"}, [1]):
         with pytest.raises(ValueError):

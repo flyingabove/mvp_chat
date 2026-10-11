@@ -487,7 +487,21 @@ keep it there; a workplace story with no couples policy has none of these mechan
 
 Rival strength does not make the engaged game harder: the win day does not move, and no rival ever coupled with the target
 first. It does tighten the passive cut (worst case 178 days at 0, 139 at 0.6), so Terrace keeps 0.3 and the lever for
-difficulty is elsewhere (BL-98).
+difficulty is rival pressure (below).
+
+### Rival pressure: rivalry costs the player something (BL-98, as built 2026-10-10)
+
+`world_model/rival_move.py` `apply_rival_pressure`, run once a day from `turn.advance_npc_life` after agendas refresh. For every
+resident pursuing another resident who is not in a couple, the target's standing toward the pursuer rises by
+`tuning.rival_pull x priority` (the track's daily gain cap still applies) and, if the target has a `crush` stance on the player,
+their standing toward the player falls by `tuning.rival_cost x` the strongest rival's priority; both scale with the `rivalry`
+intensity (off removes it). If the target ends up pursuing the pursuer back and both reach the dating tier, `couples_ready` makes
+a couple: that is how a rival wins. `DramaTuning` defaults `rival_pull` 20 and `rival_cost` 20; no gender or story id in the code.
+
+Measured with the sweep above (`rival_aim` 0.3, 12 houses x both genders): the scripted engaged player now wins 22 of 24 (it was
+24 of 24), median day 14 (was 12.5), slowest 26 (was 18); the passive cut comes on days 94 to 117 (median 94; was 117 / 156). At
+cost 40 only 8 of 12 won and one target coupled with a rival first, so 20 is the default: harder, not unwinnable. The golden
+decision record was regenerated for this change (NPC standings now move).
 
 ### Motivated testimony: people with a stake speak in their own interest (BL-83 part 1, as built 2026-10-01)
 

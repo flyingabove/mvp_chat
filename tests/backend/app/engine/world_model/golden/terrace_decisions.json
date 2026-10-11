@@ -82,9 +82,9 @@
     "makoto>mizuki:romance": 3.6,
     "mizuki>makoto:romance": 3.6,
     "mizuki>yuuki_byrnes:romance": 3.6,
-    "yuto>arisa:romance": 3.6,
+    "yuto>arisa:romance": 6.6,
     "yuuki_byrnes>arisa:romance": 8.0,
-    "yuuki_byrnes>mizuki:romance": 3.6
+    "yuuki_byrnes>mizuki:romance": 8.0
    }
   },
   {
@@ -179,10 +179,10 @@
     "mizuki>makoto:romance": 3.6,
     "mizuki>yuto:romance": 8.0,
     "mizuki>yuuki_byrnes:romance": 3.6,
-    "yuto>arisa:romance": 3.6,
+    "yuto>arisa:romance": 9.6,
     "yuto>mizuki:romance": 8.0,
     "yuuki_byrnes>arisa:romance": 8.0,
-    "yuuki_byrnes>mizuki:romance": 3.6
+    "yuuki_byrnes>mizuki:romance": 14.0
    }
   },
   {
@@ -252,10 +252,10 @@
     "mizuki>makoto:romance": 3.6,
     "mizuki>yuto:romance": 8.0,
     "mizuki>yuuki_byrnes:romance": 3.6,
-    "yuto>arisa:romance": 3.6,
+    "yuto>arisa:romance": 12.6,
     "yuto>mizuki:romance": 8.0,
     "yuuki_byrnes>arisa:romance": 11.6,
-    "yuuki_byrnes>mizuki:romance": 3.6
+    "yuuki_byrnes>mizuki:romance": 20.0
    }
   },
   {
@@ -349,10 +349,10 @@
     "mizuki>makoto:romance": 3.6,
     "mizuki>yuto:romance": 11.6,
     "mizuki>yuuki_byrnes:romance": 3.6,
-    "yuto>arisa:romance": 3.6,
+    "yuto>arisa:romance": 15.6,
     "yuto>mizuki:romance": 11.6,
     "yuuki_byrnes>arisa:romance": 11.6,
-    "yuuki_byrnes>mizuki:romance": 3.6
+    "yuuki_byrnes>mizuki:romance": 25.0
    }
   },
   {
@@ -404,10 +404,10 @@
     "mizuki>makoto:romance": 3.6,
     "mizuki>yuto:romance": 17.6,
     "mizuki>yuuki_byrnes:romance": 3.6,
-    "yuto>arisa:romance": 3.6,
+    "yuto>arisa:romance": 18.6,
     "yuto>mizuki:romance": 17.6,
     "yuuki_byrnes>arisa:romance": 11.6,
-    "yuuki_byrnes>mizuki:romance": 3.6
+    "yuuki_byrnes>mizuki:romance": 25.0
    }
   },
   {
@@ -477,10 +477,10 @@
     "mizuki>makoto:romance": 3.6,
     "mizuki>yuto:romance": 17.6,
     "mizuki>yuuki_byrnes:romance": 3.6,
-    "yuto>arisa:romance": 3.6,
+    "yuto>arisa:romance": 21.6,
     "yuto>mizuki:romance": 17.6,
     "yuuki_byrnes>arisa:romance": 11.6,
-    "yuuki_byrnes>mizuki:romance": 3.6
+    "yuuki_byrnes>mizuki:romance": 25.0
    }
   }
  ],
@@ -563,7 +563,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 3.6,
-    "minori>yuto:romance": 3.6,
+    "arisa>yuuki_byrnes:romance": 8.0,
+    "minori>yuto:romance": 7.8,
     "minori>yuuki_byrnes:romance": 6.0,
     "yuto>arisa:romance": 3.6,
     "yuto>minori:romance": 3.6,
@@ -657,7 +658,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 3.6,
-    "minori>yuto:romance": 3.6,
+    "arisa>yuuki_byrnes:romance": 16.0,
+    "minori>yuto:romance": 12.0,
     "minori>yuuki_byrnes:romance": 6.0,
     "natsumi>yuto:romance": 8.0,
     "yuto>arisa:romance": 3.6,
@@ -735,8 +737,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 3.6,
-    "arisa>yuuki_byrnes:romance": 8.0,
-    "minori>yuto:romance": 3.6,
+    "arisa>yuuki_byrnes:romance": 24.0,
+    "minori>yuto:romance": 16.2,
     "minori>yuuki_byrnes:romance": 6.0,
     "natsumi>yuto:romance": 16.0,
     "natsumi>yuuki_byrnes:romance": 3.6,
@@ -840,8 +842,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 7.2,
-    "arisa>yuuki_byrnes:romance": 8.0,
-    "minori>yuto:romance": 9.6,
+    "arisa>yuuki_byrnes:romance": 25.0,
+    "minori>yuto:romance": 24.2,
     "minori>yuuki_byrnes:romance": 6.0,
     "natsumi>yuto:romance": 16.0,
     "natsumi>yuuki_byrnes:romance": 3.6,
@@ -940,8 +942,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 7.2,
-    "arisa>yuuki_byrnes:romance": 8.0,
-    "minori>yuto:romance": 9.6,
+    "arisa>yuuki_byrnes:romance": 25.0,
+    "minori>yuto:romance": 25.0,
     "minori>yuuki_byrnes:romance": 6.0,
     "natsumi>yuto:romance": 16.0,
     "yuto>arisa:romance": 7.2,
@@ -1038,8 +1040,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 7.2,
-    "arisa>yuuki_byrnes:romance": 16.0,
-    "minori>yuto:romance": 9.6,
+    "arisa>yuuki_byrnes:romance": 41.0,
+    "minori>yuto:romance": 25.0,
     "minori>yuuki_byrnes:romance": 9.6,
     "natsumi>yuto:romance": 16.0,
     "natsumi>yuuki_byrnes:romance": 6.0,
@@ -1140,7 +1142,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 3.6,
-    "arman>misaki:romance": 3.6,
+    "arman>misaki:romance": 8.0,
+    "makoto>arisa:romance": 3.0,
     "misaki>arman:romance": 3.6,
     "yuto>arisa:romance": 3.6
    }
@@ -1232,7 +1235,8 @@
    },
    "standings": {
     "arisa>yuto:romance": 3.6,
-    "arman>misaki:romance": 3.6,
+    "arman>misaki:romance": 14.0,
+    "makoto>arisa:romance": 6.0,
     "misaki>arman:romance": 3.6,
     "yuto>arisa:romance": 3.6
    }
@@ -1300,8 +1304,8 @@
     "arisa>makoto:romance": 3.6,
     "arisa>yuto:romance": 3.6,
     "arman>arisa:romance": 3.6,
-    "arman>misaki:romance": 3.6,
-    "makoto>arisa:romance": 3.6,
+    "arman>misaki:romance": 20.0,
+    "makoto>arisa:romance": 12.6,
     "misaki>arman:romance": 3.6,
     "yuto>arisa:romance": 3.6
    }
@@ -1384,8 +1388,8 @@
     "arisa>makoto:romance": 3.6,
     "arisa>yuto:romance": 3.6,
     "arman>arisa:romance": 3.6,
-    "arman>misaki:romance": 3.6,
-    "makoto>arisa:romance": 3.6,
+    "arman>misaki:romance": 25.0,
+    "makoto>arisa:romance": 15.6,
     "misaki>arman:romance": 3.6,
     "yuto>arisa:romance": 3.6
    }
@@ -1435,8 +1439,8 @@
     "arisa>makoto:romance": 3.6,
     "arisa>yuto:romance": 3.6,
     "arman>arisa:romance": 3.6,
-    "arman>misaki:romance": 3.6,
-    "makoto>arisa:romance": 3.6,
+    "arman>misaki:romance": 25.0,
+    "makoto>arisa:romance": 18.6,
     "misaki>arman:romance": 3.6,
     "yuto>arisa:romance": 3.6
    }
@@ -1486,8 +1490,8 @@
     "arisa>makoto:romance": 3.6,
     "arisa>yuto:romance": 3.6,
     "arman>arisa:romance": 9.6,
-    "arman>misaki:romance": 3.6,
-    "makoto>arisa:romance": 3.6,
+    "arman>misaki:romance": 25.0,
+    "makoto>arisa:romance": 21.6,
     "misaki>arman:romance": 3.6,
     "yuto>arisa:romance": 3.6
    }
@@ -1591,6 +1595,8 @@
    },
    "standings": {
     "makoto>riko:romance": 8.0,
+    "masako>arman:romance": 4.2,
+    "masako>makoto:romance": 6.0,
     "riko>makoto:romance": 8.0
    }
   },
@@ -1666,6 +1672,8 @@
     "arisa>arman:romance": 6.0,
     "arman>arisa:romance": 6.0,
     "makoto>riko:romance": 11.6,
+    "masako>arman:romance": 8.4,
+    "masako>makoto:romance": 12.0,
     "riko>makoto:romance": 11.6
    }
   },
@@ -1748,7 +1756,8 @@
     "arman>arisa:romance": 9.6,
     "arman>masako:romance": 3.6,
     "makoto>riko:romance": 11.6,
-    "masako>arman:romance": 3.6,
+    "masako>arman:romance": 16.2,
+    "masako>makoto:romance": 18.0,
     "riko>makoto:romance": 11.6
    }
   },
@@ -1858,7 +1867,8 @@
     "arman>masako:romance": 5.4,
     "arman>riko:romance": 6.0,
     "makoto>riko:romance": 11.6,
-    "masako>arman:romance": 5.4,
+    "masako>arman:romance": 20.6,
+    "masako>makoto:romance": 24.0,
     "riko>arman:romance": 6.0,
     "riko>makoto:romance": 11.6
    }
@@ -1966,7 +1976,8 @@
     "arman>riko:romance": 6.0,
     "makoto>arisa:romance": 8.0,
     "makoto>riko:romance": 11.6,
-    "masako>arman:romance": 9.0,
+    "masako>arman:romance": 25.0,
+    "masako>makoto:romance": 25.0,
     "riko>arman:romance": 6.0,
     "riko>makoto:romance": 11.6
    }
@@ -2075,8 +2086,8 @@
     "makoto>arisa:romance": 11.6,
     "makoto>masako:romance": 8.0,
     "makoto>riko:romance": 11.6,
-    "masako>arman:romance": 9.0,
-    "masako>makoto:romance": 8.0,
+    "masako>arman:romance": 25.0,
+    "masako>makoto:romance": 38.0,
     "riko>arman:romance": 9.6,
     "riko>makoto:romance": 11.6
    }
@@ -2170,8 +2181,9 @@
    },
    "standings": {
     "riko>yuto:romance": 6.0,
+    "uchi>yuriko:romance": 3.0,
     "yuriko>yuto:romance": 8.0,
-    "yuto>riko:romance": 6.0,
+    "yuto>riko:romance": 8.0,
     "yuto>yuriko:romance": 8.0
    }
   },
@@ -2262,7 +2274,8 @@
    },
    "standings": {
     "riko>yuto:romance": 14.0,
-    "yuto>riko:romance": 14.0
+    "uchi>yuriko:romance": 6.0,
+    "yuto>riko:romance": 16.0
    }
   },
   {
@@ -2325,7 +2338,8 @@
    },
    "standings": {
     "riko>yuto:romance": 14.0,
-    "yuto>riko:romance": 14.0
+    "uchi>yuriko:romance": 3.0,
+    "yuto>riko:romance": 20.2
    }
   },
   {
@@ -2422,7 +2436,8 @@
     "riko>uchi:romance": 6.0,
     "riko>yuto:romance": 22.0,
     "uchi>riko:romance": 6.0,
-    "yuto>riko:romance": 22.0
+    "uchi>yuriko:romance": 6.0,
+    "yuto>riko:romance": 25.0
    }
   },
   {
@@ -2515,7 +2530,8 @@
     "riko>yuto:romance": 25.6,
     "riko>yuuki_byrnes:romance": 8.0,
     "uchi>riko:romance": 9.6,
-    "yuto>riko:romance": 25.6,
+    "uchi>yuriko:romance": 9.0,
+    "yuto>riko:romance": 32.8,
     "yuuki_byrnes>riko:romance": 8.0
    }
   },
@@ -2609,7 +2625,8 @@
     "riko>yuto:romance": 25.6,
     "riko>yuuki_byrnes:romance": 8.0,
     "uchi>riko:romance": 15.6,
-    "yuto>riko:romance": 25.6,
+    "uchi>yuriko:romance": 12.0,
+    "yuto>riko:romance": 37.0,
     "yuuki_byrnes>riko:romance": 8.0
    }
   },
@@ -2703,7 +2720,8 @@
     "riko>yuto:romance": 29.2,
     "riko>yuuki_byrnes:romance": 11.6,
     "uchi>riko:romance": 15.6,
-    "yuto>riko:romance": 29.2,
+    "uchi>yuriko:romance": 15.0,
+    "yuto>riko:romance": 44.8,
     "yuuki_byrnes>riko:romance": 11.6
    }
   },
@@ -2790,14 +2808,22 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuto": [
+     [
+      "pursue",
+      "riko",
+      0.46
+     ]
     ]
    },
    "standings": {
     "riko>uchi:romance": 15.6,
-    "riko>yuto:romance": 32.8,
+    "riko>yuto:romance": 40.8,
     "riko>yuuki_byrnes:romance": 15.2,
     "uchi>riko:romance": 15.6,
-    "yuto>riko:romance": 32.8,
+    "uchi>yuriko:romance": 18.0,
+    "yuto>riko:romance": 52.6,
     "yuuki_byrnes>riko:romance": 15.2
    }
   },
@@ -2884,14 +2910,22 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuto": [
+     [
+      "pursue",
+      "riko",
+      0.536
+     ]
     ]
    },
    "standings": {
     "riko>uchi:romance": 19.2,
-    "riko>yuto:romance": 40.8,
+    "riko>yuto:romance": 45.0,
     "riko>yuuki_byrnes:romance": 15.2,
     "uchi>riko:romance": 19.2,
-    "yuto>riko:romance": 40.8,
+    "uchi>yuriko:romance": 21.0,
+    "yuto>riko:romance": 60.0,
     "yuuki_byrnes>riko:romance": 15.2
    }
   },
@@ -2904,7 +2938,12 @@
     "yuto",
     "yuuki_byrnes"
    ],
-   "couples": [],
+   "couples": [
+    [
+     "riko|yuto",
+     10
+    ]
+   ],
    "day": 10,
    "departed": [],
    "director_clock": {},
@@ -2969,7 +3008,7 @@
      [
       "pursue",
       "yuto",
-      0.21
+      0.437
      ]
     ],
     "yuriko": [
@@ -2978,16 +3017,24 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuto": [
+     [
+      "pursue",
+      "riko",
+      0.57
+     ]
     ]
    },
    "standings": {
     "riko>uchi:romance": 19.2,
-    "riko>yuto:romance": 44.4,
+    "riko>yuto:romance": 56.6,
     "riko>yuuki_byrnes:romance": 15.2,
     "uchi>riko:romance": 19.2,
+    "uchi>yuriko:romance": 24.0,
     "yuriko>yuto:romance": 3.6,
     "yuriko>yuuki_byrnes:romance": 3.6,
-    "yuto>riko:romance": 44.4,
+    "yuto>riko:romance": 60.0,
     "yuto>yuriko:romance": 3.6,
     "yuuki_byrnes>riko:romance": 15.2,
     "yuuki_byrnes>yuriko:romance": 3.6
@@ -3002,7 +3049,12 @@
     "yuto",
     "yuuki_byrnes"
    ],
-   "couples": [],
+   "couples": [
+    [
+     "riko|yuto",
+     10
+    ]
+   ],
    "day": 11,
    "departed": [],
    "director_clock": {},
@@ -3067,7 +3119,7 @@
      [
       "pursue",
       "yuto",
-      0.21
+      0.509
      ]
     ],
     "yuriko": [
@@ -3076,16 +3128,24 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuto": [
+     [
+      "pursue",
+      "riko",
+      0.57
+     ]
     ]
    },
    "standings": {
     "riko>uchi:romance": 19.2,
-    "riko>yuto:romance": 44.4,
+    "riko>yuto:romance": 56.6,
     "riko>yuuki_byrnes:romance": 18.8,
     "uchi>riko:romance": 19.2,
+    "uchi>yuriko:romance": 25.0,
     "yuriko>yuto:romance": 3.6,
     "yuriko>yuuki_byrnes:romance": 3.6,
-    "yuto>riko:romance": 44.4,
+    "yuto>riko:romance": 60.0,
     "yuto>yuriko:romance": 3.6,
     "yuuki_byrnes>riko:romance": 18.8,
     "yuuki_byrnes>yuriko:romance": 3.6
@@ -3103,7 +3163,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 12,
@@ -3170,7 +3230,7 @@
      [
       "pursue",
       "yuto",
-      0.472
+      0.581
      ]
     ],
     "yuriko": [
@@ -3184,18 +3244,19 @@
      [
       "pursue",
       "riko",
-      0.498
+      0.646
      ]
     ]
    },
    "standings": {
     "riko>uchi:romance": 19.2,
-    "riko>yuto:romance": 52.4,
+    "riko>yuto:romance": 64.6,
     "riko>yuuki_byrnes:romance": 22.4,
     "uchi>riko:romance": 19.2,
+    "uchi>yuriko:romance": 25.0,
     "yuriko>yuto:romance": 3.6,
     "yuriko>yuuki_byrnes:romance": 3.6,
-    "yuto>riko:romance": 52.4,
+    "yuto>riko:romance": 68.0,
     "yuto>yuriko:romance": 3.6,
     "yuuki_byrnes>riko:romance": 22.4,
     "yuuki_byrnes>yuriko:romance": 3.6
@@ -3213,7 +3274,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 13,
@@ -3280,7 +3341,7 @@
      [
       "pursue",
       "yuto",
-      0.544
+      0.653
      ]
     ],
     "yuriko": [
@@ -3294,18 +3355,19 @@
      [
       "pursue",
       "riko",
-      0.574
+      0.722
      ]
     ]
    },
    "standings": {
     "riko>uchi:romance": 22.8,
-    "riko>yuto:romance": 60.4,
+    "riko>yuto:romance": 72.6,
     "riko>yuuki_byrnes:romance": 22.4,
     "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
     "yuriko>yuto:romance": 3.6,
     "yuriko>yuuki_byrnes:romance": 3.6,
-    "yuto>riko:romance": 60.4,
+    "yuto>riko:romance": 76.0,
     "yuto>yuriko:romance": 3.6,
     "yuuki_byrnes>riko:romance": 22.4,
     "yuuki_byrnes>yuriko:romance": 3.6
@@ -3323,12 +3385,16 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 14,
-   "departed": [],
-   "director_clock": {},
+   "departed": [
+    "riko|yuto"
+   ],
+   "director_clock": {
+    "couples_left": 1
+   },
    "events": [
     [
      "offscreen",
@@ -3390,7 +3456,7 @@
      [
       "pursue",
       "yuto",
-      0.576
+      0.686
      ]
     ],
     "yuriko": [
@@ -3404,18 +3470,19 @@
      [
       "pursue",
       "riko",
-      0.608
+      0.756
      ]
     ]
    },
    "standings": {
     "riko>uchi:romance": 22.8,
-    "riko>yuto:romance": 64.0,
+    "riko>yuto:romance": 76.2,
     "riko>yuuki_byrnes:romance": 10.4,
     "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
     "yuriko>yuto:romance": 3.6,
     "yuriko>yuuki_byrnes:romance": 3.6,
-    "yuto>riko:romance": 64.0,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
     "yuuki_byrnes>riko:romance": 10.4,
     "yuuki_byrnes>yuriko:romance": 3.6
@@ -3424,164 +3491,31 @@
   {
    "agreements": [],
    "cast": [
-    "riko",
+    "makoto",
+    "minori",
     "uchi",
     "yuriko",
-    "yuto",
     "yuuki_byrnes"
    ],
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 15,
-   "departed": [],
-   "director_clock": {},
-   "events": [
-    [
-     "offscreen",
-     "chat",
-     [
-      "riko",
-      "yuto"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "gossip",
-     [
-      "riko",
-      "yuuki_byrnes"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "activity",
-     [
-      "yuto",
-      "yuuki_byrnes"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "chat",
-     [
-      "riko",
-      "uchi"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "gossip",
-     [
-      "uchi",
-      "yuto"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "nothing",
-     [
-      "uchi",
-      "yuuki_byrnes"
-     ],
-     "living_room"
-    ]
+   "departed": [
+    "riko|yuto"
    ],
-   "intentions": {
-    "riko": [
-     [
-      "pursue",
-      "yuto",
-      0.608
-     ]
-    ],
-    "yuriko": [
-     [
-      "pursue",
-      "uchi",
-      0.15
-     ]
-    ],
-    "yuto": [
-     [
-      "pursue",
-      "riko",
-      0.642
-     ]
-    ]
+   "director_clock": {
+    "couples_left": 1
    },
-   "standings": {
-    "riko>uchi:romance": 26.4,
-    "riko>yuto:romance": 67.6,
-    "riko>yuuki_byrnes:romance": 10.4,
-    "uchi>riko:romance": 26.4,
-    "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 3.6,
-    "yuto>riko:romance": 67.6,
-    "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>riko:romance": 10.4,
-    "yuuki_byrnes>yuriko:romance": 3.6
-   }
-  },
-  {
-   "agreements": [],
-   "cast": [
-    "riko",
-    "uchi",
-    "yuriko",
-    "yuto",
-    "yuuki_byrnes"
-   ],
-   "couples": [
-    [
-     "riko|yuto",
-     12
-    ]
-   ],
-   "day": 16,
-   "departed": [],
-   "director_clock": {},
    "events": [
-    [
-     "offscreen",
-     "nothing",
-     [
-      "riko",
-      "uchi"
-     ],
-     "living_room"
-    ],
     [
      "offscreen",
      "gossip",
      [
-      "riko",
-      "yuto"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "affection",
-     [
-      "uchi",
-      "yuto"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "chat",
-     [
-      "riko",
+      "yuriko",
       "yuuki_byrnes"
      ],
      "living_room"
@@ -3590,100 +3524,17 @@
      "offscreen",
      "chat",
      [
-      "uchi",
-      "yuuki_byrnes"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "affection",
-     [
-      "yuto",
-      "yuuki_byrnes"
-     ],
-     "living_room"
-    ]
-   ],
-   "intentions": {
-    "riko": [
-     [
-      "pursue",
-      "yuto",
-      0.608
-     ]
-    ],
-    "yuriko": [
-     [
-      "pursue",
-      "uchi",
-      0.15
-     ]
-    ],
-    "yuto": [
-     [
-      "pursue",
-      "riko",
-      0.642
-     ]
-    ]
-   },
-   "standings": {
-    "riko>uchi:romance": 26.4,
-    "riko>yuto:romance": 67.6,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>riko:romance": 26.4,
-    "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 3.6,
-    "yuto>riko:romance": 67.6,
-    "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 3.6
-   }
-  },
-  {
-   "agreements": [],
-   "cast": [
-    "riko",
-    "uchi",
-    "yuriko",
-    "yuto",
-    "yuuki_byrnes"
-   ],
-   "couples": [
-    [
-     "riko|yuto",
-     12
-    ]
-   ],
-   "day": 17,
-   "departed": [],
-   "director_clock": {},
-   "events": [
-    [
-     "offscreen",
-     "chat",
-     [
-      "riko",
+      "makoto",
       "yuriko"
      ],
      "living_room"
     ],
     [
      "offscreen",
-     "activity",
+     "nothing",
      [
-      "riko",
-      "yuto"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "gossip",
-     [
-      "yuriko",
-      "yuto"
+      "makoto",
+      "yuuki_byrnes"
      ],
      "living_room"
     ],
@@ -3691,36 +3542,43 @@
      "offscreen",
      "nothing",
      [
-      "riko",
-      "yuuki_byrnes"
+      "makoto",
+      "uchi"
      ],
      "living_room"
     ],
     [
      "offscreen",
-     "chat",
+     "plan",
      [
-      "yuriko",
-      "yuuki_byrnes"
+      "uchi",
+      "yuriko"
      ],
      "living_room"
     ],
     [
      "offscreen",
-     "chat",
+     "nothing",
      [
-      "yuto",
+      "uchi",
       "yuuki_byrnes"
      ],
      "living_room"
     ]
    ],
    "intentions": {
+    "minori": [
+     [
+      "pursue",
+      "makoto",
+      0.21
+     ]
+    ],
     "riko": [
      [
       "pursue",
       "yuto",
-      0.662
+      0.686
      ]
     ],
     "yuriko": [
@@ -3734,36 +3592,295 @@
      [
       "pursue",
       "riko",
-      0.699
+      0.756
      ]
     ]
    },
    "standings": {
-    "riko>uchi:romance": 26.4,
-    "riko>yuto:romance": 73.6,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>riko:romance": 26.4,
+    "makoto>minori:romance": 4.2,
+    "makoto>yuriko:romance": 3.6,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 3.6,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 7.2,
-    "yuto>riko:romance": 73.6,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 7.2
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
    "agreements": [],
    "cast": [
-    "riko",
+    "makoto",
+    "minori",
     "uchi",
     "yuriko",
-    "yuto",
     "yuuki_byrnes"
    ],
    "couples": [
     [
      "riko|yuto",
-     12
+     10
+    ]
+   ],
+   "day": 16,
+   "departed": [
+    "riko|yuto"
+   ],
+   "director_clock": {
+    "couples_left": 1
+   },
+   "events": [
+    [
+     "offscreen",
+     "chat",
+     [
+      "makoto",
+      "uchi"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "chat",
+     [
+      "uchi",
+      "yuuki_byrnes"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "nothing",
+     [
+      "minori",
+      "uchi"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "activity",
+     [
+      "minori",
+      "yuuki_byrnes"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "plan",
+     [
+      "makoto",
+      "minori"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "affection",
+     [
+      "makoto",
+      "yuuki_byrnes"
+     ],
+     "living_room"
+    ]
+   ],
+   "intentions": {
+    "minori": [
+     [
+      "pursue",
+      "makoto",
+      0.21
+     ]
+    ],
+    "riko": [
+     [
+      "pursue",
+      "yuto",
+      0.686
+     ]
+    ],
+    "yuriko": [
+     [
+      "pursue",
+      "uchi",
+      0.15
+     ]
+    ],
+    "yuto": [
+     [
+      "pursue",
+      "riko",
+      0.756
+     ]
+    ]
+   },
+   "standings": {
+    "makoto>minori:romance": 8.4,
+    "makoto>yuriko:romance": 3.6,
+    "minori>yuuki_byrnes:romance": 6.0,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 3.6,
+    "yuriko>yuto:romance": 3.6,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
+    "yuto>yuriko:romance": 3.6,
+    "yuuki_byrnes>minori:romance": 6.0,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
+   }
+  },
+  {
+   "agreements": [],
+   "cast": [
+    "makoto",
+    "minori",
+    "uchi",
+    "yuriko",
+    "yuuki_byrnes"
+   ],
+   "couples": [
+    [
+     "riko|yuto",
+     10
+    ]
+   ],
+   "day": 17,
+   "departed": [
+    "riko|yuto"
+   ],
+   "director_clock": {
+    "couples_left": 1
+   },
+   "events": [
+    [
+     "offscreen",
+     "chat",
+     [
+      "minori",
+      "yuriko"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "plan",
+     [
+      "minori",
+      "yuuki_byrnes"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "gossip",
+     [
+      "yuriko",
+      "yuuki_byrnes"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "affection",
+     [
+      "makoto",
+      "minori"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "activity",
+     [
+      "makoto",
+      "yuriko"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "nothing",
+     [
+      "makoto",
+      "yuuki_byrnes"
+     ],
+     "living_room"
+    ]
+   ],
+   "intentions": {
+    "minori": [
+     [
+      "pursue",
+      "makoto",
+      0.21
+     ]
+    ],
+    "riko": [
+     [
+      "pursue",
+      "yuto",
+      0.686
+     ]
+    ],
+    "yuriko": [
+     [
+      "pursue",
+      "uchi",
+      0.15
+     ]
+    ],
+    "yuto": [
+     [
+      "pursue",
+      "riko",
+      0.756
+     ]
+    ]
+   },
+   "standings": {
+    "makoto>minori:romance": 16.4,
+    "makoto>yuriko:romance": 9.6,
+    "minori>makoto:romance": 8.0,
+    "minori>yuuki_byrnes:romance": 6.0,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 9.6,
+    "yuriko>yuto:romance": 3.6,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
+    "yuto>yuriko:romance": 3.6,
+    "yuuki_byrnes>minori:romance": 6.0,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
+   }
+  },
+  {
+   "agreements": [],
+   "cast": [
+    "makoto",
+    "minori",
+    "uchi",
+    "yuriko",
+    "yuuki_byrnes"
+   ],
+   "couples": [
+    [
+     "riko|yuto",
+     10
     ]
    ],
    "day": 18,
@@ -3776,18 +3893,9 @@
    "events": [
     [
      "offscreen",
-     "gossip",
-     [
-      "yuriko",
-      "yuto"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
      "chat",
      [
-      "riko",
+      "minori",
       "yuriko"
      ],
      "living_room"
@@ -3796,26 +3904,17 @@
      "offscreen",
      "chat",
      [
-      "riko",
-      "yuto"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "nothing",
-     [
-      "riko",
+      "minori",
       "yuuki_byrnes"
      ],
      "living_room"
     ],
     [
      "offscreen",
-     "gossip",
+     "conflict",
      [
-      "yuto",
-      "yuuki_byrnes"
+      "makoto",
+      "minori"
      ],
      "living_room"
     ],
@@ -3823,18 +3922,36 @@
      "offscreen",
      "activity",
      [
-      "riko",
+      "makoto",
+      "yuuki_byrnes"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "chat",
+     [
+      "minori",
       "uchi"
+     ],
+     "living_room"
+    ],
+    [
+     "offscreen",
+     "nothing",
+     [
+      "uchi",
+      "yuuki_byrnes"
      ],
      "living_room"
     ]
    ],
    "intentions": {
-    "riko": [
+    "minori": [
      [
       "pursue",
-      "yuto",
-      0.695
+      "makoto",
+      0.21
      ]
     ],
     "yuriko": [
@@ -3843,26 +3960,27 @@
       "uchi",
       0.15
      ]
-    ],
-    "yuto": [
-     [
-      "pursue",
-      "riko",
-      0.733
-     ]
     ]
    },
    "standings": {
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>riko:romance": 32.4,
+    "makoto>minori:romance": 8.6,
+    "makoto>yuriko:romance": 9.6,
+    "minori>uchi:romance": 3.6,
+    "minori>yuuki_byrnes:romance": 9.6,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 3.6,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 9.6,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 7.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 7.2
+    "yuuki_byrnes>minori:romance": 9.6,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -3877,7 +3995,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 19,
@@ -3890,36 +4008,27 @@
    "events": [
     [
      "offscreen",
-     "affection",
+     "gossip",
      [
       "makoto",
       "minori"
      ],
-     "front_entry"
+     "living_room"
     ],
     [
      "offscreen",
-     "affection",
+     "chat",
      [
-      "uchi",
-      "yuriko"
+      "makoto",
+      "uchi"
      ],
      "living_room"
     ],
     [
      "offscreen",
-     "nothing",
+     "chat",
      [
-      "uchi",
-      "yuuki_byrnes"
-     ],
-     "living_room"
-    ],
-    [
-     "offscreen",
-     "affection",
-     [
-      "yuriko",
+      "makoto",
       "yuuki_byrnes"
      ],
      "living_room"
@@ -3941,6 +4050,15 @@
       "yuuki_byrnes"
      ],
      "living_room"
+    ],
+    [
+     "offscreen",
+     "nothing",
+     [
+      "uchi",
+      "yuuki_byrnes"
+     ],
+     "living_room"
     ]
    ],
    "intentions": {
@@ -3951,47 +4069,33 @@
       0.21
      ]
     ],
-    "riko": [
-     [
-      "pursue",
-      "yuto",
-      0.695
-     ]
-    ],
     "yuriko": [
      [
       "pursue",
       "uchi",
       0.15
      ]
-    ],
-    "yuto": [
-     [
-      "pursue",
-      "riko",
-      0.733
-     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 8.0,
-    "minori>makoto:romance": 8.0,
-    "minori>uchi:romance": 3.6,
-    "minori>yuuki_byrnes:romance": 8.0,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 3.6,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 12.8,
+    "makoto>yuriko:romance": 9.6,
+    "minori>uchi:romance": 7.2,
+    "minori>yuuki_byrnes:romance": 17.6,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 7.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 9.6,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 15.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 8.0,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 15.2
+    "yuuki_byrnes>minori:romance": 17.6,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4006,7 +4110,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 20,
@@ -4019,7 +4123,7 @@
    "events": [
     [
      "offscreen",
-     "chat",
+     "activity",
      [
       "makoto",
       "minori"
@@ -4080,47 +4184,34 @@
       0.21
      ]
     ],
-    "riko": [
-     [
-      "pursue",
-      "yuto",
-      0.695
-     ]
-    ],
     "yuriko": [
      [
       "pursue",
       "uchi",
       0.15
      ]
-    ],
-    "yuto": [
-     [
-      "pursue",
-      "riko",
-      0.733
-     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 11.6,
-    "minori>makoto:romance": 11.6,
-    "minori>uchi:romance": 8.0,
-    "minori>yuuki_byrnes:romance": 8.0,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 8.0,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 20.8,
+    "makoto>yuriko:romance": 9.6,
+    "minori>makoto:romance": 6.0,
+    "minori>uchi:romance": 13.2,
+    "minori>yuuki_byrnes:romance": 23.6,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 13.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 9.6,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 15.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 8.0,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 15.2
+    "yuuki_byrnes>minori:romance": 23.6,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4135,7 +4226,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 21,
@@ -4209,47 +4300,34 @@
       0.21
      ]
     ],
-    "riko": [
-     [
-      "pursue",
-      "yuto",
-      0.695
-     ]
-    ],
     "yuriko": [
      [
       "pursue",
       "uchi",
       0.15
      ]
-    ],
-    "yuto": [
-     [
-      "pursue",
-      "riko",
-      0.733
-     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 15.2,
-    "minori>makoto:romance": 15.2,
-    "minori>uchi:romance": 8.0,
-    "minori>yuuki_byrnes:romance": 16.0,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 8.0,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 25.0,
+    "makoto>yuriko:romance": 9.6,
+    "minori>makoto:romance": 9.6,
+    "minori>uchi:romance": 13.2,
+    "minori>yuuki_byrnes:romance": 31.6,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 13.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 9.6,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 15.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 16.0,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 15.2
+    "yuuki_byrnes>minori:romance": 31.6,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4264,7 +4342,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 22,
@@ -4347,24 +4425,25 @@
     ]
    },
    "standings": {
-    "makoto>minori:romance": 23.2,
-    "minori>makoto:romance": 23.2,
-    "minori>uchi:romance": 8.0,
-    "minori>yuuki_byrnes:romance": 19.6,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 8.0,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 36.6,
+    "makoto>yuriko:romance": 9.6,
+    "minori>makoto:romance": 17.6,
+    "minori>uchi:romance": 13.2,
+    "minori>yuuki_byrnes:romance": 35.2,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 13.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 9.6,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 15.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 19.6,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 15.2
+    "yuuki_byrnes>minori:romance": 35.2,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4379,7 +4458,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 23,
@@ -4462,24 +4541,25 @@
     ]
    },
    "standings": {
-    "makoto>minori:romance": 23.2,
-    "minori>makoto:romance": 23.2,
-    "minori>uchi:romance": 8.0,
-    "minori>yuuki_byrnes:romance": 23.2,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 8.0,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 40.8,
+    "makoto>yuriko:romance": 9.6,
+    "minori>makoto:romance": 17.6,
+    "minori>uchi:romance": 13.2,
+    "minori>yuuki_byrnes:romance": 38.8,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 13.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 9.6,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 15.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 23.2,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 15.2
+    "yuuki_byrnes>minori:romance": 38.8,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4494,7 +4574,7 @@
    "couples": [
     [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 24,
@@ -4534,7 +4614,7 @@
     ],
     [
      "offscreen",
-     "affection",
+     "plan",
      [
       "yuriko",
       "yuuki_byrnes"
@@ -4577,26 +4657,25 @@
     ]
    },
    "standings": {
-    "makoto>minori:romance": 23.2,
-    "makoto>yuriko:romance": 3.6,
-    "minori>makoto:romance": 23.2,
-    "minori>uchi:romance": 8.0,
-    "minori>yuuki_byrnes:romance": 26.8,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 8.0,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>makoto:romance": 3.6,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 45.0,
+    "makoto>yuriko:romance": 13.2,
+    "minori>makoto:romance": 17.6,
+    "minori>uchi:romance": 13.2,
+    "minori>yuuki_byrnes:romance": 42.4,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 13.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 13.2,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 23.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 26.8,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 23.2
+    "yuuki_byrnes>minori:romance": 42.4,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4610,8 +4689,12 @@
    ],
    "couples": [
     [
+     "minori|yuuki_byrnes",
+     25
+    ],
+    [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 25,
@@ -4683,6 +4766,11 @@
       "pursue",
       "makoto",
       0.21
+     ],
+     [
+      "pursue",
+      "yuuki_byrnes",
+      0.472
      ]
     ],
     "yuriko": [
@@ -4691,29 +4779,35 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuuki_byrnes": [
+     [
+      "pursue",
+      "minori",
+      0.518
+     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 23.2,
-    "makoto>yuriko:romance": 3.6,
-    "minori>makoto:romance": 23.2,
-    "minori>uchi:romance": 14.0,
-    "minori>yuuki_byrnes:romance": 30.4,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 14.0,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>makoto:romance": 3.6,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 45.0,
+    "makoto>yuriko:romance": 13.2,
+    "minori>makoto:romance": 17.6,
+    "minori>uchi:romance": 19.2,
+    "minori>yuuki_byrnes:romance": 54.0,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 19.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 13.2,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 23.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 30.4,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 23.2
+    "yuuki_byrnes>minori:romance": 54.0,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4727,8 +4821,12 @@
    ],
    "couples": [
     [
+     "minori|yuuki_byrnes",
+     25
+    ],
+    [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 26,
@@ -4777,7 +4875,7 @@
     ],
     [
      "offscreen",
-     "conflict",
+     "affection",
      [
       "minori",
       "yuuki_byrnes"
@@ -4795,11 +4893,23 @@
     ]
    ],
    "intentions": {
+    "makoto": [
+     [
+      "compete_for",
+      "minori",
+      0.55
+     ],
+     [
+      "pursue",
+      "minori",
+      0.45
+     ]
+    ],
     "minori": [
      [
       "pursue",
-      "makoto",
-      0.21
+      "yuuki_byrnes",
+      0.553
      ]
     ],
     "yuriko": [
@@ -4808,29 +4918,40 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuuki_byrnes": [
+     [
+      "compete_for",
+      "minori",
+      0.708
+     ],
+     [
+      "pursue",
+      "minori",
+      0.608
+     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 26.8,
-    "makoto>yuriko:romance": 3.6,
-    "minori>makoto:romance": 26.8,
-    "minori>uchi:romance": 22.0,
-    "minori>yuuki_byrnes:romance": 18.4,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 22.0,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>makoto:romance": 3.6,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 48.6,
+    "makoto>yuriko:romance": 13.2,
+    "minori>makoto:romance": 21.2,
+    "minori>uchi:romance": 27.2,
+    "minori>yuuki_byrnes:romance": 54.0,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 27.2,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 13.2,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 23.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 18.4,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 23.2
+    "yuuki_byrnes>minori:romance": 54.0,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4844,8 +4965,12 @@
    ],
    "couples": [
     [
+     "minori|yuuki_byrnes",
+     25
+    ],
+    [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 27,
@@ -4867,7 +4992,7 @@
     ],
     [
      "offscreen",
-     "nothing",
+     "chat",
      [
       "minori",
       "yuuki_byrnes"
@@ -4912,11 +5037,23 @@
     ]
    ],
    "intentions": {
+    "makoto": [
+     [
+      "compete_for",
+      "minori",
+      0.55
+     ],
+     [
+      "pursue",
+      "minori",
+      0.45
+     ]
+    ],
     "minori": [
      [
       "pursue",
-      "makoto",
-      0.21
+      "yuuki_byrnes",
+      0.59
      ]
     ],
     "yuriko": [
@@ -4925,29 +5062,40 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuuki_byrnes": [
+     [
+      "compete_for",
+      "minori",
+      0.748
+     ],
+     [
+      "pursue",
+      "minori",
+      0.648
+     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 26.8,
-    "makoto>yuriko:romance": 3.6,
-    "minori>makoto:romance": 26.8,
-    "minori>uchi:romance": 25.6,
-    "minori>yuuki_byrnes:romance": 18.4,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 25.6,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>makoto:romance": 3.6,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 48.6,
+    "makoto>yuriko:romance": 13.2,
+    "minori>makoto:romance": 21.2,
+    "minori>uchi:romance": 30.8,
+    "minori>yuuki_byrnes:romance": 57.6,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 30.8,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 13.2,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 23.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 18.4,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 23.2
+    "yuuki_byrnes>minori:romance": 57.6,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -4961,8 +5109,12 @@
    ],
    "couples": [
     [
+     "minori|yuuki_byrnes",
+     25
+    ],
+    [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 28,
@@ -5029,11 +5181,23 @@
     ]
    ],
    "intentions": {
+    "makoto": [
+     [
+      "compete_for",
+      "minori",
+      0.624
+     ],
+     [
+      "pursue",
+      "minori",
+      0.524
+     ]
+    ],
     "minori": [
      [
       "pursue",
-      "makoto",
-      0.21
+      "yuuki_byrnes",
+      0.627
      ]
     ],
     "yuriko": [
@@ -5042,29 +5206,40 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuuki_byrnes": [
+     [
+      "compete_for",
+      "minori",
+      0.789
+     ],
+     [
+      "pursue",
+      "minori",
+      0.689
+     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 34.8,
-    "makoto>yuriko:romance": 3.6,
-    "minori>makoto:romance": 34.8,
-    "minori>uchi:romance": 25.6,
-    "minori>yuuki_byrnes:romance": 22.0,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 25.6,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>makoto:romance": 3.6,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 56.6,
+    "makoto>yuriko:romance": 13.2,
+    "minori>makoto:romance": 29.2,
+    "minori>uchi:romance": 30.8,
+    "minori>yuuki_byrnes:romance": 61.2,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 30.8,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 13.2,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 23.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 22.0,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 23.2
+    "yuuki_byrnes>minori:romance": 61.2,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -5078,8 +5253,12 @@
    ],
    "couples": [
     [
+     "minori|yuuki_byrnes",
+     25
+    ],
+    [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 29,
@@ -5101,7 +5280,7 @@
     ],
     [
      "offscreen",
-     "conflict",
+     "affection",
      [
       "makoto",
       "minori"
@@ -5119,7 +5298,7 @@
     ],
     [
      "offscreen",
-     "nothing",
+     "chat",
      [
       "makoto",
       "uchi"
@@ -5146,11 +5325,23 @@
     ]
    ],
    "intentions": {
+    "makoto": [
+     [
+      "compete_for",
+      "minori",
+      0.655
+     ],
+     [
+      "pursue",
+      "minori",
+      0.555
+     ]
+    ],
     "minori": [
      [
       "pursue",
-      "makoto",
-      0.21
+      "yuuki_byrnes",
+      0.664
      ]
     ],
     "yuriko": [
@@ -5159,29 +5350,40 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuuki_byrnes": [
+     [
+      "compete_for",
+      "minori",
+      0.829
+     ],
+     [
+      "pursue",
+      "minori",
+      0.729
+     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 22.8,
-    "makoto>yuriko:romance": 3.6,
-    "minori>makoto:romance": 22.8,
-    "minori>uchi:romance": 25.6,
-    "minori>yuuki_byrnes:romance": 25.6,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 25.6,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>makoto:romance": 3.6,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 60.0,
+    "makoto>yuriko:romance": 13.2,
+    "minori>makoto:romance": 37.2,
+    "minori>uchi:romance": 30.8,
+    "minori>yuuki_byrnes:romance": 64.8,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 30.8,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 13.2,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 23.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 25.6,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 23.2
+    "yuuki_byrnes>minori:romance": 64.8,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   },
   {
@@ -5195,8 +5397,12 @@
    ],
    "couples": [
     [
+     "minori|yuuki_byrnes",
+     25
+    ],
+    [
      "riko|yuto",
-     12
+     10
     ]
    ],
    "day": 30,
@@ -5263,11 +5469,23 @@
     ]
    ],
    "intentions": {
+    "makoto": [
+     [
+      "compete_for",
+      "minori",
+      0.655
+     ],
+     [
+      "pursue",
+      "minori",
+      0.555
+     ]
+    ],
     "minori": [
      [
       "pursue",
-      "makoto",
-      0.21
+      "yuuki_byrnes",
+      0.664
      ]
     ],
     "yuriko": [
@@ -5276,29 +5494,40 @@
       "uchi",
       0.15
      ]
+    ],
+    "yuuki_byrnes": [
+     [
+      "compete_for",
+      "minori",
+      0.829
+     ],
+     [
+      "pursue",
+      "minori",
+      0.729
+     ]
     ]
    },
    "standings": {
-    "makoto>minori:romance": 30.8,
-    "makoto>yuriko:romance": 3.6,
-    "minori>makoto:romance": 30.8,
-    "minori>uchi:romance": 31.6,
-    "minori>yuuki_byrnes:romance": 25.6,
-    "riko>uchi:romance": 32.4,
-    "riko>yuto:romance": 77.2,
-    "riko>yuuki_byrnes:romance": 14.0,
-    "uchi>minori:romance": 31.6,
-    "uchi>riko:romance": 32.4,
-    "uchi>yuriko:romance": 8.0,
-    "yuriko>makoto:romance": 3.6,
-    "yuriko>uchi:romance": 8.0,
+    "makoto>minori:romance": 60.0,
+    "makoto>yuriko:romance": 13.2,
+    "minori>makoto:romance": 45.2,
+    "minori>uchi:romance": 36.8,
+    "minori>yuuki_byrnes:romance": 64.8,
+    "riko>uchi:romance": 22.8,
+    "riko>yuto:romance": 76.2,
+    "riko>yuuki_byrnes:romance": 10.4,
+    "uchi>minori:romance": 36.8,
+    "uchi>riko:romance": 22.8,
+    "uchi>yuriko:romance": 25.0,
+    "yuriko>makoto:romance": 13.2,
     "yuriko>yuto:romance": 3.6,
-    "yuriko>yuuki_byrnes:romance": 23.2,
-    "yuto>riko:romance": 77.2,
+    "yuriko>yuuki_byrnes:romance": 3.6,
+    "yuto>riko:romance": 79.6,
     "yuto>yuriko:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 25.6,
-    "yuuki_byrnes>riko:romance": 14.0,
-    "yuuki_byrnes>yuriko:romance": 23.2
+    "yuuki_byrnes>minori:romance": 64.8,
+    "yuuki_byrnes>riko:romance": 10.4,
+    "yuuki_byrnes>yuriko:romance": 3.6
    }
   }
  ],
@@ -5388,7 +5617,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "misaki>yuuki_byrnes:romance": 8.0,
+    "riko>yuto:romance": 4.2
+   }
   },
   {
    "agreements": [],
@@ -5476,7 +5708,8 @@
     ]
    },
    "standings": {
-    "riko>yuto:romance": 8.0,
+    "misaki>yuuki_byrnes:romance": 16.0,
+    "riko>yuto:romance": 12.2,
     "yuto>riko:romance": 8.0
    }
   },
@@ -5521,7 +5754,8 @@
     ]
    },
    "standings": {
-    "riko>yuto:romance": 8.0,
+    "misaki>yuuki_byrnes:romance": 24.0,
+    "riko>yuto:romance": 16.4,
     "yuto>riko:romance": 8.0
    }
   },
@@ -5612,7 +5846,9 @@
     ]
    },
    "standings": {
-    "riko>yuto:romance": 11.6,
+    "misaki>yuto:romance": 7.0,
+    "misaki>yuuki_byrnes:romance": 25.0,
+    "riko>yuto:romance": 24.2,
     "yuto>riko:romance": 11.6
    }
   },
@@ -5690,7 +5926,9 @@
     ]
    },
    "standings": {
-    "riko>yuto:romance": 17.6,
+    "misaki>yuto:romance": 14.0,
+    "misaki>yuuki_byrnes:romance": 25.0,
+    "riko>yuto:romance": 32.2,
     "yuriko>yuto:romance": 3.6,
     "yuto>riko:romance": 17.6,
     "yuto>yuriko:romance": 3.6
@@ -5761,7 +5999,9 @@
     ]
    },
    "standings": {
-    "riko>yuto:romance": 17.6,
+    "misaki>yuto:romance": 21.0,
+    "misaki>yuuki_byrnes:romance": 25.0,
+    "riko>yuto:romance": 36.4,
     "yuriko>yuto:romance": 3.6,
     "yuto>riko:romance": 17.6,
     "yuto>yuriko:romance": 3.6
@@ -5870,7 +6110,8 @@
     "masako>arman:romance": 6.0,
     "masako>uchi:romance": 8.0,
     "mizuki>arman:romance": 3.6,
-    "uchi>masako:romance": 8.0
+    "uchi>masako:romance": 8.0,
+    "uchi>mizuki:romance": 6.0
    }
   },
   {
@@ -5947,7 +6188,8 @@
     "masako>arman:romance": 6.0,
     "masako>uchi:romance": 8.0,
     "mizuki>arman:romance": 3.6,
-    "uchi>masako:romance": 8.0
+    "uchi>masako:romance": 12.2,
+    "uchi>mizuki:romance": 12.0
    }
   },
   {
@@ -6024,7 +6266,8 @@
     "masako>arman:romance": 12.0,
     "masako>uchi:romance": 8.0,
     "mizuki>arman:romance": 3.6,
-    "uchi>masako:romance": 8.0
+    "uchi>masako:romance": 16.4,
+    "uchi>mizuki:romance": 18.0
    }
   },
   {
@@ -6132,12 +6375,13 @@
     ]
    },
    "standings": {
-    "arman>masako:romance": 12.0,
+    "arman>masako:romance": 19.0,
     "arman>mizuki:romance": 7.2,
     "masako>arman:romance": 12.0,
     "masako>uchi:romance": 8.0,
     "mizuki>arman:romance": 7.2,
-    "uchi>masako:romance": 8.0
+    "uchi>masako:romance": 20.6,
+    "uchi>mizuki:romance": 24.0
    }
   },
   {
@@ -6214,12 +6458,13 @@
     ]
    },
    "standings": {
-    "arman>masako:romance": 15.6,
+    "arman>masako:romance": 25.0,
     "arman>mizuki:romance": 7.2,
     "masako>arman:romance": 15.6,
     "masako>uchi:romance": 8.0,
     "mizuki>arman:romance": 7.2,
-    "uchi>masako:romance": 8.0
+    "uchi>masako:romance": 24.8,
+    "uchi>mizuki:romance": 25.0
    }
   },
   {
@@ -6323,12 +6568,13 @@
     ]
    },
    "standings": {
-    "arman>masako:romance": 19.2,
+    "arman>masako:romance": 33.0,
     "arman>mizuki:romance": 10.8,
     "masako>arman:romance": 19.2,
     "masako>uchi:romance": 8.0,
     "mizuki>arman:romance": 10.8,
-    "uchi>masako:romance": 8.0
+    "uchi>masako:romance": 25.0,
+    "uchi>mizuki:romance": 25.0
    }
   }
  ],
@@ -6419,7 +6665,9 @@
     ]
    },
    "standings": {
+    "arisa>hikaru:romance": 6.0,
     "hikaru>mizuki:romance": 6.0,
+    "masako>uchi:romance": 4.2,
     "mizuki>hikaru:romance": 6.0
    }
   },
@@ -6491,9 +6739,10 @@
     ]
    },
    "standings": {
-    "arisa>hikaru:romance": 3.6,
+    "arisa>hikaru:romance": 14.0,
     "hikaru>arisa:romance": 3.6,
     "hikaru>mizuki:romance": 6.0,
+    "masako>uchi:romance": 8.4,
     "mizuki>hikaru:romance": 6.0
    }
   },
@@ -6556,10 +6805,11 @@
     ]
    },
    "standings": {
-    "arisa>hikaru:romance": 3.6,
+    "arisa>hikaru:romance": 20.0,
     "arisa>uchi:romance": 3.6,
     "hikaru>arisa:romance": 3.6,
     "hikaru>mizuki:romance": 6.0,
+    "masako>uchi:romance": 12.6,
     "mizuki>hikaru:romance": 6.0,
     "uchi>arisa:romance": 3.6
    }
@@ -6655,10 +6905,11 @@
     ]
    },
    "standings": {
-    "arisa>hikaru:romance": 7.2,
+    "arisa>hikaru:romance": 25.0,
     "arisa>uchi:romance": 3.6,
     "hikaru>arisa:romance": 7.2,
     "hikaru>mizuki:romance": 14.0,
+    "masako>uchi:romance": 16.8,
     "mizuki>hikaru:romance": 14.0,
     "uchi>arisa:romance": 3.6
    }
@@ -6749,10 +7000,11 @@
     ]
    },
    "standings": {
-    "arisa>hikaru:romance": 7.2,
+    "arisa>hikaru:romance": 25.0,
     "arisa>uchi:romance": 7.2,
     "hikaru>arisa:romance": 7.2,
     "hikaru>mizuki:romance": 14.0,
+    "masako>uchi:romance": 21.0,
     "mizuki>hikaru:romance": 14.0,
     "uchi>arisa:romance": 7.2
    }
@@ -6843,12 +7095,13 @@
     ]
    },
    "standings": {
-    "arisa>hikaru:romance": 7.2,
+    "arisa>hikaru:romance": 25.0,
     "arisa>uchi:romance": 7.2,
     "hikaru>arisa:romance": 7.2,
     "hikaru>masako:romance": 3.6,
     "hikaru>mizuki:romance": 14.0,
     "masako>hikaru:romance": 3.6,
+    "masako>uchi:romance": 25.0,
     "mizuki>hikaru:romance": 14.0,
     "uchi>arisa:romance": 7.2
    }
@@ -6926,7 +7179,8 @@
     "arman>minori:romance": 8.0,
     "minori>arman:romance": 8.0,
     "minori>yuto:romance": 3.6,
-    "yuto>minori:romance": 3.6
+    "yuto>minori:romance": 3.6,
+    "yuto>momoka:romance": 3.0
    }
   },
   {
@@ -7015,12 +7269,13 @@
     ]
    },
    "standings": {
-    "arman>minori:romance": 8.0,
+    "arman>minori:romance": 12.2,
     "minori>arman:romance": 8.0,
     "minori>yuto:romance": 3.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "momoka>yuuki_byrnes:romance": 8.0,
     "yuto>minori:romance": 3.6,
+    "yuto>momoka:romance": 6.0,
     "yuuki_byrnes>minori:romance": 3.6,
     "yuuki_byrnes>momoka:romance": 8.0
    }
@@ -7093,7 +7348,7 @@
     ]
    },
    "standings": {
-    "arman>minori:romance": 8.0,
+    "arman>minori:romance": 16.4,
     "arman>momoka:romance": 3.6,
     "minori>arman:romance": 8.0,
     "minori>yuto:romance": 3.6,
@@ -7101,6 +7356,7 @@
     "momoka>arman:romance": 3.6,
     "momoka>yuuki_byrnes:romance": 8.0,
     "yuto>minori:romance": 3.6,
+    "yuto>momoka:romance": 9.0,
     "yuuki_byrnes>minori:romance": 3.6,
     "yuuki_byrnes>momoka:romance": 8.0
    }
@@ -7238,13 +7494,14 @@
     ]
    },
    "standings": {
-    "arman>minori:romance": 8.0,
-    "arman>momoka:romance": 9.6,
+    "arman>minori:romance": 23.4,
+    "arman>momoka:romance": 11.6,
     "minori>arman:romance": 8.0,
     "minori>yuto:romance": 11.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "momoka>arman:romance": 9.6,
     "yuto>minori:romance": 11.6,
+    "yuto>momoka:romance": 12.0,
     "yuuki_byrnes>minori:romance": 3.6
    }
   },
@@ -7349,13 +7606,14 @@
     ]
    },
    "standings": {
-    "arman>minori:romance": 14.0,
-    "arman>momoka:romance": 9.6,
+    "arman>minori:romance": 31.4,
+    "arman>momoka:romance": 16.6,
     "minori>arman:romance": 14.0,
     "minori>yuto:romance": 17.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "momoka>arman:romance": 9.6,
     "yuto>minori:romance": 17.6,
+    "yuto>momoka:romance": 3.0,
     "yuuki_byrnes>minori:romance": 3.6
    }
   },
@@ -7433,13 +7691,14 @@
     ]
    },
    "standings": {
-    "arman>minori:romance": 14.0,
-    "arman>momoka:romance": 9.6,
+    "arman>minori:romance": 38.4,
+    "arman>momoka:romance": 21.6,
     "minori>arman:romance": 14.0,
     "minori>yuto:romance": 17.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "momoka>arman:romance": 9.6,
     "yuto>minori:romance": 17.6,
+    "yuto>momoka:romance": 6.0,
     "yuuki_byrnes>minori:romance": 3.6
    }
   }
@@ -7525,6 +7784,8 @@
     "arman>masako:romance": 6.0,
     "arman>natsumi:romance": 3.6,
     "masako>arman:romance": 6.0,
+    "masako>yuuki_byrnes:romance": 8.0,
+    "momoka>arman:romance": 4.2,
     "natsumi>arman:romance": 3.6,
     "natsumi>yuuki_byrnes:romance": 6.0,
     "yuuki_byrnes>natsumi:romance": 6.0
@@ -7620,7 +7881,8 @@
     "arman>momoka:romance": 8.0,
     "arman>natsumi:romance": 3.6,
     "masako>arman:romance": 6.0,
-    "momoka>arman:romance": 8.0,
+    "masako>yuuki_byrnes:romance": 16.0,
+    "momoka>arman:romance": 12.2,
     "momoka>yuuki_byrnes:romance": 8.0,
     "natsumi>arman:romance": 3.6,
     "natsumi>yuuki_byrnes:romance": 14.0,
@@ -7718,7 +7980,8 @@
     "arman>momoka:romance": 8.0,
     "arman>natsumi:romance": 3.6,
     "masako>arman:romance": 6.0,
-    "momoka>arman:romance": 8.0,
+    "masako>yuuki_byrnes:romance": 24.0,
+    "momoka>arman:romance": 16.4,
     "momoka>yuuki_byrnes:romance": 8.0,
     "natsumi>arman:romance": 3.6,
     "natsumi>yuuki_byrnes:romance": 17.6,
@@ -7869,8 +8132,9 @@
     "arman>masako:romance": 6.0,
     "arman>momoka:romance": 14.0,
     "arman>natsumi:romance": 7.2,
-    "masako>arman:romance": 6.0,
-    "momoka>arman:romance": 14.0,
+    "masako>arman:romance": 13.0,
+    "masako>yuuki_byrnes:romance": 25.0,
+    "momoka>arman:romance": 24.4,
     "natsumi>arman:romance": 7.2,
     "natsumi>yuuki_byrnes:romance": 21.2,
     "yuuki_byrnes>natsumi:romance": 21.2
@@ -7980,8 +8244,9 @@
     "arman>masako:romance": 9.6,
     "arman>momoka:romance": 14.0,
     "arman>natsumi:romance": 7.2,
-    "masako>arman:romance": 9.6,
-    "momoka>arman:romance": 14.0,
+    "masako>arman:romance": 21.0,
+    "masako>yuuki_byrnes:romance": 25.0,
+    "momoka>arman:romance": 25.0,
     "natsumi>arman:romance": 7.2,
     "natsumi>yuuki_byrnes:romance": 21.2,
     "yuuki_byrnes>natsumi:romance": 21.2
@@ -8073,9 +8338,9 @@
     "arman>masako:romance": 13.2,
     "arman>momoka:romance": 14.0,
     "arman>natsumi:romance": 7.2,
-    "masako>arman:romance": 13.2,
-    "masako>yuuki_byrnes:romance": 6.0,
-    "momoka>arman:romance": 14.0,
+    "masako>arman:romance": 25.0,
+    "masako>yuuki_byrnes:romance": 33.0,
+    "momoka>arman:romance": 25.0,
     "natsumi>arman:romance": 7.2,
     "natsumi>yuuki_byrnes:romance": 21.2,
     "yuuki_byrnes>masako:romance": 6.0,
@@ -8152,7 +8417,9 @@
     ]
    },
    "standings": {
+    "makoto>minori:romance": 4.2,
     "minori>yuto:romance": 3.6,
+    "uchi>momoka:romance": 3.0,
     "yuto>minori:romance": 3.6
    }
   },
@@ -8242,7 +8509,9 @@
     ]
    },
    "standings": {
+    "makoto>minori:romance": 8.4,
     "minori>yuto:romance": 3.6,
+    "uchi>momoka:romance": 6.0,
     "yuto>minori:romance": 3.6
    }
   },
@@ -8296,9 +8565,10 @@
     ]
    },
    "standings": {
+    "makoto>minori:romance": 12.6,
     "minori>yuto:romance": 3.6,
     "momoka>uchi:romance": 3.6,
-    "uchi>momoka:romance": 3.6,
+    "uchi>momoka:romance": 12.6,
     "yuto>minori:romance": 3.6
    }
   },
@@ -8435,9 +8705,11 @@
     ]
    },
    "standings": {
+    "makoto>minori:romance": 19.6,
+    "makoto>momoka:romance": 5.0,
     "minori>yuto:romance": 11.6,
     "momoka>uchi:romance": 7.2,
-    "uchi>momoka:romance": 7.2,
+    "uchi>momoka:romance": 19.2,
     "yuto>minori:romance": 11.6
    }
   },
@@ -8521,9 +8793,11 @@
     ]
    },
    "standings": {
+    "makoto>minori:romance": 25.0,
+    "makoto>momoka:romance": 10.0,
     "minori>yuto:romance": 17.6,
     "momoka>uchi:romance": 7.2,
-    "uchi>momoka:romance": 7.2,
+    "uchi>momoka:romance": 22.2,
     "yuto>minori:romance": 17.6
    }
   },
@@ -8601,9 +8875,11 @@
     ]
    },
    "standings": {
+    "makoto>minori:romance": 25.0,
+    "makoto>momoka:romance": 15.0,
     "minori>yuto:romance": 17.6,
     "momoka>uchi:romance": 7.2,
-    "uchi>momoka:romance": 7.2,
+    "uchi>momoka:romance": 25.0,
     "yuto>minori:romance": 17.6
    }
   }
@@ -8704,7 +8980,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "riko>makoto:romance": 6.0,
+    "riko>uchi:romance": 4.2
+   }
   },
   {
    "agreements": [],
@@ -8803,7 +9082,8 @@
    },
    "standings": {
     "makoto>riko:romance": 6.0,
-    "riko>makoto:romance": 6.0
+    "riko>makoto:romance": 14.0,
+    "riko>uchi:romance": 8.4
    }
   },
   {
@@ -8858,7 +9138,8 @@
    },
    "standings": {
     "makoto>riko:romance": 6.0,
-    "riko>makoto:romance": 6.0
+    "riko>makoto:romance": 20.0,
+    "riko>uchi:romance": 12.6
    }
   },
   {
@@ -8958,9 +9239,10 @@
    },
    "standings": {
     "makoto>riko:romance": 6.0,
+    "minori>makoto:romance": 8.0,
     "minori>uchi:romance": 3.6,
-    "riko>makoto:romance": 6.0,
-    "riko>uchi:romance": 8.0,
+    "riko>makoto:romance": 25.0,
+    "riko>uchi:romance": 20.6,
     "uchi>minori:romance": 3.6,
     "uchi>riko:romance": 8.0
    }
@@ -9040,9 +9322,10 @@
    },
    "standings": {
     "makoto>riko:romance": 6.0,
+    "minori>makoto:romance": 16.0,
     "minori>uchi:romance": 3.6,
-    "riko>makoto:romance": 6.0,
-    "riko>uchi:romance": 8.0,
+    "riko>makoto:romance": 25.0,
+    "riko>uchi:romance": 24.8,
     "uchi>minori:romance": 3.6,
     "uchi>riko:romance": 8.0
    }
@@ -9149,9 +9432,10 @@
    },
    "standings": {
     "makoto>riko:romance": 14.0,
+    "minori>makoto:romance": 24.0,
     "minori>uchi:romance": 3.6,
-    "riko>makoto:romance": 14.0,
-    "riko>uchi:romance": 11.6,
+    "riko>makoto:romance": 33.0,
+    "riko>uchi:romance": 32.6,
     "uchi>minori:romance": 3.6,
     "uchi>riko:romance": 11.6
    }
@@ -9245,7 +9529,8 @@
    },
    "standings": {
     "arman>riko:romance": 3.6,
-    "hikaru>riko:romance": 6.0,
+    "hikaru>riko:romance": 8.0,
+    "makoto>natsumi:romance": 6.0,
     "riko>arman:romance": 3.6,
     "riko>hikaru:romance": 6.0
    }
@@ -9319,8 +9604,8 @@
    },
    "standings": {
     "arman>riko:romance": 3.6,
-    "hikaru>riko:romance": 6.0,
-    "makoto>natsumi:romance": 6.0,
+    "hikaru>riko:romance": 12.2,
+    "makoto>natsumi:romance": 14.0,
     "makoto>riko:romance": 3.6,
     "natsumi>makoto:romance": 6.0,
     "riko>arman:romance": 3.6,
@@ -9380,8 +9665,8 @@
    "standings": {
     "arman>natsumi:romance": 3.6,
     "arman>riko:romance": 3.6,
-    "hikaru>riko:romance": 6.0,
-    "makoto>natsumi:romance": 6.0,
+    "hikaru>riko:romance": 16.4,
+    "makoto>natsumi:romance": 20.0,
     "makoto>riko:romance": 3.6,
     "natsumi>arman:romance": 3.6,
     "natsumi>makoto:romance": 6.0,
@@ -9496,10 +9781,10 @@
     ]
    },
    "standings": {
-    "arman>natsumi:romance": 7.2,
+    "arman>natsumi:romance": 11.6,
     "arman>riko:romance": 3.6,
-    "hikaru>riko:romance": 6.0,
-    "makoto>natsumi:romance": 6.0,
+    "hikaru>riko:romance": 20.6,
+    "makoto>natsumi:romance": 25.0,
     "makoto>riko:romance": 3.6,
     "natsumi>arman:romance": 7.2,
     "natsumi>makoto:romance": 6.0,
@@ -9599,9 +9884,9 @@
     ]
    },
    "standings": {
-    "arman>natsumi:romance": 7.2,
-    "hikaru>riko:romance": 6.0,
-    "makoto>natsumi:romance": 6.0,
+    "arman>natsumi:romance": 19.6,
+    "hikaru>riko:romance": 24.8,
+    "makoto>natsumi:romance": 25.0,
     "makoto>riko:romance": 3.6,
     "natsumi>arman:romance": 7.2,
     "natsumi>makoto:romance": 6.0,
@@ -9700,9 +9985,9 @@
     ]
    },
    "standings": {
-    "arman>natsumi:romance": 7.2,
-    "hikaru>riko:romance": 6.0,
-    "makoto>natsumi:romance": 6.0,
+    "arman>natsumi:romance": 25.0,
+    "hikaru>riko:romance": 25.0,
+    "makoto>natsumi:romance": 25.0,
     "makoto>riko:romance": 3.6,
     "natsumi>arman:romance": 7.2,
     "natsumi>makoto:romance": 6.0,
@@ -9790,7 +10075,9 @@
    },
    "standings": {
     "hikaru>misaki:romance": 3.6,
-    "misaki>hikaru:romance": 3.6
+    "masako>hikaru:romance": 6.0,
+    "misaki>hikaru:romance": 3.6,
+    "misaki>makoto:romance": 6.0
    }
   },
   {
@@ -9854,7 +10141,9 @@
    "standings": {
     "hikaru>misaki:romance": 3.6,
     "makoto>natsumi:romance": 6.0,
+    "masako>hikaru:romance": 12.0,
     "misaki>hikaru:romance": 3.6,
+    "misaki>makoto:romance": 12.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -9901,7 +10190,9 @@
    "standings": {
     "hikaru>misaki:romance": 3.6,
     "makoto>natsumi:romance": 6.0,
+    "masako>hikaru:romance": 18.0,
     "misaki>hikaru:romance": 3.6,
+    "misaki>makoto:romance": 18.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -10012,7 +10303,10 @@
    "standings": {
     "hikaru>misaki:romance": 3.6,
     "makoto>natsumi:romance": 6.0,
+    "masako>hikaru:romance": 25.0,
+    "masako>makoto:romance": 8.0,
     "misaki>hikaru:romance": 3.6,
+    "misaki>makoto:romance": 24.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -10092,7 +10386,10 @@
    "standings": {
     "hikaru>misaki:romance": 3.6,
     "makoto>natsumi:romance": 6.0,
+    "masako>hikaru:romance": 21.0,
+    "masako>makoto:romance": 16.0,
     "misaki>hikaru:romance": 3.6,
+    "misaki>makoto:romance": 25.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -10192,8 +10489,10 @@
     "hikaru>misaki:romance": 3.6,
     "hikaru>natsumi:romance": 3.6,
     "makoto>natsumi:romance": 6.0,
-    "masako>hikaru:romance": 8.0,
+    "masako>hikaru:romance": 29.0,
+    "masako>makoto:romance": 24.0,
     "misaki>hikaru:romance": 3.6,
+    "misaki>makoto:romance": 25.0,
     "natsumi>hikaru:romance": 3.6,
     "natsumi>makoto:romance": 6.0
    }
@@ -10287,7 +10586,9 @@
    },
    "standings": {
     "arisa>hikaru:romance": 6.0,
-    "hikaru>arisa:romance": 6.0
+    "hikaru>arisa:romance": 6.0,
+    "hikaru>yuriko:romance": 3.0,
+    "uchi>arisa:romance": 3.0
    }
   },
   {
@@ -10359,7 +10660,9 @@
    },
    "standings": {
     "arisa>hikaru:romance": 6.0,
-    "hikaru>arisa:romance": 6.0
+    "hikaru>arisa:romance": 6.0,
+    "hikaru>yuriko:romance": 6.0,
+    "uchi>arisa:romance": 6.0
    }
   },
   {
@@ -10404,7 +10707,9 @@
    },
    "standings": {
     "arisa>hikaru:romance": 6.0,
-    "hikaru>arisa:romance": 6.0
+    "hikaru>arisa:romance": 6.0,
+    "hikaru>yuriko:romance": 9.0,
+    "uchi>arisa:romance": 3.0
    }
   },
   {
@@ -10474,7 +10779,9 @@
    },
    "standings": {
     "arisa>hikaru:romance": 6.0,
-    "hikaru>arisa:romance": 6.0
+    "hikaru>arisa:romance": 6.0,
+    "hikaru>yuriko:romance": 14.0,
+    "uchi>arisa:romance": 6.0
    }
   },
   {
@@ -10519,7 +10826,9 @@
    },
    "standings": {
     "arisa>hikaru:romance": 6.0,
-    "hikaru>arisa:romance": 6.0
+    "hikaru>arisa:romance": 6.0,
+    "hikaru>yuriko:romance": 7.0,
+    "uchi>arisa:romance": 9.0
    }
   },
   {
@@ -10609,7 +10918,9 @@
    },
    "standings": {
     "arisa>hikaru:romance": 12.0,
-    "hikaru>arisa:romance": 12.0
+    "hikaru>arisa:romance": 12.0,
+    "hikaru>yuriko:romance": 12.0,
+    "uchi>arisa:romance": 12.0
    }
   }
  ],
@@ -10673,7 +10984,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "momoka>uchi:romance": 4.2,
+    "momoka>yuki:romance": 3.0
+   }
   },
   {
    "agreements": [],
@@ -10771,7 +11085,8 @@
     ]
    },
    "standings": {
-    "momoka>uchi:romance": 3.6,
+    "momoka>uchi:romance": 12.0,
+    "momoka>yuki:romance": 6.0,
     "uchi>momoka:romance": 3.6
    }
   },
@@ -10872,7 +11187,8 @@
    },
    "standings": {
     "arisa>uchi:romance": 3.6,
-    "momoka>uchi:romance": 7.2,
+    "momoka>uchi:romance": 19.8,
+    "momoka>yuki:romance": 9.0,
     "uchi>arisa:romance": 3.6,
     "uchi>momoka:romance": 7.2
    }
@@ -10979,7 +11295,8 @@
    },
    "standings": {
     "arisa>uchi:romance": 3.6,
-    "momoka>uchi:romance": 7.2,
+    "momoka>uchi:romance": 24.0,
+    "momoka>yuki:romance": 12.0,
     "natsumi>yuki:romance": 3.6,
     "uchi>arisa:romance": 3.6,
     "uchi>momoka:romance": 7.2,
@@ -11083,7 +11400,8 @@
    },
    "standings": {
     "arisa>uchi:romance": 7.2,
-    "momoka>uchi:romance": 7.2,
+    "momoka>uchi:romance": 25.0,
+    "momoka>yuki:romance": 15.0,
     "natsumi>uchi:romance": 3.6,
     "natsumi>yuki:romance": 11.6,
     "uchi>arisa:romance": 7.2,
@@ -11189,7 +11507,8 @@
    },
    "standings": {
     "arisa>uchi:romance": 7.2,
-    "momoka>uchi:romance": 7.2,
+    "momoka>uchi:romance": 25.0,
+    "momoka>yuki:romance": 18.0,
     "natsumi>uchi:romance": 9.6,
     "natsumi>yuki:romance": 11.6,
     "uchi>arisa:romance": 7.2,
@@ -11260,7 +11579,8 @@
    },
    "standings": {
     "arisa>hikaru:romance": 3.6,
-    "hikaru>arisa:romance": 3.6,
+    "hayato>yuriko:romance": 3.0,
+    "hikaru>arisa:romance": 6.6,
     "hikaru>yuriko:romance": 3.6,
     "yuriko>hikaru:romance": 3.6
    }
@@ -11316,7 +11636,8 @@
    },
    "standings": {
     "arisa>hikaru:romance": 3.6,
-    "hikaru>arisa:romance": 3.6,
+    "hayato>yuriko:romance": 6.0,
+    "hikaru>arisa:romance": 9.6,
     "hikaru>yuriko:romance": 3.6,
     "makoto>yuriko:romance": 3.6,
     "yuriko>hikaru:romance": 3.6,
@@ -11365,7 +11686,8 @@
    },
    "standings": {
     "arisa>hikaru:romance": 3.6,
-    "hikaru>arisa:romance": 3.6,
+    "hayato>yuriko:romance": 9.0,
+    "hikaru>arisa:romance": 12.6,
     "hikaru>yuriko:romance": 3.6,
     "makoto>yuriko:romance": 3.6,
     "yuriko>hikaru:romance": 3.6,
@@ -11447,7 +11769,8 @@
    },
    "standings": {
     "arisa>hikaru:romance": 3.6,
-    "hikaru>arisa:romance": 3.6,
+    "hayato>yuriko:romance": 14.0,
+    "hikaru>arisa:romance": 15.6,
     "hikaru>yuriko:romance": 3.6,
     "makoto>yuriko:romance": 3.6,
     "yuriko>hikaru:romance": 3.6,
@@ -11505,7 +11828,8 @@
    },
    "standings": {
     "arisa>hikaru:romance": 3.6,
-    "hikaru>arisa:romance": 3.6,
+    "hayato>yuriko:romance": 19.0,
+    "hikaru>arisa:romance": 18.6,
     "hikaru>yuriko:romance": 9.6,
     "makoto>yuriko:romance": 3.6,
     "yuriko>hikaru:romance": 9.6,
@@ -11598,6 +11922,8 @@
     ]
    },
    "standings": {
+    "hayato>yuriko:romance": 24.0,
+    "hikaru>arisa:romance": 9.6,
     "hikaru>yuriko:romance": 15.6,
     "makoto>yuriko:romance": 3.6,
     "yuriko>hikaru:romance": 15.6,
@@ -11694,7 +12020,8 @@
    },
    "standings": {
     "makoto>mizuki:romance": 6.0,
-    "mizuki>makoto:romance": 6.0
+    "mizuki>hayato:romance": 8.0,
+    "mizuki>makoto:romance": 8.0
    }
   },
   {
@@ -11777,7 +12104,8 @@
    "standings": {
     "makoto>mizuki:romance": 6.0,
     "makoto>riko:romance": 3.6,
-    "mizuki>makoto:romance": 6.0,
+    "mizuki>hayato:romance": 16.0,
+    "mizuki>makoto:romance": 14.0,
     "riko>makoto:romance": 3.6
    }
   },
@@ -11856,7 +12184,8 @@
     "makoto>arisa:romance": 3.6,
     "makoto>mizuki:romance": 6.0,
     "makoto>riko:romance": 3.6,
-    "mizuki>makoto:romance": 6.0,
+    "mizuki>hayato:romance": 24.0,
+    "mizuki>makoto:romance": 20.0,
     "riko>makoto:romance": 3.6
    }
   },
@@ -11967,7 +12296,8 @@
     "makoto>arisa:romance": 5.4,
     "makoto>mizuki:romance": 12.0,
     "makoto>riko:romance": 7.2,
-    "mizuki>makoto:romance": 12.0,
+    "mizuki>hayato:romance": 25.0,
+    "mizuki>makoto:romance": 25.0,
     "riko>makoto:romance": 7.2
    }
   },
@@ -12075,8 +12405,8 @@
     "makoto>arisa:romance": 5.4,
     "makoto>mizuki:romance": 12.0,
     "makoto>riko:romance": 7.2,
-    "mizuki>hayato:romance": 3.6,
-    "mizuki>makoto:romance": 12.0,
+    "mizuki>hayato:romance": 36.6,
+    "mizuki>makoto:romance": 25.0,
     "riko>hayato:romance": 8.0,
     "riko>makoto:romance": 7.2
    }
@@ -12184,7 +12514,8 @@
     "hayato>riko:romance": 8.0,
     "makoto>arisa:romance": 9.0,
     "makoto>riko:romance": 7.2,
-    "mizuki>hayato:romance": 3.6,
+    "mizuki>hayato:romance": 44.6,
+    "mizuki>makoto:romance": 19.0,
     "riko>hayato:romance": 8.0,
     "riko>makoto:romance": 7.2
    }
@@ -12240,7 +12571,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "makoto>arisa:romance": 3.0,
+    "yuki>masako:romance": 4.2
+   }
   },
   {
    "agreements": [],
@@ -12300,7 +12634,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "makoto>arisa:romance": 6.0,
+    "yuki>masako:romance": 8.4
+   }
   },
   {
    "agreements": [],
@@ -12361,8 +12698,10 @@
     ]
    },
    "standings": {
+    "makoto>arisa:romance": 9.0,
     "makoto>masako:romance": 6.0,
-    "masako>makoto:romance": 6.0
+    "masako>makoto:romance": 6.0,
+    "yuki>masako:romance": 12.6
    }
   },
   {
@@ -12436,8 +12775,11 @@
     ]
    },
    "standings": {
+    "hayato>masako:romance": 7.0,
+    "makoto>arisa:romance": 12.0,
     "makoto>masako:romance": 6.0,
-    "masako>makoto:romance": 6.0
+    "masako>makoto:romance": 6.0,
+    "yuki>masako:romance": 16.8
    }
   },
   {
@@ -12504,8 +12846,11 @@
     ]
    },
    "standings": {
+    "hayato>masako:romance": 14.0,
+    "makoto>arisa:romance": 15.0,
     "makoto>masako:romance": 6.0,
-    "masako>makoto:romance": 6.0
+    "masako>makoto:romance": 6.0,
+    "yuki>masako:romance": 21.0
    }
   },
   {
@@ -12599,10 +12944,12 @@
     ]
    },
    "standings": {
-    "hayato>masako:romance": 6.0,
+    "hayato>masako:romance": 22.0,
+    "makoto>arisa:romance": 18.0,
     "makoto>masako:romance": 6.0,
     "masako>hayato:romance": 6.0,
-    "masako>makoto:romance": 6.0
+    "masako>makoto:romance": 6.0,
+    "yuki>masako:romance": 25.0
    }
   }
  ],
@@ -12666,7 +13013,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "natsumi>hayato:romance": 8.0,
+    "natsumi>yuki:romance": 3.0
+   }
   },
   {
    "agreements": [],
@@ -12755,6 +13105,8 @@
     ]
    },
    "standings": {
+    "natsumi>hayato:romance": 16.0,
+    "natsumi>yuki:romance": 6.0,
     "riko>yuki:romance": 8.0,
     "yuki>riko:romance": 8.0
    }
@@ -12826,7 +13178,8 @@
    },
    "standings": {
     "hayato>natsumi:romance": 3.6,
-    "natsumi>hayato:romance": 3.6,
+    "natsumi>hayato:romance": 24.0,
+    "natsumi>yuki:romance": 9.0,
     "riko>yuki:romance": 8.0,
     "yuki>riko:romance": 8.0
    }
@@ -12933,7 +13286,8 @@
    },
    "standings": {
     "hayato>natsumi:romance": 3.6,
-    "natsumi>hayato:romance": 3.6,
+    "natsumi>hayato:romance": 25.0,
+    "natsumi>yuki:romance": 12.0,
     "riko>yuki:romance": 8.0,
     "yuki>riko:romance": 8.0
    }
@@ -13036,8 +13390,8 @@
    "standings": {
     "arisa>yuki:romance": 3.6,
     "hayato>natsumi:romance": 3.6,
-    "natsumi>hayato:romance": 3.6,
-    "natsumi>yuki:romance": 6.0,
+    "natsumi>hayato:romance": 25.0,
+    "natsumi>yuki:romance": 20.0,
     "riko>yuki:romance": 8.0,
     "yuki>arisa:romance": 3.6,
     "yuki>natsumi:romance": 6.0,
@@ -13142,8 +13496,8 @@
    "standings": {
     "arisa>yuki:romance": 3.6,
     "hayato>natsumi:romance": 3.6,
-    "natsumi>hayato:romance": 3.6,
-    "natsumi>yuki:romance": 6.0,
+    "natsumi>hayato:romance": 25.0,
+    "natsumi>yuki:romance": 23.0,
     "riko>yuki:romance": 11.6,
     "yuki>arisa:romance": 3.6,
     "yuki>natsumi:romance": 6.0,
@@ -13247,7 +13601,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "hikaru>minori:romance": 4.2,
+    "hikaru>misaki:romance": 6.0
+   }
   },
   {
    "agreements": [],
@@ -13317,7 +13674,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "hikaru>minori:romance": 8.4,
+    "hikaru>misaki:romance": 12.0
+   }
   },
   {
    "agreements": [],
@@ -13366,7 +13726,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "hikaru>minori:romance": 12.6,
+    "hikaru>misaki:romance": 18.0
+   }
   },
   {
    "agreements": [],
@@ -13468,7 +13831,10 @@
      ]
     ]
    },
-   "standings": {}
+   "standings": {
+    "hikaru>minori:romance": 19.6,
+    "hikaru>misaki:romance": 25.0
+   }
   },
   {
    "agreements": [],
@@ -13521,7 +13887,8 @@
     ]
    },
    "standings": {
-    "hikaru>minori:romance": 3.6,
+    "hikaru>minori:romance": 25.0,
+    "hikaru>misaki:romance": 25.0,
     "minori>hikaru:romance": 3.6
    }
   },
@@ -13594,7 +13961,8 @@
     ]
    },
    "standings": {
-    "hikaru>minori:romance": 3.6,
+    "hikaru>minori:romance": 25.0,
+    "hikaru>misaki:romance": 25.0,
     "minori>hikaru:romance": 3.6
    }
   }
@@ -13678,7 +14046,9 @@
    },
    "standings": {
     "hikaru>minori:romance": 3.6,
-    "minori>hikaru:romance": 3.6
+    "masako>hikaru:romance": 6.0,
+    "minori>hikaru:romance": 3.6,
+    "minori>makoto:romance": 6.0
    }
   },
   {
@@ -13769,7 +14139,9 @@
    "standings": {
     "hikaru>minori:romance": 7.2,
     "makoto>natsumi:romance": 6.0,
+    "masako>hikaru:romance": 12.0,
     "minori>hikaru:romance": 7.2,
+    "minori>makoto:romance": 12.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -13816,7 +14188,9 @@
    "standings": {
     "hikaru>minori:romance": 7.2,
     "makoto>natsumi:romance": 6.0,
+    "masako>hikaru:romance": 18.0,
     "minori>hikaru:romance": 7.2,
+    "minori>makoto:romance": 18.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -13936,7 +14310,10 @@
    "standings": {
     "hikaru>minori:romance": 7.2,
     "makoto>natsumi:romance": 6.0,
+    "masako>hikaru:romance": 25.0,
+    "masako>makoto:romance": 8.0,
     "minori>hikaru:romance": 7.2,
+    "minori>makoto:romance": 24.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -14044,8 +14421,10 @@
     "hikaru>masako:romance": 3.6,
     "hikaru>minori:romance": 10.8,
     "makoto>natsumi:romance": 6.0,
-    "masako>hikaru:romance": 3.6,
+    "masako>hikaru:romance": 33.0,
+    "masako>makoto:romance": 16.0,
     "minori>hikaru:romance": 10.8,
+    "minori>makoto:romance": 25.0,
     "natsumi>makoto:romance": 6.0
    }
   },
@@ -14154,9 +14533,10 @@
     "hikaru>minori:romance": 10.8,
     "makoto>masako:romance": 6.0,
     "makoto>natsumi:romance": 6.0,
-    "masako>hikaru:romance": 11.6,
-    "masako>makoto:romance": 6.0,
+    "masako>hikaru:romance": 41.0,
+    "masako>makoto:romance": 24.0,
     "minori>hikaru:romance": 10.8,
+    "minori>makoto:romance": 25.0,
     "natsumi>makoto:romance": 6.0
    }
   }
@@ -14248,8 +14628,10 @@
     ]
    },
    "standings": {
+    "hikaru>minori:romance": 4.2,
     "minori>yuuki_byrnes:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 3.6
+    "yuuki_byrnes>minori:romance": 3.6,
+    "yuuki_byrnes>mizuki:romance": 6.0
    }
   },
   {
@@ -14329,10 +14711,12 @@
     ]
    },
    "standings": {
+    "hikaru>minori:romance": 8.4,
     "minori>uchi:romance": 3.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "uchi>minori:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 3.6
+    "yuuki_byrnes>minori:romance": 3.6,
+    "yuuki_byrnes>mizuki:romance": 12.0
    }
   },
   {
@@ -14376,10 +14760,12 @@
     ]
    },
    "standings": {
+    "hikaru>minori:romance": 12.6,
     "minori>uchi:romance": 3.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "uchi>minori:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 3.6
+    "yuuki_byrnes>minori:romance": 3.6,
+    "yuuki_byrnes>mizuki:romance": 18.0
    }
   },
   {
@@ -14484,10 +14870,12 @@
     ]
    },
    "standings": {
+    "hikaru>minori:romance": 19.6,
     "minori>uchi:romance": 3.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "uchi>minori:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 3.6
+    "yuuki_byrnes>minori:romance": 3.6,
+    "yuuki_byrnes>mizuki:romance": 24.0
    }
   },
   {
@@ -14549,14 +14937,15 @@
     ]
    },
    "standings": {
-    "hikaru>minori:romance": 3.6,
+    "hikaru>minori:romance": 25.0,
     "hikaru>mizuki:romance": 6.0,
     "minori>hikaru:romance": 3.6,
     "minori>uchi:romance": 3.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "mizuki>hikaru:romance": 6.0,
     "uchi>minori:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 3.6
+    "yuuki_byrnes>minori:romance": 3.6,
+    "yuuki_byrnes>mizuki:romance": 25.0
    }
   },
   {
@@ -14627,14 +15016,15 @@
     ]
    },
    "standings": {
-    "hikaru>minori:romance": 3.6,
+    "hikaru>minori:romance": 25.0,
     "hikaru>mizuki:romance": 9.6,
     "minori>hikaru:romance": 3.6,
     "minori>uchi:romance": 3.6,
     "minori>yuuki_byrnes:romance": 3.6,
     "mizuki>hikaru:romance": 9.6,
     "uchi>minori:romance": 3.6,
-    "yuuki_byrnes>minori:romance": 3.6
+    "yuuki_byrnes>minori:romance": 3.6,
+    "yuuki_byrnes>mizuki:romance": 25.0
    }
   }
  ],
@@ -14708,6 +15098,8 @@
    },
    "standings": {
     "masako>uchi:romance": 8.0,
+    "masako>yuuki_byrnes:romance": 8.0,
+    "mizuki>uchi:romance": 4.2,
     "mizuki>yuuki_byrnes:romance": 3.6,
     "uchi>masako:romance": 8.0,
     "yuuki_byrnes>mizuki:romance": 3.6
@@ -14782,6 +15174,8 @@
    },
    "standings": {
     "masako>uchi:romance": 8.0,
+    "masako>yuuki_byrnes:romance": 16.0,
+    "mizuki>uchi:romance": 8.4,
     "mizuki>yuuki_byrnes:romance": 3.6,
     "momoka>uchi:romance": 6.0,
     "uchi>masako:romance": 8.0,
@@ -14876,7 +15270,8 @@
    },
    "standings": {
     "masako>uchi:romance": 11.6,
-    "masako>yuuki_byrnes:romance": 3.6,
+    "masako>yuuki_byrnes:romance": 24.0,
+    "mizuki>uchi:romance": 12.6,
     "mizuki>yuuki_byrnes:romance": 3.6,
     "momoka>uchi:romance": 6.0,
     "uchi>masako:romance": 11.6,
@@ -14996,7 +15391,8 @@
    },
    "standings": {
     "masako>uchi:romance": 11.6,
-    "masako>yuuki_byrnes:romance": 3.6,
+    "masako>yuuki_byrnes:romance": 25.0,
+    "mizuki>uchi:romance": 16.8,
     "mizuki>yuuki_byrnes:romance": 3.6,
     "momoka>uchi:romance": 9.6,
     "momoka>yuuki_byrnes:romance": 6.0,
@@ -15067,7 +15463,8 @@
    },
    "standings": {
     "masako>uchi:romance": 11.6,
-    "masako>yuuki_byrnes:romance": 3.6,
+    "masako>yuuki_byrnes:romance": 25.0,
+    "mizuki>uchi:romance": 21.0,
     "mizuki>yuuki_byrnes:romance": 3.6,
     "momoka>uchi:romance": 9.6,
     "momoka>yuuki_byrnes:romance": 6.0,
@@ -15138,7 +15535,8 @@
    },
    "standings": {
     "masako>uchi:romance": 11.6,
-    "masako>yuuki_byrnes:romance": 9.6,
+    "masako>yuuki_byrnes:romance": 33.0,
+    "mizuki>uchi:romance": 25.0,
     "mizuki>yuuki_byrnes:romance": 3.6,
     "momoka>uchi:romance": 9.6,
     "momoka>yuuki_byrnes:romance": 6.0,

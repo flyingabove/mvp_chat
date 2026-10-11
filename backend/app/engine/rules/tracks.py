@@ -102,12 +102,15 @@ class DramaTuning:
 
     `witness_loss`/`refuser_loss`: standing points off the asker after a refused confession; `rival_aim`: priority of the aim
     a rival takes on after seeing it; `contest_plan`/`contest_affection`: how much a live contest over a partner raises an
-    off-screen plan or an affectionate meeting (before the `rivalry` intensity scales them)."""
+    off-screen plan or an affectionate meeting (before the `rivalry` intensity scales them); `rival_pull`/`rival_cost`: standing
+    points per rival move (times the rival's aim priority) the target gains toward the rival and loses toward the player."""
     witness_loss: float = 2.0
     refuser_loss: float = 2.5
     rival_aim: float = 0.5
     contest_plan: float = 1.0
     contest_affection: float = 0.5
+    rival_pull: float = 20.0
+    rival_cost: float = 20.0
 
 
 @dataclass(frozen=True)

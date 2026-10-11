@@ -60,11 +60,13 @@ def make_campaign(monkeypatch, tmp_path, seed=0):
     return types.SimpleNamespace(pe=pe, client=TestClient(main.app), script=script)
 
 
-def new_game(c, sid, gender, rival_aim=None):
+def new_game(c, sid, gender, rival_aim=None, tuning=None):
     """Start a Terrace game; `rival_aim` (0-1) re-tunes how hard each rival starts out chasing someone (a sweep knob)."""
     r = c.client.post("/api/chat", json={"session_id": sid, "message": f"__cmd_newgame__:six_strangers|{gender}|Sam"})
     assert r.status_code == 200
     state = c.pe.SESSIONS[sid]["state"]
+    if tuning:
+        state.story_cfg["social_tracks"]["tuning"] = {**(state.story_cfg["social_tracks"].get("tuning") or {}), **tuning}
     if rival_aim is not None:
         state.story_cfg["social_tracks"]["couples"]["rival_aim"] = rival_aim
         state.world_model.agendas.clear()                  # the next turn seeds every rival's aim at the new strength
@@ -75,9 +77,9 @@ def say(c, sid, message="Hi."):
     return c.client.post("/api/chat", json={"session_id": sid, "message": message}).json()
 
 
-def run_passive(c, sid, gender="M", cap=180, rival_aim=None):
+def run_passive(c, sid, gender="M", cap=180, rival_aim=None, tuning=None):
     """A player who only skips days. Returns {"ending", "day", "couples_left"}."""
-    new_game(c, sid, gender, rival_aim)
+    new_game(c, sid, gender, rival_aim, tuning)
     ending, day = None, 0
     for day in range(1, cap + 1):
         ending = say(c, sid, "__cmd_skip__:DAY").get("ending") or ending
@@ -87,10 +89,10 @@ def run_passive(c, sid, gender="M", cap=180, rival_aim=None):
     return {"ending": ending, "day": day, "couples_left": model.counters.get("couples_left", 0), "npc_couples": model.npc_couples}
 
 
-def run_strategic(c, sid, gender, days=40, rival_aim=None):
+def run_strategic(c, sid, gender, days=40, rival_aim=None, tuning=None):
     """A player who seeks one eligible resident out, earns their standing, confesses and asks them to leave together.
     Returns {"ending", "day", "confessed", "target", "standing", "target_coupled"}."""
-    state = new_game(c, sid, gender, rival_aim)
+    state = new_game(c, sid, gender, rival_aim, tuning)
     genders = {ch["key"]: ch["gender"] for ch in state.story_cfg["characters"]}
     target = next(ch for ch in state.cast_lifecycle.active_ids() if genders.get(ch) not in ("", gender))
     ending, confessed, day = None, False, 0

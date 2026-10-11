@@ -32,6 +32,7 @@ from backend.app.engine.world_model.goals import active_goal, agenda_scale, card
 from backend.app.engine.world_model.stances import refresh_stances_for_state
 from backend.app.engine.rules.tracks import social_rules
 from backend.app.engine.world_model.courtship import Courtship
+from backend.app.engine.world_model.rival_move import apply_rival_pressure
 from backend.app.engine.world_model.deception import DeceptionProfile, choose_cue
 from backend.app.engine.world_model.persona import SelfClaim
 from backend.app.engine.world_model.standards import enforce_dealbreakers, failing_requirements, viewpoint
@@ -585,6 +586,7 @@ def advance_npc_life(state: Any, model: WorldModel, ctx: SocialContext, now: int
     refresh_stances_for_state(state, model, ctx, now)          # agendas read the crush stances: keep them current
     refresh_agendas(model, track, day, scale=lambda cid: agenda_scale(model.goals, cid, people.get(cid)),
                     intensity=ctx.rules.intensity)
+    apply_rival_pressure(model, ctx.rules, day, now)             # BL-98: a rival's pursuit moves the target's standing
     place = model.player_place()
     for a, b in couples_ready(model, track, policy.dating_tier, ctx.eligible, day):
         key = f"{a}|{b}"
