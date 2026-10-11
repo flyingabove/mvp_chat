@@ -10,11 +10,11 @@ work: P-09 (the mind), P-11 (scene wants, which replaces `next_beat`), P-14 (del
 - **Next:** derive intentions from stances the way `crush` does, as data: `resents` gives `confront`/`snub`, `protective_of` gives `defend`, `owes` gives `repay`, `ex` gives `avoid`, `distrusts` gives `withhold` (the character shares less with them). Add each beat's `BEAT_TEXT`, keep the one-move-a-day cap, scale by a new intensity family. A test per kind; the golden record changes only where those stances exist. Needs an arena gate (behaviour change). Subsumed later by P-11 wants; do it first only as the cheapest visible step.
 - **Touches:** `world_model/agenda.py`, `turn.py` (`BEAT_TEXT`), `rules/stance_defaults.json`, `rules/tracks.py` (intensity), tests.
 
-## BL-101 — Who speaks ignores stances, goals and stakes
+## BL-101 — Who speaks ignores goals and stakes
 - **Bucket:** C (engine)
-- **Open:** `speakers.select_speakers` scores addressed (+5), mentioned (+2), warmth to the player, open-thread overlap and recency only. A rival does not cut in when their crush is addressed, a resentful or protective character is no likelier to speak when their target is the subject, and a person with a heavy goal (P-07) gets no push to pursue it. Characters feel like a round-robin of polite answerers, which is the main reason "decisions" read as flat in play.
-- **Next:** add score terms from the speaker's own stances toward whoever is addressed or mentioned (rival, protective_of, resents: +), goal weight about the topic (+), and `distrusts` toward the player (reply short or not at all); bounded (each term at most about 1.5) so an addressed person still answers. Tests with fixed seeds; check the sweep and a hosted play for variety.
-- **Touches:** `world_model/speakers.py`, `world_model/model.py` (`SpeakerPlan.reason`), `tests/backend/app/engine/world_model/`.
+- **Open:** `speakers.select_speakers` now reads the speaker's stances (rival, protective_of, resents, distrusts), but not a person's goals: someone with a heavy goal (P-07) about the topic gets no push to speak or to pursue it.
+- **Next:** add a goal-weight term about the topic, bounded like `STANCE_CAP` (1.5), once P-07 goals expose a per-topic weight; test with fixed seeds.
+- **Touches:** `world_model/speakers.py`, `tests/backend/app/engine/world_model/test_speakers.py`.
 
 ## BL-102 — A character's choices cannot be explained or tuned
 - **Bucket:** C (engine)

@@ -489,6 +489,9 @@ Rival strength does not make the engaged game harder: the win day does not move,
 first. It does tighten the passive cut (worst case 178 days at 0, 139 at 0.6), so Terrace keeps 0.3 and the lever for
 difficulty is rival pressure (below).
 
+### Who speaks reads stances (BL-101, as built 2026-10-11)
+`speakers.select_speakers` adds `stance_pull` to each candidate's score: the speaker's own stances toward everyone addressed or mentioned (`protective_of` 1.5, `resents` 1.0, `rival` 1.0 also via the stance's `about`, `crush` 0.8, `admires` 0.4, `ally` 0.3), summed and capped at `STANCE_CAP` 1.5 so an addressed person (+5) still answers. A pull of at least `INTERJECT_AT` (0.8) lets that person chime in as secondary even when the score gap to the primary exceeds `CLOSE_SCORE`. Someone who `distrusts` the player and was not addressed loses `DISTRUST_HUSH` (1.0): they stay quiet unless spoken to. Goal weight is still open (BL-101).
+
 ### Rival pressure: rivalry costs the player something (BL-98, as built 2026-10-10)
 
 `world_model/rival_move.py` `apply_rival_pressure`, run once a day from `turn.advance_npc_life` after agendas refresh. For every

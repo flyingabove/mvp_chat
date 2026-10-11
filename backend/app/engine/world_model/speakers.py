@@ -3,14 +3,16 @@
 Score = addressed (+5) / mentioned (+2) / warmth toward the player (+1 scaled)
 / topic overlap with an open thread (+2) / recency penalty (-2 last turn, -1
 the turn before) / rotating initiative for the one longest-silent person (+1.5;
-nobody gets it when several are tied, e.g. before anyone has spoken).
+nobody gets it when several are tied, e.g. before anyone has spoken) / the speaker's own stances (BL-101: up to +1.5
+when the subject is someone they are protective of, resent, are drawn to or rival over; -1 for someone who distrusts
+the player and was not addressed).
 """
 from __future__ import annotations
 
 import re
 from typing import TYPE_CHECKING, Callable, Iterable
 
-from backend.app.engine.world_model.model import SpeakerPlan
+from backend.app.engine.world_model.model import PLAYER, SpeakerPlan
 from backend.app.engine.world_model.threads import active_thread_topics
 
 if TYPE_CHECKING:
@@ -19,6 +21,21 @@ if TYPE_CHECKING:
 GROUP_ADDRESS = re.compile(r"\b(everyone|everybody|you all|y'all|you guys|guys|all of you|anyone|anybody|"
                            r"the (?:other )?(?:guys|girls|others|rest))\b", re.I)
 CLOSE_SCORE = 1.0
+STANCE_PULL = {"protective_of": 1.5, "resents": 1.0, "rival": 1.0, "crush": 0.8, "admires": 0.4, "ally": 0.3}
+STANCE_CAP = 1.5
+INTERJECT_AT = 0.8          # a stance pull this strong lets someone chime in even when another person was addressed
+DISTRUST_HUSH = 1.0
+
+
+def stance_pull(model: "WorldModel", cid: str, subjects: set[str]) -> float:
+    """How much the speaker's own stances make them want to speak about these people (`subjects`): toward them, or, for a
+    rival, about the person they both want. Capped so an addressed person still outranks it."""
+    pull = 0.0
+    for stance in model.stances.of(cid):
+        weight = STANCE_PULL.get(stance.kind, 0.0)
+        if weight and (stance.target in subjects or (stance.kind == "rival" and stance.about in subjects)):
+            pull += weight * min(1.0, stance.strength)
+    return min(STANCE_CAP, pull)
 MAX_SPEAKERS = 3
 
 
@@ -64,12 +81,17 @@ def select_speakers(model: "WorldModel", candidates: list[str], message: str,
     tied = [c for c in candidates if silence[c] == longest]
     silent_longest = tied[0] if len(tied) == 1 else ""
     scores: dict[str, float] = {}
+    pulls: dict[str, float] = {}
     for cid in candidates:
         character = model.characters[cid]
         score = 0.0
         score += 5.0 if cid in addressed else 2.0 if cid in mentioned else 0.0
         score += max(-1.0, min(1.0, warmth(cid)))
         score += 2.0 if active_thread_topics(model, cid) & words else 0.0
+        pulls[cid] = stance_pull(model, cid, (addressed | mentioned) - {cid})
+        score += pulls[cid]
+        if cid not in addressed and model.stances.has(cid, "distrusts", PLAYER):
+            score -= DISTRUST_HUSH                  # someone who distrusts the player does not volunteer
         since = character.turns_since_spoke(turn)
         score -= 2.0 if since == 1 else 1.0 if since == 2 else 0.0
         if cid == silent_longest and cid not in addressed:
@@ -84,7 +106,7 @@ def select_speakers(model: "WorldModel", candidates: list[str], message: str,
     for cid in ranked[1:]:
         if len(secondary) + 1 >= MAX_SPEAKERS:
             break
-        if cid in addressed or (group and scores[cid] > 0) or scores[primary] - scores[cid] <= CLOSE_SCORE:
+        if cid in addressed or (group and scores[cid] > 0) or scores[primary] - scores[cid] <= CLOSE_SCORE                 or pulls[cid] >= INTERJECT_AT:
             secondary.append(cid)
     if not group and not (addressed - {primary}):
         secondary = secondary[:1]

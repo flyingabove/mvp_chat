@@ -72,3 +72,50 @@ def test_selection_is_deterministic_for_the_same_turn():
     a, b = _model(), _model()
     assert select_speakers(a, ["uchi", "arisa", "hikaru"], "so").speakers == \
         select_speakers(b, ["uchi", "arisa", "hikaru"], "so").speakers
+
+
+# ---------------------------------------------------------------- BL-101: the speaker's own stances
+def _score_order(model, message, who=("uchi", "arisa", "hikaru")):
+    plan = select_speakers(model, list(who), message)
+    return plan, [plan.primary, *plan.secondary]
+
+
+def _stance(model, kind, holder, target, about="", strength=1.0):
+    from backend.app.engine.world_model.stances import Stance
+    model.stances.add(Stance(kind, holder, target, strength, about, (), 0))
+
+
+def test_a_protective_person_speaks_up_when_the_one_they_protect_is_mentioned():
+    model = _model()
+    _stance(model, "protective_of", "hikaru", "arisa")
+    plan, order = _score_order(model, "I think Arisa makes odd hats.")
+    assert "hikaru" in order and "uchi" not in order, order
+    baseline, _ = _score_order(_model(), "I think Arisa makes odd hats.")
+    assert "hikaru" not in baseline.speakers, "without the stance hikaru stays quiet"
+
+
+def test_a_rival_cuts_in_when_the_person_they_both_want_is_addressed():
+    model = _model()
+    _stance(model, "rival", "hikaru", "uchi", about="arisa")
+    plan, order = _score_order(model, "Arisa, what do you design?")
+    assert plan.primary == "arisa" and "hikaru" in plan.secondary
+
+
+def test_stance_pull_is_capped_below_being_addressed_and_ignores_other_kinds():
+    from backend.app.engine.world_model.speakers import STANCE_CAP, stance_pull
+    model = _model()
+    for kind in ("protective_of", "resents", "crush", "rival"):
+        _stance(model, kind, "hikaru", "arisa", about="arisa")
+    assert stance_pull(model, "hikaru", {"arisa"}) == STANCE_CAP < 5.0
+    _stance(model, "suspects", "uchi", "arisa")
+    assert stance_pull(model, "uchi", {"arisa"}) == 0.0
+    assert stance_pull(model, "hikaru", {"uchi"}) == 0.0
+
+
+def test_someone_who_distrusts_the_player_does_not_volunteer_but_still_answers_when_addressed():
+    model = _model()
+    _stance(model, "distrusts", "arisa", "player")
+    model.characters["arisa"].last_spoke_turn = -10
+    quiet = select_speakers(model, ["arisa", "hikaru"], "Hello everyone.")
+    assert quiet.primary == "hikaru"
+    assert select_speakers(model, ["arisa", "hikaru"], "Arisa, hello.").primary == "arisa"
