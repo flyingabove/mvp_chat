@@ -3,7 +3,7 @@
 Offline coverage (BL-33) and the rival mechanics with late-arrival aims and beat limits (BL-34) shipped 2026-09-30;
 as built: `design/SOCIAL_ENGINE.md`, "Scene recall and visible rivals" and "Leave-together asks, choice cards and
 plans". BL-34's remaining hosted evidence (rivals visibly competing over several story days) became an acceptance
-check of the headless season (BL-86); its pace margin became the BL-85 difficulty sweep.
+check of the headless season (BL-86); its pace margin became the P-08 difficulty sweep (done; rival pressure BL-98 shipped 2026-10-10, see `design/SOCIAL_ENGINE.md`).
 
 ## BL-33 — Terrace win path on hosted beta
 - **Bucket:** A (verification run)

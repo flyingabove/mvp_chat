@@ -15,6 +15,6 @@ fallout as stance rules, claim intent, staged talk and watching all moved into
 ## BL-82 — High-stakes act outcomes: delayed answers and the leave-together fallout
 - **Bucket:** C (engine)
 - **Plan:** P-14 (blocked by P-11); do not start it separately.
-- **Open:** (a) no "still thinking" answer that comes back after days, during which a rival can ask first; (b) Jev's verdict options are still accept / not yet / reject, with no "let me think"; (c) declined-act fallout covers `confess` only, not `ask_leave_together`, and the finale panel does not yet use these events (`ask_leave_together_declined` is listed in `commentary.FOOTAGE_KINDS`; verify an event is actually emitted for it).
+- **Open:** (a) no "still thinking" answer that comes back after days, during which a rival can ask first; (b) Jev's verdict options are still accept / not yet / reject, with no "let me think"; (c) declined-act fallout covers `confess` only, not `ask_leave_together`, and the finale panel does not yet use these events (`ask_leave_together_declined` is listed in `commentary.FOOTAGE_KINDS` but nothing in `backend/` emits it, checked 2026-10-11).
 - **Next:** a `pending_answer` record (act, target, due day) resolved later by the target's own stances and strategy (BL-85: `safe_pick` prefers whoever stands highest with them); add `defer` to the verdict options; apply fallout to `ask_leave_together` and add declined acts to the finale dossier.
 - **Touches:** `world_model/social_acts.py`, `act_fallout.py`, `npc_decision.py`, `commentary.py`.
